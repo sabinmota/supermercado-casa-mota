@@ -1,0 +1,89 @@
+{
+  "name": "Supermercado Casa Mota",
+  "short_name": "Casa Mota",
+  "description": "Tu supermercado dominicano en línea. Compra productos frescos, carnes, bebidas y más con entrega a domicilio.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "icons_note": "apple-touch-icon actualizado al logo original Casa Mota",
+  "theme_color": "#1a7c3e",
+  "lang": "es-DO",
+  "categories": ["shopping", "food"],
+  "icons": [
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icons/touch-icon-casamota.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "images/frutas.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Catálogo de productos frescos"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ver productos",
+      "short_name": "Productos",
+      "description": "Ver catálogo completo",
+      "url": "/index.html",
+      "icons": [{ "src": "images/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Mi cuenta",
+      "short_name": "Mi cuenta",
+      "description": "Ver mis pedidos y puntos",
+      "url": "/index.html#cuenta",
+      "icons": [{ "src": "images/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ]
+}

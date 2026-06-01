@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Supermercado Casa Mota – Compras en línea</title>
+  <script>
+    /* ── Forzar versión correcta ── */
+    (function(){
+      const VER = '287';
+      const KEY = 'cm_app_ver';
+      const stored = sessionStorage.getItem(KEY);
+      if (stored !== VER) {
+        sessionStorage.setItem(KEY, VER);
+        if (stored !== null) {
+          window.location.reload(true);
+        }
+      }
+    })();
+  </script>
+
+  <!-- ═══ PWA META TAGS ═══════════════════════════════════════════════════ -->
+  <!-- Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Theme color (barra del navegador y status bar del móvil) -->
+  <meta name="theme-color" content="#1a7c3e" />
+  <meta name="msapplication-TileColor" content="#1a7c3e" />
+
+  <!-- iOS (Apple) -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Casa Mota" />
+  <!-- iOS: apple-touch-icon generado dinámicamente desde Canvas para evitar caché -->
+  <link rel="apple-touch-icon" id="ati-default" href="images/logo-casamota.png" />
+  <link rel="apple-touch-icon" sizes="180x180" id="ati-180" href="images/logo-casamota.png" />
+  <link rel="apple-touch-icon" sizes="152x152" id="ati-152" href="images/logo-casamota.png" />
+  <script>
+    // Genera el apple-touch-icon en canvas para que iOS no use versión cacheada
+    (function() {
+      try {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+          var c = document.createElement('canvas');
+          c.width = 180; c.height = 180;
+          var ctx = c.getContext('2d');
+          // Fondo blanco
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 180, 180);
+          ctx.drawImage(img, 0, 0, 180, 180);
+          var dataUrl = c.toDataURL('image/png');
+          ['ati-default','ati-180','ati-152'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.href = dataUrl;
+          });
+        };
+        img.src = 'images/logo-casamota.png?v=178';
+      } catch(e) {}
+    })();
+  </script>
+
+  <!-- Descripción (SEO + PWA) -->
+  <meta name="description" content="Tu supermercado dominicano en línea. Frutas, vegetales, carnes, bebidas y más con entrega a domicilio en Santo Domingo." />
+  <meta name="keywords" content="supermercado, Santo Domingo, República Dominicana, entrega a domicilio, frutas, verduras" />
+
+  <!-- Open Graph (compartir en redes sociales) -->
+  <meta property="og:title" content="Supermercado Casa Mota" />
+  <meta property="og:description" content="Tu supermercado dominicano en línea con entrega a domicilio." />
+  <meta property="og:image" content="images/logo-casamota.png" />
+  <meta property="og:type" content="website" />
+
+  <!-- Splash screens iOS -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+
+  <!-- ── Guard de sesión: redirige al login ANTES de renderizar nada ── -->
+  <!-- Este script es síncrono: se ejecuta antes de cargar CSS o mostrar el body -->
+  <script>
+    (function() {
+      try {
+        // Leer localStorage (persistente) Y sessionStorage (compatibilidad)
+        var s = localStorage.getItem('cm_client_session')
+             || sessionStorage.getItem('cm_client_session');
+        if (!s || s === 'null') {
+          // Sin sesión → ir al login inmediatamente, sin flash de la tienda
+          window.location.replace('login-cliente.html');
+        }
+      } catch(e) {
+        window.location.replace('login-cliente.html');
+      }
+    })();
+  </script>
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="images/logo-casamota.png" />
+  <link rel="shortcut icon" href="images/logo-casamota.png" />
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+
+  <link rel="stylesheet" href="css/style.css?v=288" />
+  <style>
+    /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
+    html, body {
+      touch-action: pan-x pan-y;
+      -ms-touch-action: pan-x pan-y;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="header" id="header">
+
+
+    <div class="header-main">
+      <div class="container header-main-inner">
+        <!-- Logo -->
+        <div class="logo" onclick="resetFilters()" style="cursor:pointer">
+          <img src="images/logo-casamota.png" alt="Supermercado Casa Mota" class="logo-img" />
+        </div>
+
+        <!-- Barra de búsqueda -->
+        <div class="search-bar">
+          <select class="search-category" id="searchCategory" onchange="onSearchCategoryChange()">
+            <option value="">Todas las categorías</option>
+          </select>
+          <input type="text" id="searchInput" class="search-input" placeholder="¿Qué necesitas hoy?" />
+          <button class="barcode-scan-btn" onclick="openBarcodeScanner()" title="Escanear código de barras">
+            <i class="fas fa-barcode"></i>
+          </button>
+          <button class="search-btn" onclick="handleSearch()">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
+
+        <!-- Acciones de usuario -->
+        <div class="header-actions">
+
+          
+          <!-- Saludo al cliente (se llena por JS) -->
+          <div class="client-greeting hidden" id="clientGreeting">
+            <div class="client-avatar" id="clientAvatar">?</div>
+            <div class="client-greeting-text">
+              <span class="client-hello">Hola,</span>
+              <span class="client-name" id="clientName">Cliente</span>
+            </div>
+            <button class="client-logout-btn" onclick="logoutCliente()" title="Cerrar sesión">
+              <i class="fas fa-right-from-bracket"></i>
+            </button>
+          </div>
+          <button class="action-btn" title="Mi cuenta" onclick="toggleMyAccount()" id="myAccountBtn">
+            <i class="fas fa-user"></i>
+            <span id="myAccountLabel">Mi cuenta</span>
+          </button>
+          <button class="action-btn favorites-btn" title="Favoritos" onclick="toggleFavorites()">
+            <i class="fas fa-heart"></i>
+            <span>Favoritos</span>
+            <span class="favorites-badge" id="favoritesBadge" style="display: none;">0</span>
+          </button>
+          <button class="action-btn cart-btn" title="Carrito" onclick="toggleCart()" ontouchend="setTimeout(()=>this.blur(),80)">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Carrito</span>
+            <span class="cart-badge" id="cartBadge">0</span>
+          </button>
+          <!-- Botón instalar PWA (visible solo en Android/Chrome cuando no está instalada) -->
+          <button class="action-btn pwa-install-btn" id="pwaInstallBtn"
+                  onclick="installPWA()" title="Instalar app en tu móvil"
+                  style="display:none;background:linear-gradient(135deg,#1a7c3e,#27a35a);color:#fff;border:none;gap:6px">
+            <i class="fas fa-download"></i>
+            <span>Instalar app</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botón de categorías -->
+    <div class="cat-btn-bar">
+      <button class="cat-all-btn" id="catAllBtn" onclick="openCatModal()">
+        <span class="cat-all-btn__icon"><i class="fas fa-th-large"></i></span>
+        <span class="cat-all-btn__text">TODAS LAS CATEGORÍAS</span>
+        <span class="cat-all-btn__active" id="catActiveName"></span>
+        <span class="cat-all-btn__arrow"><i class="fas fa-chevron-down"></i></span>
+      </button>
+    </div>
+
+    <!-- Modal de categorías -->
+    <div class="cat-modal-backdrop" id="catModalBackdrop" onclick="closeCatModal()" style="display:none"></div>
+    <div class="cat-modal" id="catModal" style="display:none">
+      <div class="cat-modal__header">
+        <span><i class="fas fa-th-large"></i> Selecciona una categoría</span>
+        <button class="cat-modal__close" onclick="closeCatModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <ul class="cat-modal__list" id="catModalList">
+        <li><button class="cat-modal__item cat-modal__item--all" data-cat="all" onclick="selectCatModal('all')">
+          <span class="cat-modal__emoji">🛒</span>
+          <span class="cat-modal__name">Todo</span>
+        </button></li>
+      </ul>
+    </div>
+
+    <!-- Lista oculta para buildCategoryNav (compatibilidad interna) -->
+    <ul id="categoryNav" style="display:none"></ul>
+  </header>
+
+  <!-- ===================== ESCÁNER DE CÓDIGO DE BARRAS ===================== -->
+  <div class="barcode-overlay hidden" id="barcodeOverlay">
+    <div class="barcode-modal">
+
+      <!-- Cabecera -->
+      <div class="barcode-header">
+        <span><i class="fas fa-barcode"></i> Escanear producto</span>
+        <div class="barcode-header-actions">
+          <!-- Botón linterna: se muestra siempre, toggle manual -->
+          <button class="barcode-torch-btn" id="barcodeTorchBtn"
+                  onclick="torchToggle()" aria-label="Encender linterna" title="Encender linterna">
+            <i class="fas fa-bolt" style="color:#666"></i>
+          </button>
+          <button class="barcode-close-btn" onclick="closeBarcodeScanner()" aria-label="Cerrar">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- ① VISOR DE CÁMARA EN VIVO — detección automática al enfocar -->
+      <div class="barcode-viewfinder" id="barcodeViewfinder">
+        <!-- Quagga2 inyecta el video aquí -->
+        <div id="barcodeQuaggaArea"></div>
+
+        <!-- Overlay con marco de escaneo animado -->
+        <div class="barcode-scanner-frame">
+          <div class="bsf-corner bsf-tl"></div>
+          <div class="bsf-corner bsf-tr"></div>
+          <div class="bsf-corner bsf-bl"></div>
+          <div class="bsf-corner bsf-br"></div>
+          <div class="bsf-laser"></div>
+        </div>
+
+        <!-- Estado del escáner -->
+        <div class="barcode-status" id="barcodeStatus" style="display:none">
+          <div class="bs-dot"></div>
+          <span id="barcodeStatusText">Iniciando cámara…</span>
+        </div>
+      </div>
+
+      <!-- ② FOTO: modo principal en iOS, fallback en Android -->
+      <div class="barcode-photo-fallback hidden" id="barcodePhotoFallback">
+        <!-- Estado: abriendo cámara automáticamente -->
+        <p class="barcode-photo-hint" id="barcodePhotoHint" style="display:none"></p>
+        <!-- capture="environment" abre directamente la cámara trasera -->
+        <input type="file" id="barcodePhotoInput"
+               accept="image/*" capture="environment"
+               style="display:none"
+               onchange="handleBarcodePhoto(this)"
+               oncancel="_onBarcodePhotoCancel()">
+        <!-- Botón de reintento: solo visible si el usuario cancela o hay error -->
+        <button class="barcode-photo-btn hidden" id="barcodeBtnReopen"
+                onclick="_reopenBarcodeCamera()">
+          <i class="fas fa-camera"></i> Abrir cámara
+        </button>
+        <p class="barcode-photo-processing hidden" id="barcodePhotoProcessing">
+          <i class="fas fa-spinner fa-spin"></i> Leyendo código…
+        </p>
+      </div>
+
+      <!-- ③ BÚSQUEDA POR NOMBRE O CÓDIGO — siempre visible -->
+      <div class="barcode-manual-wrap">
+        <div class="barcode-manual-label">
+          <i class="fas fa-search"></i> O busca por nombre / código:
+        </div>
+        <div class="barcode-manual-row">
+          <input type="text" id="barcodeManualInput"
+                 class="barcode-manual-input"
+                 placeholder="Aceite, leche, 7468193…"
+                 autocomplete="off"
+                 inputmode="search"
+                 oninput="barcodeLiveSearch(this.value)"
+                 onkeydown="if(event.key==='Enter') submitManualBarcode()">
+          <button class="barcode-manual-btn" onclick="submitManualBarcode()" aria-label="Buscar">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
+        <div id="barcodeLiveResults" class="barcode-live-results hidden"></div>
+      </div>
+
+      <!-- Mensajes resultado / error -->
+      <div class="barcode-result hidden" id="barcodeResult">
+        <i class="fas fa-check-circle"></i>
+        <span id="barcodeResultText">Producto encontrado</span>
+      </div>
+      <div class="barcode-error hidden" id="barcodeError">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="barcodeErrorText">Código no encontrado</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== HERO BANNER ===================== -->
+  <section class="hero">
+    <div class="hero-slider" id="heroSlider">
+      <div class="hero-slide active">
+        <div class="hero-content">
+          <p class="hero-tag"><i class="fas fa-bolt"></i> Oferta del día</p>
+          <h1>Frutas Tropicales<br /><span>Frescas & Naturales</span></h1>
+          <p class="hero-desc">Seleccionadas cada mañana directamente del campo dominicano. Sabor auténtico en tu mesa.</p>
+          <button class="hero-btn" onclick="filterCategory('frutas', document.querySelector('[data-cat=frutas]'))">
+            Ver ofertas <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+        <div class="hero-image">
+          <img src="images/frutas.jpg" alt="Frutas tropicales frescas" />
+        </div>
+      </div>
+      <div class="hero-slide">
+        <div class="hero-content hero-content--dark">
+          <p class="hero-tag tag--red"><i class="fas fa-fire"></i> Super oferta</p>
+          <h1>Carnes & Mariscos<br /><span>Calidad Premium</span></h1>
+          <p class="hero-desc">Cortes frescos de res, pollo y cerdo. Mariscos del día con la mejor calidad.</p>
+          <button class="hero-btn btn--red" onclick="filterCategory('carnes', document.querySelector('[data-cat=carnes]'))">
+            Explorar <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+        <div class="hero-image">
+          <img src="images/carnes.jpg" alt="Carnes premium" />
+        </div>
+      </div>
+      <div class="hero-slide">
+        <div class="hero-content hero-content--blue">
+          <p class="hero-tag tag--blue"><i class="fas fa-tag"></i> Descuentos especiales</p>
+          <h1>Despensa &amp;<br /><span>Productos Básicos</span></h1>
+          <p class="hero-desc">Todo lo que necesitas para tu hogar al mejor precio. Arroz, habichuelas, aceite y más.</p>
+          <button class="hero-btn btn--blue" onclick="filterCategory('despensa', document.querySelector('[data-cat=despensa]'))">
+            Ver productos <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+        <div class="hero-image">
+          <img src="images/despensa.jpg" alt="Despensa y básicos" />
+        </div>
+      </div>
+    </div>
+    <!-- Controles del slider -->
+    <div class="slider-controls">
+      <button class="slider-prev" onclick="prevSlide()"><i class="fas fa-chevron-left"></i></button>
+      <div class="slider-dots" id="sliderDots">
+        <span class="dot active" onclick="goToSlide(0)"></span>
+        <span class="dot" onclick="goToSlide(1)"></span>
+        <span class="dot" onclick="goToSlide(2)"></span>
+      </div>
+      <button class="slider-next" onclick="nextSlide()"><i class="fas fa-chevron-right"></i></button>
+    </div>
+  </section>
+
+  <!-- ===================== CATEGORÍAS VISUALES ===================== -->
+  <section class="section categories-section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Compra por Categoría</h2>
+        <p>Encuentra exactamente lo que necesitas</p>
+      </div>
+      <div class="category-grid">
+        <div class="cat-card" onclick="filterCategory('frutas', document.querySelector('[data-cat=frutas]'))">
+          <div class="cat-card-img"><img src="images/frutas.jpg" alt="Frutas" /></div>
+          <div class="cat-card-info"><h3>Frutas</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('vegetales', document.querySelector('[data-cat=vegetales]'))">
+          <div class="cat-card-img"><img src="images/vegetales.jpg" alt="Vegetales" /></div>
+          <div class="cat-card-info"><h3>Vegetales</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('carnes', document.querySelector('[data-cat=carnes]'))">
+          <div class="cat-card-img"><img src="images/carnes.jpg" alt="Carnes" /></div>
+          <div class="cat-card-info"><h3>Carnes</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('lacteos', document.querySelector('[data-cat=lacteos]'))">
+          <div class="cat-card-img"><img src="images/lacteos.jpg" alt="Lácteos" /></div>
+          <div class="cat-card-info"><h3>Lácteos</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('panaderia', document.querySelector('[data-cat=panaderia]'))">
+          <div class="cat-card-img"><img src="images/panaderia.jpg" alt="Panadería" /></div>
+          <div class="cat-card-info"><h3>Panadería</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('mariscos', document.querySelector('[data-cat=mariscos]'))">
+          <div class="cat-card-img"><img src="images/mariscos.jpg" alt="Mariscos" /></div>
+          <div class="cat-card-info"><h3>Mariscos</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('bebidas', document.querySelector('[data-cat=bebidas]'))">
+          <div class="cat-card-img"><img src="images/bebidas.jpg" alt="Bebidas" /></div>
+          <div class="cat-card-info"><h3>Bebidas</h3></div>
+        </div>
+        <div class="cat-card" onclick="filterCategory('despensa', document.querySelector('[data-cat=despensa]'))">
+          <div class="cat-card-img"><img src="images/despensa.jpg" alt="Despensa" /></div>
+          <div class="cat-card-info"><h3>Despensa</h3></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PRODUCTOS DESTACADOS ===================== -->
+  <section class="section products-section" id="productsSection">
+    <div class="container">
+      <div class="section-header products-header">
+        <div>
+          <h2 id="sectionTitle">Todos los Productos</h2>
+          <p id="sectionSubtitle">Seleccionados con la mejor calidad para ti</p>
+        </div>
+        <div class="products-controls">
+          <div class="sort-control">
+            <label for="sortSelect"><i class="fas fa-sort"></i> Ordenar:</label>
+            <select id="sortSelect" onchange="sortProducts()">
+              <option value="default">Por defecto</option>
+              <option value="price-asc">Precio: menor a mayor</option>
+              <option value="price-desc">Precio: mayor a menor</option>
+              <option value="name-asc">Nombre A–Z</option>
+              <option value="name-desc">Nombre Z–A</option>
+            </select>
+          </div>
+          <div class="view-toggle">
+            <button class="view-btn active" id="gridViewBtn" onclick="setView('grid')" title="Vista cuadrícula">
+              <i class="fas fa-th"></i>
+            </button>
+            <button class="view-btn" id="listViewBtn" onclick="setView('list')" title="Vista lista">
+              <i class="fas fa-list"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros activos -->
+      <div class="active-filters" id="activeFilters"></div>
+
+      <!-- Grid de productos -->
+      <div class="products-grid" id="productsGrid">
+        <!-- Se renderiza con JS -->
+      </div>
+
+      <!-- Sin resultados -->
+      <div class="no-results hidden" id="noResults">
+        <i class="fas fa-search"></i>
+        <h3>No se encontraron productos</h3>
+        <p>Intenta con otros términos de búsqueda o cambia los filtros.</p>
+        <button onclick="resetFilters()">Ver todos los productos</button>
+      </div>
+
+      <!-- Paginación -->
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </section>
+
+  <!-- ===================== BANNER PROMO ===================== -->
+  <section class="promo-banner">
+    <div class="container promo-inner">
+      <div class="promo-card promo-green">
+        <i class="fas fa-truck-fast"></i>
+        <div>
+          <h3>Entrega a domicilio</h3>
+          <p>En Santo Domingo y zonas metropolitanas. Pedidos antes de las 6pm.</p>
+        </div>
+      </div>
+      <div class="promo-card promo-orange">
+        <i class="fas fa-percent"></i>
+        <div>
+          <h3>Ofertas semanales</h3>
+          <p>Nuevas promociones cada lunes. ¡Ahorra hasta un 30% en selección de productos!</p>
+        </div>
+      </div>
+      <div class="promo-card promo-blue">
+        <i class="fas fa-shield-halved"></i>
+        <div>
+          <h3>Pago seguro</h3>
+          <p>Acepta tarjetas de crédito/débito, transferencias y efectivo contra entrega.</p>
+        </div>
+      </div>
+      <div class="promo-card promo-red">
+        <i class="fas fa-star"></i>
+        <div>
+          <h3>Calidad garantizada</h3>
+          <p>Productos frescos con garantía de satisfacción o te devolvemos tu dinero.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="footer">
+    <div class="container footer-grid">
+
+      <!-- Col 1: Marca -->
+      <div class="footer-col footer-col-brand">
+        <div class="footer-logo">
+          <img src="images/logo-casamota.png" alt="Supermercado Casa Mota" class="logo-img footer-logo-img" />
+        </div>
+        <p>Con los mejores precios en Hato Mayor del Rey. Más de 30 años serviendo a las familias dominicanas con productos frescos y calidad garantizada.</p>
+        <div class="social-links">
+          <a href="#" title="Facebook"><i class="fab fa-facebook"></i></a>
+          <a href="#" title="Instagram"><i class="fab fa-instagram"></i></a>
+          <a href="#" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+          <a href="#" title="Twitter"><i class="fab fa-twitter"></i></a>
+        </div>
+      </div>
+
+      <!-- Col 2: Contacto -->
+      <div class="footer-col">
+        <h4>Contacto</h4>
+        <ul class="contact-list">
+          <li><i class="fas fa-map-marker-alt"></i> <span id="storeAddressFooter"></span></li>
+          <li><i class="fas fa-phone"></i> <span id="storePhoneFooter"></span></li>
+          <li><i class="fas fa-envelope"></i> <span id="storeEmailFooter"></span></li>
+          <li><i class="fas fa-clock"></i> <span id="storeHoursWkFooter"></span></li>
+          <li><i class="fas fa-clock"></i> <span id="storeHoursSunFooter"></span></li>
+        </ul>
+        <div class="app-badges">
+          <span class="app-badge"><i class="fab fa-apple"></i> App Store</span>
+          <span class="app-badge"><i class="fab fa-google-play"></i> Google Play</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="footer-bottom">
+      <div class="container">
+        <p>© 2026 Supermercado Casa Mota. Todos los derechos reservados. Diseñado en República Dominicana 🇩🇴</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================== PANEL DE FAVORITOS ===================== -->
+  <div class="favorites-overlay" id="favoritesOverlay" onclick="toggleFavorites()"></div>
+  <aside class="favorites-panel" id="favoritesPanel">
+    <div class="favorites-header">
+      <h3><i class="fas fa-heart"></i> Mis Favoritos</h3>
+      <button class="favorites-close" onclick="toggleFavorites()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="favorites-items" id="favoritesItems">
+      <!-- Los favoritos se renderizan dinámicamente con renderFavorites() -->
+    </div>
+  </aside>
+
+  <!-- ===================== PANEL DEL CARRITO ===================== -->
+  <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+  <aside class="cart-panel" id="cartPanel">
+    <div class="cart-header">
+      <h3><i class="fas fa-shopping-cart"></i> Mi Carrito</h3>
+      <button class="cart-close" onclick="toggleCart()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="cart-items" id="cartItems">
+      <!-- Los ítems se renderizan dinámicamente con renderCartItems() -->
+    </div>
+    <div class="cart-footer hidden" id="cartFooter">
+      <div class="cart-summary">
+        <div class="cart-row"><span>Subtotal</span><span id="cartSubtotal">RD$ 0.00</span></div>
+        <div class="cart-row"><span>Envío</span><span id="cartShipping">Gratis</span></div>
+        <div class="cart-row cart-total"><span>Total</span><span id="cartTotal">RD$ 0.00</span></div>
+      </div>
+
+      <button class="checkout-btn" onclick="checkout()">
+        <i class="fas fa-credit-card"></i> Proceder al pago
+      </button>
+      <button class="continue-btn" onclick="toggleCart()">
+        <i class="fas fa-arrow-left"></i> Continuar comprando
+      </button>
+    </div>
+
+  <!-- Bottom sheet: explicación de sustitución -->
+  <div class="sustitucion-backdrop hidden" id="sustitucionBackdrop" onclick="closeSustitucionInfo()"></div>
+  <div class="sustitucion-sheet hidden" id="sustitucionSheet">
+    <div class="sustitucion-sheet-handle"></div>
+    <div class="sustitucion-sheet-icon">
+      <i class="fas fa-shuffle"></i>
+    </div>
+    <h3 class="sustitucion-sheet-title">Sustitución de productos</h3>
+    <p class="sustitucion-sheet-desc">
+      Al activar esta opción, autorizas a nuestros recolectores a reemplazar cualquier producto
+      que no esté disponible en inventario por uno <strong>similar de igual o mayor calidad</strong>,
+      sin cambiar el precio que ya acordaste.
+    </p>
+    <ul class="sustitucion-sheet-list">
+      <li><i class="fas fa-check-circle"></i> Mismo precio o menor</li>
+      <li><i class="fas fa-check-circle"></i> Categoría equivalente</li>
+      <li><i class="fas fa-check-circle"></i> Te notificamos antes de la entrega</li>
+    </ul>
+    <button class="sustitucion-sheet-btn" onclick="closeSustitucionInfo()">
+      Entendido
+    </button>
+  </div>
+  </aside>
+
+  <!-- ===================== LIGHTBOX IMAGEN PRODUCTO ===================== -->
+  <div id="imgLightbox" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);align-items:center;justify-content:center;cursor:zoom-out">
+    <button onclick="closeLightbox()" style="
+        position:absolute;
+        top: calc(env(safe-area-inset-top, 0px) + 54px);
+        right:18px;
+        background:#e53935;
+        border:2.5px solid rgba(255,255,255,.35);
+        color:#fff;
+        width:48px;
+        height:48px;
+        border-radius:50%;
+        font-size:1.35rem;
+        font-weight:700;
+        cursor:pointer;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        z-index:2;
+        box-shadow:0 3px 12px rgba(0,0,0,.45);
+        -webkit-tap-highlight-color:transparent;
+        touch-action:manipulation">
+      <i class="fas fa-times"></i>
+    </button>
+    <img id="imgLightboxImg" src="" alt="" onclick="event.stopPropagation()" style="max-width:92vw;max-height:82vh;object-fit:contain;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.35);user-select:none;touch-action:none;cursor:grab;transform-origin:center center;" />
+    <div style="position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);color:rgba(255,255,255,.5);font-size:.72rem;letter-spacing:.04em;pointer-events:none;white-space:nowrap">
+      Pellizca · Doble toque · Toca fuera para cerrar
+    </div>
+  </div>
+
+  <!-- ===================== MODAL PAGO / CHECKOUT ===================== -->
+  <div class="checkout-overlay hidden" id="checkoutOverlay" onclick="closeCheckout()"></div>
+  <div class="checkout-modal hidden" id="checkoutModal" onclick="event.stopPropagation()">
+
+    <!-- Cabecera -->
+    <div class="chk-header">
+      <div class="chk-header-icon"><i class="fas fa-bag-shopping"></i></div>
+      <div>
+        <h2 class="chk-title">Confirmar pedido</h2>
+        <p class="chk-subtitle" id="chkSubtitle">Revisa tu pedido y elige cómo pagar</p>
+      </div>
+      <button class="chk-close" onclick="closeCheckout()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- Resumen del pedido -->
+    <div class="chk-body">
+
+      <!-- Lista de productos -->
+      <div class="chk-section-title"><i class="fas fa-list-check"></i> Resumen del pedido</div>
+      <div class="chk-products" id="chkProducts"></div>
+
+      <!-- Totales -->
+      <div class="chk-totals" id="chkTotals"></div>
+
+      <!-- Datos de entrega -->
+      <div class="chk-section-title" style="margin-top:18px"><i class="fas fa-truck-fast"></i> Datos de entrega</div>
+      <div class="chk-delivery" id="chkDelivery"></div>
+
+      <!-- Horario de entrega estimado -->
+      <div class="chk-section-title" style="margin-top:18px"><i class="fas fa-clock"></i> Horario de entrega estimado</div>
+      <div class="chk-schedule-card" id="chkScheduleCard">
+        <!-- Se rellena dinámicamente por _renderHorarioEntrega() -->
+      </div>
+
+      <!-- Método de pago -->
+      <div class="chk-section-title" style="margin-top:18px"><i class="fas fa-credit-card"></i> Método de pago</div>
+      <div class="chk-payment-grid" id="chkPaymentGrid">
+
+        <label class="pay-option">
+          <input type="radio" name="payMethod" value="efectivo" checked />
+          <div class="pay-card">
+            <div class="pay-icon pay-cash"><i class="fas fa-money-bill-wave"></i></div>
+            <div class="pay-info">
+              <span class="pay-name">Efectivo</span>
+              <span class="pay-desc">Pago contra entrega en tu puerta</span>
+            </div>
+            <div class="pay-check"><i class="fas fa-circle-check"></i></div>
+          </div>
+        </label>
+
+        <label class="pay-option">
+          <input type="radio" name="payMethod" value="tarjeta" />
+          <div class="pay-card">
+            <div class="pay-icon pay-card-icon">
+              <i class="fas fa-credit-card"></i>
+            </div>
+            <div class="pay-info">
+              <span class="pay-name">Tarjeta</span>
+              <span class="pay-desc">Débito o crédito (Visa, Mastercard, Amex)</span>
+            </div>
+            <div class="pay-check"><i class="fas fa-circle-check"></i></div>
+          </div>
+        </label>
+
+      </div><!-- /chkPaymentGrid -->
+
+      <!-- Nota adicional -->
+      <div style="margin-top:16px">
+        <label class="chk-section-title" for="chkNote" style="margin-bottom:8px;cursor:default">
+          <i class="fas fa-note-sticky"></i> Nota para el repartidor <span style="font-weight:400;color:#aaa;font-size:.75rem">(opcional)</span>
+        </label>
+        <textarea id="chkNote" placeholder="Ej: Tocar el timbre, apartamento 3B, dejar en la recepción…"
+          style="width:100%;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:.88rem;font-family:inherit;resize:none;outline:none;transition:border-color .2s;line-height:1.5"
+          rows="2" onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      </div>
+
+      <!-- Cupón de descuento -->
+      <div style="margin-top:16px;background:#f7f9f4;border-radius:12px;padding:14px 16px;border:1.5px dashed #1a7c3e">
+        <label class="chk-section-title" style="margin-bottom:10px;cursor:default">
+          <i class="fas fa-ticket" style="color:#1a7c3e"></i> Cupón de descuento
+        </label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="chkCuponInput" placeholder="Ingresa tu código" maxlength="30"
+            style="flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;text-transform:uppercase"
+            oninput="this.value=this.value.toUpperCase()"
+            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'"
+            onkeydown="if(event.key==='Enter') applyCupon()" />
+          <button onclick="applyCupon()" style="background:linear-gradient(135deg,#1a7c3e,#27a35a);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.9rem;white-space:nowrap">
+            Aplicar
+          </button>
+        </div>
+        <div id="chkCuponMsg" style="margin-top:8px;font-size:.83rem;display:none"></div>
+      </div>
+
+      <!-- Comprobante Fiscal -->
+      <div class="chk-fiscal-row" style="margin-top:16px">
+        <div class="chk-fiscal-label">
+          <i class="fas fa-file-invoice"></i>
+          <div>
+            <span class="chk-fiscal-title">Comprobante fiscal</span>
+            <span class="chk-fiscal-sub">Solicitar NCF para esta compra</span>
+          </div>
+        </div>
+        <label class="chk-toggle">
+          <input type="checkbox" id="chkFiscalToggle" onchange="toggleFiscalForm()" />
+          <span class="chk-toggle-slider"></span>
+        </label>
+      </div>
+      <!-- Formulario NCF (oculto por defecto) -->
+      <div class="chk-fiscal-form hidden" id="chkFiscalForm">
+        <div class="chk-fiscal-field">
+          <label>RNC o Cédula</label>
+          <input type="text" id="chkFiscalRNC" placeholder="Ej: 1-23-45678-9 o 00112345678"
+            maxlength="20" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;"
+            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'" />
+        </div>
+        <div class="chk-fiscal-field">
+          <label>Nombre o razón social</label>
+          <input type="text" id="chkFiscalNombre" placeholder="Ej: Empresa S.R.L."
+            maxlength="80" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;"
+            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'" />
+        </div>
+      </div>
+
+    </div><!-- /chk-body -->
+
+    <!-- Footer con botón confirmar -->
+    <div class="chk-footer">
+      <div class="chk-footer-total">
+        <div id="chkDescuentoRow" style="display:none;font-size:.85rem;color:#1a7c3e;font-weight:600;margin-bottom:4px">
+          <i class="fas fa-tag"></i> Descuento: <span id="chkDescuentoAmt"></span>
+        </div>
+        <span>Total a pagar</span>
+        <strong id="chkFooterTotal">RD$ 0.00</strong>
+      </div>
+      <div class="chk-footer-btns">
+        <button class="chk-btn-cancel" onclick="closeCheckout()">
+          <i class="fas fa-arrow-left"></i> Volver al carrito
+        </button>
+        <button class="chk-btn-confirm" id="chkConfirmBtn" onclick="confirmOrder()">
+          <i class="fas fa-check-circle"></i> Confirmar pedido
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /checkoutModal -->
+
+  <!-- ===================== CHATBOT ASISTENTE IA ===================== -->
+
+  <!-- Botón flotante (FAB) -->
+  <div class="chat-fab-wrap" id="chatFabWrap">
+    <button class="chat-fab" id="chatFabBtn" onclick="toggleChat()" aria-label="Asistente de compras">
+      <img src="images/maya-avatar-v2.png" alt="Maya" class="chat-fab-logo">
+    </button>
+    <span class="chat-fab-badge" id="chatFabBadge" style="display:none">1</span>
+  </div>
+
+  <!-- Panel del chat -->
+  <div class="chat-panel" id="chatPanel">
+
+    <!-- Cabecera -->
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="chat-header-avatar">
+          <img src="images/maya-avatar-v2.png" alt="Maya" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
+          <span class="chat-online-dot"></span>
+        </div>
+        <div>
+          <div class="chat-header-name">Maya · Asistente IA</div>
+          <div class="chat-header-status">En línea · Casa Mota</div>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        <button class="chat-header-btn" onclick="chatClear()" title="Nueva conversación">
+          <i class="fas fa-rotate-right"></i>
+        </button>
+        <button class="chat-header-btn" onclick="closeChat()" title="Cerrar">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mensajes -->
+    <div class="chat-messages" id="chatMessages">
+      <!-- Se llena dinámicamente -->
+    </div>
+
+    <!-- Input de mensaje -->
+    <div class="chat-input-area">
+      <textarea
+        id="chatMsgInput"
+        class="chat-input"
+        placeholder="Pregúntame algo… ej: ¿tienen pollo?"
+        rows="1"
+        onkeydown="chatInputKeydown(event)"
+        oninput="chatInputAutoResize(this)"
+      ></textarea>
+      <button class="chat-send-btn" id="chatSendBtn" onclick="chatSend()" aria-label="Enviar">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="chat-footer-note">
+      <i class="fas fa-robot"></i> Impulsado por IA · Groq
+    </div>
+
+  </div>
+  <!-- ===================== FIN CHATBOT ===================== -->
+
+  <!-- ===================== TOAST NOTIFICATIONS ===================== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Banner de instalación para iOS (Safari no tiene botón automático) -->
+  <div class="ios-install-banner" id="iosInstallBanner">
+    <button class="ios-close" onclick="document.getElementById('iosInstallBanner').classList.remove('show')">
+      <i class="fas fa-times"></i>
+    </button>
+    <div style="font-size:1.5rem;margin-bottom:6px">📲</div>
+    <div>Para instalar <strong>Casa Mota</strong> en tu iPhone:</div>
+    <div style="margin-top:8px;color:#ccc;font-size:.8rem">
+      Toca <strong style="color:#27a35a"><i class="fas fa-arrow-up-from-bracket"></i> Compartir</strong>
+      y luego <strong style="color:#27a35a">Agregar a pantalla de inicio</strong>
+    </div>
+  </div>
+
+  <!-- ===================== MODAL PRODUCTO ===================== -->
+  <div class="modal-overlay hidden" id="modalOverlay" onclick="closeModal()">
+    <div class="product-modal" onclick="event.stopPropagation()" id="productModal">
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+      <div class="modal-content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- ===================== PANEL MI CUENTA ===================== -->
+  <div class="account-overlay hidden" id="accountOverlay" onclick="toggleMyAccount()"></div>
+  <aside class="account-panel" id="accountPanel">
+    <div class="account-panel-header">
+      <div class="account-panel-avatar" id="panelAvatar">?</div>
+      <div>
+        <div class="account-panel-name" id="panelName">Cargando...</div>
+        <div class="account-panel-email" id="panelEmail"></div>
+      </div>
+      <button class="account-panel-close" onclick="toggleMyAccount()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="account-panel-body">
+    <!-- Info de la cuenta -->
+    <div class="account-info-grid" id="accountInfoGrid"></div>
+
+    <!-- Ubicación de entrega -->
+    <div class="account-location-section">
+      <div class="account-section-title"><i class="fas fa-location-dot"></i> Mi ubicación de entrega</div>
+      <div id="locationStatus" class="location-status-box"></div>
+      <div class="location-actions">
+        <button class="btn-location-gps" onclick="shareMyLocation()">
+          <i class="fas fa-crosshairs"></i> Usar mi ubicación GPS
+        </button>
+        <button class="btn-location-link" onclick="toggleMapLinkInput()">
+          <i class="fas fa-link"></i> Pegar enlace de Maps
+        </button>
+      </div>
+      <div id="mapLinkInputWrap" class="map-link-input-wrap hidden">
+        <input type="url" id="mapLinkInput" class="map-link-input"
+               placeholder="Pega aquí tu enlace de Google Maps…" />
+        <button class="btn-save-location" onclick="saveMapLink()">
+          <i class="fas fa-check"></i> Guardar
+        </button>
+      </div>
+      <div id="mapPreviewWrap" class="map-preview-wrap hidden">
+        <div class="map-preview-header">
+          <span><i class="fas fa-circle-check" style="color:#1a7c3e"></i> Ubicación guardada</span>
+          <a id="mapOpenLink" href="#" target="_blank" rel="noopener" class="map-open-btn">
+            <i class="fas fa-map-location-dot"></i> Abrir
+          </a>
+          <button class="map-delete-btn" onclick="deleteMyLocation()" title="Eliminar ubicación">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mis Puntos / Fidelización -->
+    <div class="account-loyalty-section">
+      <div class="account-section-title"><i class="fas fa-star"></i> Mis puntos</div>
+      <div id="loyaltyCard"></div>
+    </div>
+
+    <!-- Historial de cupones usados -->
+    <div class="account-coupons-section">
+      <div class="account-section-title" id="myCouponsHeader">
+        <div style="display:flex;align-items:center;gap:8px;flex:1">
+          <i class="fas fa-ticket"></i> Mis cupones usados
+          <span class="coupon-savings-badge" id="totalSavingsBadge">Ahorro total: RD$ 0.00</span>
+        </div>
+        <!-- El botón "Limpiar todo" se inyecta dinámicamente por renderMyCoupons() -->
+      </div>
+      <div id="myCouponsList">
+        <div class="account-empty"><i class="fas fa-ticket"></i><span>No has usado cupones aún</span></div>
+      </div>
+    </div>
+
+    <!-- Notificaciones del cliente -->
+    <div class="account-notifications-section">
+      <div id="clientNotiList">
+        <p style="text-align:center;color:#aaa;padding:10px">Cargando…</p>
+      </div>
+    </div>
+
+    <!-- Historial de pedidos -->
+    <div class="account-orders-section">
+      <div class="account-section-title"><i class="fas fa-clock-rotate-left"></i> Mis pedidos</div>
+      <div id="myOrdersList"><div class="account-empty"><i class="fas fa-box-open"></i><span>Sin pedidos aún</span></div></div>
+    </div>
+    </div><!-- Cierra account-panel-body -->
+
+    <div class="account-panel-footer">
+      <button class="btn-logout-client" onclick="logoutCliente()">
+        <i class="fas fa-right-from-bracket"></i> Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- ZXing Browser: decodificador EAN/UPC para stream en tiempo real -->
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.1/umd/index.min.js"></script>
+  <!-- Quagga2: fallback para decodificación de foto estática -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
+<script src="js/api.js?v=230"></script>
+  <script src="js/auth.js?v=201"></script>
+  <script src="js/products.js?v=300"></script>
+  <script src="js/cupones.js?v=201"></script>
+  <script src="js/favorites.js?v=280"></script>
+  <script src="js/app.js?v=286"></script>
+  <!-- Chatbot IA para clientes -->
+  <script src="js/chat.js?v=224"></script>
+
+  <!-- ═══ Escáner: auto-abrir cámara al mostrar modo foto ════════════════ -->
+  <script>
+    // ── Variables de estado del escáner ──────────────────────────────────────
+    let _scannerCameraOpen = false;
+
+    // Función central: actualiza el único elemento de estado visible
+    function _setScanState(msg, showBtn = false) {
+      const proc  = document.getElementById('barcodePhotoProcessing');
+      const btn   = document.getElementById('barcodeBtnReopen');
+      const errEl = document.getElementById('barcodeError');
+      const hint  = document.getElementById('barcodePhotoHint');
+      const stEl  = document.getElementById('barcodeStatus');
+      // Siempre ocultar hint y barcodeStatus — NUNCA deben mostrarse en modo foto
+      if (hint)  { hint.style.display = 'none'; hint.textContent = ''; }
+      if (stEl)  { stEl.style.display = 'none'; stEl.className = 'barcode-status'; }
+      // Actualizar el processing
+      if (proc) {
+        if (msg) {
+          proc.innerHTML = msg;
+          proc.style.display = '';
+          proc.classList.remove('hidden');
+        } else {
+          proc.style.display = 'none';
+          proc.classList.add('hidden');
+        }
+      }
+      // Botón de reintento
+      if (btn) {
+        if (showBtn) { btn.classList.remove('hidden'); btn.style.display = ''; }
+        else         { btn.classList.add('hidden'); btn.style.display = 'none'; }
+      }
+      if (!showBtn && errEl) errEl.classList.add('hidden');
+    }
+
+    // Auto-dispara la cámara cuando el modo foto se activa
+    function _autoBarcodeCamera() {
+      const input = document.getElementById('barcodePhotoInput');
+      if (!input) return;
+      // Limpiar todo — no mostrar "Abriendo cámara" en ningún lado
+      _setScanState(null, false);
+      const errEl = document.getElementById('barcodeError');
+      if (errEl) errEl.classList.add('hidden');
+      setTimeout(() => {
+        _scannerCameraOpen = true;
+        input.click();
+      }, 350);
+    }
+
+    // Usuario cancela la cámara sin tomar foto
+    function _onBarcodePhotoCancel() {
+      _scannerCameraOpen = false;
+      // Mostrar solo el botón de reintento — sin texto "Abriendo cámara"
+      _setScanState(null, true);
+    }
+
+    // Botón de reintento
+    function _reopenBarcodeCamera() {
+      const input = document.getElementById('barcodePhotoInput');
+      const errEl = document.getElementById('barcodeError');
+      if (errEl) errEl.classList.add('hidden');
+      _setScanState(null, false);
+      if (input) {
+        input.value = '';
+        setTimeout(() => {
+          _scannerCameraOpen = true;
+          input.click();
+        }, 200);
+      }
+    }
+
+    // Detección de retorno de cámara iOS (window focus)
+    window.addEventListener('focus', () => {
+      if (!_scannerCameraOpen) return;
+      setTimeout(() => {
+        const input = document.getElementById('barcodePhotoInput');
+        const proc  = document.getElementById('barcodePhotoProcessing');
+        // Si ya está procesando (Analizando…), no hacer nada
+        if (proc && !proc.classList.contains('hidden') && proc.style.display !== 'none') return;
+        if (input && input.files && input.files.length > 0) return;
+        // El usuario volvió sin tomar foto → mostrar botón "Abrir cámara"
+        if (_scannerCameraOpen) {
+          _scannerCameraOpen = false;
+          // Solo mostrar el botón, sin texto "Abriendo cámara"
+          const btn = document.getElementById('barcodeBtnReopen');
+          if (btn) { btn.classList.remove('hidden'); btn.style.display = ''; }
+          _setScanState(null, true);
+        }
+      }, 800);
+    });
+
+    // Observer: detecta cuando barcodePhotoFallback se hace visible y auto-dispara
+    document.addEventListener('DOMContentLoaded', () => {
+      const fallback = document.getElementById('barcodePhotoFallback');
+      if (!fallback) return;
+      const obs = new MutationObserver(mutations => {
+        for (const m of mutations) {
+          if (m.attributeName === 'class') {
+            const isVisible = !fallback.classList.contains('hidden');
+            if (isVisible) _autoBarcodeCamera();
+          }
+        }
+      });
+      obs.observe(fallback, { attributes: true });
+    });
+  </script>
+
+
+  <!-- ═══ Escáner: IA Vision para leer códigos de barras ═════════════════ -->
+  <script>
+    /**
+     * handleBarcodePhoto — usa Groq Vision como motor principal + Quagga como fallback
+     * Flujo: foto → base64 → Groq Vision → código → buscar producto
+     */
+
+    // ── Precargar clave Groq desde DB al iniciar la página ───────────────────
+    // Así cualquier dispositivo nuevo la obtiene automáticamente, sin configuración manual
+    let _cachedGroqKey = null;
+    (async function _preloadGroqKey() {
+      try {
+        // Si ya está en localStorage, perfecto
+        const local = localStorage.getItem('groq_api_key');
+        if (local && local.startsWith('gsk_') && local.length > 20) {
+          _cachedGroqKey = local;
+          console.log('[Scanner] Clave Groq lista (localStorage)');
+          return;
+        }
+        // Si no, leerla desde la base de datos y guardarla localmente
+        const res  = await fetch('tables/settings?limit=1');
+        const data = await res.json();
+        const key  = data.data?.[0]?.groqApiKey;
+        if (key && key.startsWith('gsk_') && key.length > 20) {
+          _cachedGroqKey = key;
+          localStorage.setItem('groq_api_key', key);
+          console.log('[Scanner] Clave Groq cargada desde DB y guardada en localStorage ✅');
+        } else {
+          console.warn('[Scanner] No hay clave Groq en la base de datos');
+        }
+      } catch(e) {
+        console.warn('[Scanner] Error precargando clave Groq:', e.message);
+      }
+    })();
+
+    async function handleBarcodePhoto(input) {
+      if (!input.files || !input.files[0]) return;
+      _scannerCameraOpen = false;
+
+      const processing = document.getElementById('barcodePhotoProcessing');
+
+      // ── Ocultar TODA la UI de "Abriendo cámara" inmediatamente ──────────────
+      const _stEl = document.getElementById('barcodeStatus');
+      const _hint = document.getElementById('barcodePhotoHint');
+      if (_stEl) { _stEl.style.display = 'none'; _stEl.className = 'barcode-status'; }
+      if (_hint) { _hint.style.display = 'none'; _hint.textContent = ''; }
+
+      // Mostrar spinner "Analizando imagen con Maya…"
+      _setScanState('<i class="fas fa-spinner fa-spin" style="color:#00e676"></i>&nbsp; Analizando imagen con Maya…');
+
+      try {
+        let barcode = null;
+        const file  = input.files[0];
+
+        // 1) BarcodeDetector nativo — instantáneo, sin red, funciona en Android/Chrome
+        if ('BarcodeDetector' in window) {
+          console.log('[Scanner] Intentando BarcodeDetector nativo…');
+          barcode = await _nativeBarcodeDetect(file);
+          console.log('[Scanner] BarcodeDetector resultado:', barcode || 'null');
+        }
+
+        // 2) Groq Vision (Maya) — motor principal para iOS y cuando BarcodeDetector falla
+        if (!barcode) {
+          console.log('[Scanner] Intentando Groq Vision (Maya)…');
+          // Re-confirmar el mensaje visible en pantalla
+          _setScanState('<i class="fas fa-spinner fa-spin" style="color:#00e676"></i>&nbsp; Analizando imagen con Maya…');
+          const groqKey = await _getScanGroqKey();
+          if (groqKey) {
+            const base64 = await _imageToBase64(file);
+            barcode = await _groqVisionReadBarcode(base64);
+            console.log('[Scanner] Groq Vision resultado:', barcode || 'null');
+          } else {
+            console.warn('[Scanner] Sin clave Groq — saltando Maya');
+          }
+        }
+
+        // 3) Último recurso → Quagga clásico
+        if (!barcode) {
+          _setScanState('<i class="fas fa-spinner fa-spin" style="color:#aaa"></i>&nbsp; Leyendo código…');
+          console.log('[Scanner] Intentando Quagga…');
+          barcode = await _quaggaReadBarcode(file);
+          console.log('[Scanner] Quagga resultado:', barcode || 'null');
+        }
+
+        _setScanState(null); // ocultar spinner
+
+        if (barcode) {
+          _barcodeFoundProduct(barcode.trim());
+        } else {
+          _barcodeScanError('No se pudo leer el código. Intenta con mejor iluminación.');
+        }
+
+      } catch (e) {
+        _setScanState(null);
+        _barcodeScanError('Error al procesar la imagen. Intenta de nuevo.');
+        console.warn('[BarcodeIA]', e.message);
+      }
+
+      input.value = ''; // Reset para permitir re-escanear
+    }
+
+    // ── BarcodeDetector nativo (Chrome/Android) ──────────────────────────────
+    async function _nativeBarcodeDetect(file) {
+      try {
+        const formats = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar'];
+        const detector = new BarcodeDetector({ formats });
+        const bitmap   = await createImageBitmap(file);
+        const results  = await detector.detect(bitmap);
+        bitmap.close();
+        if (results && results.length > 0) {
+          console.log('[BarcodeDetector] ✅', results[0].rawValue);
+          return results[0].rawValue;
+        }
+        return null;
+      } catch(e) {
+        console.warn('[BarcodeDetector]', e.message);
+        return null;
+      }
+    }
+
+    // ── Convierte File a base64 ───────────────────────────────────────────────
+    function _imageToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = e => resolve(e.target.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // ── Groq Vision: lee el código de barras con IA ──────────────────────────
+    // La clave se obtiene de: 1) localStorage, 2) base de datos settings
+    // NOTA: _cachedGroqKey ya fue declarada arriba en el bloque de preload
+
+    async function _getScanGroqKey() {
+      // 1) Intentar desde localStorage (más rápido)
+      const local = localStorage.getItem('groq_api_key');
+      if (local && local.startsWith('gsk_')) return local;
+
+      // 2) Si no hay en localStorage, buscar en base de datos
+      if (_cachedGroqKey) return _cachedGroqKey;
+      try {
+        const res  = await fetch('tables/settings?limit=1');
+        const data = await res.json();
+        const key  = data.data?.[0]?.groqApiKey;
+        if (key && key.startsWith('gsk_')) {
+          _cachedGroqKey = key;
+          localStorage.setItem('groq_api_key', key); // cachear localmente
+          return key;
+        }
+      } catch(e) { console.warn('[Scanner] No se pudo obtener clave desde DB', e.message); }
+      return null;
+    }
+
+    // ── Validación matemática del dígito de control EAN-8 / UPC-A / EAN-13 ──
+    // Un número de lote/referencia NUNCA pasa este test.
+    // Algoritmo: suma ponderada alternando ×1 y ×3, el último dígito es el check.
+    function _validateBarcodeChecksum(code) {
+      const digits = String(code).replace(/\D/g, '');
+      const len = digits.length;
+      if (len !== 8 && len !== 12 && len !== 13) return false;
+      let sum = 0;
+      for (let i = 0; i < len - 1; i++) {
+        const d = parseInt(digits[i], 10);
+        // EAN-13 / EAN-8: posiciones impares ×1, pares ×3 (desde la izquierda, 0-indexed)
+        sum += (i % 2 === 0) ? d : d * 3;
+      }
+      // UPC-A (12 dígitos): la ponderación es al revés
+      if (len === 12) {
+        sum = 0;
+        for (let i = 0; i < 11; i++) {
+          const d = parseInt(digits[i], 10);
+          sum += (i % 2 === 0) ? d * 3 : d;
+        }
+      }
+      const checkDigit = (10 - (sum % 10)) % 10;
+      const valid = checkDigit === parseInt(digits[len - 1], 10);
+      console.log(`[Checksum] ${digits} → calculado=${checkDigit} real=${digits[len-1]} → ${valid ? '✅' : '❌'}`);
+      return valid;
+    }
+
+    async function _groqVisionReadBarcode(base64Img) {
+      const key = await _getScanGroqKey();
+      if (!key) return null;
+
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `You are a barcode scanner. Look at the image and find the STRIPED BARCODE — the one made of many vertical black and white lines/bars of different widths arranged in a rectangle. That stripe pattern is the barcode.
+
+STEP 1 — LOCATE THE STRIPES: Find the rectangular area filled with vertical black and white bars (thin and thick alternating). This is the only real barcode.
+
+STEP 2 — READ THE NUMBER: Read the digits printed IMMEDIATELY below (or above) those black/white stripes. Those digits are part of the stripe pattern itself.
+
+STEP 3 — VALIDATE: The number must be EXACTLY 8, 12, or 13 digits. Remove all spaces.
+
+CRITICAL — WHAT TO IGNORE (these are NOT barcodes):
+- Numbers printed alone without stripes next to them (lot codes, serial numbers, reference codes)
+- Numbers inside boxes or rectangles drawn on the label
+- Numbers with letters mixed in (e.g. "5043-28N")
+- QR codes (square pixel patterns)
+- Phone numbers like "1-888-FOR-PREGO"
+- Any number that is NOT directly touching or immediately adjacent to the stripe pattern
+
+REAL EXAMPLES:
+✅ CORRECT: The number "051000050434" printed below the tall striped rectangle = return 051000050434
+❌ WRONG: The number "910001038051" printed separately below the barcode in a box = IGNORE IT
+❌ WRONG: "5043-28N" = has letters, ignore
+❌ WRONG: any 14+ digit number = ignore
+
+Return ONLY the digits of the striped barcode number. No spaces. No letters. No explanation.
+If you cannot clearly see a stripe barcode, return: NULL`
+
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:image/jpeg;base64,${base64Img}` }
+                }
+              ]
+            }],
+            max_tokens: 50,
+            temperature: 0
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.warn('[GroqVision] Error HTTP', res.status, errData?.error?.message || '');
+          return null;
+        }
+        const data = await res.json();
+        const text = (data.choices?.[0]?.message?.content || '').trim();
+        console.log('[GroqVision] Respuesta raw:', text);
+
+        // Extraer primero cualquier número de 8, 12 o 13 dígitos
+        const match = text.match(/\b(\d{13}|\d{12}|\d{8})\b/);
+        if (!match) { console.warn('[GroqVision] Sin código válido en respuesta'); return null; }
+
+        const candidate = match[0];
+
+        // ── Validar checksum EAN/UPC ─────────────────────────────────────────
+        // Si el dígito de control no cuadra matemáticamente → no es un barcode real
+        if (!_validateBarcodeChecksum(candidate)) {
+          console.warn('[GroqVision] Checksum inválido para:', candidate, '— descartado');
+          return null;
+        }
+
+        console.log('[GroqVision] ✅ Código válido:', candidate);
+        return candidate;
+
+      } catch (e) {
+        console.warn('[GroqVision]', e.message);
+        return null;
+      }
+    }
+
+    // ── Quagga fallback: detector clásico mejorado ───────────────────────────
+    function _quaggaReadBarcode(file) {
+      return new Promise(resolve => {
+        if (typeof Quagga === 'undefined') { resolve(null); return; }
+        const url = URL.createObjectURL(file);
+        Quagga.decodeSingle({
+          src: url,
+          numOfWorkers: 0,
+          inputStream: { size: 1920 },
+          decoder: {
+            readers: ['ean_reader','upc_reader','ean_8_reader','upc_e_reader','code_128_reader','code_39_reader'],
+            multiple: false
+          },
+          locator: { patchSize: 'medium', halfSample: false },
+          locate: true
+        }, result => {
+          URL.revokeObjectURL(url);
+          const code = result?.codeResult?.code || null;
+          console.log('[Quagga]', code ? `Código: ${code}` : 'No detectado');
+          resolve(code);
+        });
+      });
+    }
+
+    // ── Producto encontrado → buscar en catálogo ─────────────────────────────
+    function _barcodeFoundProduct(code) {
+      const resultEl  = document.getElementById('barcodeResult');
+      const resultTxt = document.getElementById('barcodeResultText');
+      if (resultEl)  resultEl.classList.remove('hidden');
+      if (resultTxt) resultTxt.textContent = `Código: ${code} — Buscando…`;
+
+      const inp = document.getElementById('barcodeManualInput');
+      if (inp) inp.value = code;
+
+      if (typeof submitManualBarcode === 'function') {
+        submitManualBarcode();
+      } else if (typeof barcodeLiveSearch === 'function') {
+        barcodeLiveSearch(code);
+      }
+    }
+
+    // ── Error al escanear ─────────────────────────────────────────────────────
+    function _barcodeScanError(msg) {
+      const errEl  = document.getElementById('barcodeError');
+      const errTxt = document.getElementById('barcodeErrorText');
+      // Ocultar explícitamente barcodeStatus y hint antes de mostrar error
+      const stEl = document.getElementById('barcodeStatus');
+      const hint = document.getElementById('barcodePhotoHint');
+      if (stEl) { stEl.style.display = 'none'; stEl.className = 'barcode-status'; }
+      if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+      _setScanState(null, true); // ocultar spinner, mostrar botón reintento
+      if (errEl)  errEl.classList.remove('hidden');
+      if (errTxt) errTxt.textContent = msg;
+    }
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        // Registrar SW sin forzar recargas automáticas
+        // (los reloads causaban redirección al login cuando no había sesión)
+        navigator.serviceWorker.register('/sw.js?v=127')
+          .then(reg => {
+            reg.update();
+          })
+          .catch(() => {});
+        // NO escuchar controllerchange ni hacer reload —
+        // el SW se actualiza en silencio sin interrumpir la sesión del usuario
+      });
+    }
+
+    // ── Banner de instalación (Android Chrome) ──────────────────────────────
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // Mostrar botón de instalación personalizado
+      const btn = document.getElementById('pwaInstallBtn');
+      if (btn) btn.style.display = 'flex';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredPrompt = null;
+      const btn = document.getElementById('pwaInstallBtn');
+      if (btn) btn.style.display = 'none';
+      console.log('[PWA] App instalada correctamente');
+    });
+
+    function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(choice => {
+        if (choice.outcome === 'accepted') {
+          console.log('[PWA] Usuario aceptó instalar la app');
+        }
+        deferredPrompt = null;
+        const btn = document.getElementById('pwaInstallBtn');
+        if (btn) btn.style.display = 'none';
+      });
+    }
+
+    // ── Banner de instalación para iOS (Safari) ────────────────────────────
+    (function checkIOS() {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const isInStandaloneMode = ('standalone' in window.navigator) && window.navigator.standalone;
+      if (isIOS && !isInStandaloneMode) {
+        // Mostrar banner solo si no lo ha cerrado antes
+        const closed = sessionStorage.getItem('iosBannerClosed');
+        if (!closed) {
+          setTimeout(() => {
+            const banner = document.getElementById('iosInstallBanner');
+            if (banner) banner.classList.add('show');
+          }, 3000); // Mostrar después de 3 segundos
+        }
+      }
+    })();
+
+    // Guardar que el usuario cerró el banner iOS
+    document.addEventListener('DOMContentLoaded', () => {
+      const closeBtn = document.querySelector('.ios-install-banner .ios-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          sessionStorage.setItem('iosBannerClosed', '1');
+        });
+      }
+    });
+  </script>
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+
+  <!-- ═══ Bloquear zoom por doble toque y pellizco (iOS + Android) ════════ -->
+  <script>
+    (function blockZoom() {
+      // 1) Bloquear gesturestart (iOS Safari: pinch-zoom nativo)
+      document.addEventListener('gesturestart', function(e) {
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener('gesturechange', function(e) {
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener('gestureend', function(e) {
+        e.preventDefault();
+      }, { passive: false });
+
+      // 2) Bloquear touchstart con 2+ dedos (pinch-zoom en Android y Chrome iOS)
+      document.addEventListener('touchstart', function(e) {
+        if (e.touches.length > 1) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
+      // 3) Bloquear doble toque que causa zoom en iOS Safari
+      // IMPORTANTE: solo bloqueamos si el doble toque NO ocurre en un elemento scrollable
+      var lastTouchEnd = 0;
+      document.addEventListener('touchend', function(e) {
+        var now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          // Verificar si el toque está dentro de un contenedor scrollable
+          var target = e.target;
+          var isInsideScroll = false;
+          var el = target;
+          while (el && el !== document.body) {
+            var style = window.getComputedStyle(el);
+            var overflowY = style.overflowY;
+            if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+              isInsideScroll = true;
+              break;
+            }
+            el = el.parentElement;
+          }
+          // Solo prevenir el zoom si NO estamos dentro de un área con scroll
+          if (!isInsideScroll) {
+            e.preventDefault();
+          }
+        }
+        lastTouchEnd = now;
+      }, { passive: false });
+
+      // 4) Bloquear wheel con Ctrl presionado (zoom con trackpad/ratón en desktop)
+      document.addEventListener('wheel', function(e) {
+        if (e.ctrlKey) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+    })();
+  </script>
+</body>
+</html>

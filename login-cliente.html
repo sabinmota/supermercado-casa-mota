@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Iniciar Sesión — Supermercado Casa Mota</title>
+  <!-- Guard: si ya hay sesión activa, ir directo a la tienda -->
+  <script>
+    (function() {
+      try {
+        var s = localStorage.getItem('cm_client_session')
+             || sessionStorage.getItem('cm_client_session');
+        if (s && s !== 'null') {
+          window.location.replace('index.html');
+        }
+      } catch(e) {}
+    })();
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link rel="icon" type="image/png" href="images/logo-casamota.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:      #1a7c3e;
+      --green-dark: #145e2e;
+      --green-light:#27a35a;
+      --green-pale: #e8f5ee;
+      --red:        #e53935;
+      --border:     #e2e8f0;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: #0d1b12;
+      overflow: hidden;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    html { overflow-x: hidden; }
+    /* ─ Panel izquierdo: imagen/marca ─ */
+    .left-panel {
+      background: linear-gradient(160deg, #0d1b12 0%, #1a7c3e 50%, #27a35a 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px;
+      position: relative; overflow: hidden;
+    }
+    .left-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .left-panel .brand-logo { width: 160px; margin-bottom: 28px; filter: drop-shadow(0 4px 16px rgba(0,0,0,.4)); position: relative; border-radius: 20px; background: #fff; padding: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+    .left-panel h1 { color: #fff; font-size: 1.6rem; font-weight: 800; text-align: center; margin-bottom: 10px; position: relative; }
+    .left-panel p  { color: rgba(255,255,255,.75); font-size: .95rem; text-align: center; max-width: 320px; line-height: 1.6; position: relative; }
+    .left-features { margin-top: 36px; display: flex; flex-direction: column; gap: 14px; position: relative; }
+    .left-feat-item {
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(255,255,255,.1); border-radius: 10px;
+      padding: 10px 16px; backdrop-filter: blur(4px);
+    }
+    .left-feat-item i { font-size: 1.1rem; color: #7dffb0; width: 22px; text-align: center; }
+    .left-feat-item span { color: rgba(255,255,255,.9); font-size: .88rem; font-weight: 500; }
+
+    /* ─ Panel derecho: formulario ─ */
+    .right-panel {
+      background: #fff;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px;
+      overflow-y: auto;
+    }
+    .login-box { width: 100%; max-width: 400px; }
+    .login-box h2 { font-size: 1.5rem; font-weight: 800; color: #1a1a2e; margin-bottom: 6px; }
+    .login-box .subtitle { font-size: .9rem; color: #888; margin-bottom: 30px; }
+    .login-box .subtitle a { color: var(--green); font-weight: 600; text-decoration: none; }
+    .login-box .subtitle a:hover { text-decoration: underline; }
+
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: .82rem; font-weight: 600; color: #444; margin-bottom: 7px; }
+    .input-wrap { position: relative; }
+    .input-wrap > i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #ccc; font-size: .9rem; pointer-events: none; transition: color .2s; }
+    .input-wrap:focus-within > i { color: var(--green); }
+    .input-wrap input {
+      width: 100%; padding: 11px 42px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 16px; /* ≥16px evita el zoom automático en iOS Safari */
+      font-family: inherit; color: #1a1a2e;
+      background: #fafafa; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .input-wrap input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(26,124,62,.1); background:#fff; }
+    .toggle-pass { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #aaa; cursor: pointer; font-size: .9rem; padding: 4px; transition: color .2s; }
+    .toggle-pass:hover { color: var(--green); }
+
+    .login-error {
+      display: none; background: #fff3f3; border: 1px solid #ffcdd2;
+      border-left: 4px solid var(--red); border-radius: 8px;
+      padding: 10px 14px; font-size: .85rem; color: #c62828;
+      margin-bottom: 16px; gap: 8px;
+    }
+    .login-error.show { display: flex; align-items: center; animation: shake .35s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+
+    .btn-login {
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, var(--green-dark), var(--green-light));
+      color: #fff; border: none; border-radius: 8px;
+      font-size: 1rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      box-shadow: 0 4px 14px rgba(26,124,62,.35);
+      transition: opacity .2s, transform .2s;
+      margin-top: 4px;
+      min-height: 52px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .btn-login:hover { opacity: .92; transform: translateY(-1px); }
+    .btn-login:disabled,
+    .btn-login.loading { opacity: .75; pointer-events: none; cursor: not-allowed; }
+    .spinner { width:20px;height:20px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none;flex-shrink:0; }
+    .btn-login.loading .spinner { display:block; }
+    .btn-login.loading .btn-text { display:none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .register-link {
+      text-align: center; margin-top: 22px;
+      font-size: .85rem; color: #888;
+    }
+    .register-link a { color: var(--green); font-weight: 600; text-decoration: none; }
+    .register-link a:hover { text-decoration: underline; }
+
+    .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+    .divider::before, .divider::after { content:''; flex:1; height:1px; background: var(--border); }
+    .divider span { font-size: .78rem; color: #bbb; white-space: nowrap; }
+
+    /* Logo solo visible en móvil (en desktop lo muestra el panel izquierdo) */
+    .mobile-logo {
+      display: none;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .mobile-logo img {
+      width: 140px;
+      border-radius: 20px;
+      background: #fff;
+      padding: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.12);
+      border: 1.5px solid #e8f5ee;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { grid-template-columns: 1fr; }
+      .left-panel { display: none; }
+      .right-panel { padding: 36px 24px; }
+      .mobile-logo { display: block; }
+    }
+
+    /* ── Modal de registro ─────────────────────────────────────── */
+    .register-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; padding: 20px;
+    }
+    .register-modal-backdrop.hidden { display: none; }
+    .register-modal {
+      background: #fff; border-radius: 18px; padding: 32px 28px;
+      max-width: 420px; width: 100%; position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+      text-align: center; animation: modalIn .25s ease;
+    }
+    @keyframes modalIn { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .register-modal-close {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none; font-size: 1.1rem;
+      color: #aaa; cursor: pointer; transition: color .15s;
+    }
+    .register-modal-close:hover { color: #333; }
+    .register-modal-icon {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(135deg, #e8f5ee, #d0f0df);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px; font-size: 1.6rem; color: #1a7c3e;
+    }
+    .register-modal h3 { font-size: 1.2rem; font-weight: 800; color: #1a1a2e; margin-bottom: 10px; }
+    .register-modal p  { font-size: .88rem; color: #555; line-height: 1.5; margin-bottom: 20px; }
+    .register-modal-contacts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .register-contact-btn {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 18px; border-radius: 10px;
+      font-weight: 700; font-size: .92rem; text-decoration: none;
+      transition: opacity .15s;
+    }
+    .register-contact-btn:hover { opacity: .85; }
+    .register-contact-btn i { font-size: 1.1rem; width: 22px; text-align: center; flex-shrink: 0; }
+    .register-contact-btn.phone { background: #e8f5ee; color: #1a7c3e; }
+    .register-contact-btn.email { background: #e8f0ff; color: #4527a0; }
+    .register-modal-note {
+      font-size: .78rem; color: #aaa; display: flex;
+      align-items: flex-start; gap: 6px; text-align: left;
+      background: #f9f9f9; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 20px;
+    }
+    .register-modal-note i { color: #90a4ae; flex-shrink: 0; margin-top: 2px; }
+    .btn-register-ok {
+      width: 100%; padding: 13px; background: linear-gradient(135deg,#1a7c3e,#27a35a);
+      color: #fff; border: none; border-radius: 10px; font-size: .95rem;
+      font-weight: 700; cursor: pointer; transition: opacity .15s;
+    }
+    .btn-register-ok:hover { opacity: .9; }
+  </style>
+</head>
+<body>
+
+  <!-- Panel izquierdo -->
+  <div class="left-panel">
+    <img src="images/logo-casamota.png" alt="Casa Mota" class="brand-logo" />
+    <h1>Bienvenido a Casa Mota</h1>
+    <p>Tu supermercado dominicano de confianza. Compra desde casa y recibe en la puerta.</p>
+    <div class="left-features">
+      <div class="left-feat-item"><i class="fas fa-truck-fast"></i><span>Entrega rápida</span></div>
+      <div class="left-feat-item"><i class="fas fa-tags"></i><span>Ofertas y descuentos exclusivos</span></div>
+      <div class="left-feat-item"><i class="fas fa-shield-halved"></i><span>Compra segura y garantizada</span></div>
+      <div class="left-feat-item"><i class="fas fa-clock-rotate-left"></i><span>Historial de tus pedidos</span></div>
+    </div>
+  </div>
+
+  <!-- Modal: cómo crear cuenta -->
+  <div id="registerModal" class="register-modal-backdrop hidden" onclick="if(event.target===this)closeRegisterModal()">
+    <div class="register-modal">
+      <button class="register-modal-close" onclick="closeRegisterModal()"><i class="fas fa-times"></i></button>
+      <div class="register-modal-icon"><i class="fas fa-user-plus"></i></div>
+      <h3>¿Cómo crear tu cuenta?</h3>
+      <p>Las cuentas son creadas por el equipo de <strong id="registerModalName">Supermercado Casa Mota</strong>. Contáctanos y un administrador te asignará tu acceso:</p>
+      <div class="register-modal-contacts">
+        <a id="registerModalPhone" href="#" class="register-contact-btn phone">
+          <i class="fas fa-phone"></i>
+          <span id="registerModalPhoneText"></span>
+        </a>
+        <a id="registerModalEmail" href="#" class="register-contact-btn email">
+          <i class="fas fa-envelope"></i>
+          <span id="registerModalEmailText"></span>
+        </a>
+      </div>
+      <p class="register-modal-note"><i class="fas fa-circle-info"></i> Una vez creada tu cuenta recibirás tus credenciales para ingresar.</p>
+      <button class="btn-register-ok" onclick="closeRegisterModal()">Entendido</button>
+    </div>
+  </div>
+
+  <!-- Panel derecho: formulario -->
+  <div class="right-panel">
+    <div class="login-box">
+      <!-- Logo visible solo en móvil -->
+      <div class="mobile-logo">
+        <img src="images/logo-casamota.png" alt="Supermercado Casa Mota" />
+      </div>
+      <h2>Iniciar sesión</h2>
+      <p class="subtitle">¿No tienes cuenta? <a href="#" onclick="showRegisterInfo()">Solicítala al supermercado</a></p>
+
+      <div class="login-error" id="loginError">
+        <i class="fas fa-circle-xmark"></i>
+        <span id="loginErrorMsg">Correo o contraseña incorrectos.</span>
+      </div>
+
+      <form onsubmit="handleClientLogin(event)">
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <div class="input-wrap">
+            <i class="fas fa-envelope"></i>
+            <input type="email" id="clientEmail" placeholder="tucorreo@ejemplo.com" required autocomplete="email" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <div class="input-wrap">
+            <i class="fas fa-lock"></i>
+            <input type="password" id="clientPass" placeholder="••••••••" required autocomplete="current-password" />
+            <button type="button" class="toggle-pass" onclick="toggleClientPass()">
+              <i class="fas fa-eye" id="clientPassEye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login" id="clientLoginBtn">
+          <div class="spinner"></div>
+          <span class="btn-text"><i class="fas fa-right-to-bracket"></i> Entrar a la tienda</span>
+        </button>
+      </form>
+
+      <div class="divider"><span>o</span></div>
+
+      <div class="register-link">
+        <p>¿Eres administrador? <a href="login.html">Accede al panel admin →</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Redirigir si ya hay sesión de cliente activa
+    (function() {
+      const s = getClientSession();
+      if (s) window.location.href = 'index.html';
+    })();
+
+    // Flag para evitar múltiples envíos simultáneos (doble tap en iOS)
+    let _isLoggingIn = false;
+
+    async function handleClientLogin(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Bloquear si ya hay un intento en curso
+      if (_isLoggingIn) return;
+
+      const email = document.getElementById('clientEmail').value.trim();
+      const pass  = document.getElementById('clientPass').value;
+      const btn   = document.getElementById('clientLoginBtn');
+      const errEl = document.getElementById('loginError');
+
+      if (!email || !pass) return;
+
+      // Activar estado de carga y bloquear el botón
+      _isLoggingIn = true;
+      errEl.classList.remove('show');
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      // Timeout de seguridad: si la API no responde en 15s, desbloquear
+      const loginTimeout = setTimeout(() => {
+        if (_isLoggingIn) {
+          _isLoggingIn = false;
+          btn.classList.remove('loading');
+          btn.disabled = false;
+          document.getElementById('loginErrorMsg').textContent = 'La conexión tardó demasiado. Intenta de nuevo.';
+          errEl.classList.add('show');
+        }
+      }, 15000);
+
+      try {
+        const result = await loginCliente(email, pass);
+        clearTimeout(loginTimeout);
+
+        if (result.ok) {
+          // Éxito: mostrar mensaje de bienvenida y redirigir
+          btn.innerHTML = `<i class="fas fa-check"></i> <span>¡Bienvenido/a ${result.client.name.split(' ')[0]}!</span>`;
+          btn.style.background = 'linear-gradient(135deg,#1a7c3e,#27a35a)';
+          // Mantener bloqueado durante la redirección
+          setTimeout(() => { window.location.href = 'index.html'; }, 700);
+        } else {
+          // Credenciales incorrectas: desbloquear para que pueda intentar de nuevo
+          _isLoggingIn = false;
+          btn.classList.remove('loading');
+          btn.disabled = false;
+          document.getElementById('loginErrorMsg').textContent = result.msg;
+          errEl.classList.add('show');
+          document.getElementById('clientPass').value = '';
+          document.getElementById('clientPass').focus();
+        }
+      } catch(err) {
+        clearTimeout(loginTimeout);
+        _isLoggingIn = false;
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        document.getElementById('loginErrorMsg').textContent = 'Error de conexión. Intenta de nuevo.';
+        errEl.classList.add('show');
+      }
+    }
+
+    function toggleClientPass() {
+      const inp  = document.getElementById('clientPass');
+      const icon = document.getElementById('clientPassEye');
+      inp.type   = inp.type === 'password' ? 'text' : 'password';
+      icon.className = inp.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+    }
+
+    function showRegisterInfo() {
+      // Leer datos de configuración guardados por el admin
+      const cfg  = JSON.parse(localStorage.getItem('cm_settings') || '{}');
+      const name = cfg.settingName    || 'Supermercado Casa Mota';
+      const tel  = cfg.settingPhone   || '(809) 555-2684';
+      const mail = cfg.settingEmail   || 'info@casamota.com.do';
+
+      document.getElementById('registerModalName').textContent     = name;
+      document.getElementById('registerModalPhone').href            = 'tel:' + tel.replace(/[^+\d]/g,'');
+      document.getElementById('registerModalPhoneText').textContent = tel;
+      document.getElementById('registerModalEmail').href            = 'mailto:' + mail;
+      document.getElementById('registerModalEmailText').textContent = mail;
+      document.getElementById('registerModal').classList.remove('hidden');
+    }
+
+    function closeRegisterModal() {
+      document.getElementById('registerModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
