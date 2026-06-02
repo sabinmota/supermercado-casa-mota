@@ -1,5 +1,5 @@
 /**
- * SUPERMERCADO CASA MOTA - API.JS v2.0
+ * SUPERMERCADO CASA MOTA - API.JS v3.0
  * Conexion directa a Supabase REST API
  * Reemplaza la API interna de Genspark (tables/) por llamadas directas a Supabase
  * Tablas: products, customers, orders, staff, drivers, settings, categories
