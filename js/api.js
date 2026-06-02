@@ -105,7 +105,6 @@ async function _supaGetAll(table, extraParams) {
     });
 
     var batch = Array.isArray(res) ? res : (res && res.data ? res.data : []);
-    // Filtrar registros eliminados
     batch = batch.filter(function(r) { return !r.deleted; });
     all = all.concat(batch);
 
