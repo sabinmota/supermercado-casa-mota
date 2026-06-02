@@ -1,5 +1,5 @@
 /**
- * SUPERMERCADO CASA MOTA - API.JS v3.0
+ * SUPERMERCADO CASA MOTA - API.JS v3.1
  * Conexion directa a Supabase REST API
  * Reemplaza la API interna de Genspark (tables/) por llamadas directas a Supabase
  * Tablas: products, customers, orders, staff, drivers, settings, categories
@@ -18,7 +18,7 @@ function _getSupabaseConfig() {
 // === Helpers base ===
 function _apiFetchTimeout(method) {
   var m = (method || 'GET').toUpperCase();
-  return (['POST', 'PUT', 'PATCH'].indexOf(m) >= 0) ? 45000 : 20000;
+  return (['POST', 'PUT', 'PATCH'].indexOf(m) >= 0) ? 45000 : 30000;
 }
 
 async function _supaFetch(path, options, _retry) {
@@ -85,6 +85,7 @@ async function _supaFetch(path, options, _retry) {
 }
 
 // === GET todos los registros con paginacion automatica ===
+// USA limit/offset como parametros de query (no Range header)
 async function _supaGetAll(table, extraParams) {
   if (extraParams === undefined) extraParams = '';
   var LIMIT = 1000;
@@ -92,17 +93,10 @@ async function _supaGetAll(table, extraParams) {
   var all = [];
 
   while (true) {
-    var rangeEnd = offset + LIMIT - 1;
-    var qs = '?select=*&order=created_at.asc';
+    var qs = '?select=*&order=created_at.asc&limit=' + LIMIT + '&offset=' + offset;
     if (extraParams) qs += '&' + extraParams;
 
-    var res = await _supaFetch(table + qs, {
-      headers: {
-        'Range': offset + '-' + rangeEnd,
-        'Range-Unit': 'items',
-        'Prefer': 'count=exact'
-      }
-    });
+    var res = await _supaFetch(table + qs, {});
 
     var batch = Array.isArray(res) ? res : (res && res.data ? res.data : []);
     batch = batch.filter(function(r) { return !r.deleted; });
