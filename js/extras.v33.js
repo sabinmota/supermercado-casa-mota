@@ -273,7 +273,7 @@ async function exportReportPDF() {
         </div>
       </div>
       <div class="pdf-header-right">
-        <div class="pdf-report-title">📊 Reporte de Ventas</div>
+        <div class="pdf-report-title">Reporte de Ventas</div>
         <div class="pdf-report-period">Período: <strong>${period}</strong></div>
         <div class="pdf-report-date">Generado: ${new Date().toLocaleString('es-DO')}</div>
       </div>
@@ -286,7 +286,7 @@ async function exportReportPDF() {
         <div class="kpi"><div class="kpi-val">${rptAvg}</div><div class="kpi-lbl">Ticket Promedio</div></div>
         <div class="kpi"><div class="kpi-val">${rptProducts}</div><div class="kpi-lbl">Productos Vendidos</div></div>
       </div>
-      <div class="section-title"><div>🏆</div>Top 10 Productos Más Vendidos</div>
+      <div class="section-title"><div>Top 10 Productos Más Vendidos</div></div>
       <table>
         <thead><tr><th>#</th><th>Producto</th><th>Categoría</th><th>Unidades</th><th>Total (RD$)</th></tr></thead>
         <tbody>${topRows || '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Sin datos para este período</td></tr>'}</tbody>
@@ -376,7 +376,6 @@ async function printOrderPDF(orderId) {
   const order = (typeof orders !== 'undefined' ? orders : []).find(o => String(o.id) === String(orderId));
   if (!order) { alert('Pedido no encontrado'); return; }
 
-  // ── Cargar logo como base64 para que aparezca en la ventana de impresión ──
   let logoBase64 = '';
   try {
     const resp = await fetch('images/logo-casamota.png');
@@ -395,9 +394,9 @@ async function printOrderPDF(orderId) {
     const hasSust  = 'sustitucion' in l;
     const sustCell = hasSust
       ? (l.sustitucion
-          ? `<span style="background:#e8f5ee;color:#1a7c3e;border:1px solid #b2dfcc;border-radius:20px;padding:1px 7px;font-size:.72rem;font-weight:700">&#8652; Sí</span>`
-          : `<span style="background:#f5f5f5;color:#999;border:1px solid #ddd;border-radius:20px;padding:1px 7px;font-size:.72rem;font-weight:700">— No</span>`)
-      : `<span style="color:#ccc;font-size:.72rem">—</span>`;
+          ? `<span style="background:#e8f5ee;color:#1a7c3e;border:1px solid #b2dfcc;border-radius:20px;padding:1px 7px;font-size:.72rem;font-weight:700">Si</span>`
+          : `<span style="background:#f5f5f5;color:#999;border:1px solid #ddd;border-radius:20px;padding:1px 7px;font-size:.72rem;font-weight:700">No</span>`)
+      : `<span style="color:#ccc;font-size:.72rem">-</span>`;
     return `
     <tr>
       <td>${i+1}</td>
@@ -469,16 +468,16 @@ async function printOrderPDF(orderId) {
     </div>
     <div class="info-grid">
       <div class="info-box">
-        <h4>👤 Cliente</h4>
+        <h4>Cliente</h4>
         <p><strong>${order.customer || '-'}</strong></p>
         <p>${order.email || ''}</p>
         <p>${order.phone || ''}</p>
       </div>
       <div class="info-box">
-        <h4>📍 Dirección de entrega</h4>
+        <h4>Direccion de entrega</h4>
         <p>${order.address || '-'}</p>
-        ${order.driverName ? `<p>🚚 Repartidor: <strong>${order.driverName}</strong></p>` : ''}
-        ${order.notes ? `<p>📝 ${order.notes}</p>` : ''}
+        ${order.driverName ? `<p>Repartidor: <strong>${order.driverName}</strong></p>` : ''}
+        ${order.notes ? `<p>Nota: ${order.notes}</p>` : ''}
       </div>
     </div>
     <table>
@@ -488,8 +487,8 @@ async function printOrderPDF(orderId) {
     <div class="totals">
       <table>
         <tr><td>Subtotal</td><td style="text-align:right">RD$ ${fmt$(subtotal)}</td></tr>
-        <tr><td>Envío</td><td style="text-align:right;color:${shipping===0?'#1a7c3e':'inherit'}">${shipping===0?'<strong>¡Gratis!</strong>':'RD$ '+fmt$(shipping)}</td></tr>
-        ${descuento > 0 ? `<tr style="color:#1a7c3e;font-weight:600"><td><i>🏷️ Descuento${cuponUsado ? ` (${cuponUsado})` : ''}</i></td><td style="text-align:right">- RD$ ${fmt$(descuento)}</td></tr>` : ''}
+        <tr><td>Envio</td><td style="text-align:right;color:${shipping===0?'#1a7c3e':'inherit'}">${shipping===0?'<strong>Gratis!</strong>':'RD$ '+fmt$(shipping)}</td></tr>
+        ${descuento > 0 ? `<tr style="color:#1a7c3e;font-weight:600"><td>Descuento${cuponUsado ? ` (${cuponUsado})` : ''}</td><td style="text-align:right">- RD$ ${fmt$(descuento)}</td></tr>` : ''}
         <tr class="grand-total"><td><strong>TOTAL</strong></td><td style="text-align:right"><strong>RD$ ${fmt$(total)}</strong></td></tr>
       </table>
     </div>
@@ -514,9 +513,8 @@ let _editingCuponId = null;
 /* ── Carga desde la API ────────────────────────────────────────── */
 async function loadCupones() {
   try {
-    const res  = await fetch('tables/cupones?limit=200&sort=created_at');
-    const json = await res.json();
-    cupones = (json.data || []).filter(c => !c.deleted);
+    const json = await _supaFetch('cupones?select=*&limit=200&order=created_at.asc', {});
+    cupones = (Array.isArray(json) ? json : []).filter(c => !c.deleted);
   } catch(e) { cupones = []; }
   renderCupones();
   _renderCuponesLaterales();
@@ -565,11 +563,11 @@ function renderCupones() {
       ? `RD$ ${_fmt(c.valor || 0)}`
       : `${c.valor || 0}%`;
 
-    const usosMax = c.usos_maximos ? `/ ${c.usos_maximos}` : '/ ∞';
+    const usosMax = c.usos_maximos ? `/ ${c.usos_maximos}` : '/ inf';
 
     return `<tr>
       <td><strong style="color:var(--text-dark);letter-spacing:.03em">${c.codigo || '-'}</strong></td>
-      <td style="color:var(--text-mid);font-size:.84rem">${c.descripcion || '—'}</td>
+      <td style="color:var(--text-mid);font-size:.84rem">${c.descripcion || '-'}</td>
       <td><span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:8px;font-size:.82rem;font-weight:700">${descuento}</span></td>
       <td style="text-align:center;font-size:.88rem">${c.usos_actuales || 0} ${usosMax}</td>
       <td style="text-align:center">${estadoBadge}</td>
@@ -591,7 +589,6 @@ function renderCupones() {
 function _renderCuponesLaterales() {
   const now = new Date();
 
-  // KPIs
   const total    = cupones.length;
   const activos  = cupones.filter(c => {
     const v = c.fecha_fin && new Date(c.fecha_fin) < now;
@@ -607,7 +604,6 @@ function _renderCuponesLaterales() {
   _setEl('cpnKpiUsados',   usos);
   _setEl('cpnKpiVencidos', vencidos + inactivos);
 
-  // Top 5
   const top5El = document.getElementById('cpnTopUsados');
   if (top5El) {
     const sorted = [...cupones].sort((a, b) => (b.usos_actuales || 0) - (a.usos_actuales || 0)).slice(0, 5);
@@ -630,7 +626,6 @@ function _renderCuponesLaterales() {
     }
   }
 
-  // Gráfica donut: tipos de descuento
   const porcentaje = cupones.filter(c => c.tipo !== 'monto_fijo').length;
   const montoFijo  = cupones.filter(c => c.tipo === 'monto_fijo').length;
   const ctxC = document.getElementById('cpnTipoChart');
@@ -648,12 +643,9 @@ function _renderCuponesLaterales() {
           plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
         }
       });
-    } else {
-      ctxC.getContext('2d'); // canvas vacío sin error
     }
   }
 
-  // Próximos a vencer (15 días)
   const en15 = new Date(now); en15.setDate(en15.getDate() + 15);
   const proximos = cupones.filter(c => c.fecha_fin && new Date(c.fecha_fin) >= now && new Date(c.fecha_fin) <= en15)
     .sort((a, b) => new Date(a.fecha_fin) - new Date(b.fecha_fin));
@@ -681,7 +673,6 @@ function openCuponModal(id) {
   const title = document.getElementById('cuponModalTitle');
   if (!modal) return;
 
-  // Limpiar campos
   ['cuponId','cuponCodigo','cuponDesc','cuponValor','cuponMinimo','cuponUsosMax','cuponInicio','cuponFin']
     .forEach(f => { const el = document.getElementById(f); if (el) el.value = ''; });
   const activo = document.getElementById('cuponActivo');
@@ -693,7 +684,7 @@ function openCuponModal(id) {
   if (id) {
     const c = cupones.find(x => x.id === id);
     if (!c) return;
-    title.innerHTML = '<i class="fas fa-pen"></i> Editar Cupón';
+    title.innerHTML = '<i class="fas fa-pen"></i> Editar Cupon';
     document.getElementById('cuponId').value       = c.id;
     document.getElementById('cuponCodigo').value   = c.codigo || '';
     document.getElementById('cuponDesc').value     = c.descripcion || '';
@@ -706,7 +697,7 @@ function openCuponModal(id) {
     if (activo) activo.checked                     = c.activo !== false;
     updateCuponValLabel();
   } else {
-    title.innerHTML = '<i class="fas fa-ticket"></i> Nuevo Cupón';
+    title.innerHTML = '<i class="fas fa-ticket"></i> Nuevo Cupon';
   }
 
   modal.style.display = 'flex';
@@ -733,7 +724,7 @@ async function saveCupon() {
   const codigo  = (document.getElementById('cuponCodigo')?.value || '').trim().toUpperCase();
   const valor   = parseFloat(document.getElementById('cuponValor')?.value || '0');
 
-  if (!codigo) { alert('El código del cupón es obligatorio.'); return; }
+  if (!codigo) { alert('El codigo del cupon es obligatorio.'); return; }
   if (!valor || valor <= 0) { alert('El valor del descuento debe ser mayor a 0.'); return; }
 
   const payload = {
@@ -752,42 +743,38 @@ async function saveCupon() {
   const id = document.getElementById('cuponId')?.value;
   try {
     if (id) {
-      // Mantener usos_actuales existentes al editar
       const existing = cupones.find(c => c.id === id);
       payload.usos_actuales = existing?.usos_actuales || 0;
-      await fetch(`tables/cupones/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      await _supaFetch(`cupones?id=eq.${id}`, {
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
     } else {
-      // Verificar código duplicado
       const dup = cupones.find(c => c.codigo === codigo);
-      if (dup) { alert(`Ya existe un cupón con el código "${codigo}".`); return; }
-      await fetch('tables/cupones', {
+      if (dup) { alert(`Ya existe un cupon con el codigo "${codigo}".`); return; }
+      await _supaFetch('cupones', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     }
     closeCuponModal();
     await loadCupones();
-    _showAdminToast(id ? 'Cupón actualizado ✓' : 'Cupón creado ✓', 'success');
+    _showAdminToast(id ? 'Cupon actualizado' : 'Cupon creado', 'success');
   } catch(e) {
-    alert('Error al guardar el cupón. Intenta de nuevo.');
+    alert('Error al guardar el cupon. Intenta de nuevo.');
   }
 }
 
 /* ── Eliminar ──────────────────────────────────────────────────── */
 async function deleteCupon(id) {
   const c = cupones.find(x => x.id === id);
-  if (!confirm(`¿Eliminar el cupón "${c?.codigo || id}"? Esta acción no se puede deshacer.`)) return;
+  if (!confirm(`Eliminar el cupon "${c?.codigo || id}"? Esta accion no se puede deshacer.`)) return;
   try {
-    await fetch(`tables/cupones/${id}`, { method: 'DELETE' });
+    await _supaFetch(`cupones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ deleted: true }) });
     await loadCupones();
-    _showAdminToast('Cupón eliminado', 'success');
+    _showAdminToast('Cupon eliminado', 'success');
   } catch(e) {
-    alert('Error al eliminar el cupón.');
+    alert('Error al eliminar el cupon.');
   }
 }
 
@@ -796,12 +783,12 @@ async function validateCupon(codigo, subtotal) {
   await loadCupones();
   const now = new Date();
   const c = cupones.find(x => x.codigo === (codigo || '').toUpperCase());
-  if (!c)                              return { valid: false, msg: 'Cupón no encontrado.' };
-  if (c.activo === false)              return { valid: false, msg: 'Cupón inactivo.' };
-  if (c.fecha_inicio && new Date(c.fecha_inicio) > now) return { valid: false, msg: 'Cupón aún no válido.' };
-  if (c.fecha_fin    && new Date(c.fecha_fin)    < now) return { valid: false, msg: 'Cupón vencido.' };
-  if (c.usos_maximos && (c.usos_actuales || 0) >= c.usos_maximos) return { valid: false, msg: 'Cupón agotado.' };
-  if (c.compra_minima && subtotal < c.compra_minima) return { valid: false, msg: `Compra mínima: RD$ ${_fmt(c.compra_minima)}.` };
+  if (!c)                              return { valid: false, msg: 'Cupon no encontrado.' };
+  if (c.activo === false)              return { valid: false, msg: 'Cupon inactivo.' };
+  if (c.fecha_inicio && new Date(c.fecha_inicio) > now) return { valid: false, msg: 'Cupon aun no valido.' };
+  if (c.fecha_fin    && new Date(c.fecha_fin)    < now) return { valid: false, msg: 'Cupon vencido.' };
+  if (c.usos_maximos && (c.usos_actuales || 0) >= c.usos_maximos) return { valid: false, msg: 'Cupon agotado.' };
+  if (c.compra_minima && subtotal < c.compra_minima) return { valid: false, msg: `Compra minima: RD$ ${_fmt(c.compra_minima)}.` };
   const descuento = c.tipo === 'monto_fijo'
     ? Math.min(Number(c.valor), subtotal)
     : subtotal * (Number(c.valor) / 100);
@@ -812,9 +799,8 @@ async function incrementCuponUso(id) {
   const c = cupones.find(x => x.id === id);
   if (!c) return;
   try {
-    await fetch(`tables/cupones/${id}`, {
+    await _supaFetch(`cupones?id=eq.${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usos_actuales: (c.usos_actuales || 0) + 1 })
     });
   } catch(e) {}
@@ -844,21 +830,16 @@ let _notiTimer      = null;
 /* ── Carga desde la API ────────────────────────────────────────── */
 async function loadNotificaciones() {
   try {
-    const res  = await fetch('tables/notificaciones?limit=300&sort=created_at');
-    const json = await res.json();
-    notificaciones = [...(json.data || [])].filter(n => !n.deleted).reverse();
+    const json = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(json) ? json : [])].filter(n => !n.deleted).reverse();
   } catch(e) { notificaciones = []; }
 
-  // Cargar clientes para el buscador
   try {
-    const rc = await fetch('tables/customers?limit=500');
-    const jc = await rc.json();
-    _notiClientes = jc.data || [];
+    const jc = await _supaFetch('customers?select=*&limit=500&order=created_at.asc', {});
+    _notiClientes = Array.isArray(jc) ? jc : [];
   } catch(e) { _notiClientes = []; }
 
-  // Poblar select de destinatarios en el modal
   _poblarDestinatarios();
-
   renderNotificaciones();
   _renderNotificacionesLaterales();
   updateNavBadge();
@@ -914,8 +895,8 @@ function renderNotificaciones() {
     const icon   = tipoIcon[n.tipo]  || 'fa-bell';
     const color  = tipoColor[n.tipo] || '#1a7c3e';
     const bg     = tipoBg[n.tipo]    || '#e8f5ee';
-    const label  = tipoLabel[n.tipo] || n.tipo || '—';
-    const fecha  = n.created_at ? new Date(Number(n.created_at)).toLocaleString('es-DO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+    const label  = tipoLabel[n.tipo] || n.tipo || '-';
+    const fecha  = n.created_at ? new Date(Number(n.created_at)).toLocaleString('es-DO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-';
 
     return `<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:${leido ? '#fafafa' : '#f0f7ff'};border:1px solid ${leido ? 'var(--border)' : '#bdd7f5'};cursor:pointer" onclick="markNotiRead('${n.id}')">
       <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">
@@ -923,7 +904,7 @@ function renderNotificaciones() {
       </div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:.84rem;font-weight:${leido ? '600' : '800'};color:var(--text-dark)">${n.titulo || '—'}</span>
+          <span style="font-size:.84rem;font-weight:${leido ? '600' : '800'};color:var(--text-dark)">${n.titulo || '-'}</span>
           <span style="font-size:.72rem;color:var(--text-light);white-space:nowrap">${fecha}</span>
         </div>
         <div style="font-size:.78rem;color:var(--text-mid);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n.mensaje || ''}</div>
@@ -953,7 +934,6 @@ function _renderNotificacionesLaterales() {
   _setEl('notiKpiPedidos',  cambios);
   _setEl('notiKpiOfertas',  ofertas);
 
-  // Distribución por tipo
   const distEl = document.getElementById('notiDistribucion');
   if (distEl) {
     const tipos = [
@@ -980,7 +960,6 @@ function _renderNotificacionesLaterales() {
     }).join('');
   }
 
-  // Últimas 5
   const recEl = document.getElementById('notiRecientes');
   if (recEl) {
     const ult5 = notificaciones.slice(0, 5);
@@ -995,7 +974,7 @@ function _renderNotificacionesLaterales() {
         return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
           <i class="fas ${icon}" style="color:${color};width:14px;text-align:center;font-size:.85rem"></i>
           <div style="flex:1;min-width:0">
-            <div style="font-size:.82rem;font-weight:600;color:var(--text-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n.titulo || '—'}</div>
+            <div style="font-size:.82rem;font-weight:600;color:var(--text-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n.titulo || '-'}</div>
             <div style="font-size:.72rem;color:var(--text-light)">${n.destinatario_nombre || 'Todos'}</div>
           </div>
           ${n.leido === false ? `<span style="width:8px;height:8px;border-radius:50%;background:#e53935;flex-shrink:0"></span>` : ''}
@@ -1007,7 +986,7 @@ function _renderNotificacionesLaterales() {
 
 /* ── Badge en sidebar ──────────────────────────────────────────── */
 function updateNavBadge() {
-  // Badge del sidebar desactivado — el conteo se muestra en la KPI card del Dashboard
+  // Badge del sidebar desactivado
 }
 
 /* ── Marcar como leída ─────────────────────────────────────────── */
@@ -1015,9 +994,8 @@ async function markNotiRead(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n || n.leido !== false) return;
   try {
-    await fetch(`tables/notificaciones/${id}`, {
+    await _supaFetch(`notificaciones?id=eq.${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leido: true })
     });
     n.leido = true;
@@ -1032,9 +1010,8 @@ async function markAllNotiRead() {
   if (!sinLeer.length) return;
   try {
     await Promise.all(sinLeer.map(n =>
-      fetch(`tables/notificaciones/${n.id}`, {
+      _supaFetch(`notificaciones?id=eq.${n.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leido: true })
       })
     ));
@@ -1042,20 +1019,20 @@ async function markAllNotiRead() {
     renderNotificaciones();
     _renderNotificacionesLaterales();
     updateNavBadge();
-    _showAdminToast('Todas marcadas como leídas ✓', 'success');
+    _showAdminToast('Todas marcadas como leidas', 'success');
   } catch(e) {}
 }
 
 /* ── Eliminar notificación ─────────────────────────────────────── */
 async function deleteNoti(id) {
-  if (!confirm('¿Eliminar esta notificación?')) return;
+  if (!confirm('Eliminar esta notificacion?')) return;
   try {
-    await fetch(`tables/notificaciones/${id}`, { method: 'DELETE' });
+    await _supaFetch(`notificaciones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ deleted: true }) });
     notificaciones = notificaciones.filter(n => n.id !== id);
     renderNotificaciones();
     _renderNotificacionesLaterales();
     updateNavBadge();
-    _showAdminToast('Notificación eliminada', 'success');
+    _showAdminToast('Notificacion eliminada', 'success');
   } catch(e) {}
 }
 
@@ -1086,7 +1063,7 @@ async function sendNotificacion() {
   const tipo    = document.getElementById('notiTipo')?.value     || 'sistema';
   const destId  = document.getElementById('notiDestinatario')?.value || 'all';
 
-  if (!titulo)  { alert('El título es obligatorio.'); return; }
+  if (!titulo)  { alert('El titulo es obligatorio.'); return; }
   if (!mensaje) { alert('El mensaje es obligatorio.'); return; }
 
   let destinatarioNombre = 'Todos los clientes';
@@ -1105,29 +1082,27 @@ async function sendNotificacion() {
   };
 
   try {
-    await fetch('tables/notificaciones', {
+    await _supaFetch('notificaciones', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     closeNotiModal();
     await loadNotificaciones();
-    _showAdminToast('Notificación enviada ✓', 'success');
+    _showAdminToast('Notificacion enviada', 'success');
   } catch(e) {
-    alert('Error al enviar la notificación.');
+    alert('Error al enviar la notificacion.');
   }
 }
 
 /* ── Envío automático al cambiar estado de pedido ──────────────── */
 async function sendOrderStatusNotification(order, nuevoEstado) {
   if (!order?.id) return;
-  const labels = { pendiente:'Pendiente', procesando:'En proceso', enviado:'Enviado', entregado:'Entregado ✓', cancelado:'Cancelado' };
+  const labels = { pendiente:'Pendiente', procesando:'En proceso', enviado:'Enviado', entregado:'Entregado', cancelado:'Cancelado' };
   const titulo  = `Tu pedido #${order.id} fue actualizado`;
   const mensaje = `El estado de tu pedido es ahora: ${labels[nuevoEstado] || nuevoEstado}`;
   try {
-    await fetch('tables/notificaciones', {
+    await _supaFetch('notificaciones', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         titulo,
         mensaje,
@@ -1138,12 +1113,10 @@ async function sendOrderStatusNotification(order, nuevoEstado) {
         pedido_id           : order.id,
       })
     });
-    // Refrescar badge si la sección está activa
     const badge = document.getElementById('navBadgeNoti');
     if (badge) {
-      const r = await fetch('tables/notificaciones?limit=300');
-      const j = await r.json();
-      notificaciones = [...(j.data||[])].filter(n => !n.deleted).reverse();
+      const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+      notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
       updateNavBadge();
     }
   } catch(e) {}
@@ -1178,7 +1151,6 @@ function selectNotiClient(clienteId) {
   const c = _notiClientes.find(x => x.id === clienteId);
   if (input && c) input.value = c.nombre || c.name || '';
 
-  // Mostrar historial del cliente seleccionado
   const resultEl = document.getElementById('notiClientResult');
   if (!resultEl) return;
   const sus = notificaciones.filter(n => n.destinatario_id === clienteId);
@@ -1188,29 +1160,24 @@ function selectNotiClient(clienteId) {
   }
   resultEl.innerHTML = sus.slice(0, 5).map(n => `
     <div style="padding:7px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:.82rem;font-weight:600;color:var(--text-dark)">${n.titulo || '—'}</div>
+      <div style="font-size:.82rem;font-weight:600;color:var(--text-dark)">${n.titulo || '-'}</div>
       <div style="font-size:.74rem;color:var(--text-light)">${n.mensaje || ''}</div>
     </div>`).join('');
 }
 
-/* ── Fetch rápido del badge (sin cargar toda la sección) ────────── */
+/* ── Fetch rápido del badge ────────────────────────────────────── */
 async function _fetchBadge() {
   try {
-    const r = await fetch('tables/notificaciones?limit=300');
-    const j = await r.json();
-    notificaciones = [...(j.data || [])].filter(n => !n.deleted).reverse();
+    const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
     updateNavBadge();
-    // Actualizar también la tarjeta KPI del dashboard si está visible
     if (typeof renderDashboardKpis === 'function') renderDashboardKpis();
   } catch(e) {}
 }
 
 /* ── Cargar badge al arrancar y refrescar cada 60 s ─────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  // Carga inmediata: el badge aparece en cuanto el DOM esté listo
   _fetchBadge();
-
-  // Refresco automático cada 60 segundos
   _notiTimer = setInterval(_fetchBadge, 60000);
 });
 
@@ -1229,7 +1196,6 @@ window.printOrderPDF   = printOrderPDF;
 
 let _notifDdOpen = false;
 
-/** Abre o cierra el dropdown de la campanita */
 function toggleNotifDropdown() {
   _notifDdOpen ? closeNotifDropdown() : openNotifDropdown();
 }
@@ -1239,20 +1205,16 @@ async function openNotifDropdown() {
   const dd = document.getElementById('notifDropdown');
   if (dd) dd.style.display = 'block';
 
-  // Renderizar con datos actuales de inmediato
   _renderNotifDd();
 
-  // Refrescar desde la API en segundo plano
   try {
-    const r = await fetch('tables/notificaciones?limit=100');
-    const j = await r.json();
-    notificaciones = [...(j.data || [])].filter(n => !n.deleted).reverse();
+    const j = await _supaFetch('notificaciones?select=*&limit=100&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
     _renderNotifDd();
     updateNavBadge();
     _updateNotifDot();
   } catch(_) {}
 
-  // Cerrar al hacer click fuera
   setTimeout(() => {
     document.addEventListener('click', _notifOutsideClick, { once: true });
   }, 0);
@@ -1269,14 +1231,12 @@ function _notifOutsideClick(e) {
   if (wrap && !wrap.contains(e.target)) {
     closeNotifDropdown();
   } else if (_notifDdOpen) {
-    // Si sigue abierto, seguir escuchando
     setTimeout(() => {
       document.addEventListener('click', _notifOutsideClick, { once: true });
     }, 0);
   }
 }
 
-/** Renderiza las últimas 8 notificaciones en el dropdown */
 function _renderNotifDd() {
   const list = document.getElementById('notifDdList');
   if (!list) return;
@@ -1306,8 +1266,8 @@ function _renderNotifDd() {
           <i class="fas ${icon}"></i>
         </div>
         <div class="notif-dd-body">
-          <div class="notif-dd-item-title">${n.titulo || 'Sin título'}</div>
-          <div class="notif-dd-item-msg">${(n.mensaje || '').substring(0, 70)}${(n.mensaje||'').length > 70 ? '…' : ''}</div>
+          <div class="notif-dd-item-title">${n.titulo || 'Sin titulo'}</div>
+          <div class="notif-dd-item-msg">${(n.mensaje || '').substring(0, 70)}${(n.mensaje||'').length > 70 ? '...' : ''}</div>
           <div class="notif-dd-item-meta">${n.destinatario_nombre || 'Todos'} · ${fecha}</div>
         </div>
         ${!leido ? '<span class="notif-dd-unread-dot"></span>' : ''}
@@ -1315,42 +1275,35 @@ function _renderNotifDd() {
   }).join('');
 }
 
-/** Marca una notificación como leída al hacer click en ella */
 async function notifDdMarkRead(id, el) {
   if (el) el.classList.remove('notif-dd-unread');
   const dot = el?.querySelector('.notif-dd-unread-dot');
   if (dot) dot.remove();
 
-  // Actualizar en memoria
   const n = notificaciones.find(x => x.id === id);
   if (n && n.leido === false) {
     n.leido = true;
     _updateNotifDot();
     updateNavBadge();
-    // Guardar en la API
-    try { await fetch(`tables/notificaciones/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leido: true }) }); } catch(_) {}
+    try { await _supaFetch(`notificaciones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ leido: true }) }); } catch(_) {}
   }
 }
 
-/** Marca TODAS las notificaciones como leídas */
 async function notifMarkAllRead() {
   const unread = notificaciones.filter(n => n.leido === false);
   unread.forEach(n => { n.leido = true; });
   _renderNotifDd();
   _updateNotifDot();
   updateNavBadge();
-  // Guardar en la API en paralelo
   await Promise.allSettled(
-    unread.map(n => fetch(`tables/notificaciones/${n.id}`, {
+    unread.map(n => _supaFetch(`notificaciones?id=eq.${n.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leido: true })
     }))
   );
-  _showAdminToast('✅ Todas las notificaciones marcadas como leídas', 'success');
+  _showAdminToast('Todas las notificaciones marcadas como leidas', 'success');
 }
 
-/** Actualiza el punto rojo (dot) de la campanita */
 function _updateNotifDot() {
   const dot     = document.getElementById('notifDot');
   const noLeidas = notificaciones.filter(n => n.leido === false).length;
@@ -1364,11 +1317,8 @@ function _updateNotifDot() {
   }
 }
 
-// Actualizar el dot cada 5 s y al arrancar
 document.addEventListener('DOMContentLoaded', () => {
-  // El timer ya existe, solo enganchamos el dot en el refresco
   setInterval(_updateNotifDot, 5000);
-  // Primera actualización
   setTimeout(_updateNotifDot, 2000);
 });
 
@@ -1398,9 +1348,10 @@ window.sendOrderStatusNotification   = sendOrderStatusNotification;
 window.onNotiClientSearch            = onNotiClientSearch;
 window.selectNotiClient              = selectNotiClient;
 
-// ── Dropdown campanita (topbar) ──────────────────────────────────────────────
+// Dropdown campanita
 window.toggleNotifDropdown  = toggleNotifDropdown;
 window.openNotifDropdown    = openNotifDropdown;
 window.closeNotifDropdown   = closeNotifDropdown;
 window.notifMarkAllRead     = notifMarkAllRead;
 window.notifDdMarkRead      = notifDdMarkRead;
+
