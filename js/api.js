@@ -1,429 +1,474 @@
 /**
- * SUPERMERCADO CASA MOTA - API.JS v3.2
- * Conexion directa a Supabase REST API
- * Tablas: products, customers, orders, staff, drivers, settings, categories
+ * SUPERMERCADO CASA MOTA — API.JS
+ * Capa de acceso unificada → Supabase PostgREST
+ *
+ * Tablas: products, customers, orders, staff, drivers, settings, categories,
+ *         cupones, notificaciones
+ *
+ * Supabase PostgREST difiere de la API anterior:
+ *   - URL base: https://hmloadberrekcxdgdcdn.supabase.co/rest/v1/
+ *   - Autenticación: header apikey + Authorization Bearer
+ *   - Filtros: ?column=eq.value  en vez de ?search=value
+ *   - Paginación: Range header (0-499) en vez de ?page=&limit=
+ *   - DELETE real (no soft delete)
+ *   - Respuesta de POST/PATCH: necesita header Prefer: return=representation
+ *   - Total de registros: header Content-Range (requiere Prefer: count=exact)
  */
 
-// === Configuracion de Supabase ===
-function _getSupabaseConfig() {
-  var url = localStorage.getItem('supabase_url');
-  var key = localStorage.getItem('supabase_anon_key');
-  if (!url || !key) {
-    console.error('[API] Supabase no configurado.');
-  }
-  return { url: url, key: key };
-}
+// ─── Configuración Supabase ───────────────────────────────────────────────────
+const _SB_URL = 'https://hmloadberrekcxdgdcdn.supabase.co/rest/v1';
+const _SB_KEY = 'sb_publishable_4CPOJ5ku869otPf5-fteEA_yvBv06Rm';
 
-// === Helpers base ===
+const _SB_HEADERS = {
+  'Content-Type':  'application/json',
+  'apikey':        _SB_KEY,
+  'Authorization': `Bearer ${_SB_KEY}`,
+};
+
+// ─── Timeouts ─────────────────────────────────────────────────────────────────
 function _apiFetchTimeout(method) {
-  var m = (method || 'GET').toUpperCase();
-  return (['POST', 'PUT', 'PATCH'].indexOf(m) >= 0) ? 45000 : 30000;
+  const m = (method || 'GET').toUpperCase();
+  return ['POST', 'PUT', 'PATCH'].includes(m) ? 45000 : 20000;
 }
 
-async function _supaFetch(path, options, _retry) {
-  if (options === undefined) options = {};
-  if (_retry === undefined) _retry = 1;
-
-  var cfg = _getSupabaseConfig();
-  var SUPA_URL = cfg.url;
-  var SUPA_KEY = cfg.key;
-  if (!SUPA_URL || !SUPA_KEY) throw new Error('Supabase no configurado');
-
-  var method = (options.method || 'GET').toUpperCase();
-  var isMutating = (['POST', 'PUT', 'PATCH'].indexOf(method) >= 0);
-  var retryCount = isMutating ? 0 : _retry;
-
-  var ctrl = new AbortController();
-  var timeout = _apiFetchTimeout(method);
-  var _timedOut = false;
-  var timer = setTimeout(function() { _timedOut = true; ctrl.abort(); }, timeout);
-
-  var headers = {
-    'Content-Type': 'application/json',
-    'apikey': SUPA_KEY,
-    'Authorization': 'Bearer ' + SUPA_KEY
-  };
-
-  if (options.headers) {
-    Object.assign(headers, options.headers);
-  }
-
-  if (['POST', 'PUT', 'PATCH'].indexOf(method) >= 0) {
-    headers['Prefer'] = 'return=representation';
-  }
+// ─── Fetch base con timeout ───────────────────────────────────────────────────
+async function _apiFetch(url, options = {}) {
+  const method    = (options.method || 'GET').toUpperCase();
+  const ctrl      = new AbortController();
+  let   _timedOut = false;
+  const timer     = setTimeout(() => { _timedOut = true; ctrl.abort(); }, _apiFetchTimeout(method));
 
   try {
-    var fetchOptions = Object.assign({}, options, { headers: headers, signal: ctrl.signal });
-    var res = await fetch(SUPA_URL + '/rest/v1/' + path, fetchOptions);
+    const res = await fetch(url, { ...options, signal: ctrl.signal });
     clearTimeout(timer);
 
-    if (res.status === 204) return null;
-
-    var safeRetry = [502, 503, 504, 520, 521, 522, 524];
-    if (!res.ok) {
-      var text = await res.text();
-      if (_retry > 0 && safeRetry.indexOf(res.status) >= 0) {
-        await new Promise(function(r) { setTimeout(r, 1500); });
-        return _supaFetch(path, options, _retry - 1);
-      }
-      throw new Error('Supabase error ' + res.status + ': ' + text);
+    if (res.status === 204 || res.status === 201 && res.headers.get('content-length') === '0') {
+      return null;
     }
 
-    var data = await res.json();
-    return data;
+    if (!res.ok) {
+      const text = await res.text();
+      // Errores de infraestructura seguros de reintentar
+      const safeRetry = [502, 503, 504, 520, 521, 522, 524];
+      if (safeRetry.includes(res.status)) {
+        await new Promise(r => setTimeout(r, 1500));
+        return _apiFetch(url, options); // 1 solo retry
+      }
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+
+    // 201 Created o 200 OK con cuerpo
+    const text = await res.text();
+    if (!text || text === '[]' || text === 'null') return null;
+    const parsed = JSON.parse(text);
+    // PostgREST devuelve array en POST con Prefer:return=representation → tomar primer elemento
+    return Array.isArray(parsed) ? (parsed[0] ?? null) : parsed;
+
   } catch (e) {
     clearTimeout(timer);
-    var isOurTimeout = (e.name === 'AbortError' && _timedOut);
-    var isNetworkErr = (e.name === 'TypeError');
-    if (retryCount > 0 && (isOurTimeout || isNetworkErr)) {
-      await new Promise(function(r) { setTimeout(r, 1000); });
-      return _supaFetch(path, options, retryCount - 1);
+    if (e.name === 'AbortError' && _timedOut) {
+      throw new Error('La operación tardó demasiado. Verifica tu conexión e intenta de nuevo.');
     }
     throw e;
   }
 }
 
-// === GET todos los registros con paginacion automatica ===
-async function _supaGetAll(table, extraParams) {
-  if (extraParams === undefined) extraParams = '';
-  var LIMIT = 100;
-  var offset = 0;
-  var all = [];
+// ─── GET todos los registros con paginación automática ───────────────────────
+// PostgREST usa Range header: "0-499" para la primera página, etc.
+async function _apiGetAll(table, opts = {}) {
+  const PAGE = 500;
+  const extra = opts.filter ? `&${opts.filter}` : '';
+  const order = opts.sort   ? `&order=${opts.sort}.asc` : '&order=created_at.asc';
 
-  while (true) {
-    var qs;
-    if (extraParams && extraParams.indexOf('select=') === 0) {
-      qs = '?' + extraParams + '&order=created_at.asc&limit=' + LIMIT + '&offset=' + offset;
-    } else {
-      qs = '?select=*&order=created_at.asc&limit=' + LIMIT + '&offset=' + offset;
-      if (extraParams) qs += '&' + extraParams;
-    }
+  // Primera página
+  const res1 = await fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
+    headers: {
+      ..._SB_HEADERS,
+      'Range':       `0-${PAGE - 1}`,
+      'Prefer':      'count=exact',
+    },
+  });
 
-    var res = await _supaFetch(table + qs, {});
-
-    var batch = Array.isArray(res) ? res : (res && res.data ? res.data : []);
-    batch = batch.filter(function(r) { return !r.deleted; });
-    all = all.concat(batch);
-
-    if (batch.length < LIMIT) break;
-    offset += LIMIT;
+  if (!res1.ok) {
+    const t = await res1.text();
+    throw new Error(`API error ${res1.status}: ${t}`);
   }
 
-  return { data: all, total: all.length };
+  // Leer total desde Content-Range: "0-499/1523"
+  const range = res1.headers.get('content-range') || '';
+  const total = parseInt(range.split('/')[1]) || 0;
+  const text1 = await res1.text();
+  let all = text1 ? JSON.parse(text1) : [];
+
+  // Páginas adicionales en paralelo si hay más registros
+  if (total > PAGE) {
+    const pages = Math.ceil(total / PAGE);
+    const fetches = [];
+    for (let p = 1; p < pages; p++) {
+      const from = p * PAGE;
+      const to   = from + PAGE - 1;
+      fetches.push(
+        fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
+          headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
+        })
+        .then(r => r.text())
+        .then(t => t ? JSON.parse(t) : [])
+        .catch(() => [])
+      );
+    }
+    const extras = await Promise.all(fetches);
+    for (const batch of extras) all = all.concat(batch);
+  }
+
+  return { data: all, total: total || all.length };
 }
 
-// === GET un registro por ID ===
-async function _supaGet(table, id) {
-  var res = await _supaFetch(table + '?id=eq.' + id + '&select=*');
-  return Array.isArray(res) ? res[0] : res;
-}
+// ─── CRUD helpers ─────────────────────────────────────────────────────────────
 
-// === POST - crear registro ===
-async function _supaCreate(table, data) {
-  var res = await _supaFetch(table, {
-    method: 'POST',
-    body: JSON.stringify(data)
+async function _apiGet(table, id) {
+  const res = await fetch(`${_SB_URL}/${table}?id=eq.${id}&select=*`, {
+    headers: _SB_HEADERS,
   });
-  return Array.isArray(res) ? res[0] : res;
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  const arr = await res.json();
+  return arr[0] ?? null;
 }
 
-// === PATCH - actualizar campos ===
-async function _supaPatch(table, id, data) {
-  var res = await _supaFetch(table + '?id=eq.' + id, {
-    method: 'PATCH',
-    body: JSON.stringify(data)
+async function _apiCreate(table, data) {
+  // Quitar campos de sistema que Supabase genera automáticamente
+  // También quitar 'id' para que Supabase genere el UUID propio
+  const { gs_project_id, gs_table_name, id, ...payload } = data;
+  // Asegurar timestamps
+  if (!payload.created_at) payload.created_at = Date.now();
+  if (!payload.updated_at) payload.updated_at = Date.now();
+
+  return _apiFetch(`${_SB_URL}/${table}`, {
+    method:  'POST',
+    headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
+    body:    JSON.stringify(payload),
   });
-  return Array.isArray(res) ? res[0] : res;
 }
 
-// === PUT - reemplazar registro ===
-async function _supaPut(table, id, data) {
-  return _supaPatch(table, id, data);
-}
+async function _apiUpdate(table, id, data) {
+  const { gs_project_id, gs_table_name, ...payload } = data;
+  payload.updated_at = Date.now();
 
-// === DELETE - soft delete ===
-async function _supaDelete(table, id) {
-  await _supaFetch(table + '?id=eq.' + id, {
-    method: 'PATCH',
-    body: JSON.stringify({ deleted: true })
+  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
+    method:  'PUT',
+    headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
+    body:    JSON.stringify(payload),
   });
-  return null;
 }
 
-// === OBJETO DB - misma interfaz que antes ===
-var _totalProductsInDB = 0;
+async function _apiPatch(table, id, data) {
+  const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
+  payload.updated_at = Date.now();
 
-var PRODUCTS_FIELDS = 'id,name,category,categoryId,subcategory,price,original_price,originalPrice,unit,stock,badge,rating,image,images,barcode,deleted,created_at,updated_at,isNew,isFeatured,isOnSale,tags,sku,weight,costPrice,minStock,isActive,maxStock,expiryDate,supplier,locationCode,taxRate,inStock,inactive,brand,origin,discount';
+  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
+    method:  'PATCH',
+    headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
+    body:    JSON.stringify(payload),
+  });
+}
 
-var DB = {
+async function _apiDelete(table, id) {
+  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
+    method:  'DELETE',
+    headers: _SB_HEADERS,
+  });
+}
 
-  getProducts: async function() {
-    var res = await _supaGetAll('products', 'select=' + PRODUCTS_FIELDS);
+// ─── PRODUCTOS ────────────────────────────────────────────────────────────────
+let _totalProductsInDB = 0;
+
+const DB = {
+
+  // ── Productos ──────────────────────────────────────────────────────────────
+  async getProducts() {
+    const res = await _apiGetAll('products');
     if (res.total > 0) _totalProductsInDB = res.total;
     return res.data || [];
   },
 
-  saveProduct: async function(product, changedFields) {
+  async saveProduct(product, changedFields = null) {
     if (product.id) {
-      var payload = changedFields || product;
-      return _supaPatch('products', product.id, payload);
+      const payload = changedFields || product;
+      return _apiPatch('products', product.id, payload);
     } else {
-      return _supaCreate('products', product);
+      return _apiCreate('products', product);
     }
   },
 
-  deleteProduct: async function(id) {
-    return _supaDelete('products', id);
+  async deleteProduct(id) {
+    return _apiDelete('products', id);
   },
 
-  getOrders: async function() {
-    var res = await _supaGetAll('orders', 'order=created_at.desc');
+  // ── Pedidos ────────────────────────────────────────────────────────────────
+  async getOrders() {
+    const res = await _apiGetAll('orders', { sort: 'created_at' });
     return res.data || [];
   },
 
-  createOrder: async function(order) {
-    return _supaCreate('orders', order);
+  async createOrder(order) {
+    return _apiCreate('orders', order);
   },
 
-  updateOrder: async function(id, order) {
-    return _supaPut('orders', id, order);
+  async updateOrder(id, order) {
+    return _apiUpdate('orders', id, order);
   },
 
-  patchOrder: async function(id, fields) {
-    return _supaPatch('orders', id, fields);
+  async patchOrder(id, fields) {
+    return _apiPatch('orders', id, fields);
   },
 
-  deleteOrder: async function(id) {
-    return _supaDelete('orders', id);
+  async deleteOrder(id) {
+    return _apiDelete('orders', id);
   },
 
-  getCustomers: async function() {
-    var res = await _supaGetAll('customers');
+  // ── Clientes ───────────────────────────────────────────────────────────────
+  async getCustomers() {
+    const res = await _apiGetAll('customers');
     return res.data || [];
   },
 
-  getCustomerByEmail: async function(email) {
-    var res = await _supaFetch(
-      'customers?email=eq.' + encodeURIComponent(email) + '&select=*'
+  async getCustomerByEmail(email) {
+    const encoded = encodeURIComponent(email.toLowerCase());
+    const res = await fetch(
+      `${_SB_URL}/customers?email=ilike.${encoded}&select=*`,
+      { headers: _SB_HEADERS }
     );
-    var list = Array.isArray(res) ? res : [];
-    list = list.filter(function(r) { return !r.deleted; });
-    return list.find(function(c) {
-      return c.email && c.email.toLowerCase() === email.toLowerCase();
-    }) || null;
+    if (!res.ok) return null;
+    const arr = await res.json();
+    return arr.find(c => c.email.toLowerCase() === email.toLowerCase()) || null;
   },
 
-  createCustomer: async function(customer) {
-    return _supaCreate('customers', customer);
+  async createCustomer(customer) {
+    return _apiCreate('customers', customer);
   },
 
-  updateCustomer: async function(id, customer) {
-    return _supaPut('customers', id, customer);
+  async updateCustomer(id, customer) {
+    return _apiUpdate('customers', id, customer);
   },
 
-  patchCustomer: async function(id, fields) {
-    return _supaPatch('customers', id, fields);
+  async patchCustomer(id, fields) {
+    return _apiPatch('customers', id, fields);
   },
 
-  deleteCustomer: async function(id) {
-    return _supaDelete('customers', id);
+  async deleteCustomer(id) {
+    return _apiDelete('customers', id);
   },
 
-  getStaff: async function() {
-    var res = await _supaGetAll('staff');
+  // ── Personal (Staff) ───────────────────────────────────────────────────────
+  async getStaff() {
+    const res = await _apiGetAll('staff');
     return res.data || [];
   },
 
-  getStaffByEmail: async function(email) {
-    var res = await _supaFetch(
-      'staff?email=eq.' + encodeURIComponent(email) + '&select=*'
+  async getStaffByEmail(email) {
+    const encoded = encodeURIComponent(email.toLowerCase());
+    const res = await fetch(
+      `${_SB_URL}/staff?email=ilike.${encoded}&select=*`,
+      { headers: _SB_HEADERS }
     );
-    var list = Array.isArray(res) ? res : [];
-    list = list.filter(function(r) { return !r.deleted; });
-    return list.find(function(s) {
-      return s.email && s.email.toLowerCase() === email.toLowerCase();
-    }) || null;
+    if (!res.ok) return null;
+    const arr = await res.json();
+    return arr.find(s => s.email.toLowerCase() === email.toLowerCase()) || null;
   },
 
-  createStaff: async function(member) {
-    return _supaCreate('staff', member);
+  async createStaff(member) {
+    return _apiCreate('staff', member);
   },
 
-  updateStaff: async function(id, member) {
-    return _supaPut('staff', id, member);
+  async updateStaff(id, member) {
+    return _apiUpdate('staff', id, member);
   },
 
-  patchStaff: async function(id, fields) {
-    return _supaPatch('staff', id, fields);
+  async patchStaff(id, fields) {
+    return _apiPatch('staff', id, fields);
   },
 
-  deleteStaff: async function(id) {
-    return _supaDelete('staff', id);
+  async deleteStaff(id) {
+    return _apiDelete('staff', id);
   },
 
-  getDrivers: async function() {
-    var res = await _supaGetAll('drivers');
+  // ── Repartidores ───────────────────────────────────────────────────────────
+  async getDrivers() {
+    const res = await _apiGetAll('drivers');
     return res.data || [];
   },
 
-  createDriver: async function(driver) {
-    return _supaCreate('drivers', driver);
+  async createDriver(driver) {
+    return _apiCreate('drivers', driver);
   },
 
-  updateDriver: async function(id, driver) {
-    return _supaPut('drivers', id, driver);
+  async updateDriver(id, driver) {
+    return _apiUpdate('drivers', id, driver);
   },
 
-  deleteDriver: async function(id) {
-    return _supaDelete('drivers', id);
+  async deleteDriver(id) {
+    return _apiDelete('drivers', id);
   },
 
-  getSettings: async function() {
-    var defaults = {
-      storeName: 'Supermercado Casa Mota',
-      storeEmail: 'info@casamota.com.do',
-      storePhone: '809-555-2684',
-      storeAddress: 'Av. Principal #123, Santo Domingo',
-      storeCity: 'Santo Domingo',
-      currency: 'RD$',
-      shippingFee: 150,
-      freeShippingMin: 1500,
-      serviceZones: 'Santo Domingo, Santiago, La Romana',
-      hoursWeekday: '7:00 AM - 8:00 PM',
-      hoursSunday: '8:00 AM - 8:00 PM',
-      taxPercent: 0,
+  // ── Configuración ──────────────────────────────────────────────────────────
+  async getSettings() {
+    const _defaults = {
+      storeName:            'Supermercado Casa Mota',
+      storeEmail:           'info@casamota.com.do',
+      storePhone:           '809-555-2684',
+      storeAddress:         'Av. Principal #123, Santo Domingo',
+      storeCity:            'Santo Domingo',
+      currency:             'RD$',
+      shippingFee:          150,
+      freeShippingMin:      1500,
+      serviceZones:         'Santo Domingo, Santiago, La Romana',
+      hoursWeekday:         '7:00 AM – 8:00 PM',
+      hoursSunday:          '8:00 AM – 8:00 PM',
+      taxPercent:           0,
       loyaltyPesosPerPoint: 10,
-      loyaltyPointsEarned: 1,
-      loyaltyPointValue: 1,
-      loyaltyExpiryMonths: 6
+      loyaltyPointsEarned:  1,
+      loyaltyPointValue:    1,
+      loyaltyExpiryMonths:  6,
     };
     try {
-      var res = await _supaGetAll('settings');
-      var list = res.data || [];
+      const res  = await _apiGetAll('settings');
+      const list = res.data || [];
       if (list.length > 0) {
-        return Object.assign({}, defaults, list[0]);
+        const saved = list.find(r => !r.deleted) || list[0];
+        return { ..._defaults, ...saved };
       }
-      return defaults;
-    } catch(e) {
-      return defaults;
+      return _defaults;
+    } catch {
+      return _defaults;
     }
   },
 
-  saveSettings: async function(data) {
+  async saveSettings(data) {
     try {
-      var res = await _supaGetAll('settings');
-      var list = res.data || [];
+      const res  = await _apiGetAll('settings');
+      const list = (res.data || []).filter(r => !r.deleted);
       if (list.length > 0) {
-        var existing = list[0];
-        var merged = Object.assign({}, existing, data);
-        return await _supaPatch('settings', existing.id, merged);
+        const existing = list[0];
+        return await _apiPatch('settings', existing.id, { ...existing, ...data });
       }
-      return await _supaCreate('settings', data);
+      return await _apiCreate('settings', { ...data });
     } catch(e) {
       console.warn('[DB.saveSettings] Error:', e);
-      return await _supaCreate('settings', data);
+      return await _apiCreate('settings', { ...data });
     }
   },
 
-  getCategories: async function() {
+  // ── Categorías ─────────────────────────────────────────────────────────────
+  async getCategories() {
     try {
-      var res = await _supaGetAll('categories');
-      var raw = res.data || [];
-      var seen = {};
-      var list = [];
-      for (var i = 0; i < raw.length; i++) {
-        var cat = raw[i];
-        var key = cat.slug || cat.id;
-        if (key && !seen[key]) {
-          seen[key] = true;
-          list.push(cat);
-        }
+      const res = await _apiGetAll('categories');
+      const raw = (res.data || []).filter(r => !r.deleted);
+      // Deduplicar por slug
+      const seen = new Map();
+      for (const cat of raw) {
+        const key = cat.slug || cat.id;
+        if (key && !seen.has(key)) seen.set(key, cat);
       }
-      list.sort(function(a, b) {
-        return (Number(a.sort_order) || 99) - (Number(b.sort_order) || 99);
-      });
-      return list;
-    } catch(e) { return []; }
+      return [...seen.values()].sort(
+        (a, b) => (Number(a.sort_order) || 99) - (Number(b.sort_order) || 99)
+      );
+    } catch { return []; }
   },
 
-  saveCategory: async function(cat) {
+  async saveCategory(cat) {
     try {
       if (cat._apiUuid) {
-        var uuid = cat._apiUuid;
-        var catData = Object.assign({}, cat);
-        delete catData._apiUuid;
-        return await _supaPatch('categories', uuid, catData);
+        const { _apiUuid, ...catData } = cat;
+        return await _apiUpdate('categories', _apiUuid, catData);
       }
-      var res = await _supaFetch(
-        'categories?slug=eq.' + encodeURIComponent(cat.slug) + '&select=*'
+      // Buscar si ya existe por slug
+      const res  = await fetch(
+        `${_SB_URL}/categories?slug=eq.${encodeURIComponent(cat.slug)}&select=*`,
+        { headers: _SB_HEADERS }
       );
-      var list = Array.isArray(res) ? res : [];
-      list = list.filter(function(r) { return !r.deleted; });
+      const list = res.ok ? (await res.json()).filter(r => !r.deleted) : [];
       if (list.length > 0) {
-        return await _supaPatch('categories', list[0].id, cat);
+        return await _apiUpdate('categories', list[0].id, cat);
       }
-      return await _supaCreate('categories', cat);
+      return await _apiCreate('categories', cat);
     } catch(e) {
       console.warn('[DB.saveCategory]', e);
-      return await _supaCreate('categories', cat);
+      return await _apiCreate('categories', cat);
     }
   },
 
-  deleteCategory: async function(apiUuid) {
-    return _supaDelete('categories', apiUuid);
-  }
+  async deleteCategory(apiUuid) {
+    return _apiDelete('categories', apiUuid);
+  },
+
 };
 
-// === Cache en memoria ===
-var _cache = {
-  products: null,
+// ─── Cache en memoria ─────────────────────────────────────────────────────────
+const _cache = {
+  products:  null,
   customers: null,
-  orders: null,
-  staff: null,
-  drivers: null,
-  settings: null
+  orders:    null,
+  staff:     null,
+  drivers:   null,
+  settings:  null,
 };
 
-var DBCached = {
-  getProducts: async function(force) {
+const DBCached = {
+  async getProducts(force = false) {
     if (!force && _cache.products) return _cache.products;
     _cache.products = await DB.getProducts();
     return _cache.products;
   },
-  invalidateProducts: function() { _cache.products = null; },
+  invalidateProducts() { _cache.products = null; },
 
-  getCustomers: async function(force) {
+  async getCustomers(force = false) {
     if (!force && _cache.customers) return _cache.customers;
     _cache.customers = await DB.getCustomers();
     return _cache.customers;
   },
-  invalidateCustomers: function() { _cache.customers = null; },
+  invalidateCustomers() { _cache.customers = null; },
 
-  getOrders: async function(force) {
+  async getOrders(force = false) {
     if (!force && _cache.orders) return _cache.orders;
     _cache.orders = await DB.getOrders();
     return _cache.orders;
   },
-  invalidateOrders: function() { _cache.orders = null; },
+  invalidateOrders() { _cache.orders = null; },
 
-  getStaff: async function(force) {
+  async getStaff(force = false) {
     if (!force && _cache.staff) return _cache.staff;
     _cache.staff = await DB.getStaff();
     return _cache.staff;
   },
-  invalidateStaff: function() { _cache.staff = null; },
+  invalidateStaff() { _cache.staff = null; },
 
-  getDrivers: async function(force) {
+  async getDrivers(force = false) {
     if (!force && _cache.drivers) return _cache.drivers;
     _cache.drivers = await DB.getDrivers();
     return _cache.drivers;
   },
-  invalidateDrivers: function() { _cache.drivers = null; },
+  invalidateDrivers() { _cache.drivers = null; },
 
-  getSettings: async function(force) {
+  async getSettings(force = false) {
     if (!force && _cache.settings) return _cache.settings;
     _cache.settings = await DB.getSettings();
     return _cache.settings;
   },
-  invalidateSettings: function() { _cache.settings = null; }
+  invalidateSettings() { _cache.settings = null; },
 };
+
+// ─── Helper de error legible ──────────────────────────────────────────────────
+function _friendlyApiError(err) {
+  if (!err) return 'Error desconocido';
+  const msg = err.message || '';
+  if (msg.includes('520') || msg.includes('521') || msg.includes('522') || msg.includes('524'))
+    return '⚠️ El servidor no respondió. Intenta de nuevo en unos segundos.';
+  if (msg.includes('502') || msg.includes('503') || msg.includes('504'))
+    return '⚠️ El servidor está ocupado. Intenta de nuevo en unos segundos.';
+  if (msg.includes('500'))
+    return '⚠️ Error interno del servidor (500). Verifica los datos e intenta de nuevo.';
+  if (msg.includes('tardó demasiado') || msg.includes('AbortError'))
+    return '⚠️ La operación tardó demasiado. Verifica tu conexión e intenta de nuevo.';
+  if (msg.includes('Failed to fetch'))
+    return '⚠️ Sin conexión a internet. Verifica tu red e intenta de nuevo.';
+  return msg.replace(/<[^>]+>/g, '').substring(0, 80) || 'Error desconocido';
+}

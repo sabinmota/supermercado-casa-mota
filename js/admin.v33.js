@@ -3772,16 +3772,43 @@ function saveCustomer() {
       .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado correctamente', 'success'); })
       .catch(err => { _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error'); });
   } else {
+    // ── Solo enviamos a Supabase los campos que existen en la tabla ──────────
     const newC = {
-      id: 'c_' + Date.now(),
-      ...data,
-      orders: 0, spent: 0, lastOrder: null, createdAt: today,
-      loyaltyPoints: 0, loyaltyHistory: [], loyaltyLastActivity: new Date().toISOString(),
+      // NO incluir id: Supabase lo genera como UUID automáticamente
+      name:                 data.name,
+      email:                data.email,
+      phone:                data.phone       || '',
+      cedula:               data.cedula      || '',
+      address:              data.address     || '',
+      city:                 data.city        || '',
+      status:               data.status      || 'active',
+      notes:                data.notes       || '',
+      mapLink:              data.mapLink     || '',
+      password:             data.password    || '',
+      orders:               0,
+      spent:                0,
+      points:               0,
+      loyaltyPoints:        0,
+      loyaltyTier:          'bronze',
+      loyaltyHistory:       [],
+      loyaltyLastActivity:  new Date().toISOString(),
+      access:               true,
+      deleted:              false,
+      created_at:           Date.now(),
+      updated_at:           Date.now(),
     };
-    customers.push(newC);
     DB.createCustomer(newC)
-      .then(saved => { if(saved) customers[customers.length-1] = saved; _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente creado — ya puede iniciar sesión en la tienda', 'success'); })
-      .catch(() => { _unlockC(); showAdminToast('Error al crear cliente', 'error'); });
+      .then(saved => {
+        // Añadir al array local con el registro real devuelto por Supabase (tiene UUID real)
+        const record = saved || { ...newC, id: 'tmp_' + Date.now() };
+        customers.push(record);
+        _unlockC();
+        DBCached.invalidateCustomers();
+        renderCustomers();
+        closeCustomerModal();
+        showAdminToast('Cliente creado — ya puede iniciar sesión en la tienda', 'success');
+      })
+      .catch(err => { _unlockC(); console.error('createCustomer error:', err); showAdminToast('Error al crear cliente: ' + (err?.message || err), 'error'); });
   }
 }
 
