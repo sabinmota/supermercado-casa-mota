@@ -1,7 +1,6 @@
 /**
- * SUPERMERCADO CASA MOTA - API.JS v3.1
+ * SUPERMERCADO CASA MOTA - API.JS v3.2
  * Conexion directa a Supabase REST API
- * Reemplaza la API interna de Genspark (tables/) por llamadas directas a Supabase
  * Tablas: products, customers, orders, staff, drivers, settings, categories
  */
 
@@ -85,7 +84,6 @@ async function _supaFetch(path, options, _retry) {
 }
 
 // === GET todos los registros con paginacion automatica ===
-// USA limit/offset como parametros de query (no Range header)
 async function _supaGetAll(table, extraParams) {
   if (extraParams === undefined) extraParams = '';
   var LIMIT = 100;
@@ -93,8 +91,13 @@ async function _supaGetAll(table, extraParams) {
   var all = [];
 
   while (true) {
-    var qs = '?select=*&order=created_at.asc&limit=' + LIMIT + '&offset=' + offset;
-    if (extraParams) qs += '&' + extraParams;
+    var qs;
+    if (extraParams && extraParams.indexOf('select=') === 0) {
+      qs = '?' + extraParams + '&order=created_at.asc&limit=' + LIMIT + '&offset=' + offset;
+    } else {
+      qs = '?select=*&order=created_at.asc&limit=' + LIMIT + '&offset=' + offset;
+      if (extraParams) qs += '&' + extraParams;
+    }
 
     var res = await _supaFetch(table + qs, {});
 
@@ -150,10 +153,12 @@ async function _supaDelete(table, id) {
 // === OBJETO DB - misma interfaz que antes ===
 var _totalProductsInDB = 0;
 
+var PRODUCTS_FIELDS = 'id,name,category,categoryId,subcategory,price,original_price,originalPrice,unit,stock,badge,rating,image,images,barcode,deleted,created_at,updated_at,isNew,isFeatured,isOnSale,tags,sku,weight,costPrice,minStock,isActive,maxStock,expiryDate,supplier,locationCode,taxRate,inStock,inactive,brand,origin,discount';
+
 var DB = {
 
   getProducts: async function() {
-    var res = await _supaGetAll('products');
+    var res = await _supaGetAll('products', 'select=' + PRODUCTS_FIELDS);
     if (res.total > 0) _totalProductsInDB = res.total;
     return res.data || [];
   },
