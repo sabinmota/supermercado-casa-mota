@@ -710,59 +710,85 @@ function renderDashboardKpis() {
 
 async function loadDashboard() {
   // 1. Mostrar datos actuales en memoria DE INMEDIATO (sin esperar la API)
+  //    Si adminProducts ya está cargado (de initAdminData), renderiza bien.
+  //    Si todavía está vacío, el widget mostrará "Sin productos" de forma temporal.
   renderDashboardKpis();
-  renderTopProducts();
-  renderRecentOrders();
   renderSalesChart();
+  // Solo renderizar top products / recent orders si ya hay datos en memoria,
+  // para evitar que queden en estado skeleton vacío permanentemente.
+  if (adminProducts.length > 0) renderTopProducts();
+  if (orders.length > 0)        renderRecentOrders();
 
-  // 2. Refrescar desde la API en segundo plano y actualizar siempre el KPI
+  // 2. Siempre refrescar desde Supabase y re-renderizar TODO al tener datos reales
   try {
     const [prods, ords] = await Promise.all([ DB.getProducts(), DB.getOrders() ]);
-    let changed = false;
-    if (prods.length > 0) {
-      adminProducts = prods; changed = true; // siempre actualizar para tener datos frescos
-    }
-    if (ords.length !== orders.length) {
-      orders = ords; changed = true;
-    }
-    // Siempre re-renderizar KPIs para reflejar el total real de la BD
+
+    if (prods.length > 0) adminProducts = prods;
+    if (ords.length  > 0) orders        = ords;
+
+    // Re-renderizar siempre (con o sin cambios) para garantizar que el
+    // widget nunca quede colgado aunque adminProducts estuviera vacío antes.
     renderDashboardKpis();
-    if (changed) {
-      renderTopProducts();
-      renderRecentOrders();
-    }
-  } catch(e) { /* usa estado en memoria */ }
+    renderTopProducts();
+    renderRecentOrders();
+
+  } catch(e) {
+    // Si la API falla, al menos renderizamos con lo que hay en memoria
+    console.warn('loadDashboard: error al refrescar desde API', e);
+    renderTopProducts();
+    renderRecentOrders();
+  }
 }
 
 function renderTopProducts() {
-    const map = {};
+  const el = document.getElementById('topProducts');
+  if (!el) return;
+
+  // ── Sin datos aún: mostrar indicador de carga (transitorio)
+  if (!adminProducts || adminProducts.length === 0) {
+    el.innerHTML = '<li style="color:var(--text-light);font-size:.84rem;padding:12px 0">' +
+      '<i class="fas fa-spinner fa-spin" style="margin-right:6px"></i>Cargando productos…</li>';
+    return;
+  }
+
+  // ── Agrupar por nombre: calcular rating promedio
+  const map = {};
   adminProducts.forEach(p => {
+    if (!p || !p.name) return;
     const r = Number(p.rating) || 0;
     if (!map[p.name]) map[p.name] = { sum: 0, count: 0 };
     map[p.name].sum   += r;
     map[p.name].count += 1;
   });
+
+  // ── Ordenar por rating promedio desc, top 5
   const sorted = Object.entries(map)
     .map(([name, d]) => [name, d.count > 0 ? d.sum / d.count : 0])
-    .filter(([, avg]) => avg > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
-  const max = sorted.length > 0 ? (sorted[0][1] || 5) : 5;
 
-  document.getElementById('topProducts').innerHTML = sorted.map(([name,cnt],i) => {
-    const pct = Math.max(8, Math.round((cnt / max) * 100));
+  if (!sorted.length) {
+    el.innerHTML = '<li style="color:var(--text-light);font-size:.84rem;padding:12px 0">Sin productos registrados</li>';
+    return;
+  }
+
+  const max = sorted[0][1] || 5; // evita división por cero
+
+  el.innerHTML = sorted.map(([name, avg], i) => {
+    const pct   = Math.max(8, Math.round(((avg || 0) / max) * 100));
+    const label = avg > 0 ? '★ ' + avg.toFixed(1) : 'Sin rating';
     return `
     <li style="animation-delay:${.08 + i * .09}s">
-      <span class="top-rank">${i+1}</span>
+      <span class="top-rank">${i + 1}</span>
       <span class="top-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
       <div class="top-bar-wrap" style="width:80px;flex-shrink:0">
         <div class="top-bar-fill" data-pct="${pct}"></div>
       </div>
-            <span class="top-sales" style="min-width:52px;text-align:right">★ ${avg.toFixed(1)}</span>
+      <span class="top-sales" style="min-width:52px;text-align:right">${label}</span>
     </li>`;
   }).join('');
 
-  // Animar las barras de progreso con un pequeño delay
+  // ── Animar barras de progreso con pequeño delay
   requestAnimationFrame(() => {
     document.querySelectorAll('#topProducts .top-bar-fill').forEach(bar => {
       const pct = bar.dataset.pct || '0';
