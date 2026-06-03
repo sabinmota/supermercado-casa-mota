@@ -3767,9 +3767,10 @@ function saveCustomer() {
   if (editingCustomerId) {
     const idx = customers.findIndex(c => c.id === editingCustomerId);
     if (idx > -1) customers[idx] = { ...customers[idx], ...data };
-    DB.updateCustomer(editingCustomerId, customers[customers.findIndex(c => c.id === editingCustomerId)])
+    // ── PATCH: solo los campos del formulario (evita enviar campos JS que no existen en Supabase)
+    DB.patchCustomer(editingCustomerId, data)
       .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado correctamente', 'success'); })
-      .catch(() => { _unlockC(); showAdminToast('Error al guardar cliente', 'error'); });
+      .catch(err => { _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error'); });
   } else {
     const newC = {
       id: 'c_' + Date.now(),
