@@ -40,9 +40,9 @@ async function _chatGroqKey() {
 
   // 3) Base de datos
   try {
-    const res  = await _chatFetch('tables/settings?limit=1');
-    const data = await res.json();
-    const key  = data.data?.[0]?.groqApiKey;
+    const res  = await _supaFetch('settings?select=*&limit=1', {});
+    const data = res;
+    const key  = data[0]?.groqApiKey;
     if (key && key.startsWith('gsk_')) {
       _chatGroqKeyCache = key;
       localStorage.setItem('groq_api_key', key); // cachear para próximas veces
@@ -62,9 +62,9 @@ async function _chatGroqKey() {
       _chatGroqKeyCache = local;
       return; // Ya la tenemos
     }
-    const res  = await _chatFetch('tables/settings?limit=1');
-    const data = await res.json();
-    const key  = data.data?.[0]?.groqApiKey;
+    const res  = await _supaFetch('settings?select=*&limit=1', {});
+    const data = res;
+    const key  = data[0]?.groqApiKey;
     if (key && key.startsWith('gsk_') && key.length > 20) {
       _chatGroqKeyCache = key;
       localStorage.setItem('groq_api_key', key);
@@ -89,9 +89,9 @@ let _chatStoreInfo      = null; // Datos de contacto del supermercado
 async function _chatLoadStoreInfo() {
   if (_chatStoreInfo) return; // Ya cargados
   try {
-    const res  = await _chatFetch('tables/settings?limit=1');
-    const data = await res.json();
-    const s    = data.data?.[0] || {};
+    const res  = await _supaFetch('settings?select=*&limit=1', {});
+    const data = res;
+    const s    = data[0] || {};
     _chatStoreInfo = {
       name:     s.storeName     || 'Supermercado Casa Mota',
       address:  s.storeAddress  || 'Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey',
@@ -365,9 +365,9 @@ const _QUICK_SUGGESTIONS = _IS_ADMIN ? _QUICK_SUGGESTIONS_ADMIN : _QUICK_SUGGEST
 async function _chatLoadProducts() {
   if (_chatProdCache.length > 0) return; // Ya cargados
   try {
-    const resp = await _chatFetch('tables/products?limit=500&sort=name');
-    const data = await resp.json();
-    _chatProdCache = (data.data || [])
+    const resp = await _supaFetch('products?select=id,name,category,price,badge,deleted&limit=500&order=name.asc', {});
+    const data = resp;
+    _chatProdCache = (data || [])
       .filter(p => !p.deleted && p.active !== false)
       .map(p => ({ id: p.id, name: p.name, category: p.category, price: p.price, badge: p.badge }));
   } catch (_) {
