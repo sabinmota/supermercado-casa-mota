@@ -88,7 +88,7 @@ async function _supaFetch(path, options, _retry) {
 // USA limit/offset como parametros de query (no Range header)
 async function _supaGetAll(table, extraParams) {
   if (extraParams === undefined) extraParams = '';
-  var LIMIT = 1000;
+  var LIMIT = 100;
   var offset = 0;
   var all = [];
 
