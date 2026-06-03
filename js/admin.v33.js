@@ -735,10 +735,19 @@ async function loadDashboard() {
 }
 
 function renderTopProducts() {
-  const cats = {};
-  adminProducts.forEach(p => { cats[p.name] = (cats[p.name] || 0) + (Number(p.reviews) || Number(p.rating) || 0); });
-  const sorted = Object.entries(cats).sort((a,b) => b[1]-a[1]).slice(0,5);
-  const max    = sorted.length > 0 ? (sorted[0][1] || 1) : 1;
+    const map = {};
+  adminProducts.forEach(p => {
+    const r = Number(p.rating) || 0;
+    if (!map[p.name]) map[p.name] = { sum: 0, count: 0 };
+    map[p.name].sum   += r;
+    map[p.name].count += 1;
+  });
+  const sorted = Object.entries(map)
+    .map(([name, d]) => [name, d.count > 0 ? d.sum / d.count : 0])
+    .filter(([, avg]) => avg > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const max = sorted.length > 0 ? (sorted[0][1] || 5) : 5;
 
   document.getElementById('topProducts').innerHTML = sorted.map(([name,cnt],i) => {
     const pct = Math.max(8, Math.round((cnt / max) * 100));
@@ -749,7 +758,7 @@ function renderTopProducts() {
       <div class="top-bar-wrap" style="width:80px;flex-shrink:0">
         <div class="top-bar-fill" data-pct="${pct}"></div>
       </div>
-      <span class="top-sales" style="min-width:52px;text-align:right">${cnt > 0 ? '★ ' + (cnt/1).toFixed(1) : 'Sin rating'}</span>
+            <span class="top-sales" style="min-width:52px;text-align:right">★ ${avg.toFixed(1)}</span>
     </li>`;
   }).join('');
 
