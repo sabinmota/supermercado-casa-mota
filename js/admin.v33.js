@@ -736,7 +736,7 @@ async function loadDashboard() {
 
 function renderTopProducts() {
   const cats = {};
-  adminProducts.forEach(p => { cats[p.name] = (cats[p.name] || 0) + p.reviews; });
+  adminProducts.forEach(p => { cats[p.name] = (cats[p.name] || 0) + (Number(p.reviews) || Number(p.rating) || 0); });
   const sorted = Object.entries(cats).sort((a,b) => b[1]-a[1]).slice(0,5);
   const max    = sorted.length > 0 ? (sorted[0][1] || 1) : 1;
 
@@ -749,7 +749,7 @@ function renderTopProducts() {
       <div class="top-bar-wrap" style="width:80px;flex-shrink:0">
         <div class="top-bar-fill" data-pct="${pct}"></div>
       </div>
-      <span class="top-sales" style="min-width:52px;text-align:right">${cnt} reseñas</span>
+      <span class="top-sales" style="min-width:52px;text-align:right">${cnt > 0 ? '★ ' + (cnt/1).toFixed(1) : 'Sin rating'}</span>
     </li>`;
   }).join('');
 
