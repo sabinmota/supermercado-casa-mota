@@ -15,6 +15,13 @@
  *   - Total de registros: header Content-Range (requiere Prefer: count=exact)
  */
 
+// ─── Detección de entorno ─────────────────────────────────────────────────────
+// En Genspark usamos tables/ — en Render usamos Supabase directamente
+const _IS_GENSPARK = location.hostname.includes('gensparkspace.com')
+                  || location.hostname.includes('genspark.ai')
+                  || location.hostname === 'localhost'
+                  || location.hostname === '127.0.0.1';
+
 // ─── Configuración Supabase ───────────────────────────────────────────────────
 const _SB_URL = 'https://hmloadberrekcxdgdcdn.supabase.co/rest/v1';
 const _SB_KEY = 'sb_publishable_4CPOJ5ku869otPf5-fteEA_yvBv06Rm';
@@ -185,6 +192,14 @@ const DB = {
 
   // ── Productos ──────────────────────────────────────────────────────────────
   async getProducts() {
+    if (_IS_GENSPARK) {
+      // En Genspark usar tables/ API directa
+      const res = await fetch('tables/products?limit=2000');
+      const json = await res.json();
+      const list = json.data || [];
+      _totalProductsInDB = list.length;
+      return list;
+    }
     const res = await _apiGetAll('products');
     if (res.total > 0) _totalProductsInDB = res.total;
     return res.data || [];
@@ -205,6 +220,11 @@ const DB = {
 
   // ── Pedidos ────────────────────────────────────────────────────────────────
   async getOrders() {
+    if (_IS_GENSPARK) {
+      const res = await fetch('tables/orders?limit=2000');
+      const json = await res.json();
+      return json.data || [];
+    }
     const res = await _apiGetAll('orders', { sort: 'created_at' });
     return res.data || [];
   },
@@ -227,6 +247,11 @@ const DB = {
 
   // ── Clientes ───────────────────────────────────────────────────────────────
   async getCustomers() {
+    if (_IS_GENSPARK) {
+      const res = await fetch('tables/customers?limit=2000');
+      const json = await res.json();
+      return json.data || [];
+    }
     const res = await _apiGetAll('customers');
     return res.data || [];
   },
@@ -260,6 +285,11 @@ const DB = {
 
   // ── Personal (Staff) ───────────────────────────────────────────────────────
   async getStaff() {
+    if (_IS_GENSPARK) {
+      const res = await fetch('tables/staff?limit=500');
+      const json = await res.json();
+      return json.data || [];
+    }
     const res = await _apiGetAll('staff');
     return res.data || [];
   },
@@ -293,6 +323,11 @@ const DB = {
 
   // ── Repartidores ───────────────────────────────────────────────────────────
   async getDrivers() {
+    if (_IS_GENSPARK) {
+      const res = await fetch('tables/drivers?limit=500');
+      const json = await res.json();
+      return json.data || [];
+    }
     const res = await _apiGetAll('drivers');
     return res.data || [];
   },
@@ -330,8 +365,15 @@ const DB = {
       loyaltyExpiryMonths:  6,
     };
     try {
-      const res  = await _apiGetAll('settings');
-      const list = res.data || [];
+      let list = [];
+      if (_IS_GENSPARK) {
+        const res = await fetch('tables/settings?limit=10');
+        const json = await res.json();
+        list = json.data || [];
+      } else {
+        const res = await _apiGetAll('settings');
+        list = res.data || [];
+      }
       if (list.length > 0) {
         const saved = list.find(r => !r.deleted) || list[0];
         return { ..._defaults, ...saved };
@@ -360,8 +402,16 @@ const DB = {
   // ── Categorías ─────────────────────────────────────────────────────────────
   async getCategories() {
     try {
-      const res = await _apiGetAll('categories');
-      const raw = (res.data || []).filter(r => !r.deleted);
+      let rawData = [];
+      if (_IS_GENSPARK) {
+        const res = await fetch('tables/categories?limit=500');
+        const json = await res.json();
+        rawData = json.data || [];
+      } else {
+        const res = await _apiGetAll('categories');
+        rawData = res.data || [];
+      }
+      const raw = rawData.filter(r => !r.deleted);
       // Deduplicar por slug
       const seen = new Map();
       for (const cat of raw) {

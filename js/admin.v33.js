@@ -1779,17 +1779,36 @@ function saveProduct() {
         _unlock();
       });
   } else {
-    // Limpiar payload antes de POST:
-    //  - quitar nulls/undefined  → la API puede devolver 500 con campos null
-    //  - quitar arrays vacíos   → images:[] causa 500 si el schema no lo acepta
-    //  - quitar isNew           → campo que no existe en el schema de la API
-    const { isNew: _drop, ...rest } = { ...data, reviews: 0 };
+    // Limpiar payload antes de POST — la API de Genspark rechaza:
+    //  - campos null/undefined
+    //  - arrays vacíos (images:[])
+    //  - isNew (no existe en schema de products)
+    //  - reviews (lo generamos en 0 pero puede causar conflicto)
+    const VALID_FIELDS = new Set(['name','category','price','originalPrice','unit','stock','badge','rating','description','image','images','barcode','isNew','reviews']);
     const newProd = Object.fromEntries(
-      Object.entries(rest).filter(([, v]) =>
-        v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
-      )
+      Object.entries(data)
+        .filter(([k, v]) =>
+          VALID_FIELDS.has(k) &&
+          v !== null &&
+          v !== undefined &&
+          v !== '' &&
+          !(Array.isArray(v) && v.length === 0)
+        )
     );
-    _apiFetch('tables/products', { method: 'POST', body: JSON.stringify(newProd) })
+    // ── POST directo a la API de Genspark (tables/) ──────────────────────────
+    // No usar _apiFetch() porque ese apunta a Supabase (_SB_URL)
+    fetch('tables/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProd)
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`API error ${res.status}: ${txt}`);
+        }
+        return res.json();
+      })
       .then(saved => {
         // Asegurar que el producto guardado tenga created_at para que aparezca primero
         const finalProd = saved || newProd;
@@ -3385,7 +3404,7 @@ function addPointsToCustomer(customerId, pts, reason, orderId = null) {
 
   customers[idx].loyaltyPoints     += pts;
   if (customers[idx].loyaltyPoints < 0) customers[idx].loyaltyPoints = 0;
-  customers[idx].loyaltyLastActivity = new Date().toISOString();
+  customers[idx].loyaltyLastActivity = Date.now();
 
   customers[idx].loyaltyHistory.unshift({
     date:    new Date().toLocaleDateString('es-DO'),
@@ -3403,11 +3422,11 @@ function addPointsToCustomer(customerId, pts, reason, orderId = null) {
 // Verifica y aplica vencimiento de puntos (6 meses sin actividad)
 function checkPointsExpiry(customer) {
   if (!customer.loyaltyLastActivity || !customer.loyaltyPoints) return customer;
-  const lastAct   = new Date(customer.loyaltyLastActivity);
+  const lastAct   = new Date(Number(customer.loyaltyLastActivity));
   const monthsDiff = (Date.now() - lastAct) / (1000 * 60 * 60 * 24 * 30);
   if (monthsDiff >= LOYALTY.expiryMonths && customer.loyaltyPoints > 0) {
     customer.loyaltyPoints        = 0;
-    customer.loyaltyLastActivity  = new Date().toISOString();
+    customer.loyaltyLastActivity  = Date.now();
     if (!customer.loyaltyHistory) customer.loyaltyHistory = [];
     customer.loyaltyHistory.unshift({
       date:    new Date().toLocaleDateString('es-DO'),
@@ -3777,25 +3796,24 @@ function saveCustomer() {
       // NO incluir id: Supabase lo genera como UUID automáticamente
       name:                 data.name,
       email:                data.email,
-      phone:                data.phone       || '',
-      cedula:               data.cedula      || '',
-      address:              data.address     || '',
-      city:                 data.city        || '',
-      status:               data.status      || 'active',
-      notes:                data.notes       || '',
-      mapLink:              data.mapLink     || '',
-      password:             data.password    || '',
+      phone:                data.phone    || '',
+      cedula:               data.cedula   || '',
+      address:              data.address  || '',
+      city:                 data.city     || '',
+      status:               data.status   || 'active',
+      notes:                data.notes    || '',
+      mapLink:              data.mapLink  || '',
+      password:             data.password || '',
       orders:               0,
       spent:                0,
       points:               0,
       loyaltyPoints:        0,
       loyaltyTier:          'bronze',
       loyaltyHistory:       [],
-      loyaltyLastActivity:  new Date().toISOString(),
+      loyaltyLastActivity:  Date.now(), // compatible con BIGINT y TEXT en Supabase
       access:               true,
       deleted:              false,
-      created_at:           Date.now(),
-      updated_at:           Date.now(),
+      // ⚠️ created_at / updated_at los pone _apiCreate automáticamente (BIGINT ms)
     };
     DB.createCustomer(newC)
       .then(saved => {
