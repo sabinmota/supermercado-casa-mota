@@ -495,23 +495,29 @@ async function initAdminData() {
   if (spinnerEl) spinnerEl.style.display = 'flex';
 
   // ── FASE 1: Todo lo necesario para el Dashboard completo ────────────────────
-  try {
-    const [prods, ords, cfg, cats] = await Promise.all([
-      DB.getProducts(),
-      DB.getOrders(),
-      DB.getSettings(),
-      DB.getCategories(),   // ← cargamos categorías en Fase 1 para que catLabel() funcione en el chart
-    ]);
+  let fase1OK = false;
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const [prods, ords, cfg, cats] = await Promise.all([
+        DB.getProducts(),
+        DB.getOrders(),
+        DB.getSettings(),
+        DB.getCategories(),
+      ]);
 
-    adminProducts    = prods.length > 0 ? prods : deepClone(PRODUCTS);
-    orders           = ords;
-    adminCategories  = (cats || []).map(c => ({ ...c, icon: _sanitizeIcon(c.icon) }));
-    _cache.products  = adminProducts;
-    _cache.orders    = orders;
-    _cache.settings  = cfg;
+      adminProducts    = prods.length > 0 ? prods : deepClone(PRODUCTS);
+      orders           = ords;
+      adminCategories  = (cats || []).map(c => ({ ...c, icon: _sanitizeIcon(c.icon) }));
+      _cache.products  = adminProducts;
+      _cache.orders    = orders;
+      _cache.settings  = cfg;
+      fase1OK = true;
+      break; // éxito — salir del loop
 
-  } catch(e) {
-    console.warn('initAdminData fase 1 error:', e);
+    } catch(e) {
+      console.warn(`initAdminData fase 1 intento ${intento}/3:`, e);
+      if (intento < 3) await new Promise(r => setTimeout(r, 2000 * intento)); // espera 2s, 4s
+    }
   }
 
   // Ocultar loader
@@ -709,33 +715,49 @@ function renderDashboardKpis() {
 }
 
 async function loadDashboard() {
-  // 1. Mostrar datos actuales en memoria DE INMEDIATO (sin esperar la API)
-  //    Si adminProducts ya está cargado (de initAdminData), renderiza bien.
-  //    Si todavía está vacío, el widget mostrará "Sin productos" de forma temporal.
+  // 1. Mostrar datos actuales en memoria DE INMEDIATO
   renderDashboardKpis();
   renderSalesChart();
-  // Solo renderizar top products / recent orders si ya hay datos en memoria,
-  // para evitar que queden en estado skeleton vacío permanentemente.
   if (adminProducts.length > 0) renderTopProducts();
   if (orders.length > 0)        renderRecentOrders();
 
-  // 2. Siempre refrescar desde Supabase y re-renderizar TODO al tener datos reales
+  // 2. Siempre refrescar desde Supabase y re-renderizar TODO
   try {
     const [prods, ords] = await Promise.all([ DB.getProducts(), DB.getOrders() ]);
 
     if (prods.length > 0) adminProducts = prods;
     if (ords.length  > 0) orders        = ords;
 
-    // Re-renderizar siempre (con o sin cambios) para garantizar que el
-    // widget nunca quede colgado aunque adminProducts estuviera vacío antes.
     renderDashboardKpis();
     renderTopProducts();
     renderRecentOrders();
 
   } catch(e) {
-    // Si la API falla, al menos renderizamos con lo que hay en memoria
     console.warn('loadDashboard: error al refrescar desde API', e);
+    // Si falla, mostrar botón de reintento en el widget
     renderTopProducts();
+    renderRecentOrders();
+    _showDashboardRetry();
+  }
+}
+
+/** Muestra un botón de reintento en el dashboard cuando la API falla */
+function _showDashboardRetry() {
+  const el = document.getElementById('topProducts');
+  if (!el || adminProducts.length > 0) return;
+  el.innerHTML = `
+    <li style="padding:16px 0;text-align:center">
+      <div style="color:var(--text-light);font-size:.84rem;margin-bottom:10px">
+        <i class="fas fa-wifi" style="margin-right:6px;color:#e53935"></i>
+        No se pudo conectar con el servidor
+      </div>
+      <button onclick="loadDashboard()" style="
+        background:var(--primary);color:#fff;border:none;border-radius:8px;
+        padding:8px 18px;font-size:.85rem;cursor:pointer;font-weight:600">
+        <i class="fas fa-rotate-right" style="margin-right:6px"></i>Reintentar
+      </button>
+    </li>`;
+}
     renderRecentOrders();
   }
 }
@@ -1127,9 +1149,8 @@ function viewProduct(id) {
     if (badgeEl) {
       wrap.appendChild(badgeEl);
       if (p.badge) {
-        const discount = p.originalPrice ? Math.round((1 - p.price / p.originalPrice) * 100) : null;
         const badgeLabel = p.badge === 'offer'
-          ? (discount != null ? `-${discount}%` : 'Oferta')
+          ? 'Oferta'
           : p.badge === 'new' ? 'Nuevo' : 'Favorito';
         // Colores por tipo de badge (inline para evitar conflictos con caché CSS)
         const badgeColors = {
