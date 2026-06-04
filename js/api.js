@@ -87,7 +87,7 @@ async function _apiGetAll(table, opts = {}) {
     headers: {
       ..._SB_HEADERS,
       'Range':       `0-${PAGE - 1}`,
-      'Prefer':      'count=exact',
+      'Prefer':      'count=planned',
     },
   });
 

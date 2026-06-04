@@ -945,9 +945,10 @@ function renderProductsTable() {
 
   const filtered = adminProducts
     .filter(p => {
-      const matchQ = !q || p.name.toLowerCase().includes(q)
+      if (!p || !p.name) return false;
+      const matchQ = !q || (p.name || '').toLowerCase().includes(q)
                         || (p.description || '').toLowerCase().includes(q)
-                        || (p.barcode || '').toLowerCase().includes(q);
+                        || (p.barcode || '').toString().toLowerCase().includes(q);
       const matchC = !cat   || p.category === cat;
       const matchB = !badge || p.badge    === badge;
       return matchQ && matchC && matchB;
@@ -991,7 +992,7 @@ function renderProductsTable() {
     const discount   = p.originalPrice ? Math.round((1 - p.price / p.originalPrice) * 100) : null;
     const stockClass = p.stock === 0 ? 'stock-zero' : p.stock < 20 ? 'stock-low' : 'stock-ok';
     const badgeHTML  = p.badge
-      ? `<span class="badge-pill badge-${p.badge}">${p.badge==='offer'?(discount!=null?`-${discount}%`:'Oferta'):p.badge==='new'?'Nuevo':'Favorito'}</span>`
+      ? `<span class="badge-pill badge-${p.badge}">${p.badge==='offer'?'Oferta':p.badge==='new'?'Nuevo':'Favorito'}</span>`
       : `<span class="badge-pill badge-none">—</span>`;
 
     const tr = document.createElement('tr');
