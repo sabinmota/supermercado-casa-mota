@@ -1795,43 +1795,69 @@ function saveProduct() {
           !(Array.isArray(v) && v.length === 0)
         )
     );
-    // ── POST directo a la API de Genspark (tables/) ──────────────────────────
-    // No usar _apiFetch() porque ese apunta a Supabase (_SB_URL)
-    fetch('tables/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newProd)
-    })
-      .then(async res => {
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(`API error ${res.status}: ${txt}`);
-        }
-        return res.json();
+    // ── POST: Genspark usa tables/, Render usa Supabase vía DB ──────────────
+    if (typeof _IS_GENSPARK !== 'undefined' && _IS_GENSPARK) {
+      // ── Genspark: fetch directo a tables/products ────────────────────────
+      fetch('tables/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProd)
       })
-      .then(saved => {
-        // Asegurar que el producto guardado tenga created_at para que aparezca primero
-        const finalProd = saved || newProd;
-        if (!finalProd.created_at) finalProd.created_at = Date.now();
-        adminProducts.push(finalProd);
-        if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
-        DBCached.invalidateProducts();
-        _pages.products = 1;
-        _unlock();                    // ← desbloquear ANTES de cerrar el modal
-        closeProductModal();
-        showAdminToast('Producto creado ✅', 'success');
-        requestAnimationFrame(() => {
-          const sec = document.querySelector('.section-content.active')?.id;
-          if (sec === 'sec-inventory') renderInventory();
-          else renderProductsTable();
+        .then(async res => {
+          if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(`API error ${res.status}: ${txt}`);
+          }
+          return res.json();
+        })
+        .then(saved => {
+          const finalProd = saved || newProd;
+          if (!finalProd.created_at) finalProd.created_at = Date.now();
+          adminProducts.push(finalProd);
+          if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
+          DBCached.invalidateProducts();
+          _pages.products = 1;
+          _unlock();
+          closeProductModal();
+          showAdminToast('Producto creado ✅', 'success');
+          requestAnimationFrame(() => {
+            const sec = document.querySelector('.section-content.active')?.id;
+            if (sec === 'sec-inventory') renderInventory();
+            else renderProductsTable();
+          });
+        })
+        .catch(err => {
+          console.error('Error al crear producto:', err);
+          const msg = _friendlyApiError(err);
+          showAdminToast('Error al crear el producto: ' + msg, 'error');
+          _unlock();
         });
-      })
-      .catch(err => {
-        console.error('Error al crear producto:', err);
-        const msg = _friendlyApiError(err);
-        showAdminToast('Error al crear el producto: ' + msg, 'error');
-        _unlock();
-      });
+    } else {
+      // ── Render/Supabase: usar DB.saveProduct ─────────────────────────────
+      DB.saveProduct(newProd)
+        .then(saved => {
+          const finalProd = saved || newProd;
+          if (!finalProd.created_at) finalProd.created_at = Date.now();
+          adminProducts.unshift(finalProd);
+          if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
+          DBCached.invalidateProducts();
+          _pages.products = 1;
+          _unlock();
+          closeProductModal();
+          showAdminToast('Producto creado ✅', 'success');
+          requestAnimationFrame(() => {
+            const sec = document.querySelector('.section-content.active')?.id;
+            if (sec === 'sec-inventory') renderInventory();
+            else renderProductsTable();
+          });
+        })
+        .catch(err => {
+          console.error('Error al crear producto:', err);
+          const msg = _friendlyApiError(err);
+          showAdminToast('Error al crear el producto: ' + msg, 'error');
+          _unlock();
+        });
+    }
   }
 }
 
