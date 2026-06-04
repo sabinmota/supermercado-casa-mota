@@ -1,10 +1,11 @@
 /**
- * SUPERMERCADO CASA MOTA — SERVICE WORKER v169
+ * SUPERMERCADO CASA MOTA — SERVICE WORKER v170
  * Estrategia: NETWORK ONLY para HTML/JS/CSS (nunca cachear código)
  * Cache SOLO para imágenes como fallback offline
+ * IMPORTANTE: Supabase y APIs externas → NUNCA interceptar (causa CORS)
  */
 
-const CACHE_NAME = 'casamota-v205';
+const CACHE_NAME = 'casamota-v290';
 
 // ─── INSTALL: activar inmediatamente sin cachear nada ────────────────────────
 self.addEventListener('install', event => {
@@ -24,12 +25,18 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ─── FETCH: NUNCA cachear HTML/JS/CSS — siempre red ──────────────────────────
+// ─── FETCH: manejo inteligente de requests ────────────────────────────────────
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // ⚠️ NUNCA interceptar requests a Supabase ni APIs externas
+  // Si el SW intercepta estas requests, puede romper los headers CORS
+  const isExternal = url.origin !== self.location.origin;
+  if (isExternal) return; // dejar pasar sin interceptar
+
   const ext = url.pathname.split('.').pop().toLowerCase();
 
   // HTML, JS, CSS → SIEMPRE desde la red, sin caché
@@ -43,7 +50,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // API tables → siempre red, fallback JSON vacío
+  // API tables internas → siempre red, fallback JSON vacío
   if (url.pathname.includes('/tables/')) {
     event.respondWith(
       fetch(request, { cache: 'no-store' }).catch(() =>
@@ -54,14 +61,14 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Imágenes de productos → Cache First (más rápido en segunda carga)
+  // Imágenes locales → Cache First (más rápido en segunda carga)
   if (['jpg','jpeg','png','webp','gif','svg'].includes(ext)) {
     event.respondWith(
       caches.open(CACHE_NAME).then(cache =>
         cache.match(request).then(cached => {
-          if (cached) return cached; // Desde caché instantáneo
+          if (cached) return cached;
           return fetch(request).then(response => {
-            if (response.ok) cache.put(request, response.clone()); // Guardar en caché
+            if (response.ok) cache.put(request, response.clone());
             return response;
           }).catch(() => cached || new Response('', { status: 404 }));
         })
@@ -70,7 +77,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Todo lo demás → red normal
+  // Todo lo demás → red normal sin caché
   event.respondWith(fetch(request, { cache: 'no-store' }));
 });
 

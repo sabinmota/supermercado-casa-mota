@@ -75,11 +75,23 @@ async function _apiFetch(url, options = {}) {
   }
 }
 
+// ─── Campos mínimos por tabla (evita traer columnas pesadas innecesarias) ──────
+const _SELECT_FIELDS = {
+  products:  'id,name,category,price,stock,image,barcode,badge,description,created_at,updated_at',
+  orders:    'id,status,total,items,customer_name,customer_email,customer_phone,address,notes,created_at,updated_at',
+  customers: 'id,name,email,phone,address,points,total_spent,created_at,updated_at',
+  staff:     'id,name,email,role,phone,permissions,created_at,updated_at',
+  drivers:   'id,name,phone,status,email,created_at,updated_at',
+  categories:'id,name,slug,icon,sort_order,created_at,updated_at',
+  settings:  '*',
+};
+
 // ─── GET todos los registros con paginación automática ───────────────────────
-// PostgREST usa Range header: "0-499" para la primera página, etc.
+// PostgREST usa Range header: "0-199" para la primera página, etc.
 async function _apiGetAll(table, opts = {}) {
-  const PAGE    = 500;
-  const TIMEOUT = 15000; // 15s máximo por petición
+  const PAGE    = 200;  // Bajado de 500 → menos carga por query en Supabase
+  const TIMEOUT = 12000; // 12s máximo por página
+  const fields  = _SELECT_FIELDS[table] || '*';
   const extra   = opts.filter ? `&${opts.filter}` : '';
   const order   = opts.sort   ? `&order=${opts.sort}.asc` : '&order=created_at.asc';
 
@@ -87,7 +99,6 @@ async function _apiGetAll(table, opts = {}) {
   let from = 0;
   let keepGoing = true;
 
-  // Cargar página por página de forma SECUENCIAL hasta agotar registros
   while (keepGoing) {
     const to   = from + PAGE - 1;
     const ctrl = new AbortController();
@@ -95,7 +106,7 @@ async function _apiGetAll(table, opts = {}) {
 
     let res;
     try {
-      res = await fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
+      res = await fetch(`${_SB_URL}/${table}?select=${encodeURIComponent(fields)}${extra}${order}`, {
         headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
         signal: ctrl.signal,
       });
@@ -121,7 +132,6 @@ async function _apiGetAll(table, opts = {}) {
 
     all = all.concat(batch);
 
-    // Si recibimos menos de PAGE registros, ya llegamos al final
     if (batch.length < PAGE) {
       keepGoing = false;
     } else {
@@ -195,16 +205,31 @@ const DB = {
   // ── Productos ──────────────────────────────────────────────────────────────
   async getProducts() {
     if (_IS_GENSPARK) {
-      // En Genspark usar tables/ API directa
-      const res = await fetch('tables/products?limit=2000');
+      const res  = await fetch('tables/products?limit=2000');
       const json = await res.json();
       const list = json.data || [];
       _totalProductsInDB = list.length;
       return list;
     }
-    const res = await _apiGetAll('products');
-    if (res.total > 0) _totalProductsInDB = res.total;
-    return res.data || [];
+    // Pedir solo campos necesarios directamente sin helper (más rápido)
+    const fields = _SELECT_FIELDS.products;
+    const ctrl   = new AbortController();
+    const timer  = setTimeout(() => ctrl.abort(), 12000);
+    let res;
+    try {
+      res = await fetch(
+        `${_SB_URL}/products?select=${encodeURIComponent(fields)}&order=created_at.asc&limit=2000`,
+        { headers: _SB_HEADERS, signal: ctrl.signal }
+      );
+    } catch(e) {
+      clearTimeout(timer);
+      throw e;
+    }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const list = await res.json();
+    _totalProductsInDB = list.length;
+    return Array.isArray(list) ? list : [];
   },
 
   async saveProduct(product, changedFields = null) {
@@ -223,12 +248,25 @@ const DB = {
   // ── Pedidos ────────────────────────────────────────────────────────────────
   async getOrders() {
     if (_IS_GENSPARK) {
-      const res = await fetch('tables/orders?limit=2000');
+      const res  = await fetch('tables/orders?limit=2000');
       const json = await res.json();
       return json.data || [];
     }
-    const res = await _apiGetAll('orders', { sort: 'created_at' });
-    return res.data || [];
+    // Fetch directo con campos específicos y límite para evitar statement timeout
+    const fields = _SELECT_FIELDS.orders;
+    const ctrl   = new AbortController();
+    const timer  = setTimeout(() => ctrl.abort(), 12000);
+    let res;
+    try {
+      res = await fetch(
+        `${_SB_URL}/orders?select=${encodeURIComponent(fields)}&order=created_at.desc&limit=1000`,
+        { headers: _SB_HEADERS, signal: ctrl.signal }
+      );
+    } catch(e) { clearTimeout(timer); throw e; }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
   },
 
   async createOrder(order) {
@@ -250,12 +288,24 @@ const DB = {
   // ── Clientes ───────────────────────────────────────────────────────────────
   async getCustomers() {
     if (_IS_GENSPARK) {
-      const res = await fetch('tables/customers?limit=2000');
+      const res  = await fetch('tables/customers?limit=2000');
       const json = await res.json();
       return json.data || [];
     }
-    const res = await _apiGetAll('customers');
-    return res.data || [];
+    const fields = _SELECT_FIELDS.customers;
+    const ctrl   = new AbortController();
+    const timer  = setTimeout(() => ctrl.abort(), 12000);
+    let res;
+    try {
+      res = await fetch(
+        `${_SB_URL}/customers?select=${encodeURIComponent(fields)}&order=created_at.desc&limit=2000`,
+        { headers: _SB_HEADERS, signal: ctrl.signal }
+      );
+    } catch(e) { clearTimeout(timer); throw e; }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
   },
 
   async getCustomerByEmail(email) {
@@ -288,12 +338,24 @@ const DB = {
   // ── Personal (Staff) ───────────────────────────────────────────────────────
   async getStaff() {
     if (_IS_GENSPARK) {
-      const res = await fetch('tables/staff?limit=500');
+      const res  = await fetch('tables/staff?limit=500');
       const json = await res.json();
       return json.data || [];
     }
-    const res = await _apiGetAll('staff');
-    return res.data || [];
+    const fields = _SELECT_FIELDS.staff;
+    const ctrl   = new AbortController();
+    const timer  = setTimeout(() => ctrl.abort(), 10000);
+    let res;
+    try {
+      res = await fetch(
+        `${_SB_URL}/staff?select=${encodeURIComponent(fields)}&order=created_at.asc&limit=500`,
+        { headers: _SB_HEADERS, signal: ctrl.signal }
+      );
+    } catch(e) { clearTimeout(timer); throw e; }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
   },
 
   async getStaffByEmail(email) {
@@ -326,12 +388,24 @@ const DB = {
   // ── Repartidores ───────────────────────────────────────────────────────────
   async getDrivers() {
     if (_IS_GENSPARK) {
-      const res = await fetch('tables/drivers?limit=500');
+      const res  = await fetch('tables/drivers?limit=500');
       const json = await res.json();
       return json.data || [];
     }
-    const res = await _apiGetAll('drivers');
-    return res.data || [];
+    const fields = _SELECT_FIELDS.drivers;
+    const ctrl   = new AbortController();
+    const timer  = setTimeout(() => ctrl.abort(), 10000);
+    let res;
+    try {
+      res = await fetch(
+        `${_SB_URL}/drivers?select=${encodeURIComponent(fields)}&order=created_at.asc&limit=500`,
+        { headers: _SB_HEADERS, signal: ctrl.signal }
+      );
+    } catch(e) { clearTimeout(timer); throw e; }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
   },
 
   async createDriver(driver) {
@@ -373,8 +447,18 @@ const DB = {
         const json = await res.json();
         list = json.data || [];
       } else {
-        const res = await _apiGetAll('settings');
-        list = res.data || [];
+        // Fetch directo — settings es una tabla muy pequeña (1-2 filas)
+        const ctrl  = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        let res;
+        try {
+          res = await fetch(
+            `${_SB_URL}/settings?select=*&order=created_at.desc&limit=5`,
+            { headers: _SB_HEADERS, signal: ctrl.signal }
+          );
+        } catch(e) { clearTimeout(timer); throw e; }
+        clearTimeout(timer);
+        list = res.ok ? (await res.json()) : [];
       }
       if (list.length > 0) {
         const saved = list.find(r => !r.deleted) || list[0];
@@ -388,8 +472,12 @@ const DB = {
 
   async saveSettings(data) {
     try {
-      const res  = await _apiGetAll('settings');
-      const list = (res.data || []).filter(r => !r.deleted);
+      // Fetch directo en lugar de _apiGetAll para evitar timeout
+      const res  = await fetch(
+        `${_SB_URL}/settings?select=id,deleted&order=created_at.desc&limit=5`,
+        { headers: _SB_HEADERS }
+      );
+      const list = res.ok ? (await res.json()).filter(r => !r.deleted) : [];
       if (list.length > 0) {
         const existing = list[0];
         return await _apiPatch('settings', existing.id, { ...existing, ...data });
@@ -406,12 +494,23 @@ const DB = {
     try {
       let rawData = [];
       if (_IS_GENSPARK) {
-        const res = await fetch('tables/categories?limit=500');
+        const res  = await fetch('tables/categories?limit=500');
         const json = await res.json();
         rawData = json.data || [];
       } else {
-        const res = await _apiGetAll('categories');
-        rawData = res.data || [];
+        // Fetch directo con campos específicos y sin paginación pesada
+        const fields = _SELECT_FIELDS.categories;
+        const ctrl   = new AbortController();
+        const timer  = setTimeout(() => ctrl.abort(), 10000);
+        let res;
+        try {
+          res = await fetch(
+            `${_SB_URL}/categories?select=${encodeURIComponent(fields)}&order=sort_order.asc&limit=500`,
+            { headers: _SB_HEADERS, signal: ctrl.signal }
+          );
+        } catch(e) { clearTimeout(timer); throw e; }
+        clearTimeout(timer);
+        rawData = res.ok ? (await res.json()) : [];
       }
       const raw = rawData.filter(r => !r.deleted);
       // Deduplicar por slug
