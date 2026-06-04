@@ -152,9 +152,15 @@ async function login(email, password) {
     list = DEFAULT_STAFF;
   }
 
-  const user = list.find(s => s.email.toLowerCase() === email.toLowerCase().trim() && s.password === password);
-  if (!user)  return { ok: false, msg: 'Correo o contraseña incorrectos.' };
-  if (user.status !== 'activo') return { ok: false, msg: 'Tu cuenta está inactiva. Contacta al administrador.' };
+  const user = list.find(s =>
+    s.email.toLowerCase() === email.toLowerCase().trim() &&
+    s.password === password.trim()
+  );
+  if (!user) return { ok: false, msg: 'Correo o contraseña incorrectos.' };
+
+  // Permitir status null/undefined/vacío como activo (compatibilidad con Supabase)
+  const status = (user.status || 'activo').toLowerCase();
+  if (status === 'inactivo') return { ok: false, msg: 'Tu cuenta está inactiva. Contacta al administrador.' };
 
   // Actualizar último login en la API
   const now = new Date();
@@ -310,14 +316,19 @@ function applyPermissions(session) {
     roleEl.style.border     = '1px solid ' + role.color + '44';
   }
 
-  // Nombre de usuario en topbar
+  // Nombre de usuario en topbar (compatible con campo 'name' o 'firstName'+'lastName')
   const nameEl = document.getElementById('topbarUserName');
-  if (nameEl) nameEl.textContent = session.firstName + ' ' + session.lastName;
+  if (nameEl) {
+    const fullName = session.name || ((session.firstName || '') + ' ' + (session.lastName || '')).trim() || session.email;
+    nameEl.textContent = fullName;
+  }
 
   // Avatar en topbar
   const avatarEl = document.getElementById('topbarAvatar');
   if (avatarEl) {
-    const initials = (session.firstName[0] + session.lastName[0]).toUpperCase();
+    const fullName = session.name || ((session.firstName || '') + ' ' + (session.lastName || '')).trim() || '?';
+    const parts    = fullName.split(' ');
+    const initials = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : fullName.substring(0,2).toUpperCase();
     avatarEl.textContent      = initials;
     avatarEl.style.background = role.color;
   }
