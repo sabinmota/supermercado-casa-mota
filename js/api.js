@@ -79,8 +79,8 @@ async function _apiFetch(url, options = {}) {
 const _SELECT_FIELDS = {
   products:  'id,name,category,price,stock,image,barcode,badge,description,created_at,updated_at',
   orders:    'id,status,total,items,customer_name,customer_email,customer_phone,address,notes,created_at,updated_at',
-  customers: 'id,name,email,phone,address,points,total_spent,created_at,updated_at',
-  staff:     'id,name,email,role,phone,permissions,created_at,updated_at',
+  customers: 'id,name,email,phone,address,points,total_spent,password,status,created_at,updated_at',
+  staff:     'id,name,email,role,phone,permissions,password,status,created_at,updated_at',
   drivers:   'id,name,phone,status,email,created_at,updated_at',
   categories:'id,name,slug,icon,sort_order,created_at,updated_at',
   settings:  '*',
