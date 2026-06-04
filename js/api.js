@@ -78,51 +78,48 @@ async function _apiFetch(url, options = {}) {
 // ─── GET todos los registros con paginación automática ───────────────────────
 // PostgREST usa Range header: "0-499" para la primera página, etc.
 async function _apiGetAll(table, opts = {}) {
-  const PAGE = 500;
+  const PAGE  = 500;
   const extra = opts.filter ? `&${opts.filter}` : '';
   const order = opts.sort   ? `&order=${opts.sort}.asc` : '&order=created_at.asc';
 
-  // Primera página
-  const res1 = await fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
-    headers: {
-      ..._SB_HEADERS,
-      'Range':       `0-${PAGE - 1}`,
-      'Prefer':      'count=planned',
-    },
-  });
+  let all  = [];
+  let from = 0;
+  let keepGoing = true;
 
-  if (!res1.ok) {
-    const t = await res1.text();
-    throw new Error(`API error ${res1.status}: ${t}`);
-  }
+  // Cargar página por página de forma SECUENCIAL hasta agotar registros
+  while (keepGoing) {
+    const to  = from + PAGE - 1;
+    const res = await fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
+      headers: {
+        ..._SB_HEADERS,
+        'Range': `${from}-${to}`,
+      },
+    });
 
-  // Leer total desde Content-Range: "0-499/1523"
-  const range = res1.headers.get('content-range') || '';
-  const total = parseInt(range.split('/')[1]) || 0;
-  const text1 = await res1.text();
-  let all = text1 ? JSON.parse(text1) : [];
+    // 416 = Range Not Satisfiable → ya no hay más registros
+    if (res.status === 416) break;
 
-  // Páginas adicionales en paralelo si hay más registros
-  if (total > PAGE) {
-    const pages = Math.ceil(total / PAGE);
-    const fetches = [];
-    for (let p = 1; p < pages; p++) {
-      const from = p * PAGE;
-      const to   = from + PAGE - 1;
-      fetches.push(
-        fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
-          headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
-        })
-        .then(r => r.text())
-        .then(t => t ? JSON.parse(t) : [])
-        .catch(() => [])
-      );
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`API error ${res.status}: ${t}`);
     }
-    const extras = await Promise.all(fetches);
-    for (const batch of extras) all = all.concat(batch);
+
+    const text   = await res.text();
+    const batch  = text ? JSON.parse(text) : [];
+
+    if (!Array.isArray(batch) || batch.length === 0) break;
+
+    all = all.concat(batch);
+
+    // Si recibimos menos de PAGE registros, ya llegamos al final
+    if (batch.length < PAGE) {
+      keepGoing = false;
+    } else {
+      from += PAGE;
+    }
   }
 
-  return { data: all, total: total || all.length };
+  return { data: all, total: all.length };
 }
 
 // ─── CRUD helpers ─────────────────────────────────────────────────────────────
