@@ -758,9 +758,6 @@ function _showDashboardRetry() {
       </button>
     </li>`;
 }
-    renderRecentOrders();
-  }
-}
 
 function renderTopProducts() {
   const el = document.getElementById('topProducts');
