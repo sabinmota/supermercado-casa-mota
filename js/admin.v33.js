@@ -494,16 +494,31 @@ async function initAdminData() {
   const spinnerEl = document.getElementById('globalLoadingSpinner');
   if (spinnerEl) spinnerEl.style.display = 'flex';
 
+  // Helper: timeout global para no quedar colgados nunca
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`Timeout (${ms}ms): ${label}`)), ms)
+      )
+    ]);
+  }
+
   // ── FASE 1: Todo lo necesario para el Dashboard completo ────────────────────
   let fase1OK = false;
   for (let intento = 1; intento <= 3; intento++) {
     try {
-      const [prods, ords, cfg, cats] = await Promise.all([
-        DB.getProducts(),
-        DB.getOrders(),
-        DB.getSettings(),
-        DB.getCategories(),
-      ]);
+      // Timeout de 18s por intento — si Supabase no responde, no colgamos
+      const [prods, ords, cfg, cats] = await withTimeout(
+        Promise.all([
+          DB.getProducts(),
+          DB.getOrders(),
+          DB.getSettings(),
+          DB.getCategories(),
+        ]),
+        18000,
+        `Fase1 intento ${intento}`
+      );
 
       adminProducts    = prods.length > 0 ? prods : deepClone(PRODUCTS);
       orders           = ords;
@@ -515,15 +530,22 @@ async function initAdminData() {
       break; // éxito — salir del loop
 
     } catch(e) {
-      console.warn(`initAdminData fase 1 intento ${intento}/3:`, e);
-      if (intento < 3) await new Promise(r => setTimeout(r, 2000 * intento)); // espera 2s, 4s
+      console.warn(`initAdminData fase 1 intento ${intento}/3:`, e.message || e);
+      if (intento < 3) await new Promise(r => setTimeout(r, 1500)); // espera fija de 1.5s
     }
   }
 
-  // Ocultar loader
+  // Ocultar loader SIEMPRE, con o sin datos
   if (spinnerEl) spinnerEl.style.display = 'none';
 
-  // Renderizar Dashboard completo con productos + pedidos
+  if (!fase1OK) {
+    console.error('initAdminData: Fase 1 fallida tras 3 intentos — usando datos locales');
+    if (!adminProducts.length && typeof PRODUCTS !== 'undefined') {
+      adminProducts = deepClone(PRODUCTS);
+    }
+  }
+
+  // Renderizar Dashboard completo (siempre, aunque sea con datos vacíos)
   try { renderDashboardKpis(); } catch(e) { console.error('renderDashboardKpis:', e); }
   try { renderTopProducts();   } catch(e) { console.error('renderTopProducts:',   e); }
   try { renderRecentOrders();  } catch(e) { console.error('renderRecentOrders:',  e); }
@@ -536,11 +558,15 @@ async function initAdminData() {
   // ── FASE 2: Clientes, staff, repartidores en segundo plano ──────────────────
   setTimeout(async () => {
     try {
-      const [custs, stf, drvs] = await Promise.all([
-        DB.getCustomers(),
-        DB.getStaff(),
-        DB.getDrivers(),
-      ]);
+      const [custs, stf, drvs] = await withTimeout(
+        Promise.all([
+          DB.getCustomers(),
+          DB.getStaff(),
+          DB.getDrivers(),
+        ]),
+        15000,
+        'Fase2'
+      );
 
       customers  = custs;
       staffList  = stf.length > 0 ? stf : DEFAULT_STAFF;
@@ -552,10 +578,10 @@ async function initAdminData() {
 
       try { renderCustomers(); } catch(e) {}
       try { renderStaff();     } catch(e) {}
-      try { loadCategories();  } catch(e) {}   // refresca la tabla de categorías en segundo plano
+      try { loadCategories();  } catch(e) {}
 
     } catch(e) {
-      console.warn('initAdminData fase 2 error:', e);
+      console.warn('initAdminData fase 2 error:', e.message || e);
     }
   }, 100);
 }
@@ -694,8 +720,8 @@ function _setKpi(id, val, animate = true) {
 
 function renderDashboardKpis() {
   // Usa los datos YA cargados en memoria — sin llamadas HTTP adicionales
-  const totalSales = orders.reduce((s,o) => s + (o.status !== 'cancelado' ? o.total : 0), 0);
-  const lowStock   = adminProducts.filter(p => p.stock < 20).length;
+  const totalSales = orders.reduce((s,o) => s + (o.status !== 'cancelado' ? (Number(o.total) || 0) : 0), 0);
+  const lowStock   = adminProducts.filter(p => Number(p.stock) < 20).length;
   _setKpi('kpiSales',    `RD$ ${fmt$(totalSales)}`);
   _setKpi('kpiOrders',   orders.length);
   // Usar el total real de la BD si está disponible (evita el límite de 500)
@@ -841,7 +867,7 @@ function renderSalesChart() {
     // Solo incluir productos cuya categoría exista actualmente en la BD
     if (!validSlugs.has(p.category)) return;
     const label = catLabel(p.category);
-    catTotals[label] = (catTotals[label] || 0) + p.price * (Math.floor(Math.random() * 20) + 5);
+    catTotals[label] = (catTotals[label] || 0) + (Number(p.price) || 0) * (Math.floor(Math.random() * 20) + 5);
   });
   const labels = Object.keys(catTotals);
   const data   = Object.values(catTotals);

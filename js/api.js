@@ -78,9 +78,10 @@ async function _apiFetch(url, options = {}) {
 // ─── GET todos los registros con paginación automática ───────────────────────
 // PostgREST usa Range header: "0-499" para la primera página, etc.
 async function _apiGetAll(table, opts = {}) {
-  const PAGE  = 500;
-  const extra = opts.filter ? `&${opts.filter}` : '';
-  const order = opts.sort   ? `&order=${opts.sort}.asc` : '&order=created_at.asc';
+  const PAGE    = 500;
+  const TIMEOUT = 15000; // 15s máximo por petición
+  const extra   = opts.filter ? `&${opts.filter}` : '';
+  const order   = opts.sort   ? `&order=${opts.sort}.asc` : '&order=created_at.asc';
 
   let all  = [];
   let from = 0;
@@ -88,13 +89,22 @@ async function _apiGetAll(table, opts = {}) {
 
   // Cargar página por página de forma SECUENCIAL hasta agotar registros
   while (keepGoing) {
-    const to  = from + PAGE - 1;
-    const res = await fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
-      headers: {
-        ..._SB_HEADERS,
-        'Range': `${from}-${to}`,
-      },
-    });
+    const to   = from + PAGE - 1;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
+
+    let res;
+    try {
+      res = await fetch(`${_SB_URL}/${table}?select=*${extra}${order}`, {
+        headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
+        signal: ctrl.signal,
+      });
+    } catch(e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error(`Timeout cargando ${table} (>${TIMEOUT}ms)`);
+      throw e;
+    }
+    clearTimeout(timer);
 
     // 416 = Range Not Satisfiable → ya no hay más registros
     if (res.status === 416) break;
@@ -104,8 +114,8 @@ async function _apiGetAll(table, opts = {}) {
       throw new Error(`API error ${res.status}: ${t}`);
     }
 
-    const text   = await res.text();
-    const batch  = text ? JSON.parse(text) : [];
+    const text  = await res.text();
+    const batch = text ? JSON.parse(text) : [];
 
     if (!Array.isArray(batch) || batch.length === 0) break;
 
