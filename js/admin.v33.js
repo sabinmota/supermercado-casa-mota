@@ -3038,7 +3038,7 @@ function renderInventory() {
     const matchQ = !q || p.name.toLowerCase().includes(q)
                        || (p.barcode || '').toLowerCase().includes(q)
                        || (p.description || '').toLowerCase().includes(q);
-    const matchF = !filter || (filter === 'low' ? p.stock < 20 : p.stock >= 20);
+    const matchF = !filter || (filter === 'low' ? Number(p.stock) < 20 : Number(p.stock) >= 20);
     return matchQ && matchF;
   }).sort((a, b) => {
     if (_invSortField) {
@@ -3053,9 +3053,9 @@ function renderInventory() {
     return (Number(b.created_at) || 0) - (Number(a.created_at) || 0);
   });
 
-  const total = adminProducts.reduce((s, p) => s + p.stock, 0);
-  const low   = adminProducts.filter(p => p.stock > 0 && p.stock < 20).length;
-  const zero  = adminProducts.filter(p => p.stock === 0).length;
+  const total = adminProducts.reduce((s, p) => s + (Number(p.stock) || 0), 0);
+  const low   = adminProducts.filter(p => Number(p.stock) > 0 && Number(p.stock) < 20).length;
+  const zero  = adminProducts.filter(p => Number(p.stock) === 0).length;
 
   document.getElementById('invTotal').textContent = total;
   document.getElementById('invLow').textContent   = low;
@@ -3075,9 +3075,10 @@ function renderInventory() {
   tbody.innerHTML = '';
 
   page.forEach(p => {
-    const cls      = p.stock === 0 ? 'stock-zero' : p.stock < 20 ? 'stock-low' : 'stock-ok';
-    const label    = p.stock === 0 ? '🔴 Sin stock' : p.stock < 20 ? '🟡 Stock bajo' : '🟢 Normal';
-    const pct      = Math.min(100, Math.round(p.stock / 150 * 100));
+    const _stock   = Number(p.stock) || 0;
+    const cls      = _stock === 0 ? 'stock-zero' : _stock < 20 ? 'stock-low' : 'stock-ok';
+    const label    = _stock === 0 ? '🔴 Sin stock' : _stock < 20 ? '🟡 Stock bajo' : '🟢 Normal';
+    const pct      = Math.min(100, Math.round(_stock / 150 * 100));
     const barColor = p.stock === 0 ? '#e53935' : p.stock < 20 ? '#f57c00' : '#1a7c3e';
 
     const tr = document.createElement('tr');
@@ -3091,7 +3092,7 @@ function renderInventory() {
       </td>
       <td><span class="td-cat">${catLabel(p.category)}</span></td>
       <td>
-        <span class="${cls}" style="font-size:1.05rem">${p.stock}</span>
+        <span class="${cls}" style="font-size:1.05rem">${_stock}</span>
         <div class="stock-bar-wrap"><div class="stock-bar" style="width:${pct}%;background:${barColor}"></div></div>
       </td>
       <td>${label}</td>
@@ -3100,7 +3101,7 @@ function renderInventory() {
         <div class="inv-adjust">
           <button class="inv-btn" onclick="adjustStock('${p.id}',-5)">-5</button>
           <button class="inv-btn" onclick="adjustStock('${p.id}',-1)">-1</button>
-          <span class="inv-qty">${p.stock}</span>
+          <span class="inv-qty">${_stock}</span>
           <button class="inv-btn" onclick="adjustStock('${p.id}',1)">+1</button>
           <button class="inv-btn" onclick="adjustStock('${p.id}',10)">+10</button>
         </div>
@@ -3114,7 +3115,7 @@ function renderInventory() {
 function adjustStock(id, delta) {
   const p = adminProducts.find(x => x.id === id);
   if (!p) return;
-  p.stock = Math.max(0, p.stock + delta);
+  p.stock = Math.max(0, (Number(p.stock) || 0) + delta);
   _apiPatch('products', p.id, { stock: p.stock }).catch(() => {});
   DBCached.invalidateProducts();
   renderInventory();
