@@ -721,7 +721,7 @@ async function loadDashboard() {
   if (adminProducts.length > 0) renderTopProducts();
   if (orders.length > 0)        renderRecentOrders();
 
-  // 2. Siempre refrescar desde Supabase y re-renderizar TODO
+  // 2. Refrescar desde Supabase y re-renderizar TODO
   try {
     const [prods, ords] = await Promise.all([ DB.getProducts(), DB.getOrders() ]);
 
@@ -1813,7 +1813,7 @@ function saveProduct() {
           !(Array.isArray(v) && v.length === 0)
         )
     );
-    // ── POST: Genspark usa tables/, Render usa Supabase vía DB ──────────────
+    // ── POST: Genspark usa tables/, producción usa Supabase ──────────────
     if (typeof _IS_GENSPARK !== 'undefined' && _IS_GENSPARK) {
       // ── Genspark: fetch directo a tables/products ────────────────────────
       fetch('tables/products', {
@@ -1851,7 +1851,7 @@ function saveProduct() {
           _unlock();
         });
     } else {
-      // ── Render/Supabase: usar DB.saveProduct ─────────────────────────────
+      // ── Producción/Supabase: usar DB.saveProduct ─────────────────────────
       DB.saveProduct(newProd)
         .then(saved => {
           const finalProd = saved || newProd;

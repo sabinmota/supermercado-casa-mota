@@ -5,18 +5,13 @@
  * Tablas: products, customers, orders, staff, drivers, settings, categories,
  *         cupones, notificaciones
  *
- * Supabase PostgREST difiere de la API anterior:
- *   - URL base: https://hmloadberrekcxdgdcdn.supabase.co/rest/v1/
- *   - Autenticación: header apikey + Authorization Bearer
- *   - Filtros: ?column=eq.value  en vez de ?search=value
- *   - Paginación: Range header (0-499) en vez de ?page=&limit=
- *   - DELETE real (no soft delete)
- *   - Respuesta de POST/PATCH: necesita header Prefer: return=representation
- *   - Total de registros: header Content-Range (requiere Prefer: count=exact)
+ * Entornos:
+ *   - Genspark (desarrollo): usa tables/ API interna
+ *   - supermercadocasamota.com (producción): usa Supabase PostgREST
  */
 
 // ─── Detección de entorno ─────────────────────────────────────────────────────
-// En Genspark usamos tables/ — en Render usamos Supabase directamente
+// En Genspark usamos tables/ — en producción usamos Supabase directamente
 const _IS_GENSPARK = location.hostname.includes('gensparkspace.com')
                   || location.hostname.includes('genspark.ai')
                   || location.hostname === 'localhost'
