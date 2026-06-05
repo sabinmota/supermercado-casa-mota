@@ -169,7 +169,7 @@ async function _apiCreate(table, data) {
 }
 
 async function _apiUpdate(table, id, data) {
-  const { gs_project_id, gs_table_name, ...payload } = data;
+  const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
   payload.updated_at = Date.now();
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
@@ -211,25 +211,45 @@ const DB = {
       _totalProductsInDB = list.length;
       return list;
     }
-    // Pedir solo campos necesarios directamente sin helper (más rápido)
-    const fields = _SELECT_FIELDS.products;
-    const ctrl   = new AbortController();
-    const timer  = setTimeout(() => ctrl.abort(), 12000);
-    let res;
-    try {
-      res = await fetch(
-        `${_SB_URL}/products?select=${encodeURIComponent(fields)}&order=created_at.asc&limit=2000`,
-        { headers: _SB_HEADERS, signal: ctrl.signal }
-      );
-    } catch(e) {
+    // Supabase PostgREST limita a 1000 filas por request — usar paginación
+    const fields  = _SELECT_FIELDS.products;
+    const PAGE    = 1000;
+    let   all     = [];
+    let   from    = 0;
+    let   keepGoing = true;
+
+    while (keepGoing) {
+      const to   = from + PAGE - 1;
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      let res;
+      try {
+        res = await fetch(
+          `${_SB_URL}/products?select=${encodeURIComponent(fields)}&order=created_at.asc`,
+          {
+            headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
+            signal: ctrl.signal,
+          }
+        );
+      } catch(e) { clearTimeout(timer); throw e; }
       clearTimeout(timer);
-      throw e;
+
+      if (res.status === 416) break; // sin más registros
+
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const batch = await res.json();
+      if (!Array.isArray(batch) || batch.length === 0) break;
+
+      all = all.concat(batch);
+      if (batch.length < PAGE) {
+        keepGoing = false; // última página
+      } else {
+        from += PAGE;
+      }
     }
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const list = await res.json();
-    _totalProductsInDB = list.length;
-    return Array.isArray(list) ? list : [];
+
+    _totalProductsInDB = all.length;
+    return all;
   },
 
   async saveProduct(product, changedFields = null) {
