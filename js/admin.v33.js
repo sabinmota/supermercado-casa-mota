@@ -4247,6 +4247,17 @@ function saveStaff() {
   const dup = staffList.find(s => s.email.toLowerCase() === email.toLowerCase() && s.id !== editingStaffId);
   if (dup) { showAdminToast('Ya existe un empleado con ese email', 'error'); return; }
 
+  // Cédula y Teléfono obligatorios
+  const sCedula = document.getElementById('sCedula').value.trim();
+  const sPhone  = document.getElementById('sPhone')?.value.trim() || '';
+  const missingS = [];
+  if (!sCedula) { missingS.push('Cédula'); _markError('sCedula'); }
+  if (!sPhone)  { missingS.push('Teléfono'); _markError('sPhone'); }
+  if (missingS.length > 0) {
+    showAdminToast(`Faltan campos obligatorios: ${missingS.join(', ')}`, 'error');
+    return;
+  }
+
   // Contraseña (obligatoria solo en creación)
   if (!editingStaffId && !password) {
     showAdminToast('La contraseña es obligatoria', 'error'); return;

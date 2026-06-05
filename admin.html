@@ -1543,13 +1543,13 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Cédula</label>
+            <label>Cédula <span class="req">*</span></label>
             <input type="text" class="form-input" id="sCedula"
                    placeholder="000-0000000-0" maxlength="13"
                    oninput="cedulaAutoFormat(this)" />
           </div>
           <div class="form-group">
-            <label>Teléfono</label>
+            <label>Teléfono <span class="req">*</span></label>
             <div class="phone-widget">
               <select class="phone-prefix" id="sPhonePrefix">
                 <option value="809">809</option>
@@ -2787,7 +2787,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=301"></script>
+  <script src="js/admin.v33.js?v=302"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=292"></script>
   <!-- IA: Groq integration -->
