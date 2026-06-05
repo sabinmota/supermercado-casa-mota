@@ -3775,6 +3775,21 @@ function openCustomerModal(id) {
   setTimeout(() => document.getElementById('cName').focus(), 100);
 }
 
+/** Resalta un campo en rojo para indicar error de validación */
+function _markError(fieldId) {
+  const el = document.getElementById(fieldId);
+  if (el) {
+    el.style.borderColor = '#e53935';
+    el.style.boxShadow   = '0 0 0 2px rgba(229,57,53,.18)';
+    // Quitar el rojo cuando el usuario empieza a corregir
+    el.addEventListener('input', function clear() {
+      el.style.borderColor = '';
+      el.style.boxShadow   = '';
+      el.removeEventListener('input', clear);
+    }, { once: true });
+  }
+}
+
 function toggleCustPass(fieldId, iconId) {
   const inp  = document.getElementById(fieldId);
   const icon = document.getElementById(iconId);
@@ -3853,16 +3868,42 @@ function saveCustomer() {
   if (_savingCustomer) return;
   const name     = document.getElementById('cName').value.trim();
   const email    = document.getElementById('cEmail').value.trim();
+  const phone    = document.getElementById('cPhone')?.value.trim() || '';
+  const cedula   = document.getElementById('cCedula').value.trim();
+  const address  = document.getElementById('cAddress').value.trim();
+  const city     = document.getElementById('cCity').value.trim();
   const password = document.getElementById('cPassword')?.value  || '';
   const password2= document.getElementById('cPassword2')?.value || '';
 
-  if (!name)  { showAdminToast('El nombre es obligatorio', 'error'); return; }
-  if (!email) { showAdminToast('El email es obligatorio', 'error'); return; }
+  // ── Resetear bordes de error anteriores ──────────────────────────────────────
+  ['cName','cEmail','cPhone','cCedula','cAddress','cCity'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.borderColor = '';
+  });
+
+  // ── Validar campos obligatorios ───────────────────────────────────────────────
+  const missing = [];
+  if (!name)    { missing.push('Nombre completo'); _markError('cName'); }
+  if (!email)   { missing.push('Email');           _markError('cEmail'); }
+  if (!phone)   { missing.push('Teléfono');        _markError('cPhone'); }
+  if (!cedula)  { missing.push('Cédula / RNC');    _markError('cCedula'); }
+  if (!address) { missing.push('Dirección');       _markError('cAddress'); }
+  if (!city)    { missing.push('Ciudad');          _markError('cCity'); }
+
+  if (missing.length > 0) {
+    showAdminToast(
+      `Faltan campos obligatorios: ${missing.join(', ')}`,
+      'error'
+    );
+    return;
+  }
+
   if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+    _markError('cEmail');
     showAdminToast('El email no tiene un formato válido', 'error'); return;
   }
   const duplicate = customers.find(c => c.email === email && c.id !== editingCustomerId);
-  if (duplicate) { showAdminToast('Ya existe un cliente con ese email', 'error'); return; }
+  if (duplicate) { _markError('cEmail'); showAdminToast('Ya existe un cliente con ese email', 'error'); return; }
 
   // Contraseña: obligatoria en creación, opcional en edición
   if (!editingCustomerId && !password) {
