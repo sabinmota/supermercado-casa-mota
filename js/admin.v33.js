@@ -5552,16 +5552,29 @@ function generateDemoCustomers() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const BK_TABLES = [
-  { name:'products',       label:'Productos',       icon:'🛒', limit:500, statId:'bkStatProducts'   },
-  { name:'categories',     label:'Categorías',      icon:'🏷️', limit:200, statId:'bkStatCategories' },
-  { name:'orders',         label:'Pedidos',         icon:'📦', limit:500, statId:'bkStatOrders'     },
-  { name:'customers',      label:'Clientes',        icon:'👥', limit:500, statId:'bkStatCustomers'  },
-  { name:'drivers',        label:'Repartidores',    icon:'🏍️', limit:200, statId:'bkStatDrivers'    },
-  { name:'staff',          label:'Personal',        icon:'👤', limit:200, statId:null               },
-  { name:'cupones',        label:'Cupones',         icon:'🎟️', limit:200, statId:'bkStatCupones'    },
-  { name:'notificaciones', label:'Notificaciones',  icon:'🔔', limit:500, statId:null               },
-  { name:'settings',       label:'Configuración',   icon:'⚙️', limit:50,  statId:null               },
+  { name:'products',       label:'Productos',       icon:'🛒', statId:'bkStatProducts'   },
+  { name:'categories',     label:'Categorías',      icon:'🏷️', statId:'bkStatCategories' },
+  { name:'orders',         label:'Pedidos',         icon:'📦', statId:'bkStatOrders'     },
+  { name:'customers',      label:'Clientes',        icon:'👥', statId:'bkStatCustomers'  },
+  { name:'drivers',        label:'Repartidores',    icon:'🏍️', statId:'bkStatDrivers'    },
+  { name:'staff',          label:'Personal',        icon:'👤', statId:null               },
+  { name:'cupones',        label:'Cupones',         icon:'🎟️', statId:'bkStatCupones'    },
+  { name:'notificaciones', label:'Notificaciones',  icon:'🔔', statId:null               },
+  { name:'settings',       label:'Configuración',   icon:'⚙️', statId:null               },
 ];
+
+// ─── Mapa tabla → función DB para usar Supabase directamente ─────────────────
+const BK_DB_MAP = {
+  products:       () => DB.getProducts(),
+  categories:     () => DB.getCategories(),
+  orders:         () => DB.getOrders(),
+  customers:      () => DB.getCustomers(),
+  drivers:        () => DB.getDrivers(),
+  staff:          () => DB.getStaff(),
+  cupones:        () => _supaFetch('cupones?select=*&limit=500&order=created_at.asc'),
+  notificaciones: () => _supaFetch('notificaciones?select=*&limit=1000&order=created_at.asc'),
+  settings:       () => _supaFetch('settings?select=*&limit=50&order=created_at.desc'),
+};
 
 let _bkSelected    = new Set(BK_TABLES.map(t => t.name));
 let _bkExportData  = {};
@@ -5584,18 +5597,17 @@ function initRespaldo() {
   );
 }
 
-// ─── Cargar contadores de stats ───────────────────────────────────────────────
+// ─── Cargar contadores de stats — usa Supabase directamente ──────────────────
 async function _bkLoadStats() {
   for (const t of BK_TABLES) {
+    if (!t.statId) continue;
     try {
-      const r = await fetch(`tables/${t.name}?limit=1&page=1`);
-      if (!r.ok) continue;
-      const d = await r.json();
-      const n = d.total ?? 0;
-      if (t.statId) {
-        const el = document.getElementById(t.statId);
-        if (el) el.textContent = n.toLocaleString();
-      }
+      const fn = BK_DB_MAP[t.name];
+      if (!fn) continue;
+      const rows = await fn();
+      const n = Array.isArray(rows) ? rows.length : 0;
+      const el = document.getElementById(t.statId);
+      if (el) el.textContent = n.toLocaleString();
     } catch { /* silencioso */ }
   }
 }
@@ -5612,14 +5624,14 @@ function _bkRenderTableList() {
       <i class="fas fa-check bk-tr-check"></i>
     </div>
   `).join('');
-  // Cargar conteos en la lista
+  // Cargar conteos en la lista — usa Supabase directamente
   BK_TABLES.forEach(async t => {
     try {
-      const r = await fetch(`tables/${t.name}?limit=1&page=1`);
-      if (!r.ok) return;
-      const d = await r.json();
+      const fn = BK_DB_MAP[t.name];
+      if (!fn) return;
+      const rows = await fn();
       const el = document.getElementById(`bkRowCount-${t.name}`);
-      if (el) el.textContent = `${d.total ?? 0} reg.`;
+      if (el) el.textContent = `${Array.isArray(rows) ? rows.length : 0} reg.`;
     } catch { /* silencioso */ }
   });
 }
@@ -5710,21 +5722,15 @@ async function bkStartExport() {
   if (btnExport) { btnExport.disabled = false; btnExport.innerHTML = '<i class="fas fa-download"></i> Exportar y Descargar JSON'; }
 }
 
+// ─── _bkFetchAll — usa DB.*/Supabase en lugar de tables/ de Genspark ─────────
 async function _bkFetchAll(tableCfg) {
-  const { name, limit } = tableCfg;
-  let page = 1, all = [], total = null;
-  while (true) {
-    const r = await fetch(`tables/${name}?limit=${limit}&page=${page}`);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const d = await r.json();
-    if (total === null) total = d.total ?? 0;
-    const rows = d.data ?? [];
-    all.push(...rows);
-    _bkLog(`   · Página ${page} — ${all.length}/${total}`, 'ok');
-    if (rows.length < limit || all.length >= total) break;
-    page++;
-  }
-  return all;
+  const fn = BK_DB_MAP[tableCfg.name];
+  if (!fn) throw new Error(`No hay función DB para la tabla "${tableCfg.name}"`);
+  _bkLog(`   · Descargando "${tableCfg.label}" desde Supabase…`, 'ok');
+  const rows = await fn();
+  if (!Array.isArray(rows)) throw new Error('La respuesta no es un array');
+  _bkLog(`   · ${rows.length} registros obtenidos`, 'ok');
+  return rows;
 }
 
 function _bkSetProgress(pct, label) {
@@ -5909,15 +5915,21 @@ async function bkStartImport() {
         // Quitar campos del sistema para evitar conflictos
         delete body.gs_project_id;
         delete body.gs_table_name;
+        // Para Supabase: quitar id para que lo genere automáticamente (evita duplicados)
+        // Solo lo quitamos si ya existe ese id en Supabase (modo append)
+        // En modo replace el usuario ya limpió manualmente
+        delete body.id;
+        delete body.created_at;
+        delete body.updated_at;
 
-        const resp = await fetch(`tables/${tableName}`, {
+        // Usar _supaFetch para escribir directamente en Supabase
+        await _supaFetch(`${tableName}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify(body)
         });
-        if (resp.ok || resp.status === 201) { ok++; totalImported++; }
-        else { err++; totalErrors++; }
-      } catch { err++; totalErrors++; }
+        ok++; totalImported++;
+      } catch(e) { err++; totalErrors++; }
     }
     _bkLogImport(`   ✅ ${ok} importados · ❌ ${err} errores`, ok > 0 ? 'ok' : 'err');
   }
@@ -6110,19 +6122,10 @@ async function migScanImages() {
   _migSetProgress(5, 'Cargando productos...');
 
   try {
-    // Cargar TODOS los productos paginando
-    let page = 1, allProds = [];
-    while (true) {
-      const res  = await fetch(`tables/products?page=${page}&limit=100`);
-      const data = await res.json();
-      if (!data.data || data.data.length === 0) break;
-      allProds = allProds.concat(data.data);
-      _migLog(`📦 Página ${page}: ${data.data.length} productos cargados (total: ${allProds.length})`);
-      _migSetProgress(Math.min(30, 5 + page*5), `Cargando página ${page}...`);
-      if (allProds.length >= data.total) break;
-      page++;
-    }
-
+    // Cargar TODOS los productos usando DB.getProducts() (ya tiene paginación Supabase)
+    _migLog('📡 Conectando con Supabase...', 'ok');
+    _migSetProgress(10, 'Cargando productos...');
+    const allProds = await DB.getProducts();
     _migProducts = allProds;
     _migLog(`✅ Total productos: ${allProds.length}`, 'ok');
     _migSetProgress(40, 'Analizando imágenes...');
