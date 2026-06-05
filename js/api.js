@@ -436,6 +436,10 @@ const DB = {
     return _apiUpdate('drivers', id, driver);
   },
 
+  async patchDriver(id, fields) {
+    return _apiPatch('drivers', id, fields);
+  },
+
   async deleteDriver(id) {
     return _apiDelete('drivers', id);
   },

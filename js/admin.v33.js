@@ -3516,7 +3516,7 @@ function addPointsToCustomer(customerId, pts, reason, orderId = null) {
     balance: customers[idx].loyaltyPoints
   });
 
-  DB.updateCustomer(customerId, customers[customers.findIndex(c => c.id === customerId)])
+  DB.patchCustomer(customerId, { loyaltyPoints: customers[customers.findIndex(c => c.id === customerId)].loyaltyPoints, loyaltyTier: customers[customers.findIndex(c => c.id === customerId)].loyaltyTier, loyaltyHistory: customers[customers.findIndex(c => c.id === customerId)].loyaltyHistory })
     .catch(() => {});
   DBCached.invalidateCustomers();
 }
@@ -4292,15 +4292,38 @@ function saveStaff() {
       currentSession = safe;
       applyPermissions(currentSession);
     }
-    DB.updateStaff(editingStaffId, staffList[staffList.findIndex(s => s.id === editingStaffId)])
+    DB.patchStaff(editingStaffId, data)
       .then(() => { _unlockS(); DBCached.invalidateStaff(); renderStaff(); closeStaffModal(); showAdminToast('Empleado actualizado correctamente', 'success'); })
-      .catch(() => { _unlockS(); showAdminToast('Error al guardar empleado', 'error'); });
+      .catch(err => { _unlockS(); console.error('saveStaff PATCH error:', err); showAdminToast('Error al guardar empleado: ' + (err?.message || err), 'error'); });
   } else {
-    const newS = { id: 'staff_' + Date.now(), ...data, avatar: '', createdAt: today, lastLogin: null };
-    staffList.push(newS);
+    // ── Nuevo empleado: solo campos que existen en la tabla staff de Supabase ──
+    // NO incluir id (Supabase lo genera como UUID), ni campos JS internos
+    const newS = {
+      firstName,
+      lastName,
+      email,
+      cedula:    document.getElementById('sCedula').value.trim(),
+      phone:     getPhoneValue('sPhone', 'sPhonePrefix'),
+      cargo,
+      role,
+      status,
+      notes:     document.getElementById('sNotes').value.trim(),
+      avatar:    '',
+      lastLogin: null,
+    };
+    if (password) newS.password = password;
+
     DB.createStaff(newS)
-      .then(saved => { if(saved) staffList[staffList.length-1] = saved; _unlockS(); DBCached.invalidateStaff(); renderStaff(); closeStaffModal(); showAdminToast('Empleado creado correctamente', 'success'); })
-      .catch(() => { _unlockS(); showAdminToast('Error al crear empleado', 'error'); });
+      .then(saved => {
+        const record = saved || { ...newS, id: 'tmp_' + Date.now() };
+        staffList.push(record);
+        _unlockS();
+        DBCached.invalidateStaff();
+        renderStaff();
+        closeStaffModal();
+        showAdminToast('Empleado creado correctamente', 'success');
+      })
+      .catch(err => { _unlockS(); console.error('createStaff error:', err); showAdminToast('Error al crear empleado: ' + (err?.message || err), 'error'); });
   }
 }
 
@@ -4682,15 +4705,23 @@ function saveDriver() {
   if (editingDriverId) {
     const idx = drivers.findIndex(d => d.id === editingDriverId);
     if (idx > -1) drivers[idx] = { ...drivers[idx], ...data };
-    DB.updateDriver(editingDriverId, drivers[drivers.findIndex(d => d.id === editingDriverId)])
+    DB.patchDriver(editingDriverId, data)
       .then(() => { _unlockD(); DBCached.invalidateDrivers(); closeDriverModal(); renderDrivers(); showAdminToast('Repartidor actualizado correctamente', 'success'); })
-      .catch(() => { _unlockD(); showAdminToast('Error al guardar repartidor', 'error'); });
+      .catch(err => { _unlockD(); console.error('saveDriver PATCH error:', err); showAdminToast('Error al guardar repartidor: ' + (err?.message || err), 'error'); });
   } else {
-    const newD = { id: 'drv_' + Date.now(), ...data, createdAt: new Date().toLocaleDateString('es-DO') };
-    drivers.push(newD);
+    // NO incluir id ni campos JS internos — Supabase genera el UUID
+    const newD = { ...data };
     DB.createDriver(newD)
-      .then(saved => { if(saved) drivers[drivers.length-1] = saved; _unlockD(); DBCached.invalidateDrivers(); closeDriverModal(); renderDrivers(); showAdminToast('Repartidor registrado correctamente', 'success'); })
-      .catch(() => { _unlockD(); showAdminToast('Error al crear repartidor', 'error'); });
+      .then(saved => {
+        const record = saved || { ...newD, id: 'tmp_' + Date.now() };
+        drivers.push(record);
+        _unlockD();
+        DBCached.invalidateDrivers();
+        closeDriverModal();
+        renderDrivers();
+        showAdminToast('Repartidor registrado correctamente', 'success');
+      })
+      .catch(err => { _unlockD(); console.error('createDriver error:', err); showAdminToast('Error al crear repartidor: ' + (err?.message || err), 'error'); });
   }
 }
 
