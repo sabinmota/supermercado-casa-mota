@@ -558,6 +558,11 @@ async function initAdminData() {
       try { renderProductsTable(); } catch(e) {}
       try { renderInventory();     } catch(e) {}
       try { renderDashboardKpis(); } catch(e) {} // refrescar KPI "Productos activos"
+      // ── Ahora que hay productos, dibujar los gráficos del dashboard ──
+      try { renderTopProducts();   } catch(e) {}
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { renderSalesChart();  } catch(e) {}
+      }));
     } catch(e) {
       console.warn('initAdminData fase 1b (productos):', e.message || e);
       if (!adminProducts.length && typeof PRODUCTS !== 'undefined') {
