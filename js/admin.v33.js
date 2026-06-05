@@ -504,56 +504,66 @@ async function initAdminData() {
     ]);
   }
 
-  // ── FASE 1: Todo lo necesario para el Dashboard completo ────────────────────
+  // ── FASE 1a: Órdenes + config + categorías (datos ligeros para el dashboard) ─
   let fase1OK = false;
   for (let intento = 1; intento <= 3; intento++) {
     try {
-      // Timeout de 18s por intento — si Supabase no responde, no colgamos
-      const [prods, ords, cfg, cats] = await withTimeout(
+      // Timeout de 30s — datos ligeros, deben llegar rápido
+      const [ords, cfg, cats] = await withTimeout(
         Promise.all([
-          DB.getProducts(),
           DB.getOrders(),
           DB.getSettings(),
           DB.getCategories(),
         ]),
-        18000,
-        `Fase1 intento ${intento}`
+        30000,
+        `Fase1a intento ${intento}`
       );
 
-      adminProducts    = prods.length > 0 ? prods : deepClone(PRODUCTS);
       orders           = ords;
       adminCategories  = (cats || []).map(c => ({ ...c, icon: _sanitizeIcon(c.icon) }));
-      _cache.products  = adminProducts;
       _cache.orders    = orders;
       _cache.settings  = cfg;
       fase1OK = true;
-      break; // éxito — salir del loop
+      break;
 
     } catch(e) {
-      console.warn(`initAdminData fase 1 intento ${intento}/3:`, e.message || e);
-      if (intento < 3) await new Promise(r => setTimeout(r, 1500)); // espera fija de 1.5s
+      console.warn(`initAdminData fase 1a intento ${intento}/3:`, e.message || e);
+      if (intento < 3) await new Promise(r => setTimeout(r, 2000));
     }
   }
 
-  // Ocultar loader SIEMPRE, con o sin datos
+  // Ocultar loader y renderizar dashboard con lo que tenemos
   if (spinnerEl) spinnerEl.style.display = 'none';
 
   if (!fase1OK) {
-    console.error('initAdminData: Fase 1 fallida tras 3 intentos — usando datos locales');
-    if (!adminProducts.length && typeof PRODUCTS !== 'undefined') {
-      adminProducts = deepClone(PRODUCTS);
-    }
+    console.error('initAdminData: Fase 1a fallida tras 3 intentos — usando datos locales');
   }
 
-  // Renderizar Dashboard completo (siempre, aunque sea con datos vacíos)
   try { renderDashboardKpis(); } catch(e) { console.error('renderDashboardKpis:', e); }
   try { renderTopProducts();   } catch(e) { console.error('renderTopProducts:',   e); }
   try { renderRecentOrders();  } catch(e) { console.error('renderRecentOrders:',  e); }
   try { renderSalesChart();    } catch(e) { console.error('renderSalesChart:',    e); }
   try { updatePendingBadge();  } catch(e) { console.error('updatePendingBadge:',  e); }
-  try { renderProductsTable(); } catch(e) { console.error('renderProductsTable:', e); }
   try { renderOrdersTable();   } catch(e) { console.error('renderOrdersTable:',   e); }
-  try { renderInventory();     } catch(e) { console.error('renderInventory:',     e); }
+
+  // ── FASE 1b: Productos (paginado — puede tardar más por los 1645 registros) ───
+  setTimeout(async () => {
+    try {
+      const prods = await withTimeout(DB.getProducts(), 45000, 'Fase1b productos');
+      adminProducts   = prods.length > 0 ? prods : deepClone(PRODUCTS);
+      _cache.products = adminProducts;
+      try { renderProductsTable(); } catch(e) {}
+      try { renderInventory();     } catch(e) {}
+      try { renderDashboardKpis(); } catch(e) {} // refrescar KPI "Productos activos"
+    } catch(e) {
+      console.warn('initAdminData fase 1b (productos):', e.message || e);
+      if (!adminProducts.length && typeof PRODUCTS !== 'undefined') {
+        adminProducts = deepClone(PRODUCTS);
+      }
+      try { renderProductsTable(); } catch(e2) {}
+      try { renderInventory();     } catch(e2) {}
+    }
+  }, 50);
 
   // ── FASE 2: Clientes, staff, repartidores en segundo plano ──────────────────
   setTimeout(async () => {
@@ -564,7 +574,7 @@ async function initAdminData() {
           DB.getStaff(),
           DB.getDrivers(),
         ]),
-        15000,
+        30000,
         'Fase2'
       );
 
