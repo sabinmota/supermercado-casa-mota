@@ -542,7 +542,10 @@ async function initAdminData() {
   try { renderDashboardKpis(); } catch(e) { console.error('renderDashboardKpis:', e); }
   try { renderTopProducts();   } catch(e) { console.error('renderTopProducts:',   e); }
   try { renderRecentOrders();  } catch(e) { console.error('renderRecentOrders:',  e); }
-  try { renderSalesChart();    } catch(e) { console.error('renderSalesChart:',    e); }
+  // Gráfico: esperar 2 frames para que el canvas tenga dimensiones reales
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { renderSalesChart(); } catch(e) { console.error('renderSalesChart:', e); }
+  }));
   try { updatePendingBadge();  } catch(e) { console.error('updatePendingBadge:',  e); }
   try { renderOrdersTable();   } catch(e) { console.error('renderOrdersTable:',   e); }
 
@@ -866,6 +869,19 @@ function renderRecentOrders() {
 }
 
 function renderSalesChart() {
+  // ── Canvas ───────────────────────────────────────────────────────────────────
+  const canvasEl = document.getElementById('salesChart');
+  if (!canvasEl) return;
+
+  // Si el canvas aún no tiene dimensiones reales (está oculto o no renderizado),
+  // esperamos un frame y reintentamos hasta que esté listo
+  if (canvasEl.offsetWidth === 0 || canvasEl.offsetHeight === 0) {
+    requestAnimationFrame(() => {
+      setTimeout(() => renderSalesChart(), 150);
+    });
+    return;
+  }
+
   // ── Datos ────────────────────────────────────────────────────────────────────
   // Construir set de slugs válidos — solo los que existen en adminCategories
   const validSlugs = new Set(
@@ -882,10 +898,6 @@ function renderSalesChart() {
   const labels = Object.keys(catTotals);
   const data   = Object.values(catTotals);
   const colors = ['#1a7c3e','#27a35a','#1565c0','#f57c00','#e53935','#6a1b9a','#00838f','#f9a825'];
-
-  // ── Canvas ───────────────────────────────────────────────────────────────────
-  const canvasEl = document.getElementById('salesChart');
-  if (!canvasEl) return;
 
   // El canvas ya es visible en el DOM (el skeleton lo tapa con z-index).
   // Solo necesitamos destruir chart anterior y crear uno nuevo.
