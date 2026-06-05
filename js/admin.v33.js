@@ -3144,12 +3144,13 @@ function renderInventory() {
         <div style="display:flex;align-items:center;gap:10px">
           <img src="${p.image}" alt="${p.name}" class="td-img" onerror="this.src='images/logo-casamota.png'"
                style="cursor:zoom-in" title="Ver imagen"
-               onclick="window._vpOpenLightbox(this.src,'${p.name.replace(/'/g,"\\'")}')"/>
+               onclick="viewProduct('${p.id}')"/>
           <div style="display:flex;align-items:center;gap:6px">
             <strong>${p.name}</strong>
-            <span title="Ver imagen" style="cursor:pointer;font-size:.95rem;color:#1a7c3e;opacity:.7;transition:opacity .15s"
-                  onmouseover="this.style.opacity=1" onmouseout="this.style.opacity='.7'"
-                  onclick="window._vpOpenLightbox('${p.image}','${p.name.replace(/'/g,"\\'")}')">👁️</span>
+            <button class="action-btn action-btn-view" title="Ver imágenes del producto"
+                    onclick="viewProduct('${p.id}')">
+              <i class="fas fa-eye"></i>
+            </button>
           </div>
         </div>
       </td>
