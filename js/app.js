@@ -102,49 +102,23 @@ function _renderSkeletons(count = 8) {
     </div>`;
 }
 
-/** Carga los productos desde la API y re-renderiza la tienda */
+/** Carga los productos desde Supabase y re-renderiza la tienda */
 async function _loadProductsFromAPI() {
   try {
-    // ── Fase 1: categorías + primera página EN PARALELO ──────────────────────
-    const [firstPage, catRes] = await Promise.all([
-      fetch('tables/products?limit=100&page=1').then(r => r.json()).catch(() => null),
-      fetch('tables/categories?limit=500').then(r => r.json()).catch(() => null)
+    // ── Cargar categorías y productos en paralelo desde Supabase ─────────────
+    const [cats, allProds] = await Promise.all([
+      DB.getCategories().catch(() => []),
+      DB.getProducts().catch(() => [])
     ]);
 
-    // Actualizar caché de categorías (deduplicando slugs repetidos)
-    if (catRes && catRes.data) {
-      _dynamicCategories = _deduplicateCats(catRes.data.filter(c => !c.deleted));
+    // Actualizar caché de categorías
+    if (cats && cats.length) {
+      _dynamicCategories = _deduplicateCats(cats.filter(c => !c.deleted));
     }
 
-    // Guardar primeros 100 pero NO renderizar aún — mantener loader hasta tener TODO
-    const firstProds = (firstPage && firstPage.data) ? firstPage.data.filter(p => !p.deleted) : [];
-
-    // ── Fase 2: cargar el resto de páginas desde pg=2 ────────────────────────
-    const total = (firstPage && firstPage.total) ? firstPage.total : 0;
-    let allProds = [...firstProds];
-
-    if (total > 100) {
-      const PAGE_SIZE = 200;
-      const totalPages = Math.ceil((total - 100) / PAGE_SIZE);
-
-      for (let pg = 1; pg <= totalPages; pg++) {
-        try {
-          const res = await fetch(`tables/products?limit=${PAGE_SIZE}&page=${pg + 1}`)
-            .then(r => r.json()).catch(() => null);
-          if (res && res.data) {
-            const pageProds = res.data.filter(p => !p.deleted);
-            pageProds.forEach(p => {
-              if (!allProds.find(x => x.id === p.id)) allProds.push(p);
-            });
-          }
-        } catch(e) { /* ignorar errores parciales */ }
-      }
-    }
-
-    // ── Ahora sí: todo cargado → renderizar de una vez ────────────────────────
-    if (allProds.length > 0) {
-      _liveProducts = allProds;
-      // Construir menú con todos los slugs reales
+    // Renderizar con todos los productos de una vez
+    if (allProds && allProds.length > 0) {
+      _liveProducts = allProds.filter(p => !p.deleted);
       buildCategoryNav(_dynamicCategories, _liveProducts);
       renderProducts();
       updateCartUI();
@@ -158,7 +132,7 @@ async function _loadProductsFromAPI() {
     }
 
   } catch(e) {
-    // Si todo falla → usar productos estáticos y construir menú igual
+    // Si todo falla → usar productos estáticos
     _liveProducts = [...PRODUCTS];
     buildCategoryNav(_dynamicCategories, _liveProducts);
     renderProducts();
@@ -167,21 +141,13 @@ async function _loadProductsFromAPI() {
 }
 
 /**
- * Recarga silenciosa de productos desde la API.
+ * Recarga silenciosa de productos desde Supabase.
  * No muestra skeleton — actualiza _liveProducts en segundo plano
  * y re-renderiza solo si hay cambios reales (descripción, precio, stock…).
  */
 async function _refreshProductsSilent() {
   try {
-    let all = [], page = 1;
-    while (true) {
-      const r = await fetch(`tables/products?limit=250&page=${page}`).then(r => r.json()).catch(() => null);
-      if (!r || !r.data) break;
-      const chunk = r.data.filter(p => !p.deleted);
-      all = all.concat(chunk);
-      if (chunk.length < 250) break;
-      page++;
-    }
+    const all = (await DB.getProducts().catch(() => [])).filter(p => !p.deleted);
     if (all.length === 0) return;
 
     // Comparar con los datos actuales — solo re-renderizar si hay diferencias
@@ -4055,11 +4021,13 @@ let _clientNotiBadge = 0;
 async function loadClientNotificaciones() {
   if (!currentClient?.email) return;
   try {
-    const res  = await fetch(`tables/notificaciones?limit=50&search=${encodeURIComponent(currentClient.email)}`);
-    const json = await res.json();
-    const all  = (json.data || []).filter(n =>
+    const emailEnc = encodeURIComponent(currentClient.email);
+    const json = await _supaFetch(
+      `notificaciones?select=*&limit=50&order=created_at.desc&or=(cliente_email.eq.${emailEnc},cliente_email.eq.todos)`
+    ).catch(() => []);
+    const all  = (Array.isArray(json) ? json : []).filter(n =>
       n.cliente_email === currentClient.email || n.cliente_email === 'todos'
-    ).reverse();
+    );
 
     const unread = all.filter(n => !n.leida).length;
     _clientNotiBadge = unread;
@@ -4321,10 +4289,10 @@ async function renderClientNotificaciones() {
 
 async function markClientNotiRead(id) {
   try {
-    await fetch(`tables/notificaciones/${id}`, {
-      method: 'PATCH',
+    await _supaFetch(`notificaciones?id=eq.${id}`, {
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leida: true })
+      body:    JSON.stringify({ leida: true })
     });
     renderClientNotificaciones();
   } catch(e) {}
