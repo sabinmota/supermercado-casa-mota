@@ -4690,6 +4690,17 @@ function saveDriver() {
   if (!name)  { showAdminToast('El nombre es obligatorio', 'error'); return; }
   if (!phone) { showAdminToast('El teléfono es obligatorio', 'error'); return; }
 
+  // Tipo de vehículo y Placa obligatorios
+  const drvVehicle = document.getElementById('drvVehicle').value;
+  const drvPlate   = document.getElementById('drvPlate').value.trim();
+  const missingD   = [];
+  if (!drvVehicle) { missingD.push('Tipo de vehículo'); _markError('drvVehicle'); }
+  if (!drvPlate)   { missingD.push('Placa / Matrícula'); _markError('drvPlate'); }
+  if (missingD.length > 0) {
+    showAdminToast(`Faltan campos obligatorios: ${missingD.join(', ')}`, 'error');
+    return;
+  }
+
   const data = {
     name,
     cedula:    document.getElementById('drvCedula').value.trim(),
