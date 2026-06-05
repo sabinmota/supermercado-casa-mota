@@ -3880,7 +3880,20 @@ function saveCustomer() {
     // ── PATCH: solo los campos del formulario (evita enviar campos JS que no existen en Supabase)
     DB.patchCustomer(editingCustomerId, data)
       .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado correctamente', 'success'); })
-      .catch(err => { _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error'); });
+      .catch(err => {
+        // Si el error es que la columna 'ranking' no existe aún en Supabase,
+        // reintentamos sin ese campo y avisamos al admin
+        const msg = err?.message || '';
+        if (msg.includes('ranking') && msg.includes('PGRST204')) {
+          console.warn('Columna ranking no existe en Supabase — guardando sin ranking');
+          const { ranking: _r, ...dataWithoutRanking } = data;
+          DB.patchCustomer(editingCustomerId, dataWithoutRanking)
+            .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado (ejecuta supabase_ranking_column.sql para activar el campo Ranking)', 'warning'); })
+            .catch(err2 => { _unlockC(); console.error('saveCustomer PATCH error:', err2); showAdminToast('Error al guardar cliente: ' + (err2?.message || err2), 'error'); });
+        } else {
+          _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error');
+        }
+      });
   } else {
     // ── Solo enviamos a Supabase los campos que existen en la tabla ──────────
     const newC = {
