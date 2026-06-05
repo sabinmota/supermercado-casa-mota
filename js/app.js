@@ -3215,14 +3215,17 @@ async function renderMyAccount() {
   if (pe) pe.textContent = currentClient.email;
 
   // Info grid
-  const statusLabel = { activo:'Cliente Activo', inactivo:'Inactivo', vip:'⭐ Cliente VIP' };
+  const statusLabel = { habilitado:'✅ Cuenta Habilitada', deshabilitado:'🚫 Cuenta Deshabilitada', activo:'✅ Cuenta Habilitada', inactivo:'🚫 Cuenta Deshabilitada' };
+  const rankingLabel = { vip:'💎 VIP', oro:'🥇 Oro', plata:'🥈 Plata', bronce:'🥉 Bronce' };
+  const rkVal = (currentClient.ranking || currentClient.loyaltyTier || 'bronce').toLowerCase();
   const grid = document.getElementById('accountInfoGrid');
   if (grid) {
     grid.innerHTML = `
       <div class="acc-info-item"><i class="fas fa-phone"></i><span>${currentClient.phone || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-location-dot"></i><span>${currentClient.address || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-city"></i><span>${currentClient.city || '—'}</span></div>
-      <div class="acc-info-item"><i class="fas fa-star"></i><span>${statusLabel[currentClient.status] || 'Activo'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-circle-check"></i><span>${statusLabel[currentClient.status] || '✅ Cuenta Habilitada'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-ranking-star"></i><span>${rankingLabel[rkVal] || '🥉 Bronce'}</span></div>
       <div class="acc-info-item"><i class="fas fa-cart-shopping"></i><span>${currentClient.orders || 0} pedido${(currentClient.orders||0)!==1?'s':''}</span></div>
       <div class="acc-info-item"><i class="fas fa-dollar-sign"></i><span>RD$ ${fmt$(currentClient.spent||0)} gastado</span></div>`;
   }

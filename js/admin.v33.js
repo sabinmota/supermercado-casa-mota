@@ -2681,8 +2681,11 @@ function onNoClientChange() {
         <div style="color:#666">${c.email} · ${c.phone||'—'}</div>
         ${c.mapLink ? `<a href="${c.mapLink}" target="_blank" style="font-size:.75rem;color:#1a56c4"><i class="fas fa-location-dot"></i> Ver ubicación en Maps</a>` : ''}
       </div>
-      <span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;background:${c.status==='vip'?'#fff8e1':c.status==='inactivo'?'#fce4ec':'#e8f5ee'};color:${c.status==='vip'?'#c77a00':c.status==='inactivo'?'#c62828':'#1a7c3e'}">
-        ${c.status==='vip'?'⭐ VIP':c.status==='inactivo'?'Inactivo':'Activo'}
+      <span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;background:${c.status==='deshabilitado'||c.status==='inactivo'?'#fce4ec':'#e8f5ee'};color:${c.status==='deshabilitado'||c.status==='inactivo'?'#c62828':'#1a7c3e'}">
+        ${c.status==='deshabilitado'||c.status==='inactivo'?'🚫 Deshabilitado':'✅ Habilitado'}
+      </span>
+      <span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;margin-left:4px;background:${(c.ranking||c.loyaltyTier||'bronce')==='vip'?'#f3eeff':(c.ranking||c.loyaltyTier||'bronce')==='oro'?'#fff8e1':(c.ranking||c.loyaltyTier||'bronce')==='plata'?'#f1f5f9':'#fff3e0'};color:${(c.ranking||c.loyaltyTier||'bronce')==='vip'?'#7c3aed':(c.ranking||c.loyaltyTier||'bronce')==='oro'?'#c77a00':(c.ranking||c.loyaltyTier||'bronce')==='plata'?'#475569':'#b45309'}">
+        ${{vip:'💎 VIP',oro:'🥇 Oro',plata:'🥈 Plata',bronce:'🥉 Bronce'}[(c.ranking||c.loyaltyTier||'bronce')]||'🥉 Bronce'}
       </span>
     </div>`;
 }
@@ -3636,9 +3639,16 @@ function renderCustomers() {
     total === 0 ? 'Sin resultados' : `${from}–${to} de ${total} cliente${total !== 1 ? 's' : ''}`;
 
   document.getElementById('customersTbody').innerHTML = page.map((c,i) => {
-    const statusMap   = { activo:'cst-activo', inactivo:'cst-inactivo', vip:'cst-vip' };
-    const statusLabel = { activo:'Activo', inactivo:'Inactivo', vip:'⭐ VIP' };
+    // Estado: habilitado / deshabilitado (controla acceso a la tienda)
+    const statusMap   = { habilitado:'cst-activo', deshabilitado:'cst-inactivo', activo:'cst-activo', inactivo:'cst-inactivo' };
+    const statusLabel = { habilitado:'✅ Habilitado', deshabilitado:'🚫 Deshabilitado', activo:'✅ Habilitado', inactivo:'🚫 Deshabilitado' };
     const stCls    = statusMap[c.status] || 'cst-activo';
+    // Ranking: bronce / plata / oro / vip (independiente del estado)
+    const rankingMap   = { vip:'cst-vip', oro:'cst-oro', plata:'cst-plata', bronce:'cst-bronce' };
+    const rankingLabel = { vip:'💎 VIP', oro:'🥇 Oro', plata:'🥈 Plata', bronce:'🥉 Bronce' };
+    const rkVal  = (c.ranking || c.loyaltyTier || 'bronce').toLowerCase();
+    const rkCls  = rankingMap[rkVal]  || 'cst-bronce';
+    const rkLbl  = rankingLabel[rkVal] || '🥉 Bronce';
     const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     // Indicador de acceso a la tienda (tiene contraseña?)
     const accessIcon = c.password
@@ -3653,7 +3663,8 @@ function renderCustomers() {
           <div>
             <div style="font-weight:600">${c.name}</div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px">
-              <span class="cust-status ${stCls}">${statusLabel[c.status]||'Activo'}</span>
+              <span class="cust-status ${stCls}">${statusLabel[c.status]||'✅ Habilitado'}</span>
+              <span class="cust-status ${rkCls}">${rkLbl}</span>
               ${accessIcon}
               ${loyaltyBadgeHTML(c.loyaltyPoints || 0)}
             </div>
@@ -3714,7 +3725,13 @@ function openCustomerModal(id) {
     document.getElementById('cCedula').value  = c.cedula  || '';
     document.getElementById('cAddress').value = c.address || '';
     document.getElementById('cCity').value    = c.city    || '';
-    document.getElementById('cStatus').value  = c.status  || 'activo';
+    // Normalizar status legacy (activo→habilitado, inactivo→deshabilitado)
+    const rawStatus = (c.status || 'habilitado').toLowerCase();
+    const normStatus = rawStatus === 'activo' ? 'habilitado' : rawStatus === 'inactivo' ? 'deshabilitado' : rawStatus;
+    document.getElementById('cStatus').value   = normStatus;
+    // Ranking
+    const rawRanking = (c.ranking || c.loyaltyTier || 'bronce').toLowerCase();
+    document.getElementById('cRanking').value  = rawRanking;
     document.getElementById('cNotes').value   = c.notes   || '';
     document.getElementById('cMapLink').value = c.mapLink || '';
     previewCustMap();
@@ -3723,7 +3740,8 @@ function openCustomerModal(id) {
     ['cName','cEmail','cCedula','cAddress','cCity','cNotes','cMapLink'].forEach(f => {
       document.getElementById(f).value = '';
     });
-    document.getElementById('cStatus').value = 'activo';
+    document.getElementById('cStatus').value  = 'habilitado';
+    document.getElementById('cRanking').value = 'bronce';
     previewCustMap();
   }
   document.getElementById('custModalBackdrop').classList.remove('hidden');
@@ -3841,6 +3859,7 @@ function saveCustomer() {
     address: document.getElementById('cAddress').value.trim(),
     city:    document.getElementById('cCity').value.trim(),
     status:  document.getElementById('cStatus').value,
+    ranking: document.getElementById('cRanking').value,
     notes:   document.getElementById('cNotes').value.trim(),
     mapLink: document.getElementById('cMapLink').value.trim(),
   };
@@ -3872,7 +3891,8 @@ function saveCustomer() {
       cedula:               data.cedula   || '',
       address:              data.address  || '',
       city:                 data.city     || '',
-      status:               data.status   || 'active',
+      status:               data.status   || 'habilitado',
+      ranking:              data.ranking  || 'bronce',
       notes:                data.notes    || '',
       mapLink:              data.mapLink  || '',
       password:             data.password || '',

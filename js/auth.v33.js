@@ -243,8 +243,10 @@ async function loginCliente(email, password) {
   if (byEmail.password !== password) {
     return { ok: false, msg: 'Contraseña incorrecta. Verifica e intenta de nuevo.' };
   }
-  if (byEmail.status === 'inactivo') {
-    return { ok: false, msg: 'Tu cuenta está inactiva. Contacta al supermercado.' };
+  // Verificar que la cuenta esté habilitada (soporta valores legacy: inactivo, y nuevo: deshabilitado)
+  const st = (byEmail.status || 'habilitado').toLowerCase();
+  if (st === 'deshabilitado' || st === 'inactivo') {
+    return { ok: false, msg: 'Tu cuenta está deshabilitada. Contacta al supermercado para reactivar tu acceso.' };
   }
 
   const client = { ...byEmail };
@@ -266,11 +268,11 @@ async function loginCliente(email, password) {
 // IMPORTANTE: estos IDs (demo_1..demo_5) deben coincidir con generateDemoCustomers() en admin.js
 function _getDefaultClients() {
   return [
-    { id:'demo_1', name:'Ana Garcia',     email:'ana.garcia@gmail.com',      password:'Ana2024!',    phone:'(809) 234-5678', city:'Santo Domingo', address:'Av. Churchill #35',      status:'vip',    orders:8,  spent:34200, lastOrder:'28/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_2', name:'Carlos Mota',    email:'carlos.mota@gmail.com',     password:'Carlos2024!', phone:'(809) 312-4567', city:'Santiago',      address:'Calle El Conde #12',     status:'activo', orders:5,  spent:18500, lastOrder:'25/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_3', name:'Maria Perez',    email:'maria.perez@gmail.com',     password:'Maria2024!',  phone:'(809) 456-7890', city:'Santo Domingo', address:'C/ Las Mercedes #88',    status:'vip',    orders:12, spent:52000, lastOrder:'30/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_4', name:'Luis Rodriguez', email:'luis.rodriguez@gmail.com',  password:'Luis2024!',   phone:'(809) 567-8901', city:'La Romana',     address:'Av. Independencia #210', status:'activo', orders:3,  spent:9800,  lastOrder:'20/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_5', name:'Carmen Diaz',    email:'carmen.diaz@gmail.com',     password:'Carmen2024!', phone:'(809) 678-9012', city:'Santo Domingo', address:'C/ Jose Reyes #5',       status:'activo', orders:7,  spent:27500, lastOrder:'27/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
+    { id:'demo_1', name:'Ana Garcia',     email:'ana.garcia@gmail.com',      password:'Ana2024!',    phone:'(809) 234-5678', city:'Santo Domingo', address:'Av. Churchill #35',      status:'habilitado', ranking:'vip',    orders:8,  spent:34200, lastOrder:'28/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
+    { id:'demo_2', name:'Carlos Mota',    email:'carlos.mota@gmail.com',     password:'Carlos2024!', phone:'(809) 312-4567', city:'Santiago',      address:'Calle El Conde #12',     status:'habilitado', ranking:'bronce', orders:5,  spent:18500, lastOrder:'25/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
+    { id:'demo_3', name:'Maria Perez',    email:'maria.perez@gmail.com',     password:'Maria2024!',  phone:'(809) 456-7890', city:'Santo Domingo', address:'C/ Las Mercedes #88',    status:'habilitado', ranking:'vip',    orders:12, spent:52000, lastOrder:'30/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
+    { id:'demo_4', name:'Luis Rodriguez', email:'luis.rodriguez@gmail.com',  password:'Luis2024!',   phone:'(809) 567-8901', city:'La Romana',     address:'Av. Independencia #210', status:'habilitado', ranking:'bronce', orders:3,  spent:9800,  lastOrder:'20/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
+    { id:'demo_5', name:'Carmen Diaz',    email:'carmen.diaz@gmail.com',     password:'Carmen2024!', phone:'(809) 678-9012', city:'Santo Domingo', address:'C/ Jose Reyes #5',       status:'habilitado', ranking:'plata',  orders:7,  spent:27500, lastOrder:'27/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
   ];
 }
 

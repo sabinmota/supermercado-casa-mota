@@ -1711,10 +1711,23 @@
           <div class="form-group">
             <label>Estado del cliente</label>
             <select class="form-input" id="cStatus">
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
-              <option value="vip">VIP</option>
+              <option value="habilitado">✅ Habilitado</option>
+              <option value="deshabilitado">🚫 Deshabilitado</option>
             </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label><i class="fas fa-ranking-star" style="color:#7c3aed"></i> Ranking del cliente</label>
+            <select class="form-input" id="cRanking">
+              <option value="bronce">🥉 Bronce</option>
+              <option value="plata">🥈 Plata</option>
+              <option value="oro">🥇 Oro</option>
+              <option value="vip">💎 VIP</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <!-- espacio reservado -->
           </div>
         </div>
         <!-- Contraseña de acceso a la tienda -->
@@ -2769,12 +2782,12 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=290"></script>
-  <script src="js/auth.v33.js?v=291"></script>
+  <script src="js/api.js?v=293"></script>
+  <script src="js/auth.v33.js?v=294"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=290"></script>
+  <script src="js/admin.v33.js?v=294"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=292"></script>
   <!-- IA: Groq integration -->
