@@ -5,6 +5,31 @@
 
 'use strict';
 
+// ─── _supaFetch: helper para llamadas directas a Supabase PostgREST ──────────
+// Usa _SB_URL y _SB_HEADERS definidos en api.js
+async function _supaFetch(endpoint, options = {}) {
+  const method  = (options.method || 'GET').toUpperCase();
+  const url     = `${_SB_URL}/${endpoint}`;
+  const headers = { ..._SB_HEADERS, ...(options.headers || {}) };
+  if (['POST', 'PATCH', 'PUT'].includes(method)) {
+    headers['Prefer'] = 'return=representation';
+  }
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(url, { method, headers, body: options.body || undefined, signal: ctrl.signal });
+  } catch(e) { clearTimeout(timer); throw e; }
+  clearTimeout(timer);
+  if (res.status === 204) return null;
+  if (!res.ok) { const txt = await res.text(); throw new Error(`_supaFetch error ${res.status}: ${txt}`); }
+  const text = await res.text();
+  if (!text) return null;
+  const parsed = JSON.parse(text);
+  if (Array.isArray(parsed) && method === 'POST') return parsed[0] ?? null;
+  return parsed;
+}
+
 // ─── Helper de formato de precio ─────────────────────────────────────────────
 if (typeof fmt$ === 'undefined') {
   window.fmt$ = function(n) {
@@ -1354,4 +1379,3 @@ window.openNotifDropdown    = openNotifDropdown;
 window.closeNotifDropdown   = closeNotifDropdown;
 window.notifMarkAllRead     = notifMarkAllRead;
 window.notifDdMarkRead      = notifDdMarkRead;
-
