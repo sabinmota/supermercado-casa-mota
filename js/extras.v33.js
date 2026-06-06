@@ -500,7 +500,7 @@ async function printOrderPDF(orderId) {
       </div>
       <div class="info-box">
         <h4>Direccion de entrega</h4>
-        <p>${order.address || '-'}</p>
+        <p>${[order.address, order.city].filter(Boolean).join(', ') || '-'}</p>
         ${order.driverName ? `<p>Repartidor: <strong>${order.driverName}</strong></p>` : ''}
         ${order.notes ? `<p>Nota: ${order.notes}</p>` : ''}
       </div>

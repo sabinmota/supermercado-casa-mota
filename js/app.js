@@ -2546,6 +2546,7 @@ async function confirmOrder() {
       email:          currentClient.email,
       phone:          currentClient.phone   || '',
       address:        currentClient.address || '',
+      city:           currentClient.city    || '',
       clientId:       currentClient.id,
       items:          totalItems,
       productLines,

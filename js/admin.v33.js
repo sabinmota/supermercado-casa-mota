@@ -2179,7 +2179,7 @@ function _renderOrderModalProducts(o) {
     <!-- DIRECCIÓN -->
     <div class="order-address-row">
       <i class="fas fa-location-dot"></i>
-      <span>${o.address || 'Sin dirección registrada'}</span>
+      <span>${[o.address, o.city].filter(Boolean).join(', ') || 'Sin dirección registrada'}</span>
       ${(()=>{ const cl = customers.find(c=>c.id===o.clientId||c.email===o.email); return cl&&cl.mapLink ? `<a href="${cl.mapLink}" target="_blank" rel="noopener" class="btn-map-link" style="margin-left:auto;font-size:.75rem"><i class="fas fa-map-location-dot"></i> Ver en Maps</a>` : ''; })()}
     </div>
 
