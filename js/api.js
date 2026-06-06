@@ -105,10 +105,12 @@ function _orderToSupa(o) {
 
 function _orderFromSupa(o) {
   const r = { ...o };
-  // Normalizar de vuelta a los nombres que usa el app
-  if ('customer_email' in r) { r.email    = r.customer_email; }
-  if ('customer_phone' in r) { r.phone    = r.customer_phone; }
-  if ('envio'          in r) { r.shipping = r.envio; }
+  // Normalizar de vuelta a los nombres que usa el app.
+  // La tabla tiene AMBAS columnas: customer_email (original) y email (agregada luego).
+  // customer_email es la que siempre se escribe via _orderToSupa, por eso tiene prioridad.
+  r.email = r.customer_email ?? r.email ?? '';
+  r.phone = r.customer_phone ?? r.phone ?? '';
+  if ('envio' in r) { r.shipping = r.envio; }
   return r;
 }
 
@@ -296,7 +298,7 @@ const DB = {
     if (_IS_GENSPARK) {
       const res  = await fetch('tables/orders?limit=2000');
       const json = await res.json();
-      return json.data || [];
+      return Array.isArray(json.data) ? json.data.map(_orderFromSupa) : [];
     }
     // Fetch directo con campos específicos y límite para evitar statement timeout
     const fields = _SELECT_FIELDS.orders;
