@@ -86,7 +86,33 @@ const _SELECT_FIELDS = {
   settings:  '*',
 };
 
-// ─── GET todos los registros con paginación automática ───────────────────────
+// ─── MAPEO DE CAMPOS orders (app ↔ Supabase) ─────────────────────────────────
+// Supabase usa snake_case y nombres distintos; el app usa camelCase propio.
+// _orderToSupa  : convierte objeto del app → columnas reales de Supabase
+// _orderFromSupa: convierte fila de Supabase → objeto que usa el app
+
+function _orderToSupa(o) {
+  const r = { ...o };
+  // Renombrar campos que tienen nombre distinto en Supabase
+  if ('email'          in r) { r.customer_email = r.email;          delete r.email; }
+  if ('phone'          in r) { r.customer_phone = r.phone;          delete r.phone; }
+  if ('shipping'       in r) { r.envio          = r.shipping;       delete r.shipping; }
+  if ('payMethodLabel' in r) { delete r.payMethodLabel; } // columna no existe
+  if ('mapLink'        in r) { delete r.mapLink; }        // columna no existe
+  if ('source'         in r) { delete r.source; }         // columna no existe
+  return r;
+}
+
+function _orderFromSupa(o) {
+  const r = { ...o };
+  // Normalizar de vuelta a los nombres que usa el app
+  if ('customer_email' in r) { r.email    = r.customer_email; }
+  if ('customer_phone' in r) { r.phone    = r.customer_phone; }
+  if ('envio'          in r) { r.shipping = r.envio; }
+  return r;
+}
+
+
 // PostgREST usa Range header: "0-199" para la primera página, etc.
 async function _apiGetAll(table, opts = {}) {
   const PAGE    = 200;  // Bajado de 500 → menos carga por query en Supabase
@@ -286,19 +312,19 @@ const DB = {
     clearTimeout(timer);
     if (!res.ok) throw new Error(`API error ${res.status}`);
     const list = await res.json();
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.map(_orderFromSupa) : [];
   },
 
   async createOrder(order) {
-    return _apiCreate('orders', order);
+    return _apiCreate('orders', _orderToSupa(order));
   },
 
   async updateOrder(id, order) {
-    return _apiUpdate('orders', id, order);
+    return _apiUpdate('orders', id, _orderToSupa(order));
   },
 
   async patchOrder(id, fields) {
-    return _apiPatch('orders', id, fields);
+    return _apiPatch('orders', id, _orderToSupa(fields));
   },
 
   async deleteOrder(id) {
