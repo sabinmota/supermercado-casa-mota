@@ -2569,8 +2569,6 @@ async function confirmOrder() {
       fiscalNombre:        fiscalSolicitado ? fiscalNombre : '',
       autorizaSustitucion: getSustitucionPref(),
       mapLink:             currentClient.mapLink || '',
-      driverId:       '',
-      driverName:     '',
     };
 
     // Guardar pedido en la API
