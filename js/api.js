@@ -97,9 +97,10 @@ function _orderToSupa(o) {
   if ('email'          in r) { r.customer_email = r.email;          delete r.email; }
   if ('phone'          in r) { r.customer_phone = r.phone;          delete r.phone; }
   if ('shipping'       in r) { r.envio          = r.shipping;       delete r.shipping; }
-  // payMethodLabel: columna no existe en Supabase → eliminar para no causar error
+  // Columnas que NO existen en Supabase → eliminar para no causar error 400
   if ('payMethodLabel' in r) { delete r.payMethodLabel; }
-  // city, mapLink, source, order_number sí existen → se pasan tal cual
+  if ('mapLink'        in r) { delete r.mapLink; }
+  if ('source'         in r) { delete r.source; }
   return r;
 }
 
