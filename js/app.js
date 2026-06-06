@@ -465,7 +465,9 @@ function loadImg(img) {
     img.classList.add('img-loaded');
   };
   temp.onerror = () => {
-    img.classList.add('img-loaded'); // quita skeleton aunque falle
+    img.src = 'images/logo-casamota.png'; // fallback al logo
+    img.removeAttribute('data-src');
+    img.classList.add('img-loaded');
   };
   temp.src = src;
 }
@@ -497,10 +499,10 @@ function productCardHTML(p) {
            style="cursor:pointer">
         <img 
           data-src="${p.image}" 
-          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f0f4f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='40' fill='%23c8d8c8'%3E🛒%3C/text%3E%3C/svg%3E"
+          src="images/logo-casamota.png"
           alt="${p.name}" 
           class="product-lazy-img"
-          onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 400 300\\'%3E%3Crect width=\\'400\\' height=\\'300\\' fill=\\'%23f0f4f0\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-size=\\'40\\' fill=\\'%23c8d8c8\\'%3E🛒%3C/text%3E%3C/svg%3E'"
+          onerror="this.src='images/logo-casamota.png'"
         />
         <div class="product-img-overlay">
           <button class="quick-view-btn"><i class="fas fa-eye"></i> Vista rápida</button>
