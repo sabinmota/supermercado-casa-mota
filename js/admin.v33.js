@@ -864,7 +864,7 @@ function renderRecentOrders() {
   const recent = [...orders].sort((a,b) => b.id - a.id).slice(0,6);
   document.getElementById('recentOrdersTbody').innerHTML = recent.map((o,i) => `
     <tr class="anim-row" style="animation-delay:${.05 + i * .07}s">
-      <td><strong>#${o.id}</strong></td>
+      <td><strong>#${o.order_number || o.id}</strong></td>
       <td>${o.customer}</td>
       <td>${o.items} productos</td>
       <td><strong>RD$ ${fmt$(o.total)}</strong></td>
@@ -2026,7 +2026,7 @@ function renderOrdersTable() {
       : '';
     return `
     <tr${o.source==='tienda' ? ' style="background:rgba(29,78,216,.03)"' : ''}>
-      <td><strong>#${o.id}</strong>${sourceBadge}</td>
+      <td><strong>#${o.order_number || o.id}</strong>${sourceBadge}</td>
       <td>${o.customer}</td>
       <td>${o.email}</td>
       <td>${o.items} productos</td>
@@ -2050,7 +2050,7 @@ function openOrderModal(id) {
   const o = orders.find(x => String(x.id) === String(id));
   if (!o) return;
   editingOrderId = id;
-  document.getElementById('orderModalTitle').textContent = `Pedido #${o.id} — ${o.customer}`;
+  document.getElementById('orderModalTitle').textContent = `Pedido #${o.order_number || o.id} — ${o.customer}`;
 
   _renderOrderModalProducts(o);
 
@@ -2179,8 +2179,13 @@ function _renderOrderModalProducts(o) {
     <!-- DIRECCIÓN -->
     <div class="order-address-row">
       <i class="fas fa-location-dot"></i>
-      <span>${[o.address, o.city].filter(Boolean).join(', ') || 'Sin dirección registrada'}</span>
-      ${(()=>{ const cl = customers.find(c=>c.id===o.clientId||c.email===o.email); return cl&&cl.mapLink ? `<a href="${cl.mapLink}" target="_blank" rel="noopener" class="btn-map-link" style="margin-left:auto;font-size:.75rem"><i class="fas fa-map-location-dot"></i> Ver en Maps</a>` : ''; })()}
+      ${(()=>{
+        const cl   = customers.find(c=>c.id===o.clientId||c.email===o.email);
+        const city = o.city || cl?.city || '';
+        const addr = [o.address, city].filter(Boolean).join(', ') || 'Sin dirección registrada';
+        const mapBtn = cl&&cl.mapLink ? `<a href="${cl.mapLink}" target="_blank" rel="noopener" class="btn-map-link" style="margin-left:auto;font-size:.75rem"><i class="fas fa-map-location-dot"></i> Ver en Maps</a>` : '';
+        return `<span>${addr}</span>${mapBtn}`;
+      })()}
     </div>
 
     <!-- BANNER EDICIÓN -->
@@ -2507,7 +2512,7 @@ function saveOrderStatus() {
       );
       if (cust) {
         addPointsToCustomer(cust.id, pts,
-          `🛒 Pedido #${order.id} entregado (RD$ ${fmt$(order.total||0)})`,
+          `🛒 Pedido #${order.order_number || order.id} entregado (RD$ ${fmt$(order.total||0)})`,
           order.id
         );
         showAdminToast(`+${pts} puntos acreditados a ${cust.name}`, 'success');
@@ -2523,7 +2528,7 @@ function saveOrderStatus() {
       );
       if (cust) {
         addPointsToCustomer(cust.id, -pts,
-          `↩️ Pedido #${order.id} revertido de entregado`,
+          `↩️ Pedido #${order.order_number || order.id} revertido de entregado`,
           order.id
         );
       }

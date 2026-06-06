@@ -401,6 +401,11 @@ async function printOrderPDF(orderId) {
   const order = (typeof orders !== 'undefined' ? orders : []).find(o => String(o.id) === String(orderId));
   if (!order) { alert('Pedido no encontrado'); return; }
 
+  // Buscar ciudad del cliente si el pedido no la tiene guardada
+  const allCustomers = (typeof customers !== 'undefined' ? customers : []);
+  const orderClient  = allCustomers.find(c => c.id === order.clientId || c.email === order.email);
+  const orderCity    = order.city || orderClient?.city || '';
+
   let logoBase64 = '';
   try {
     const resp = await fetch('images/logo-casamota.png');
@@ -485,7 +490,7 @@ async function printOrderPDF(orderId) {
         </div>
       </div>
       <div class="order-num">
-        <h3>PEDIDO #${order.id}</h3>
+        <h3>PEDIDO #${order.order_number || order.id}</h3>
         <p>Fecha: ${order.date || '-'}</p>
         <p>Estado: <span class="status-pill">${statusLabels[order.status] || order.status}</span></p>
         <p>Pago: ${payLabels[order.payMethod] || order.payMethod || '-'}</p>
@@ -500,7 +505,7 @@ async function printOrderPDF(orderId) {
       </div>
       <div class="info-box">
         <h4>Direccion de entrega</h4>
-        <p>${[order.address, order.city].filter(Boolean).join(', ') || '-'}</p>
+        <p>${[order.address, orderCity].filter(Boolean).join(', ') || '-'}</p>
         ${order.driverName ? `<p>Repartidor: <strong>${order.driverName}</strong></p>` : ''}
         ${order.notes ? `<p>Nota: ${order.notes}</p>` : ''}
       </div>

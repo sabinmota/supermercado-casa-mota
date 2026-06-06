@@ -97,9 +97,9 @@ function _orderToSupa(o) {
   if ('email'          in r) { r.customer_email = r.email;          delete r.email; }
   if ('phone'          in r) { r.customer_phone = r.phone;          delete r.phone; }
   if ('shipping'       in r) { r.envio          = r.shipping;       delete r.shipping; }
-  if ('payMethodLabel' in r) { delete r.payMethodLabel; } // columna no existe
-  if ('mapLink'        in r) { delete r.mapLink; }        // columna no existe
-  if ('source'         in r) { delete r.source; }         // columna no existe
+  // payMethodLabel: columna no existe en Supabase → eliminar para no causar error
+  if ('payMethodLabel' in r) { delete r.payMethodLabel; }
+  // city, mapLink, source, order_number sí existen → se pasan tal cual
   return r;
 }
 
@@ -111,6 +111,9 @@ function _orderFromSupa(o) {
   r.email = r.customer_email ?? r.email ?? '';
   r.phone = r.customer_phone ?? r.phone ?? '';
   if ('envio' in r) { r.shipping = r.envio; }
+  // order_number: número correlativo corto (máx 3 cifras) para mostrar al usuario
+  // Si no existe (pedidos viejos), fallback al id completo
+  if (!r.order_number && r.id) r.order_number = r.id;
   return r;
 }
 
@@ -318,7 +321,13 @@ const DB = {
   },
 
   async createOrder(order) {
-    return _apiCreate('orders', _orderToSupa(order));
+    const payload = _orderToSupa(order);
+    // Guardar el número correlativo corto como order_number (el id numérico generado en app.js)
+    // El UUID lo genera Supabase automáticamente en la columna id
+    if (order.id && !isNaN(Number(order.id))) {
+      payload.order_number = Number(order.id);
+    }
+    return _apiCreate('orders', payload);
   },
 
   async updateOrder(id, order) {
