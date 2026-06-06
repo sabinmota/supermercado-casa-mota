@@ -518,7 +518,18 @@ async function printOrderPDF(orderId) {
       <table>
         <tr><td>Subtotal</td><td style="text-align:right">RD$ ${fmt$(subtotal)}</td></tr>
         <tr><td>Envio</td><td style="text-align:right;color:${shipping===0?'#1a7c3e':'inherit'}">${shipping===0?'<strong>Gratis!</strong>':'RD$ '+fmt$(shipping)}</td></tr>
-        ${descuento > 0 ? `<tr style="color:#1a7c3e;font-weight:600"><td>Descuento${cuponUsado ? ` (${cuponUsado})` : ''}</td><td style="text-align:right">- RD$ ${fmt$(descuento)}</td></tr>` : ''}
+        ${descuento > 0 ? (() => {
+          const cupon       = order.cuponUsado || '';
+          const pct         = order.descuentoPct  || 0;
+          const montoFijo   = order.descuentoMonto || 0;
+          const tipDesc     = pct > 0
+            ? `${pct}% de descuento`
+            : montoFijo > 0
+              ? `Descuento fijo`
+              : `Descuento`;
+          const label = cupon ? `Cupón <strong>${cupon}</strong> — ${tipDesc}` : tipDesc;
+          return `<tr style="color:#1a7c3e;font-weight:600"><td>${label}</td><td style="text-align:right">- RD$ ${fmt$(descuento)}</td></tr>`;
+        })() : ''}
         <tr class="grand-total"><td><strong>TOTAL</strong></td><td style="text-align:right"><strong>RD$ ${fmt$(total)}</strong></td></tr>
       </table>
     </div>
@@ -546,8 +557,9 @@ async function loadCupones() {
     const json = await _supaFetch('cupones?select=*&limit=200&order=created_at.asc', {});
     cupones = (Array.isArray(json) ? json : []).filter(c => !c.deleted);
   } catch(e) { cupones = []; }
-  renderCupones();
-  _renderCuponesLaterales();
+  // Solo llamar funciones de render si existen (en admin); en tienda no existen
+  if (typeof renderCupones          === 'function') renderCupones();
+  if (typeof _renderCuponesLaterales === 'function') _renderCuponesLaterales();
 }
 
 /* ── Tabla principal ───────────────────────────────────────────── */

@@ -2503,9 +2503,11 @@ async function confirmOrder() {
     const fiscalRNC       = document.getElementById('chkFiscalRNC')?.value.trim()    || '';
     const fiscalNombre    = document.getElementById('chkFiscalNombre')?.value.trim() || '';
 
-    const descuento     = _activeCupon?.descuento || 0;
-    const cuponId       = _activeCupon?.cupon?.id     || '';
-    const cuponCodigo   = _activeCupon?.cupon?.codigo || '';
+    const descuento      = _activeCupon?.descuento || 0;
+    const cuponId        = _activeCupon?.cupon?.id     || '';
+    const cuponCodigo    = _activeCupon?.cupon?.codigo || '';
+    const descuentoPct   = _activeCupon?.cupon?.tipo !== 'monto_fijo' ? (_activeCupon?.cupon?.valor || 0) : 0;
+    const descuentoMonto = _activeCupon?.cupon?.tipo === 'monto_fijo' ? descuento : 0;
     const totalBruto    = +Math.max(0, subtotal + envio - descuento).toFixed(2);
     const ceroCentavos  = _calcCeroCentavos(totalBruto);
     const total         = +(totalBruto - ceroCentavos).toFixed(2);
@@ -2526,14 +2528,14 @@ async function confirmOrder() {
       sustitucion: getSustItemPref(c.id),   // true = cliente autoriza sustituir este producto
     }));
 
-    // Generar ID correlativo
+    // Generar ID correlativo basado en order_number (no en id que ahora es UUID de Supabase)
     let nextNum = 1;
     try {
       const allOrders = await DB.getOrders();
       if (allOrders.length > 0) {
         const maxNum = allOrders.reduce((max, o) => {
-          const n = parseInt(o.id, 10);
-          return (!isNaN(n) && n > max) ? n : max;
+          const n = Number(o.order_number) || parseInt(o.id, 10) || 0;
+          return (n > max) ? n : max;
         }, 0);
         nextNum = maxNum + 1;
       }
@@ -2560,6 +2562,8 @@ async function confirmOrder() {
       subtotal:       +(subtotal).toFixed(2),
       shipping:       envio,
       descuento,
+      descuentoPct,
+      descuentoMonto,
       ceroCentavos,
       cuponUsado:          cuponCodigo,
       cuponId,
