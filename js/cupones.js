@@ -12,9 +12,10 @@
 async function validateCupon(codigo, subtotal) {
   let cupones = [];
   try {
-    const res  = await fetch('tables/cupones?limit=200');
+    // Usar Supabase PostgREST igual que el resto de la app
+    const res  = await fetch(`${_SB_URL}/cupones?select=*&limit=200&order=created_at.asc`, { headers: _SB_HEADERS });
     const json = await res.json();
-    cupones = (json.data || []).filter(c => !c.deleted);
+    cupones = (Array.isArray(json) ? json : []).filter(c => !c.deleted);
   } catch(e) {
     return { valid: false, msg: 'Error al verificar el cupón. Intenta de nuevo.' };
   }
@@ -68,12 +69,12 @@ async function incrementCuponUso(id) {
   if (!id) return;
   try {
     // Obtener usos actuales frescos para evitar race conditions
-    const res  = await fetch(`tables/cupones/${id}`);
+    const res  = await fetch(`${_SB_URL}/cupones?id=eq.${id}&select=usos_actuales`, { headers: _SB_HEADERS });
     const json = await res.json();
-    const actual = Number(json.usos_actuales) || 0;
-    await fetch(`tables/cupones/${id}`, {
+    const actual = Number((Array.isArray(json) ? json[0] : json)?.usos_actuales) || 0;
+    await fetch(`${_SB_URL}/cupones?id=eq.${id}`, {
       method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
       body:    JSON.stringify({ usos_actuales: actual + 1 })
     });
   } catch(e) { /* fallo silencioso — no bloquear el pedido */ }
