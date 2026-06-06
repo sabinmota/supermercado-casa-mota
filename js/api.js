@@ -225,7 +225,7 @@ const DB = {
       let res;
       try {
         res = await fetch(
-          `${_SB_URL}/products?select=${encodeURIComponent(fields)}&order=created_at.asc`,
+          `${_SB_URL}/products?select=${encodeURIComponent(fields)}&order=created_at.desc`,
           {
             headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
             signal: ctrl.signal,
