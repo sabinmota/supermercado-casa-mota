@@ -406,6 +406,11 @@ async function printOrderPDF(orderId) {
   const orderClient  = allCustomers.find(c => c.id === order.clientId || c.email === order.email);
   const orderCity    = order.city || orderClient?.city || '';
 
+  // Normalizar datos fiscales (pueden llegar como boolean nativo o string desde Supabase)
+  const hasFiscal    = order.fiscalSolicitado === true || order.fiscalSolicitado === 'true' || order.fiscalSolicitado === 1;
+  const fiscalNombre = order.fiscalNombre || '';
+  const fiscalRNC    = order.fiscalRNC    || '';
+
   let logoBase64 = '';
   try {
     const resp = await fetch('images/logo-casamota.png');
@@ -512,6 +517,22 @@ async function printOrderPDF(orderId) {
         ${order.notes ? `<p>Nota: ${order.notes}</p>` : ''}
       </div>
     </div>
+    ${hasFiscal ? `
+    <div style="border:2px solid #f9a825;border-radius:8px;padding:10px 14px;margin-bottom:16px;background:#fffde7;page-break-inside:avoid">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#f9a825">&#128196; Comprobante Fiscal (NCF)</span>
+      </div>
+      <table style="width:100%;border:none;margin:0">
+        <tr>
+          <td style="padding:2px 8px 2px 0;font-size:.8rem;color:#555;font-weight:600;width:160px">Nombre / Razón Social:</td>
+          <td style="padding:2px 0;font-size:.88rem;font-weight:700;color:#1a1a2e">${fiscalNombre || '—'}</td>
+        </tr>
+        <tr>
+          <td style="padding:2px 8px 2px 0;font-size:.8rem;color:#555;font-weight:600">RNC / Cédula:</td>
+          <td style="padding:2px 0;font-size:.88rem;font-weight:700;color:#1a1a2e">${fiscalRNC || '—'}</td>
+        </tr>
+      </table>
+    </div>` : ''}
     <table>
       <thead><tr><th>#</th><th>Producto</th><th>Unidad</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th><th style="text-align:center">Sust.</th></tr></thead>
       <tbody>${lines || '<tr><td colspan="7" style="text-align:center">Sin detalles</td></tr>'}</tbody>
