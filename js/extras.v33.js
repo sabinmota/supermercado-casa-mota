@@ -433,8 +433,8 @@ async function printOrderPDF(orderId) {
       <td>${l.name || '-'}</td>
       <td>${l.unit || '-'}</td>
       <td style="text-align:center">${l.cantidad || 1}</td>
-      <td style="text-align:right">RD$ ${fmt$(l.price||0)}</td>
-      <td style="text-align:right"><strong>RD$ ${fmt$(l.subtotal || (l.price*(l.cantidad||1)))}</strong></td>
+      <td style="text-align:right;white-space:nowrap"><span style="color:#888;font-size:.8em;margin-right:2px">RD$</span><span style="font-variant-numeric:tabular-nums">${fmt$(l.price||0)}</span></td>
+      <td style="text-align:right;white-space:nowrap"><strong><span style="color:#888;font-size:.8em;margin-right:2px">RD$</span><span style="font-variant-numeric:tabular-nums">${fmt$(l.subtotal || (l.price*(l.cantidad||1)))}</span></strong></td>
       <td style="text-align:center">${sustCell}</td>
     </tr>`;
   }).join('');
@@ -467,7 +467,9 @@ async function printOrderPDF(orderId) {
       .info-box p   { margin:3px 0; color:#333; }
       table  { width:100%; border-collapse:collapse; margin-bottom:16px; }
       thead tr th { background:#1a7c3e; color:#fff; padding:9px 12px; text-align:left; font-size:.85rem; }
+      thead tr th:nth-child(5), thead tr th:nth-child(6) { text-align:right; }
       tbody tr td  { padding:8px 12px; border-bottom:1px solid #e0e8de; font-size:.85rem; }
+      tbody tr td:nth-child(5), tbody tr td:nth-child(6) { font-variant-numeric:tabular-nums; }
       tbody tr:nth-child(even) td { background:#f7f9f4; }
       .totals { margin-left:auto; width:300px; }
       .totals table { margin:0; }
