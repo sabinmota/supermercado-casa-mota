@@ -2252,6 +2252,19 @@ function _renderOrderModalProducts(o) {
       </div>
     </div>` : ''}
 
+    <!-- COMPROBANTE FISCAL -->
+    ${o.fiscalSolicitado ? `
+    <div style="display:flex;align-items:center;gap:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 14px;margin-bottom:4px">
+      <div style="width:36px;height:36px;border-radius:9px;background:#fff3cd;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="fas fa-file-invoice" style="color:#f9a825;font-size:1rem"></i>
+      </div>
+      <div>
+        <div style="font-size:.72rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px">Comprobante Fiscal (NCF)</div>
+        <div style="font-size:.92rem;font-weight:700;color:#1a1a2e">${o.fiscalNombre || '—'}</div>
+        <div style="font-size:.82rem;color:#555">RNC / Cédula: <strong>${o.fiscalRNC || '—'}</strong></div>
+      </div>
+    </div>` : ''}
+
     <!-- CAMBIAR ESTADO -->
     <div class="order-status-section">
       <div class="order-section-title"><i class="fas fa-rotate"></i> Actualizar estado del pedido</div>
@@ -2978,8 +2991,8 @@ async function saveNewOrder() {
   const shipping = subtotal >= freeThreshold ? 0 : shippingFee;
   const total    = parseFloat((subtotal + shipping).toFixed(2));
 
-  // Generar ID incremental basado en pedidos en memoria
-  const maxId = orders.reduce((mx, o) => Math.max(mx, Number(o.id) || 0), 0);
+  // Generar número correlativo basado en order_number (no en id que ahora es UUID)
+  const maxId = orders.reduce((mx, o) => Math.max(mx, Number(o.order_number) || Number(o.id) || 0), 0);
   const newId = maxId + 1;
 
   const now     = new Date();
