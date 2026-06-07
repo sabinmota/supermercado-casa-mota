@@ -433,8 +433,8 @@ async function printOrderPDF(orderId) {
       <td>${l.name || '-'}</td>
       <td>${l.unit || '-'}</td>
       <td style="text-align:center">${l.cantidad || 1}</td>
-      <td style="text-align:right;white-space:nowrap"><span style="color:#888;font-size:.8em;margin-right:2px">RD$</span><span style="font-variant-numeric:tabular-nums">${fmt$(l.price||0)}</span></td>
-      <td style="text-align:right;white-space:nowrap"><strong><span style="color:#888;font-size:.8em;margin-right:2px">RD$</span><span style="font-variant-numeric:tabular-nums">${fmt$(l.subtotal || (l.price*(l.cantidad||1)))}</span></strong></td>
+      <td style="text-align:right;white-space:nowrap"><span style="display:inline-flex;justify-content:flex-end;gap:6px;min-width:110px"><span style="color:#888;font-size:.8em;min-width:28px;text-align:right">RD$</span><span style="font-variant-numeric:tabular-nums;min-width:72px;text-align:right">${fmt$(l.price||0)}</span></span></td>
+      <td style="text-align:right;white-space:nowrap"><strong><span style="display:inline-flex;justify-content:flex-end;gap:6px;min-width:110px"><span style="color:#888;font-size:.8em;min-width:28px;text-align:right">RD$</span><span style="font-variant-numeric:tabular-nums;min-width:72px;text-align:right">${fmt$(l.subtotal || (l.price*(l.cantidad||1)))}</span></span></strong></td>
       <td style="text-align:center">${sustCell}</td>
     </tr>`;
   }).join('');
