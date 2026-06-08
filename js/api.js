@@ -18,8 +18,8 @@ const _IS_GENSPARK = location.hostname.includes('gensparkspace.com')
                   || location.hostname === '127.0.0.1';
 
 // ─── Configuración Supabase ───────────────────────────────────────────────────
-const _SB_URL = 'https://hmloadberrekcxdgdcdn.supabase.co/rest/v1';
-const _SB_KEY = 'sb_publishable_4CPOJ5ku869otPf5-fteEA_yvBv06Rm';
+const _SB_URL = 'https://lpnkdlfejsesxozowlda.supabase.co/rest/v1';
+const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwbmtkbGZlanNlc3hvem93bGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTk2MTQsImV4cCI6MjA5NjQ5NTYxNH0.Q_n9DA1RaruL5oSVPJjbu4GX-wm_8s4UZM1HMw8IaBo';
 
 const _SB_HEADERS = {
   'Content-Type':  'application/json',

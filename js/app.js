@@ -1803,7 +1803,7 @@ function _renderLiveResults(results, query, isNumericQuery) {
       }
     }
 
-    return `<div class="blr-item" onclick="_hideLiveResults(); openModal('${p.id}')">
+    return `<div class="blr-item" onclick="_hideLiveResults(); closeBarcodeScanner(); openModal('${p.id}')">
       <img src="${img}" alt="" onerror="this.src='images/logo-casamota.png'" loading="lazy">
       <div class="blr-info">
         <div class="blr-name">${nameH}</div>
