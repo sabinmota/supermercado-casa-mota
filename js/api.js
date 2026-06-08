@@ -253,7 +253,7 @@ const DB = {
     while (keepGoing) {
       const to   = from + PAGE - 1;
       const ctrl  = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const timer = setTimeout(() => ctrl.abort(), 25000); // 25s en móvil/conexión lenta
       let res;
       try {
         res = await fetch(

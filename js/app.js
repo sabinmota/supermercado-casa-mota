@@ -104,39 +104,59 @@ function _renderSkeletons(count = 8) {
 
 /** Carga los productos desde Supabase y re-renderiza la tienda */
 async function _loadProductsFromAPI() {
-  try {
-    // ── Cargar categorías y productos en paralelo desde Supabase ─────────────
-    const [cats, allProds] = await Promise.all([
-      DB.getCategories().catch(() => []),
-      DB.getProducts().catch(() => [])
-    ]);
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [0, 2000, 4000]; // inmediato, 2s, 4s
 
-    // Actualizar caché de categorías
-    if (cats && cats.length) {
-      _dynamicCategories = _deduplicateCats(cats.filter(c => !c.deleted));
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Esperar antes del reintento (no en el primer intento)
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
     }
 
-    // Renderizar con todos los productos de una vez
-    if (allProds && allProds.length > 0) {
-      _liveProducts = allProds.filter(p => !p.deleted);
-      buildCategoryNav(_dynamicCategories, _liveProducts);
-      renderProducts();
-      updateCartUI();
-      if (typeof renderFavorites === 'function') renderFavorites();
-    } else {
+    try {
+      // ── Cargar categorías y productos en paralelo desde Supabase ─────────────
+      const [cats, allProds] = await Promise.all([
+        DB.getCategories().catch(() => []),
+        DB.getProducts().catch(() => [])
+      ]);
+
+      // Actualizar caché de categorías
+      if (cats && cats.length) {
+        _dynamicCategories = _deduplicateCats(cats.filter(c => !c.deleted));
+      }
+
+      // Renderizar con todos los productos de una vez
+      if (allProds && allProds.length > 0) {
+        _liveProducts = allProds.filter(p => !p.deleted);
+        buildCategoryNav(_dynamicCategories, _liveProducts);
+        renderProducts();
+        updateCartUI();
+        if (typeof renderFavorites === 'function') renderFavorites();
+        return; // ✅ éxito — salir del loop
+      }
+
+      // Supabase respondió pero devolvió 0 productos — puede ser timeout parcial
+      // Si no es el último intento, reintentar
+      if (attempt < MAX_RETRIES - 1) continue;
+
+      // Último intento y sigue vacío → usar fallback estático
       _liveProducts = [...PRODUCTS];
       buildCategoryNav(_dynamicCategories, _liveProducts);
       renderProducts();
       updateCartUI();
       if (typeof renderFavorites === 'function') renderFavorites();
-    }
+      return;
 
-  } catch(e) {
-    // Si todo falla → usar productos estáticos
-    _liveProducts = [...PRODUCTS];
-    buildCategoryNav(_dynamicCategories, _liveProducts);
-    renderProducts();
-    updateCartUI();
+    } catch(e) {
+      // Error de red / timeout
+      if (attempt < MAX_RETRIES - 1) continue; // reintentar
+
+      // Todos los intentos fallaron → usar productos estáticos
+      _liveProducts = [...PRODUCTS];
+      buildCategoryNav(_dynamicCategories, _liveProducts);
+      renderProducts();
+      updateCartUI();
+    }
   }
 }
 
@@ -367,6 +387,10 @@ function renderProducts(scroll = false) {
   const grid = document.getElementById('productsGrid');
   const noResults = document.getElementById('noResults');
   const paginationEl = document.getElementById('pagination');
+
+  // ⚠️ Aún cargando desde API — no mostrar "0 productos" prematuramente
+  if (_liveProducts === null) return;
+
   const filtered = getFilteredProducts();
 
   // Total y paginación
