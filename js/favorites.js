@@ -118,13 +118,20 @@ function renderFavorites() {
   const liveProds = typeof getLiveProducts === 'function' ? getLiveProducts() : [];
 
   container.innerHTML = sortedFavorites.map(fav => {
-    // Buscar el producto en vivo para obtener unit actualizado
-    const live = liveProds.find(p => String(p.id) === String(fav.id));
-    const unit = (live && live.unit) || fav.unit || '';
+    // Buscar el producto en vivo para obtener datos actualizados (imagen, unit, precio)
+    const live  = liveProds.find(p => String(p.id) === String(fav.id));
+    const unit  = (live && live.unit)  || fav.unit  || '';
+    // Priorizar imagen del producto en vivo (puede haberse actualizado tras migraciones)
+    const image = (live && live.image) || fav.image || 'images/placeholder.jpg';
+    // Actualizar silenciosamente el localStorage si la imagen cambió
+    if (live && live.image && live.image !== fav.image) {
+      fav.image = live.image;
+      saveFavorites();
+    }
     return `
     <div class="favorite-item">
       <div class="favorite-item-img">
-        <img src="${fav.image || 'images/placeholder.jpg'}" 
+        <img src="${image}" 
              alt="${fav.name}"
              onerror="this.src='images/placeholder.jpg'">
       </div>
