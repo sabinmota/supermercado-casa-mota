@@ -77,7 +77,9 @@ async function _apiFetch(url, options = {}) {
 
 // ─── Campos mínimos por tabla (evita traer columnas pesadas innecesarias) ──────
 const _SELECT_FIELDS = {
-  products:  '*',
+  // Tienda: solo columnas que usa la UI — evita traer base64 de columnas extra
+  // y campos de gestión interna que solo usa el admin
+  products:  'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,description,image,images,barcode,isNew,deleted',
   orders:    '*',
   customers: '*',
   staff:     '*',
@@ -235,7 +237,7 @@ let _totalProductsInDB = 0;
 const DB = {
 
   // ── Productos ──────────────────────────────────────────────────────────────
-  async getProducts() {
+  async getProducts(opts = {}) {
     if (_IS_GENSPARK) {
       const res  = await fetch('tables/products?limit=2000');
       const json = await res.json();
@@ -244,7 +246,8 @@ const DB = {
       return list;
     }
     // Supabase PostgREST limita a 1000 filas por request — usar paginación
-    const fields  = _SELECT_FIELDS.products;
+    // opts.full=true → traer todas las columnas (admin); por defecto solo campos de tienda
+    const fields  = opts.full ? '*' : _SELECT_FIELDS.products;
     const PAGE    = 1000;
     let   all     = [];
     let   from    = 0;

@@ -552,7 +552,7 @@ async function initAdminData() {
   // ── FASE 1b: Productos (paginado — puede tardar más por los 1645 registros) ───
   setTimeout(async () => {
     try {
-      const prods = await withTimeout(DB.getProducts(), 45000, 'Fase1b productos');
+      const prods = await withTimeout(DB.getProducts({full:true}), 45000, 'Fase1b productos');
       adminProducts   = prods.length > 0 ? prods : deepClone(PRODUCTS);
       _cache.products = adminProducts;
       try { renderProductsTable(); } catch(e) {}
@@ -655,8 +655,8 @@ function showSection(id, el) {
   // El dashboard siempre recarga (el usuario puede querer ver datos frescos)
   if (id === 'dashboard')  loadDashboard();
   if (id === 'orders')     { DB.getOrders().then(list => { orders = list; renderOrdersTable(); updatePendingBadge(); }).catch(() => { renderOrdersTable(); updatePendingBadge(); }); }
-  if (id === 'products')   { DB.getProducts().then(list => { if(list.length) adminProducts = list; renderProductsTable(); }).catch(() => renderProductsTable()); }
-  if (id === 'inventory')  { DB.getProducts().then(list => { if(list.length) adminProducts = list; renderInventory(); }).catch(() => renderInventory()); }
+  if (id === 'products')   { DB.getProducts({full:true}).then(list => { if(list.length) adminProducts = list; renderProductsTable(); }).catch(() => renderProductsTable()); }
+  if (id === 'inventory')  { DB.getProducts({full:true}).then(list => { if(list.length) adminProducts = list; renderInventory(); }).catch(() => renderInventory()); }
   if (id === 'staff')      renderStaff();
   if (id === 'customers')  { DB.getCustomers ? DB.getCustomers().then(list => { if(list.length) customers = list; renderCustomers(); }).catch(() => renderCustomers()) : renderCustomers(); }
   if (id === 'drivers')    { drivers = getDrivers(); renderDrivers(); }
@@ -767,7 +767,7 @@ async function loadDashboard() {
 
   // 2. Refrescar desde Supabase y re-renderizar TODO
   try {
-    const [prods, ords] = await Promise.all([ DB.getProducts(), DB.getOrders() ]);
+    const [prods, ords] = await Promise.all([ DB.getProducts({full:true}), DB.getOrders() ]);
 
     if (prods.length > 0) adminProducts = prods;
     if (ords.length  > 0) orders        = ords;
@@ -5591,7 +5591,7 @@ const BK_TABLES = [
 
 // ─── Mapa tabla → función DB para usar Supabase directamente ─────────────────
 const BK_DB_MAP = {
-  products:       () => DB.getProducts(),
+  products:       () => DB.getProducts({full:true}),
   categories:     () => DB.getCategories(),
   orders:         () => DB.getOrders(),
   customers:      () => DB.getCustomers(),
@@ -6151,7 +6151,7 @@ async function migScanImages() {
     // Cargar TODOS los productos usando DB.getProducts() (ya tiene paginación Supabase)
     _migLog('📡 Conectando con Supabase...', 'ok');
     _migSetProgress(10, 'Cargando productos...');
-    const allProds = await DB.getProducts();
+    const allProds = await DB.getProducts({full:true});
     _migProducts = allProds;
     _migLog(`✅ Total productos: ${allProds.length}`, 'ok');
     _migSetProgress(40, 'Analizando imágenes...');
