@@ -102,44 +102,47 @@ function _renderSkeletons(count = 8) {
     </div>`;
 }
 
-/** Carga los productos desde Supabase y re-renderiza la tienda */
+/** Carga los productos desde Supabase y re-renderiza la tienda.
+ *
+ * ESTRATEGIA 2 FASES para máxima velocidad:
+ *   Fase 1 (~470ms) — campos ligeros SIN image ni description
+ *                     → renderiza tarjetas al instante con placeholder
+ *   Fase 2 (background) — solo id,image,description
+ *                     → parcha _liveProducts e inyecta imágenes reales
+ */
 async function _loadProductsFromAPI() {
   const MAX_RETRIES = 3;
-  const RETRY_DELAYS = [0, 2000, 4000]; // inmediato, 2s, 4s
+  const RETRY_DELAYS = [0, 2000, 4000];
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    // Esperar antes del reintento (no en el primer intento)
-    if (attempt > 0) {
-      await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
-    }
+    if (attempt > 0) await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
 
     try {
-      // ── Cargar categorías y productos en paralelo desde Supabase ─────────────
+      // ── FASE 1: campos ligeros + categorías en paralelo ───────────────────────
       const [cats, allProds] = await Promise.all([
         DB.getCategories().catch(() => []),
-        DB.getProducts().catch(() => [])
+        DB.getProducts().catch(() => [])          // sin image ni description
       ]);
 
-      // Actualizar caché de categorías
       if (cats && cats.length) {
         _dynamicCategories = _deduplicateCats(cats.filter(c => !c.deleted));
       }
 
-      // Renderizar con todos los productos de una vez
       if (allProds && allProds.length > 0) {
         _liveProducts = allProds.filter(p => !p.deleted);
         buildCategoryNav(_dynamicCategories, _liveProducts);
-        renderProducts();
+        renderProducts();        // ← tarjetas visibles al instante (placeholder img)
         updateCartUI();
         if (typeof renderFavorites === 'function') renderFavorites();
-        return; // ✅ éxito — salir del loop
+
+        // ── FASE 2: cargar images + descriptions en background ────────────────
+        _loadImagesBackground();
+
+        return; // ✅ éxito
       }
 
-      // Supabase respondió pero devolvió 0 productos — puede ser timeout parcial
-      // Si no es el último intento, reintentar
       if (attempt < MAX_RETRIES - 1) continue;
 
-      // Último intento y sigue vacío → usar fallback estático
       _liveProducts = [...PRODUCTS];
       buildCategoryNav(_dynamicCategories, _liveProducts);
       renderProducts();
@@ -148,15 +151,58 @@ async function _loadProductsFromAPI() {
       return;
 
     } catch(e) {
-      // Error de red / timeout
-      if (attempt < MAX_RETRIES - 1) continue; // reintentar
-
-      // Todos los intentos fallaron → usar productos estáticos
+      if (attempt < MAX_RETRIES - 1) continue;
       _liveProducts = [...PRODUCTS];
       buildCategoryNav(_dynamicCategories, _liveProducts);
       renderProducts();
       updateCartUI();
     }
+  }
+}
+
+/** FASE 2 — carga image+description en background y los inyecta en las tarjetas ya renderizadas */
+async function _loadImagesBackground() {
+  try {
+    const imgData = await DB.getProducts({ imgs: true });   // solo id,image,description
+    if (!imgData || imgData.length === 0) return;
+
+    // Crear mapa id→{image,description} para lookup O(1)
+    const map = {};
+    imgData.forEach(p => { map[p.id] = p; });
+
+    // Parchear _liveProducts con image y description reales
+    let changed = false;
+    _liveProducts.forEach(p => {
+      if (map[p.id]) {
+        if (map[p.id].image)       { p.image       = map[p.id].image;       changed = true; }
+        if (map[p.id].description) { p.description = map[p.id].description; changed = true; }
+      }
+    });
+
+    if (!changed) return;
+
+    // Inyectar imágenes directamente en los <img> del DOM sin re-renderizar
+    _liveProducts.forEach(p => {
+      if (!map[p.id] || !map[p.id].image) return;
+      // Selector: data-id o buscar la imagen lazy del producto
+      const imgEl = document.querySelector(
+        `.product-lazy-img[data-product-id="${p.id}"], [data-id="${p.id}"] .product-lazy-img`
+      );
+      if (imgEl && imgEl.dataset.src !== p.image) {
+        imgEl.dataset.src = p.image;
+        // Si ya fue cargada por el IntersectionObserver, actualizar src también
+        if (imgEl.classList.contains('loaded') || imgEl.src !== imgEl.dataset.src) {
+          imgEl.src = p.image;
+        }
+      }
+    });
+
+    // Actualizar favoritos con las imágenes reales
+    if (typeof renderFavorites === 'function') renderFavorites();
+
+  } catch(e) {
+    // Silencioso — la tienda ya funciona con placeholders si esto falla
+    console.warn('_loadImagesBackground error:', e.message);
   }
 }
 
@@ -522,7 +568,8 @@ function productCardHTML(p) {
            onclick="_cardClick(event,'${p.id}')"
            style="cursor:pointer">
         <img 
-          data-src="${p.image}" 
+          data-src="${p.image || ''}" 
+          data-product-id="${p.id}"
           src="images/logo-casamota.png"
           alt="${p.name}" 
           class="product-lazy-img"
@@ -2687,7 +2734,16 @@ function openModal(productId) {
   const favText = isFav ? 'En Favoritos' : 'Agregar a Favoritos';
 
   // ── Construir array de imágenes (principal + extras) ──────────────────
-  const _allImgs = [p.image, ...(Array.isArray(p.images) ? p.images : [])].filter(Boolean);
+  // p.images puede llegar de Supabase como: Array JS, string JSON "[...]", null o []
+  const _parseImages = (raw) => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw === 'string') {
+      try { const p = JSON.parse(raw); return Array.isArray(p) ? p.filter(Boolean) : []; } catch(e) { return []; }
+    }
+    return [];
+  };
+  const _allImgs = [p.image, ..._parseImages(p.images)].filter(Boolean).filter((v,i,a) => a.indexOf(v) === i);
 
   // Genera el HTML del bloque de imagen (único o carrusel)
   function _carouselHTML() {

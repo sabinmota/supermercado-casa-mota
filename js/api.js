@@ -77,9 +77,11 @@ async function _apiFetch(url, options = {}) {
 
 // ─── Campos mínimos por tabla (evita traer columnas pesadas innecesarias) ──────
 const _SELECT_FIELDS = {
-  // Tienda: solo columnas que usa la UI — evita traer base64 de columnas extra
-  // y campos de gestión interna que solo usa el admin
-  products:  'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,description,image,images,barcode,isNew,deleted',
+  // Tienda fase 1 — sin image ni description (campos base64 pesados)
+  // Carga rápida (~470ms): renderiza tarjetas al instante con placeholder
+  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,images,barcode,isNew,deleted',
+  // Tienda fase 2 — solo image y description para actualizar imágenes
+  products_imgs:  'id,image,description',
   orders:    '*',
   customers: '*',
   staff:     '*',
@@ -246,8 +248,12 @@ const DB = {
       return list;
     }
     // Supabase PostgREST limita a 1000 filas por request — usar paginación
-    // opts.full=true → traer todas las columnas (admin); por defecto solo campos de tienda
-    const fields  = opts.full ? '*' : _SELECT_FIELDS.products;
+    // opts.full=true  → todas las columnas (admin)
+    // opts.imgs=true  → solo id,image,description (fase 2 tienda)
+    // por defecto      → campos ligeros tienda (fase 1)
+    const fields = opts.full ? '*'
+                 : opts.imgs ? _SELECT_FIELDS.products_imgs
+                 : _SELECT_FIELDS.products;
     const PAGE    = 1000;
     let   all     = [];
     let   from    = 0;
