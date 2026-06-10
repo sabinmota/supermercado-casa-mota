@@ -194,8 +194,8 @@ async function _apiCreate(table, data) {
   // También quitar 'id' para que Supabase genere el UUID propio
   const { gs_project_id, gs_table_name, id, ...payload } = data;
   // Asegurar timestamps
-  if (!payload.created_at) payload.created_at = Date.now();
-  if (!payload.updated_at) payload.updated_at = Date.now();
+  if (!payload.created_at) payload.created_at = new Date().toISOString();
+  if (!payload.updated_at) payload.updated_at = new Date().toISOString();
 
   return _apiFetch(`${_SB_URL}/${table}`, {
     method:  'POST',
@@ -206,7 +206,7 @@ async function _apiCreate(table, data) {
 
 async function _apiUpdate(table, id, data) {
   const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
-  payload.updated_at = Date.now();
+  payload.updated_at = new Date().toISOString();
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PUT',
@@ -217,7 +217,7 @@ async function _apiUpdate(table, id, data) {
 
 async function _apiPatch(table, id, data) {
   const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
-  payload.updated_at = Date.now();
+  payload.updated_at = new Date().toISOString();
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PATCH',
