@@ -1884,7 +1884,7 @@ function saveProduct() {
         })
         .then(saved => {
           const finalProd = saved || newProd;
-          if (!finalProd.created_at) finalProd.created_at = Date.now();
+          if (!finalProd.created_at) finalProd.created_at = new Date().toISOString();
           adminProducts.push(finalProd);
           if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
           DBCached.invalidateProducts();
@@ -1909,7 +1909,7 @@ function saveProduct() {
       DB.saveProduct(newProd)
         .then(saved => {
           const finalProd = saved || newProd;
-          if (!finalProd.created_at) finalProd.created_at = Date.now();
+          if (!finalProd.created_at) finalProd.created_at = new Date().toISOString();
           adminProducts.unshift(finalProd);
           if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
           DBCached.invalidateProducts();

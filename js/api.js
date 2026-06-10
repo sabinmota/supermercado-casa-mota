@@ -180,6 +180,16 @@ async function _apiGetAll(table, opts = {}) {
 
 // ─── CRUD helpers ─────────────────────────────────────────────────────────────
 
+// Convierte cualquier timestamp a ISO 8601 que Supabase (timestamptz) acepta.
+// Si ya es string ISO lo devuelve tal cual; si es número en ms lo convierte.
+function _toIso(val) {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string' && val.includes('T')) return val; // ya es ISO
+  const n = Number(val);
+  if (!isNaN(n) && n > 1e10) return new Date(n).toISOString();  // ms → ISO
+  return new Date().toISOString(); // fallback
+}
+
 async function _apiGet(table, id) {
   const res = await fetch(`${_SB_URL}/${table}?id=eq.${id}&select=*`, {
     headers: _SB_HEADERS,
@@ -193,9 +203,9 @@ async function _apiCreate(table, data) {
   // Quitar campos de sistema que Supabase genera automáticamente
   // También quitar 'id' para que Supabase genere el UUID propio
   const { gs_project_id, gs_table_name, id, ...payload } = data;
-  // Asegurar timestamps
-  if (!payload.created_at) payload.created_at = new Date().toISOString();
-  if (!payload.updated_at) payload.updated_at = new Date().toISOString();
+  // Asegurar timestamps en formato ISO 8601 (Supabase timestamptz)
+  payload.created_at = _toIso(payload.created_at);
+  payload.updated_at = _toIso(payload.updated_at);
 
   return _apiFetch(`${_SB_URL}/${table}`, {
     method:  'POST',
@@ -206,6 +216,8 @@ async function _apiCreate(table, data) {
 
 async function _apiUpdate(table, id, data) {
   const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
+  // Sanitizar created_at por si viene como número en ms (legacy)
+  if (payload.created_at) payload.created_at = _toIso(payload.created_at);
   payload.updated_at = new Date().toISOString();
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
@@ -217,6 +229,8 @@ async function _apiUpdate(table, id, data) {
 
 async function _apiPatch(table, id, data) {
   const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
+  // Sanitizar created_at por si viene como número en ms (legacy)
+  if (payload.created_at) payload.created_at = _toIso(payload.created_at);
   payload.updated_at = new Date().toISOString();
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
