@@ -219,6 +219,8 @@ async function _apiUpdate(table, id, data) {
   // Sanitizar created_at por si viene como número en ms (legacy)
   if (payload.created_at) payload.created_at = _toIso(payload.created_at);
   payload.updated_at = new Date().toISOString();
+  // PostgREST PUT requiere el id en el body para el upsert
+  payload.id = id;
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PUT',
