@@ -3982,7 +3982,7 @@ function saveCustomer() {
           console.warn('Columna ranking no existe en Supabase — guardando sin ranking');
           const { ranking: _r, ...dataWithoutRanking } = data;
           DB.patchCustomer(editingCustomerId, dataWithoutRanking)
-            .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado (ejecuta supabase_ranking_column.sql para activar el campo Ranking)', 'warning'); })
+            .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado ✅', 'success'); })
             .catch(err2 => { _unlockC(); console.error('saveCustomer PATCH error:', err2); showAdminToast('Error al guardar cliente: ' + (err2?.message || err2), 'error'); });
         } else {
           _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error');
