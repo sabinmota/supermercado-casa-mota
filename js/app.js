@@ -221,6 +221,21 @@ async function _refreshProductsSilent() {
     const newJson = JSON.stringify(all.map(p => p.updated_at));
     if (oldJson === newJson) return; // nada cambió
 
+    // ── Preservar image y description ya cargadas en fase 2 ──────────────
+    // La fase 1 no trae image/description (campos base64 pesados).
+    // Si los sobrescribimos con undefined, las tarjetas quedan sin imagen.
+    const imgMap = {};
+    (_liveProducts || []).forEach(p => {
+      if (p.image || p.description) imgMap[p.id] = { image: p.image, description: p.description };
+    });
+    all.forEach(p => {
+      if (imgMap[p.id]) {
+        if (!p.image       && imgMap[p.id].image)       p.image       = imgMap[p.id].image;
+        if (!p.description && imgMap[p.id].description) p.description = imgMap[p.id].description;
+      }
+    });
+    // ─────────────────────────────────────────────────────────────────────
+
     _liveProducts = all;
     renderProducts();       // refresca la vista con los nuevos datos
     updateCartUI();         // por si cambió algún precio en el carrito
