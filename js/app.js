@@ -184,18 +184,18 @@ async function _loadImagesBackground() {
     // Inyectar imágenes directamente en los <img> del DOM sin re-renderizar
     _liveProducts.forEach(p => {
       if (!map[p.id] || !map[p.id].image) return;
-      // Selector: data-id o buscar la imagen lazy del producto
       const imgEl = document.querySelector(
         `.product-lazy-img[data-product-id="${p.id}"], [data-id="${p.id}"] .product-lazy-img`
       );
-      if (imgEl && imgEl.dataset.src !== p.image) {
-        imgEl.dataset.src = p.image;
-        // Si ya fue cargada por el IntersectionObserver, actualizar src también
-        if (imgEl.classList.contains('loaded') || imgEl.src !== imgEl.dataset.src) {
-          imgEl.src = p.image;
-        }
+      if (imgEl) {
+        imgEl.dataset.src = map[p.id].image;
+        // Cargar directamente si está en viewport o ya fue observada con src vacío
+        loadImg(imgEl);
       }
     });
+
+    // Re-iniciar lazy loading para imágenes fuera del viewport que aún no cargaron
+    initLazyImages();
 
     // Actualizar favoritos con las imágenes reales
     if (typeof renderFavorites === 'function') renderFavorites();
@@ -586,7 +586,7 @@ function productCardHTML(p) {
            style="cursor:pointer">
         <div class="product-cat-tag">${catLabel(p.category)}</div>
         <div class="product-name">${p.name}</div>
-        <div class="product-desc">${p.description}</div>
+        <div class="product-desc">${p.description || ''}</div>
         <div class="product-rating">
           <span class="stars">${stars}</span>
         </div>
