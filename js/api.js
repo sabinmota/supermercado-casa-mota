@@ -316,6 +316,18 @@ const DB = {
     }
   },
 
+  // Carga imagen+description de uno o varios productos por ID (liviano y rápido)
+  async getProductImages(ids = []) {
+    if (!ids.length) return [];
+    const inClause = `(${ids.map(id => `"${id}"`).join(',')})`;
+    const res = await fetch(
+      `${_SB_URL}/products?select=id,image,description&id=in.${inClause}`,
+      { headers: _SB_HEADERS }
+    );
+    if (!res.ok) return [];
+    return await res.json();
+  },
+
   async deleteProduct(id) {
     return _apiDelete('products', id);
   },

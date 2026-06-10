@@ -216,33 +216,68 @@ async function _refreshProductsSilent() {
     const all = (await DB.getProducts().catch(() => [])).filter(p => !p.deleted);
     if (all.length === 0) return;
 
-    // Comparar con los datos actuales — solo re-renderizar si hay diferencias
-    const oldJson = JSON.stringify((_liveProducts || []).map(p => p.updated_at));
-    const newJson = JSON.stringify(all.map(p => p.updated_at));
-    if (oldJson === newJson) return; // nada cambió
+    // ── Detectar si hay productos nuevos o eliminados ─────────────────────
+    const oldIds = new Set((_liveProducts || []).map(p => String(p.id)));
+    const newIds = new Set(all.map(p => String(p.id)));
+    const hayNuevos   = all.some(p => !oldIds.has(String(p.id)));
+    const hayEliminados = (_liveProducts || []).some(p => !newIds.has(String(p.id)));
 
-    // ── Preservar image y description ya cargadas en fase 2 ──────────────
-    // La fase 1 no trae image/description (campos base64 pesados).
-    // Si los sobrescribimos con undefined, las tarjetas quedan sin imagen.
+    // ── Actualizar datos en memoria preservando imágenes ya cargadas ──────
     const imgMap = {};
     (_liveProducts || []).forEach(p => {
-      if (p.image || p.description) imgMap[p.id] = { image: p.image, description: p.description };
+      imgMap[p.id] = { image: p.image || null, description: p.description || null };
     });
     all.forEach(p => {
-      if (imgMap[p.id]) {
-        if (!p.image       && imgMap[p.id].image)       p.image       = imgMap[p.id].image;
-        if (!p.description && imgMap[p.id].description) p.description = imgMap[p.id].description;
-      }
+      if (imgMap[p.id]?.image)       p.image       = imgMap[p.id].image;
+      if (imgMap[p.id]?.description) p.description = imgMap[p.id].description;
     });
-    // ─────────────────────────────────────────────────────────────────────
+
+    // ── Verificar si algo cambió realmente ───────────────────────────────
+    const _sig = arr => JSON.stringify(arr.map(p => `${p.id}|${p.price}|${p.stock}|${p.badge}|${p.name}`));
+    const cambiosDatos = _sig(_liveProducts || []) !== _sig(all);
+
+    if (!cambiosDatos && !hayNuevos && !hayEliminados) return; // nada cambió
 
     _liveProducts = all;
-    renderProducts();       // refresca la vista con los nuevos datos
-    updateCartUI();         // por si cambió algún precio en el carrito
+
+    if (hayNuevos || hayEliminados) {
+      // Hay productos nuevos o eliminados: re-renderizar TODO y relanzar fase 2
+      renderProducts();
+      updateCartUI();
+      _loadImagesBackground();
+    } else {
+      // Solo cambios de datos (precio, stock…): actualizar DOM quirúrgicamente
+      // sin tocar las imágenes que ya están cargadas
+      updateCartUI();
+      _updateProductCardsDOMOnly(all);
+    }
+
     console.log(`🔄 Productos sincronizados silenciosamente (${all.length})`);
   } catch(e) {
     // Fallo silencioso — no interrumpir al usuario
   }
+}
+
+/**
+ * Actualiza solo precio/stock/badge en las tarjetas del DOM ya renderizadas,
+ * sin destruir las imágenes ni re-renderizar nada.
+ */
+function _updateProductCardsDOMOnly(products) {
+  products.forEach(p => {
+    // Buscar la tarjeta de este producto en el DOM actual
+    const imgEl = document.querySelector(`.product-lazy-img[data-product-id="${p.id}"]`);
+    if (!imgEl) return; // no está en la página actual (otra categoría o página)
+    const card = imgEl.closest('.product-card');
+    if (!card) return;
+
+    // Actualizar precio
+    const priceEl = card.querySelector('.product-price');
+    if (priceEl) priceEl.textContent = `RD$ ${fmt$(+p.price || 0)}`;
+
+    // Actualizar badge
+    const badgeEl = card.querySelector('.product-badge');
+    if (badgeEl) badgeEl.style.display = p.badge ? '' : 'none';
+  });
 }
 
 // ─── Sesión del cliente actual ───────────────────────────────────────────────
