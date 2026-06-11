@@ -77,11 +77,11 @@ async function _apiFetch(url, options = {}) {
 
 // ─── Campos mínimos por tabla (evita traer columnas pesadas innecesarias) ──────
 const _SELECT_FIELDS = {
-  // Tienda fase 1 — sin image ni description (campos base64 pesados)
-  // Carga rápida (~470ms): renderiza tarjetas al instante con placeholder
-  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,images,barcode,isNew,deleted',
-  // Tienda fase 2 — solo image y description para actualizar imágenes
-  products_imgs:  'id,image,description',
+  // Tienda fase 1 — sin image (campo base64 pesado), CON description (solo texto)
+  // Carga rápida: título + descripción visibles al instante con placeholder de imagen
+  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,images,barcode,isNew,deleted,description',
+  // Tienda fase 2 — solo image para actualizar imágenes
+  products_imgs:  'id,image',
   orders:    '*',
   customers: '*',
   staff:     '*',

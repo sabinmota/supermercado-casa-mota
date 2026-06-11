@@ -105,9 +105,9 @@ function _renderSkeletons(count = 8) {
 /** Carga los productos desde Supabase y re-renderiza la tienda.
  *
  * ESTRATEGIA 2 FASES para máxima velocidad:
- *   Fase 1 (~470ms) — campos ligeros SIN image ni description
- *                     → renderiza tarjetas al instante con placeholder
- *   Fase 2 (background) — solo id,image,description
+ *   Fase 1 (~470ms) — todos los campos de texto (name, price, description…)
+ *                     → renderiza tarjetas al instante con placeholder de imagen
+ *   Fase 2 (background) — solo id,image (base64 pesado)
  *                     → parcha _liveProducts e inyecta imágenes reales
  */
 async function _loadProductsFromAPI() {
@@ -121,7 +121,7 @@ async function _loadProductsFromAPI() {
       // ── FASE 1: campos ligeros + categorías en paralelo ───────────────────────
       const [cats, allProds] = await Promise.all([
         DB.getCategories().catch(() => []),
-        DB.getProducts().catch(() => [])          // sin image ni description
+        DB.getProducts().catch(() => [])          // sin image (base64) — description incluida
       ]);
 
       if (cats && cats.length) {
@@ -135,7 +135,7 @@ async function _loadProductsFromAPI() {
         updateCartUI();
         if (typeof renderFavorites === 'function') renderFavorites();
 
-        // ── FASE 2: cargar images + descriptions en background ────────────────
+        // ── FASE 2: cargar solo image en background ───────────────────────────────
         _loadImagesBackground();
 
         return; // ✅ éxito
@@ -160,60 +160,43 @@ async function _loadProductsFromAPI() {
   }
 }
 
-/** FASE 2 — carga image+description en background y los inyecta en las tarjetas ya renderizadas */
+/** FASE 2 — carga solo image (base64) en background y la inyecta en las tarjetas ya renderizadas */
 async function _loadImagesBackground() {
   try {
-    const imgData = await DB.getProducts({ imgs: true });   // solo id,image,description
+    const imgData = await DB.getProducts({ imgs: true });   // solo id,image
     if (!imgData || imgData.length === 0) return;
 
-    // Crear mapa id→{image,description} para lookup O(1)
+    // Crear mapa id→image para lookup O(1)
     const map = {};
-    imgData.forEach(p => { map[p.id] = p; });
+    imgData.forEach(p => { if (p.image) map[p.id] = p.image; });
 
-    // Parchear _liveProducts con image y description reales
+    // Parchear _liveProducts con image real
     let changed = false;
     _liveProducts.forEach(p => {
-      if (map[p.id]) {
-        if (map[p.id].image)       { p.image       = map[p.id].image;       changed = true; }
-        if (map[p.id].description) { p.description = map[p.id].description; changed = true; }
-      }
+      if (map[p.id]) { p.image = map[p.id]; changed = true; }
     });
 
     if (!changed) return;
 
-    // Inyectar imagen Y descripción directamente en el DOM sin re-renderizar
+    // Inyectar imagen directamente en el DOM sin re-renderizar
     _liveProducts.forEach(p => {
       if (!map[p.id]) return;
       const imgEl = document.querySelector(
         `.product-lazy-img[data-product-id="${p.id}"], [data-id="${p.id}"] .product-lazy-img`
       );
-      if (!imgEl) return;
-      const card = imgEl.closest('.product-card');
-
-      // Inyectar imagen
-      if (map[p.id].image) {
-        imgEl.dataset.src = map[p.id].image;
+      if (imgEl) {
+        imgEl.dataset.src = map[p.id];
         loadImg(imgEl);
-      }
-
-      // Inyectar descripción en la tarjeta visible
-      if (map[p.id].description && card) {
-        const descEl = card.querySelector('.product-desc');
-        if (descEl && !descEl.textContent.trim()) {
-          const txt = map[p.id].description;
-          descEl.textContent = txt.length > 80 ? txt.slice(0, 80) + '…' : txt;
-        }
       }
     });
 
-    // Re-iniciar lazy loading para imágenes fuera del viewport que aún no cargaron
+    // Re-iniciar lazy loading para imágenes fuera del viewport
     initLazyImages();
 
     // Actualizar favoritos con las imágenes reales
     if (typeof renderFavorites === 'function') renderFavorites();
 
   } catch(e) {
-    // Silencioso — la tienda ya funciona con placeholders si esto falla
     console.warn('_loadImagesBackground error:', e.message);
   }
 }
@@ -234,15 +217,10 @@ async function _refreshProductsSilent() {
     const hayNuevos   = all.some(p => !oldIds.has(String(p.id)));
     const hayEliminados = (_liveProducts || []).some(p => !newIds.has(String(p.id)));
 
-    // ── Actualizar datos en memoria preservando imágenes ya cargadas ──────
+    // ── Preservar imágenes ya cargadas en F2 (base64 no viene en F1) ─────────
     const imgMap = {};
-    (_liveProducts || []).forEach(p => {
-      imgMap[p.id] = { image: p.image || null, description: p.description || null };
-    });
-    all.forEach(p => {
-      if (imgMap[p.id]?.image)       p.image       = imgMap[p.id].image;
-      if (imgMap[p.id]?.description) p.description = imgMap[p.id].description;
-    });
+    (_liveProducts || []).forEach(p => { if (p.image) imgMap[p.id] = p.image; });
+    all.forEach(p => { if (imgMap[p.id]) p.image = imgMap[p.id]; });
 
     // ── Verificar si algo cambió realmente ───────────────────────────────
     const _sig = arr => JSON.stringify(arr.map(p => `${p.id}|${p.price}|${p.stock}|${p.badge}|${p.name}`));
