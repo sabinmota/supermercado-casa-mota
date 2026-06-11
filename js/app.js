@@ -259,6 +259,37 @@ async function _refreshProductsSilent() {
 }
 
 /**
+ * Inyecta imagen y descripción desde _liveProducts (ya en memoria) en las
+ * tarjetas del DOM actual — sin hacer ningún fetch adicional.
+ * Se llama después de cada renderProducts() para garantizar consistencia.
+ */
+function _injectImagesFromMemory() {
+  if (!_liveProducts) return;
+  _liveProducts.forEach(p => {
+    const imgEl = document.querySelector(`.product-lazy-img[data-product-id="${p.id}"]`);
+    if (!imgEl) return;
+
+    // Inyectar imagen si ya está en memoria y la tarjeta aún muestra placeholder
+    if (p.image && (!imgEl.src || imgEl.src.endsWith('logo-casamota.png'))) {
+      imgEl.dataset.src = p.image;
+      loadImg(imgEl);
+    }
+
+    // Inyectar descripción si está en memoria y la tarjeta la muestra vacía
+    if (p.description) {
+      const card = imgEl.closest('.product-card');
+      if (!card) return;
+      const descEl = card.querySelector('.product-desc');
+      if (descEl && !descEl.textContent.trim()) {
+        descEl.textContent = p.description.length > 80
+          ? p.description.slice(0, 80) + '…'
+          : p.description;
+      }
+    }
+  });
+}
+
+/**
  * Actualiza solo precio/stock/badge en las tarjetas del DOM ya renderizadas,
  * sin destruir las imágenes ni re-renderizar nada.
  */
@@ -544,6 +575,10 @@ function renderProducts(scroll = false) {
 
   // Activar lazy loading con IntersectionObserver
   initLazyImages();
+
+  // Inyectar descripciones e imágenes desde memoria (sin fetch extra)
+  // Cubre el caso donde renderProducts corre antes de que fase 2 complete
+  _injectImagesFromMemory();
 
   // Scroll al inicio de la sección (solo cuando el usuario filtra/pagina, no al cargar)
   if (scroll) {
