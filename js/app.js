@@ -181,16 +181,28 @@ async function _loadImagesBackground() {
 
     if (!changed) return;
 
-    // Inyectar imágenes directamente en los <img> del DOM sin re-renderizar
+    // Inyectar imagen Y descripción directamente en el DOM sin re-renderizar
     _liveProducts.forEach(p => {
-      if (!map[p.id] || !map[p.id].image) return;
+      if (!map[p.id]) return;
       const imgEl = document.querySelector(
         `.product-lazy-img[data-product-id="${p.id}"], [data-id="${p.id}"] .product-lazy-img`
       );
-      if (imgEl) {
+      if (!imgEl) return;
+      const card = imgEl.closest('.product-card');
+
+      // Inyectar imagen
+      if (map[p.id].image) {
         imgEl.dataset.src = map[p.id].image;
-        // Cargar directamente si está en viewport o ya fue observada con src vacío
         loadImg(imgEl);
+      }
+
+      // Inyectar descripción en la tarjeta visible
+      if (map[p.id].description && card) {
+        const descEl = card.querySelector('.product-desc');
+        if (descEl && !descEl.textContent.trim()) {
+          const txt = map[p.id].description;
+          descEl.textContent = txt.length > 80 ? txt.slice(0, 80) + '…' : txt;
+        }
       }
     });
 
