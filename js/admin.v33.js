@@ -2660,21 +2660,40 @@ function noPreviewMap() {
   if (btn) { btn.href = url; btn.style.display = ''; }
 
   let embedSrc = '';
+
+  // ── Ya es una URL de embed → usar directamente ───────────────────────────
   if (url.includes('maps/embed')) {
     embedSrc = url;
-  } else if (url.includes('maps.google.com') || url.includes('google.com/maps')) {
-    embedSrc = url
-      .replace('https://www.google.com/maps', 'https://www.google.com/maps/embed')
-      .replace('https://maps.google.com/maps', 'https://www.google.com/maps/embed');
-    if (!embedSrc.includes('/embed')) {
-      const qMatch = url.match(/[?&]q=([^&]+)/);
-      const place  = qMatch ? qMatch[1] : encodeURIComponent(url);
-      embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${place}`;
-    }
+
+  // ── URL corta goo.gl / maps.app → solo mostrar botón, no se puede embeber
   } else if (url.includes('goo.gl') || url.includes('maps.app')) {
-    // Enlace corto: solo mostrar botón
     if (preview) preview.style.display = 'none';
     return;
+
+  } else if (url.includes('google.com/maps') || url.includes('maps.google.com')) {
+
+    // 1) Intentar extraer coordenadas @LAT,LNG del path (ej: @18.5678,-69.1234)
+    const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (atMatch) {
+      embedSrc = `https://www.google.com/maps/embed/v1/view?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&center=${atMatch[1]},${atMatch[2]}&zoom=17&maptype=roadmap`;
+
+    // 2) Intentar extraer parámetro ?q= o &q=
+    } else {
+      const qMatch = url.match(/[?&]q=([^&]+)/);
+      if (qMatch) {
+        embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${qMatch[1]}`;
+
+      // 3) Intentar extraer coordenadas del path tipo /place/18°N+69°W
+      } else {
+        const placeMatch = url.match(/\/place\/([^/@?]+)/);
+        if (placeMatch) {
+          embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${placeMatch[1]}`;
+        } else {
+          // 4) Fallback: usar la URL completa como query
+          embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${encodeURIComponent(url)}`;
+        }
+      }
+    }
   }
 
   if (embedSrc) {
