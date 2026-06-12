@@ -4005,7 +4005,6 @@ function saveCustomer() {
       password:             data.password || '',
       orders:               0,
       spent:                0,
-      points:               0,
       loyaltyPoints:        0,
       loyaltyTier:          'bronze',
       loyaltyHistory:       [],
