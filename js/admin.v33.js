@@ -3999,19 +3999,17 @@ function saveCustomer() {
       address:              data.address  || '',
       city:                 data.city     || '',
       status:               data.status   || 'habilitado',
-      ranking:              data.ranking  || 'bronce',
+      loyaltyTier:          data.ranking  || 'bronce',   // ranking → loyaltyTier (nombre real en Supabase)
       notes:                data.notes    || '',
       mapLink:              data.mapLink  || '',
       password:             data.password || '',
       orders:               0,
       spent:                0,
       loyaltyPoints:        0,
-      loyaltyTier:          'bronze',
       loyaltyHistory:       [],
-      loyaltyLastActivity:  Date.now(), // compatible con BIGINT y TEXT en Supabase
+      loyaltyLastActivity:  Date.now(),
       access:               true,
       deleted:              false,
-      // ⚠️ created_at / updated_at los pone _apiCreate automáticamente (BIGINT ms)
     };
     DB.createCustomer(newC)
       .then(saved => {
