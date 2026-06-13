@@ -3738,7 +3738,6 @@ function renderCustomers() {
               <span class="cust-status ${stCls}">${statusLabel[c.status]||'✅ Habilitado'}</span>
               <span class="cust-status ${rkCls}">${rkLbl}</span>
               ${accessIcon}
-              ${loyaltyBadgeHTML(c.loyaltyPoints || 0)}
             </div>
           </div>
         </div>
@@ -4079,6 +4078,7 @@ function viewCustomerDetail(id) {
         <div style="font-size:1.2rem;font-weight:700;margin-bottom:6px">${c.name}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="cust-status ${stCls}">${statusLabel[c.status]||'Activo'}</span>
+          <span class="cust-status ${ {vip:'cst-vip',oro:'cst-oro',plata:'cst-plata',bronce:'cst-bronce'}[(c.loyaltyTier||c.ranking||'bronce').toLowerCase()] || 'cst-bronce' }">${ {vip:'💎 VIP',oro:'🥇 Oro',plata:'🥈 Plata',bronce:'🥉 Bronce'}[(c.loyaltyTier||c.ranking||'bronce').toLowerCase()] || '🥉 Bronce' }</span>
           ${accessBadge}
         </div>
       </div>
