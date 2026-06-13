@@ -3967,14 +3967,14 @@ function saveCustomer() {
   const data = {
     name,
     email,
-    phone:   getPhoneValue('cPhone', 'cPhonePrefix'),
-    cedula:  document.getElementById('cCedula').value.trim(),
-    address: document.getElementById('cAddress').value.trim(),
-    city:    document.getElementById('cCity').value.trim(),
-    status:  document.getElementById('cStatus').value,
-    ranking: document.getElementById('cRanking').value,
-    notes:   document.getElementById('cNotes').value.trim(),
-    mapLink: document.getElementById('cMapLink').value.trim(),
+    phone:       getPhoneValue('cPhone', 'cPhonePrefix'),
+    cedula:      document.getElementById('cCedula').value.trim(),
+    address:     document.getElementById('cAddress').value.trim(),
+    city:        document.getElementById('cCity').value.trim(),
+    status:      document.getElementById('cStatus').value,
+    loyaltyTier: document.getElementById('cRanking').value, // ranking → loyaltyTier (nombre real en Supabase)
+    notes:       document.getElementById('cNotes').value.trim(),
+    mapLink:     document.getElementById('cMapLink').value.trim(),
   };
   // Solo actualizar contraseña si se ingresó una nueva
   if (password) data.password = password;
@@ -3993,20 +3993,7 @@ function saveCustomer() {
     // ── PATCH: solo los campos del formulario (evita enviar campos JS que no existen en Supabase)
     DB.patchCustomer(editingCustomerId, data)
       .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado correctamente', 'success'); })
-      .catch(err => {
-        // Si el error es que la columna 'ranking' no existe aún en Supabase,
-        // reintentamos sin ese campo y avisamos al admin
-        const msg = err?.message || '';
-        if (msg.includes('ranking') && msg.includes('PGRST204')) {
-          console.warn('Columna ranking no existe en Supabase — guardando sin ranking');
-          const { ranking: _r, ...dataWithoutRanking } = data;
-          DB.patchCustomer(editingCustomerId, dataWithoutRanking)
-            .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado ✅', 'success'); })
-            .catch(err2 => { _unlockC(); console.error('saveCustomer PATCH error:', err2); showAdminToast('Error al guardar cliente: ' + (err2?.message || err2), 'error'); });
-        } else {
-          _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error');
-        }
-      });
+      .catch(err => { _unlockC(); console.error('saveCustomer PATCH error:', err); showAdminToast('Error al guardar cliente: ' + (err?.message || err), 'error'); });
   } else {
     // ── Solo enviamos a Supabase los campos que existen en la tabla ──────────
     const newC = {
