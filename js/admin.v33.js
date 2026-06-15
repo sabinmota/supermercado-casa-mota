@@ -3771,21 +3771,35 @@ function openCustomerModal(id) {
   const passHint = document.getElementById('cPassHint');
   const passReq  = document.getElementById('cPassReq');
   const pass2Req = document.getElementById('cPass2Req');
-  if (isEdit) {
-    if (passHint) passHint.classList.remove('hidden');
-    if (passReq)  passReq.style.display  = 'none';
-    if (pass2Req) pass2Req.style.display = 'none';
-  } else {
-    if (passHint) passHint.classList.add('hidden');
-    if (passReq)  passReq.style.display  = '';
-    if (pass2Req) pass2Req.style.display = '';
-  }
-
   // Limpiar contraseñas siempre
   const cp  = document.getElementById('cPassword');
   const cp2 = document.getElementById('cPassword2');
   if (cp)  cp.value  = '';
   if (cp2) cp2.value = '';
+
+  if (isEdit) {
+    // Modo edición: contraseña OPCIONAL — quitar asterisco, mostrar hint, limpiar bordes de error
+    if (passHint) passHint.classList.remove('hidden');
+    if (passReq)  passReq.style.display  = 'none';
+    if (pass2Req) pass2Req.style.display = 'none';
+    if (cp)  {
+      cp.placeholder   = 'Nueva contraseña (opcional)';
+      cp.style.borderColor = '';
+      cp.style.boxShadow   = '';
+    }
+    if (cp2) {
+      cp2.placeholder  = 'Repetir nueva contraseña';
+      cp2.style.borderColor = '';
+      cp2.style.boxShadow   = '';
+    }
+  } else {
+    // Modo creación: contraseña OBLIGATORIA — mostrar asterisco, ocultar hint
+    if (passHint) passHint.classList.add('hidden');
+    if (passReq)  passReq.style.display  = '';
+    if (pass2Req) pass2Req.style.display = '';
+    if (cp)  cp.placeholder  = 'Mínimo 6 caracteres';
+    if (cp2) cp2.placeholder = 'Repetir contraseña';
+  }
 
   if (isEdit) {
     const c = customers.find(x => x.id === id);

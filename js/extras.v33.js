@@ -222,6 +222,21 @@ async function loadReportes() {
 
 // Exportar PDF de reportes usando print
 async function exportReportPDF() {
+  // ── Cargar settings para datos de empresa ──
+  let _cfg = {};
+  try {
+    if (typeof _cache !== 'undefined' && _cache.settings) {
+      _cfg = _cache.settings;
+    } else if (typeof DB !== 'undefined' && typeof DB.getSettings === 'function') {
+      _cfg = await DB.getSettings();
+    }
+  } catch(e) { _cfg = {}; }
+  const _storeName    = _cfg.storeName    || 'Supermercado Casa Mota';
+  const _storeAddress = _cfg.storeAddress || 'Ave. Melchor Contín Alfau No.5, Hato Mayor del Rey';
+  const _storePhone   = _cfg.storePhone   || '809-553-2226';
+  const _storeEmail   = _cfg.storeEmail   || 'info@casamota.com.do';
+  const _storeRNC     = _cfg.storeRNC     || _cfg.rnc || '';
+
   const period = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año' }[reportPeriod] || '';
   const rptTotal    = document.getElementById('rptTotal')?.textContent    || '-';
   const rptOrders   = document.getElementById('rptOrders')?.textContent   || '-';
@@ -292,9 +307,9 @@ async function exportReportPDF() {
           ? `<img src="${logoBase64}" class="pdf-logo" alt="Logo Casa Mota" />`
           : `<div class="pdf-logo-placeholder">🛒</div>`}
         <div>
-          <div class="pdf-store-name">Supermercado Casa Mota</div>
-          <div class="pdf-store-sub">Ave. Melchor Contin Alfau No. 5, Hato Mayor del Rey</div>
-          <div class="pdf-store-sub">Tel: 809-553-2226 · info@casamota.com.do</div>
+          <div class="pdf-store-name">${_storeName}</div>
+          <div class="pdf-store-sub">${_storeAddress}</div>
+          <div class="pdf-store-sub">Tel: ${_storePhone}${_storeEmail ? ' · ' + _storeEmail : ''}</div>
         </div>
       </div>
       <div class="pdf-header-right">
@@ -318,8 +333,8 @@ async function exportReportPDF() {
       </table>
     </div>
     <div class="pdf-footer">
-      <div><span class="pdf-footer-brand">Supermercado Casa Mota</span> &nbsp;·&nbsp; Documento generado automáticamente</div>
-      <div>RNC: 000-00000-0 &nbsp;·&nbsp; ${new Date().toLocaleDateString('es-DO')}</div>
+      <div><span class="pdf-footer-brand">${_storeName}</span> &nbsp;·&nbsp; Documento generado automáticamente</div>
+      <div>${_storeRNC ? 'RNC: ' + _storeRNC + ' &nbsp;·&nbsp; ' : ''}${new Date().toLocaleDateString('es-DO')}</div>
     </div>
     </body></html>`);
   win.document.close();
@@ -400,6 +415,21 @@ function _capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 async function printOrderPDF(orderId) {
   const order = (typeof orders !== 'undefined' ? orders : []).find(o => String(o.id) === String(orderId));
   if (!order) { alert('Pedido no encontrado'); return; }
+
+  // ── Cargar settings para datos de empresa (usa caché si ya está disponible) ──
+  let _cfg = {};
+  try {
+    if (typeof _cache !== 'undefined' && _cache.settings) {
+      _cfg = _cache.settings;
+    } else if (typeof DB !== 'undefined' && typeof DB.getSettings === 'function') {
+      _cfg = await DB.getSettings();
+    }
+  } catch(e) { _cfg = {}; }
+  const _storeName    = _cfg.storeName    || 'Supermercado Casa Mota';
+  const _storeAddress = _cfg.storeAddress || 'Ave. Melchor Contín Alfau No.5, Hato Mayor del Rey';
+  const _storePhone   = _cfg.storePhone   || '809-553-2226';
+  const _storeEmail   = _cfg.storeEmail   || 'info@casamota.com.do';
+  const _storeRNC     = _cfg.storeRNC     || _cfg.rnc || '';
 
   // Buscar ciudad del cliente si el pedido no la tiene guardada
   const allCustomers = (typeof customers !== 'undefined' ? customers : []);
@@ -491,9 +521,9 @@ async function printOrderPDF(orderId) {
           : `<div style="width:64px;height:64px;border-radius:12px;background:#e8f5ee;display:flex;align-items:center;justify-content:center;font-size:2rem">🛒</div>`
         }
         <div>
-          <h2>Supermercado Casa Mota</h2>
-          <p>Ave. Melchor Contin Alfau No. 5, Hato Mayor del Rey</p>
-          <p>Tel: 809-553-2226 · info@casamota.com.do</p>
+          <h2>${_storeName}</h2>
+          <p>${_storeAddress}</p>
+          <p>Tel: ${_storePhone}${_storeEmail ? ' · ' + _storeEmail : ''}</p>
         </div>
       </div>
       <div class="order-num">
@@ -505,13 +535,13 @@ async function printOrderPDF(orderId) {
     </div>
     <div class="info-grid">
       <div class="info-box">
-        <h4>Cliente</h4>
+        <h4>Cliente:</h4>
         <p><strong>${order.customer || '-'}</strong></p>
         <p>${order.email || ''}</p>
         <p>${order.phone || ''}</p>
       </div>
       <div class="info-box">
-        <h4>Direccion de entrega</h4>
+        <h4>Dirección de Entrega:</h4>
         <p>${[order.address, orderCity].filter(Boolean).join(', ') || '-'}</p>
         ${order.driverName ? `<p>Repartidor: <strong>${order.driverName}</strong></p>` : ''}
         ${order.notes ? `<p>Nota: ${order.notes}</p>` : ''}
@@ -557,7 +587,7 @@ async function printOrderPDF(orderId) {
       </table>
     </div>
     <div class="footer">
-      Gracias por su compra · Supermercado Casa Mota · ${new Date().toLocaleDateString('es-DO')}
+      Gracias por su compra · ${_storeName}${_storeRNC ? ' · RNC: ' + _storeRNC : ''} · ${new Date().toLocaleDateString('es-DO')}
     </div>
     </body></html>`);
   win.document.close();
