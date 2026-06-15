@@ -734,14 +734,18 @@
         <div class="chk-fiscal-field">
           <label>RNC o Cédula</label>
           <input type="text" id="chkFiscalRNC" placeholder="Ej: 1-23-45678-9 o 00112345678"
-            maxlength="20" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;"
-            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'" />
+            maxlength="20" inputmode="numeric"
+            style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;"
+            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'"
+            oninput="this.value=this.value.replace(/[^0-9\-]/g,'')" />
         </div>
         <div class="chk-fiscal-field">
           <label>Nombre o razón social</label>
           <input type="text" id="chkFiscalNombre" placeholder="Ej: Empresa S.R.L."
-            maxlength="80" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;"
-            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'" />
+            maxlength="80"
+            style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;"
+            onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'"
+            oninput="this.value=this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s\.\,\-\'\&]/g,'')" />
         </div>
       </div>
 
@@ -953,7 +957,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=313"></script>
+  <script src="js/app.js?v=314"></script>
   <!-- Chatbot IA para clientes -->
   <script src="js/chat.js?v=224"></script>
 
