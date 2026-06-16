@@ -240,8 +240,45 @@ async function loginCliente(email, password) {
   if (!byEmail.password) {
     return { ok: false, msg: 'Tu cuenta no tiene contraseña asignada. Contacta al supermercado para activar tu acceso a la tienda.' };
   }
-  if (byEmail.password !== password) {
-    return { ok: false, msg: 'Contraseña incorrecta. Verifica e intenta de nuevo.' };
+
+  // ── Verificación de contraseña con soporte bcrypt (pgcrypto) ──────────────
+  // Si el hash empieza con $2a$ o $2b$ → está hasheado con bcrypt → verificar via Supabase
+  // Si no → comparación directa (período de transición hasta que se hasheen todas)
+  const storedPass = byEmail.password;
+  const isBcrypt   = storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$');
+
+  if (isBcrypt) {
+    // Verificar contra Supabase usando pgcrypto crypt()
+    let passOk = false;
+    try {
+      const res = await fetch(
+        `${_SB_URL}/customers?select=id&id=eq.${byEmail.id}&password=eq.${encodeURIComponent('crypt(\'' + password.replace(/'/g,"''") + '\',' + storedPass + ')')}`,
+        { headers: _SB_HEADERS }
+      );
+      // Método alternativo más confiable: RPC
+      const rpcRes = await fetch(`${_SB_URL.replace('/rest/v1', '')}/rest/v1/rpc/verify_customer_password`, {
+        method: 'POST',
+        headers: { ..._SB_HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_id: byEmail.id, p_password: password })
+      });
+      if (rpcRes.ok) {
+        passOk = await rpcRes.json();
+      } else {
+        // Fallback: si RPC no existe aún, comparar directo (temporal)
+        passOk = (storedPass === password);
+      }
+    } catch(e) {
+      // Fallback seguro si falla la red
+      passOk = false;
+    }
+    if (!passOk) {
+      return { ok: false, msg: 'Contraseña incorrecta. Verifica e intenta de nuevo.' };
+    }
+  } else {
+    // Contraseña en texto plano (período de transición)
+    if (storedPass !== password) {
+      return { ok: false, msg: 'Contraseña incorrecta. Verifica e intenta de nuevo.' };
+    }
   }
   // Verificar que la cuenta esté habilitada (soporta valores legacy: inactivo, y nuevo: deshabilitado)
   const st = (byEmail.status || 'habilitado').toLowerCase();
