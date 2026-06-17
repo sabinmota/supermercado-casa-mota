@@ -27,6 +27,13 @@ const _SB_HEADERS = {
   'Authorization': `Bearer ${_SB_KEY}`,
 };
 
+// Header adicional para operaciones de escritura (INSERT/UPDATE/DELETE)
+// Requerido por las políticas RLS de Supabase para tablas protegidas
+const _SB_WRITE_HEADERS = {
+  ..._SB_HEADERS,
+  'x-admin-key': 'CM-Admin-X9k3mP19zJ',
+};
+
 // ─── Timeouts ─────────────────────────────────────────────────────────────────
 function _apiFetchTimeout(method) {
   const m = (method || 'GET').toUpperCase();
@@ -209,7 +216,7 @@ async function _apiCreate(table, data) {
 
   return _apiFetch(`${_SB_URL}/${table}`, {
     method:  'POST',
-    headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
@@ -224,7 +231,7 @@ async function _apiUpdate(table, id, data) {
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PUT',
-    headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
@@ -237,7 +244,7 @@ async function _apiPatch(table, id, data) {
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PATCH',
-    headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
@@ -245,7 +252,7 @@ async function _apiPatch(table, id, data) {
 async function _apiDelete(table, id) {
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'DELETE',
-    headers: _SB_HEADERS,
+    headers: _SB_WRITE_HEADERS,
   });
 }
 
