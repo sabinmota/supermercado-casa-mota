@@ -377,7 +377,150 @@ document.addEventListener('DOMContentLoaded', () => {
     _refreshProductsSilent();
     console.log('⏱️ Polling automático — verificando actualizaciones...');
   }, POLL_INTERVAL);
+
+  // ── Pull to Refresh ───────────────────────────────────────────────────────
+  // Gesto: jalar la página hacia abajo desde el tope para recargar productos
+  _initPullToRefresh();
 });
+
+// ─── PULL TO REFRESH ─────────────────────────────────────────────────────────
+function _initPullToRefresh() {
+  const THRESHOLD   = 80;   // px que hay que jalar para activar
+  const MAX_PULL    = 120;  // px máximo de desplazamiento visual
+  let startY        = 0;
+  let pulling       = false;
+  let _ptr_active   = false;
+
+  // Crear indicador visual
+  const indicator = document.createElement('div');
+  indicator.id = 'ptr-indicator';
+  indicator.innerHTML = `
+    <div id="ptr-inner">
+      <svg id="ptr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+      <div id="ptr-spinner" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+      </div>
+      <span id="ptr-text">Jala para actualizar</span>
+    </div>`;
+
+  // Estilos del indicador
+  Object.assign(indicator.style, {
+    position:       'fixed',
+    top:            '0',
+    left:           '0',
+    right:          '0',
+    display:        'flex',
+    alignItems:     'flex-end',
+    justifyContent: 'center',
+    height:         '0px',
+    overflow:       'hidden',
+    zIndex:         '9999',
+    transition:     'height .2s ease',
+    background:     'transparent',
+    pointerEvents:  'none',
+  });
+
+  document.body.prepend(indicator);
+
+  // Estilos del contenido interno
+  const el = document.getElementById('ptr-inner');
+  if (el) {
+    Object.assign(el.style, {
+      display:      'flex',
+      alignItems:   'center',
+      gap:          '8px',
+      background:   '#fff',
+      borderRadius: '20px',
+      padding:      '8px 18px',
+      boxShadow:    '0 2px 12px rgba(0,0,0,.15)',
+      marginBottom: '8px',
+      color:        '#1a7c3e',
+      fontSize:     '.85rem',
+      fontWeight:   '600',
+      fontFamily:   'inherit',
+      userSelect:   'none',
+    });
+  }
+  const arrowEl = document.getElementById('ptr-arrow');
+  if (arrowEl) Object.assign(arrowEl.style, { width:'18px', height:'18px', transition:'transform .25s ease', display:'block' });
+  const spinEl = document.getElementById('ptr-spinner');
+  if (spinEl)  Object.assign(spinEl.style,  { width:'18px', height:'18px' });
+
+  // Animación spinner
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    @keyframes ptr-spin { to { transform: rotate(360deg); } }
+    #ptr-spinner svg { animation: ptr-spin .7s linear infinite; }
+  `;
+  document.head.appendChild(styleEl);
+
+  // ── Eventos touch ──────────────────────────────────────────────────────────
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY > 5) return;
+    startY  = e.touches[0].clientY;
+    pulling = true;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dist = Math.min(e.touches[0].clientY - startY, MAX_PULL);
+    if (dist <= 0) return;
+
+    const pct  = Math.min(dist / THRESHOLD, 1);
+    indicator.style.height = dist + 'px';
+
+    const arrow = document.getElementById('ptr-arrow');
+    const txt   = document.getElementById('ptr-text');
+    if (arrow) arrow.style.transform = `rotate(${pct * 180}deg)`;
+    if (txt)   txt.textContent = dist >= THRESHOLD ? '¡Suelta para actualizar!' : 'Jala para actualizar';
+  }, { passive: true });
+
+  document.addEventListener('touchend', async () => {
+    if (!pulling) return;
+    pulling = false;
+
+    const currentH = parseFloat(indicator.style.height) || 0;
+    if (currentH < THRESHOLD) {
+      indicator.style.height = '0px';
+      return;
+    }
+    if (_ptr_active) return;
+    _ptr_active = true;
+
+    // Mostrar spinner
+    const arrow   = document.getElementById('ptr-arrow');
+    const spinner = document.getElementById('ptr-spinner');
+    const txt     = document.getElementById('ptr-text');
+    if (arrow)   arrow.style.display   = 'none';
+    if (spinner) spinner.style.display = 'block';
+    if (txt)     txt.textContent       = 'Actualizando...';
+    indicator.style.height = '56px';
+
+    try {
+      await _loadProductsFromAPI();
+      if (txt) txt.textContent = '✓ ¡Listo!';
+      await new Promise(r => setTimeout(r, 700));
+    } catch(e) {
+      if (txt) txt.textContent = 'Sin conexión';
+      await new Promise(r => setTimeout(r, 900));
+    }
+
+    // Contraer y resetear
+    indicator.style.height = '0px';
+    setTimeout(() => {
+      if (arrow)   { arrow.style.display = 'block'; arrow.style.transform = 'rotate(0deg)'; }
+      if (spinner) spinner.style.display = 'none';
+      if (txt)     txt.textContent = 'Jala para actualizar';
+      _ptr_active = false;
+    }, 250);
+  });
+}
 
 // ─── INFO TIENDA DINÁMICA ────────────────────────────────────────────────────
 async function applyStoreInfo() {
