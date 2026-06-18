@@ -260,7 +260,7 @@ function _injectImagesFromMemory() {
     if (!imgEl) return;
 
     // Inyectar imagen si ya está en memoria y la tarjeta aún muestra placeholder
-    if (p.image && (!imgEl.src || imgEl.src.endsWith('logo-casamota.png'))) {
+    if (p.image && (!imgEl.src || imgEl.src.endsWith('logo-casamota.png') || imgEl.src.endsWith('placeholder-product.png'))) {
       imgEl.dataset.src = p.image;
       loadImg(imgEl);
     }
@@ -745,7 +745,11 @@ function initLazyImages() {
 
 function loadImg(img) {
   const src = img.getAttribute('data-src');
-  if (!src) return;
+  if (!src) {
+    // Sin imagen — dejar el placeholder visible y marcar como cargado
+    img.classList.add('img-loaded');
+    return;
+  }
   const temp = new Image();
   temp.onload = () => {
     img.src = src;
@@ -753,7 +757,7 @@ function loadImg(img) {
     img.classList.add('img-loaded');
   };
   temp.onerror = () => {
-    img.src = 'images/logo-casamota.png'; // fallback al logo
+    img.src = 'images/placeholder-product.png';
     img.removeAttribute('data-src');
     img.classList.add('img-loaded');
   };
@@ -788,10 +792,10 @@ function productCardHTML(p) {
         <img 
           data-src="${p.image || ''}" 
           data-product-id="${p.id}"
-          src="images/logo-casamota.png"
+          src="images/placeholder-product.png"
           alt="${p.name}" 
           class="product-lazy-img"
-          onerror="this.src='images/logo-casamota.png'"
+          onerror="this.src='images/placeholder-product.png';this.classList.add('img-loaded')"
         />
         <div class="product-img-overlay">
           <button class="quick-view-btn"><i class="fas fa-eye"></i> Vista rápida</button>
