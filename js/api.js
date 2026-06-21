@@ -577,22 +577,54 @@ const DB = {
   },
 
   async saveSettings(data) {
-    try {
-      // Fetch directo en lugar de _apiGetAll para evitar timeout
-      const res  = await fetch(
-        `${_SB_URL}/settings?select=id,deleted&order=created_at.desc&limit=5`,
-        { headers: _SB_HEADERS }
+    // Traer solo el id del registro activo — no mezclar existing en el payload.
+    // PostgREST hace UPDATE parcial: solo se sobreescriben los campos enviados.
+    // Mezclar existing causaba que campos nuevos (ej. storeWhatsapp) llegaran
+    // contaminados con valores stale o fueran ignorados por el schema cache.
+    const res  = await fetch(
+      `${_SB_URL}/settings?select=id&deleted=is.false&order=created_at.desc&limit=1`,
+      { headers: _SB_HEADERS }
+    );
+    const list = res.ok ? (await res.json()) : [];
+    if (list.length > 0) {
+      const id = list[0].id;
+      // PATCH directo — solo los campos de data, updated_at calculado aquí
+      const payload = { ...data, updated_at: new Date().toISOString() };
+      delete payload.id;             // id va en la URL, no en el body
+      delete payload.created_at;     // nunca sobreescribir created_at
+      delete payload.deleted;        // nunca sobreescribir deleted por aquí
+      const patchRes = await fetch(
+        `${_SB_URL}/settings?id=eq.${id}`,
+        {
+          method:  'PATCH',
+          headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+          body:    JSON.stringify(payload),
+        }
       );
-      const list = res.ok ? (await res.json()).filter(r => !r.deleted) : [];
-      if (list.length > 0) {
-        const existing = list[0];
-        return await _apiPatch('settings', existing.id, { ...existing, ...data });
+      if (!patchRes.ok) {
+        const err = await patchRes.json().catch(() => ({}));
+        throw new Error(`API error ${patchRes.status}: ${JSON.stringify(err)}`);
       }
-      return await _apiCreate('settings', { ...data });
-    } catch(e) {
-      console.warn('[DB.saveSettings] Error:', e);
-      return await _apiCreate('settings', { ...data });
+      return await patchRes.json();
     }
+    // No existe registro — crear uno nuevo
+    const createPayload = { ...data };
+    delete createPayload.id;
+    delete createPayload.created_at;
+    delete createPayload.deleted;
+    const createRes = await fetch(
+      `${_SB_URL}/settings`,
+      {
+        method:  'POST',
+        headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+        body:    JSON.stringify(createPayload),
+      }
+    );
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => ({}));
+      throw new Error(`API error ${createRes.status}: ${JSON.stringify(err)}`);
+    }
+    return await createRes.json();
   },
 
   // ── Categorías ─────────────────────────────────────────────────────────────
