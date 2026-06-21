@@ -233,9 +233,10 @@ async function exportReportPDF() {
   } catch(e) { _cfg = {}; }
   const _storeName    = _cfg.storeName    || 'Supermercado Casa Mota';
   const _storeAddress = _cfg.storeAddress || 'Ave. Melchor Contín Alfau No.5, Hato Mayor del Rey';
-  const _storePhone   = _cfg.storePhone   || '809-553-2226';
-  const _storeEmail   = _cfg.storeEmail   || 'info@casamota.com.do';
-  const _storeRNC     = _cfg.storeRNC     || _cfg.rnc || '';
+  const _storePhone    = _cfg.storePhone    || '809-553-2226';
+  const _storeWhatsapp = _cfg.storeWhatsapp || '';
+  const _storeEmail    = _cfg.storeEmail    || 'info@casamota.com.do';
+  const _storeRNC      = _cfg.storeRNC      || _cfg.rnc || '';
 
   const period = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año' }[reportPeriod] || '';
   const rptTotal    = document.getElementById('rptTotal')?.textContent    || '-';
@@ -309,7 +310,7 @@ async function exportReportPDF() {
         <div>
           <div class="pdf-store-name">${_storeName}</div>
           <div class="pdf-store-sub">${_storeAddress}</div>
-          <div class="pdf-store-sub">Tel: ${_storePhone}${_storeEmail ? ' · ' + _storeEmail : ''}</div>
+          <div class="pdf-store-sub">Tel: ${_storePhone}${_storeWhatsapp ? ' · WA: ' + _storeWhatsapp : ''}${_storeEmail ? ' · ' + _storeEmail : ''}</div>
         </div>
       </div>
       <div class="pdf-header-right">
@@ -427,9 +428,10 @@ async function printOrderPDF(orderId) {
   } catch(e) { _cfg = {}; }
   const _storeName    = _cfg.storeName    || 'Supermercado Casa Mota';
   const _storeAddress = _cfg.storeAddress || 'Ave. Melchor Contín Alfau No.5, Hato Mayor del Rey';
-  const _storePhone   = _cfg.storePhone   || '809-553-2226';
-  const _storeEmail   = _cfg.storeEmail   || 'info@casamota.com.do';
-  const _storeRNC     = _cfg.storeRNC     || _cfg.rnc || '';
+  const _storePhone    = _cfg.storePhone    || '809-553-2226';
+  const _storeWhatsapp = _cfg.storeWhatsapp || '';
+  const _storeEmail    = _cfg.storeEmail    || 'info@casamota.com.do';
+  const _storeRNC      = _cfg.storeRNC      || _cfg.rnc || '';
 
   // Buscar ciudad del cliente si el pedido no la tiene guardada
   const allCustomers = (typeof customers !== 'undefined' ? customers : []);
@@ -523,7 +525,7 @@ async function printOrderPDF(orderId) {
         <div>
           <h2>${_storeName}</h2>
           <p>${_storeAddress}</p>
-          <p>Tel: ${_storePhone}${_storeEmail ? ' · ' + _storeEmail : ''}</p>
+          <p>Tel: ${_storePhone}${_storeWhatsapp ? ' · WA: ' + _storeWhatsapp : ''}${_storeEmail ? ' · ' + _storeEmail : ''}</p>
         </div>
       </div>
       <div class="order-num">

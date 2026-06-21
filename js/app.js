@@ -533,6 +533,7 @@ async function applyStoreInfo() {
   const phone    = s.storePhone    || '';
   const address  = s.storeAddress  || '';
   const email    = s.storeEmail    || '';
+  const whatsapp = s.storeWhatsapp || '';
   const hoursWk  = s.hoursWeekday  || '';
   const hoursSun = s.hoursSunday   || '';
   const hoursHeader = (hoursWk && hoursSun)
@@ -550,6 +551,27 @@ async function applyStoreInfo() {
   set('storeHoursHeader',   hoursHeader);
   set('storeAddressFooter', address);
   set('storePhoneFooter',   phone);
+  // WhatsApp footer: mostrar solo si hay número configurado.
+  // Formato guardado por getPhoneValue(): "809-000-0000" (prefijo RD) o "1-000-0000" (EE.UU.).
+  // wa.me/ requiere E.164 sin prefijo "+": los prefijos 809/829/849 son NANP (+1),
+  // así que siempre se antepone "1" al resultado de quitar no-dígitos.
+  // Si el prefijo guardado ya ES "1" (opción "+1" del select), los dígitos son "10001234"
+  // → anteponer otro "1" daría "110001234" (incorrecto). Se detecta el caso con startsWith('1-').
+  const waLi  = document.getElementById('storeWhatsappFooterLi');
+  const waEl  = document.getElementById('storeWhatsappFooter');
+  if (waLi && waEl) {
+    if (whatsapp) {
+      const waDigits = whatsapp.replace(/\D/g, '');
+      // Si el string original empieza con "1-" el "1" ya es el código de país (seleccionado +1).
+      // En todos los demás casos (809/829/849) el código de país es implícitamente "1" (NANP).
+      const waE164 = whatsapp.startsWith('1-') ? waDigits : `1${waDigits}`;
+      waEl.href = `https://wa.me/${waE164}`;
+      waEl.textContent = whatsapp;
+      waLi.style.display = '';
+    } else {
+      waLi.style.display = 'none';
+    }
+  }
   set('storeEmailFooter',   email);
   set('storeHoursWkFooter',  hoursWk  ? `Lun\u2013S\u00e1b: ${hoursWk}`  : '');
   set('storeHoursSunFooter', hoursSun ? `Dom: ${hoursSun}` : '');

@@ -250,7 +250,11 @@ function setPhoneValue(inputId, prefixId, fullPhone) {
 
   const selEl = document.getElementById(prefixId);
   const inpEl = document.getElementById(inputId);
-  if (selEl && ['809','829','849'].includes(prefix)) selEl.value = prefix;
+  // Seleccionar el prefijo solo si existe como <option> en el <select>
+  if (selEl) {
+    const opt = Array.from(selEl.options).find(o => o.value === prefix);
+    if (opt) selEl.value = prefix;
+  }
   if (inpEl) inpEl.value = formatted;
 }
 
@@ -4548,6 +4552,8 @@ function saveSettings() {
   Object.keys(SETTINGS_FIELDS).forEach(id => {
     if (id === 'settingPhone') {
       data[id] = getPhoneValue('settingPhone', 'settingPhonePrefix');
+    } else if (id === 'settingWhatsapp') {
+      data[id] = getPhoneValue('settingWhatsapp', 'settingWhatsappPrefix');
     } else {
       const el = document.getElementById(id);
       if (el) data[id] = el.value.trim();
@@ -4561,6 +4567,7 @@ function saveSettings() {
       storeName:       data.settingName         || '',
       storeAddress:    data.settingAddress      || '',
       storePhone:      data.settingPhone        || '',
+      storeWhatsapp:   data.settingWhatsapp     || '',
       storeEmail:      data.settingEmail        || '',
       shippingFee:     parseFloat(data.settingShipping     || 150),
       freeShippingMin: parseFloat(data.settingFreeShipping || 1500),
