@@ -310,7 +310,8 @@ async function exportReportPDF() {
         <div>
           <div class="pdf-store-name">${_storeName}</div>
           <div class="pdf-store-sub">${_storeAddress}</div>
-          <div class="pdf-store-sub">Tel: ${_storePhone}${_storeWhatsapp ? ' · WA: ' + _storeWhatsapp : ''}${_storeEmail ? ' · ' + _storeEmail : ''}</div>
+          <div class="pdf-store-sub">Tel: ${_storePhone}${_storeWhatsapp ? ' &nbsp;·&nbsp; WA: ' + _storeWhatsapp : ''}</div>
+          ${_storeEmail ? `<div class="pdf-store-sub">${_storeEmail}</div>` : ''}
         </div>
       </div>
       <div class="pdf-header-right">
@@ -525,7 +526,8 @@ async function printOrderPDF(orderId) {
         <div>
           <h2>${_storeName}</h2>
           <p>${_storeAddress}</p>
-          <p>Tel: ${_storePhone}${_storeWhatsapp ? ' · WA: ' + _storeWhatsapp : ''}${_storeEmail ? ' · ' + _storeEmail : ''}</p>
+          <p>Tel: ${_storePhone}${_storeWhatsapp ? ' &nbsp;·&nbsp; WA: ' + _storeWhatsapp : ''}</p>
+          ${_storeEmail ? `<p>${_storeEmail}</p>` : ''}
         </div>
       </div>
       <div class="order-num">
