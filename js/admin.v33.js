@@ -4500,6 +4500,7 @@ async function loadSettings() {
     settingName:         'storeName',
     settingAddress:      'storeAddress',
     settingPhone:        'storePhone',
+    settingWhatsapp:     'storeWhatsapp',
     settingEmail:        'storeEmail',
     settingShipping:     'shippingFee',
     settingFreeShipping: 'freeShippingMin',
@@ -4512,6 +4513,8 @@ async function loadSettings() {
     const val = apiKey && saved[apiKey] !== undefined ? String(saved[apiKey]) : SETTINGS_FIELDS[id];
     if (id === 'settingPhone') {
       setPhoneValue('settingPhone', 'settingPhonePrefix', val);
+    } else if (id === 'settingWhatsapp') {
+      setPhoneValue('settingWhatsapp', 'settingWhatsappPrefix', val);
     } else {
       const el = document.getElementById(id);
       if (el) el.value = val;
