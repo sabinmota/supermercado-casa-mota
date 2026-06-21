@@ -618,8 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('es-DO', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-  // Cargar configuración y todos los datos desde la API
-  loadSettings();
+  // Cargar todos los datos desde la API (settings se carga al navegar a su sección)
   initAdminData();
   // Cargar display de API keys de IA (si ya estaban guardadas)
   if (typeof loadAiKeysDisplay === 'function') setTimeout(loadAiKeysDisplay, 500);
