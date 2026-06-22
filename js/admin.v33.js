@@ -4489,6 +4489,7 @@ const SETTINGS_FIELDS = {
   settingName:        'Supermercado Casa Mota',
   settingAddress:     'Av. Winston Churchill #35, Santo Domingo',
   settingPhone:       '(809) 555-2684',
+  settingWhatsapp:    '',
   settingEmail:       'info@casamota.com.do',
   settingShipping:    '150',
   settingFreeShipping:'1500',
