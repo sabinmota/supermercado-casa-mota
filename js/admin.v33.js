@@ -257,11 +257,10 @@ function setPhoneValue(inputId, prefixId, fullPhone) {
   }
   if (inpEl) {
     inpEl.value = formatted;
-    // Forzar reflow — Chromium no repinta inputs asignados por JS
-    // dentro de contenedores flex/transform sin interacción del usuario
-    inpEl.style.display = 'none';
-    inpEl.offsetHeight; // eslint-disable-line no-unused-expressions
-    inpEl.style.display = '';
+    // requestAnimationFrame garantiza que el browser pinte el valor
+    // en el siguiente frame — necesario cuando el input es asignado
+    // programáticamente sin interacción del usuario en Chromium
+    requestAnimationFrame(() => { inpEl.value = formatted; });
   }
 }
 
