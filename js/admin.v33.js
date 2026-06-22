@@ -255,7 +255,12 @@ function setPhoneValue(inputId, prefixId, fullPhone) {
     const opt = Array.from(selEl.options).find(o => o.value === prefix);
     if (opt) selEl.value = prefix;
   }
-  if (inpEl) inpEl.value = formatted;
+  if (inpEl) {
+    inpEl.value = formatted;
+    // Forzar repintado del browser — sin esto el valor queda en el DOM
+    // pero invisible cuando se asigna programáticamente sin interacción del usuario
+    inpEl.dispatchEvent(new Event('change', { bubbles: false }));
+  }
 }
 
 // ─── BARCODE HELPERS ──────────────────────────────────────────────────────────
