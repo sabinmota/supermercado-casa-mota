@@ -257,9 +257,11 @@ function setPhoneValue(inputId, prefixId, fullPhone) {
   }
   if (inpEl) {
     inpEl.value = formatted;
-    // Forzar repintado del browser — sin esto el valor queda en el DOM
-    // pero invisible cuando se asigna programáticamente sin interacción del usuario
-    inpEl.dispatchEvent(new Event('change', { bubbles: false }));
+    // Forzar reflow — Chromium no repinta inputs asignados por JS
+    // dentro de contenedores flex/transform sin interacción del usuario
+    inpEl.style.display = 'none';
+    inpEl.offsetHeight; // eslint-disable-line no-unused-expressions
+    inpEl.style.display = '';
   }
 }
 
