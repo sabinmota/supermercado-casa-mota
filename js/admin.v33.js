@@ -6456,6 +6456,18 @@ function initAutoReload() {
 
 // ── onArToggleChange — disparado por el checkbox ──────────────────────────
 
+// ── arToggleClick — entrada única de click para el toggle ────────────────
+// Evita el doble-disparo que ocurre cuando el <label> y los <span> hijos
+// comparten el mismo evento de click (el checkbox se marca y se desmarca
+// en el mismo tick quedando igual que antes).
+
+function arToggleClick() {
+  const toggle = document.getElementById('arToggle');
+  if (!toggle) return;
+  toggle.checked = !toggle.checked;   // flip manual — SIN propagar evento
+  onArToggleChange();
+}
+
 function onArToggleChange() {
   const toggle  = document.getElementById('arToggle');
   const enabled = toggle ? toggle.checked : false;
@@ -6598,11 +6610,12 @@ function _arApplyToggleStyle(enabled) {
   const track = document.getElementById('arToggleTrack');
   const thumb = document.getElementById('arToggleThumb');
   const label = document.getElementById('arToggleLabel');
-  if (track) track.style.background = enabled ? '#0891b2' : '#d1d5db';
-  if (thumb) thumb.style.transform  = enabled ? 'translateX(20px)' : 'translateX(0)';
+  // OFF = rojo   |   ON = verde
+  if (track) track.style.background = enabled ? '#16a34a' : '#ef4444';
+  if (thumb) thumb.style.transform  = enabled ? 'translateX(22px)' : 'translateX(0)';
   if (label) {
     label.textContent = enabled ? 'Activado' : 'Desactivado';
-    label.style.color = enabled ? '#0891b2'   : '#374151';
+    label.style.color = enabled ? '#16a34a'  : '#ef4444';
   }
 }
 
