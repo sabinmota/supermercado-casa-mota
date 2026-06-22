@@ -255,13 +255,7 @@ function setPhoneValue(inputId, prefixId, fullPhone) {
     const opt = Array.from(selEl.options).find(o => o.value === prefix);
     if (opt) selEl.value = prefix;
   }
-  if (inpEl) {
-    inpEl.value = formatted;
-    // requestAnimationFrame garantiza que el browser pinte el valor
-    // en el siguiente frame — necesario cuando el input es asignado
-    // programáticamente sin interacción del usuario en Chromium
-    requestAnimationFrame(() => { inpEl.value = formatted; });
-  }
+  if (inpEl) inpEl.value = formatted;
 }
 
 // ─── BARCODE HELPERS ──────────────────────────────────────────────────────────
