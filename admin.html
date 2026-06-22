@@ -844,6 +844,71 @@
           </div>
           <button class="btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Guardar cambios</button>
         </div>
+        <!-- ══ AUTO-RELOAD DE PRODUCTOS ══ -->
+        <div class="card settings-card" id="cardAutoReload" style="border-top:3px solid #0891b2">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+            <h3 style="margin:0">
+              <i class="fas fa-sync-alt" style="color:#0891b2"></i>
+              Auto-recarga de Productos
+            </h3>
+            <!-- Badge countdown -->
+            <span id="arCountdownBadge" style="display:none;background:#ecfeff;border:1px solid #a5f3fc;color:#0e7490;font-size:.8rem;font-weight:700;padding:4px 14px;border-radius:20px;min-width:90px;text-align:center">
+              <i class="fas fa-clock" style="margin-right:4px"></i><span id="arCountdownText">--:--</span>
+            </span>
+          </div>
+          <p style="font-size:.82rem;color:#6b7280;margin-bottom:14px">
+            Recarga automáticamente la tabla de <strong>Productos</strong> (y sincroniza precios desde Supabase) 
+            cada cierto tiempo, sin necesidad de recargar la página manualmente tras una sincronización.
+          </p>
+
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:16px">
+
+            <!-- Toggle ON/OFF -->
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+              <div style="position:relative;width:46px;height:26px">
+                <input type="checkbox" id="arToggle" onchange="onArToggleChange()"
+                       style="opacity:0;width:0;height:0;position:absolute" />
+                <span id="arToggleTrack"
+                      style="position:absolute;inset:0;border-radius:13px;background:#d1d5db;transition:background .2s;cursor:pointer"
+                      onclick="document.getElementById('arToggle').click()"></span>
+                <span id="arToggleThumb"
+                      style="position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s;cursor:pointer"
+                      onclick="document.getElementById('arToggle').click()"></span>
+              </div>
+              <span id="arToggleLabel" style="font-weight:600;font-size:.9rem;color:#374151">Desactivado</span>
+            </label>
+
+            <!-- Selector de intervalo -->
+            <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;color:#374151">
+              <i class="fas fa-hourglass-half" style="color:#0891b2"></i>
+              Intervalo:
+              <select id="arInterval" onchange="onArIntervalChange()"
+                      style="border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:.85rem;color:#374151;background:#fff">
+                <option value="1">1 minuto</option>
+                <option value="2">2 minutos</option>
+                <option value="3">3 minutos</option>
+                <option value="5" selected>5 minutos</option>
+                <option value="10">10 minutos</option>
+                <option value="15">15 minutos</option>
+                <option value="30">30 minutos</option>
+              </select>
+            </label>
+
+            <!-- Botón forzar ahora -->
+            <button id="arForceBtn" onclick="arForceReload()"
+                    style="display:none;background:#0891b2;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <i class="fas fa-bolt"></i> Recargar ahora
+            </button>
+
+          </div>
+
+          <!-- Última recarga -->
+          <div id="arLastReload" style="display:none;margin-top:10px;font-size:.78rem;color:#9ca3af">
+            <i class="fas fa-check-circle" style="color:#34d399;margin-right:4px"></i>
+            Última recarga: <span id="arLastReloadTime">—</span>
+          </div>
+        </div>
+
         <!-- IA Settings Card -->
         <div class="card settings-card" style="border-top:3px solid #7c3aed;grid-column:1/-1">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
@@ -2845,7 +2910,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=328"></script>
+  <script src="js/admin.v33.js?v=329"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=305"></script>
   <!-- IA: Groq integration -->

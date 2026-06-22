@@ -664,7 +664,7 @@ function showSection(id, el) {
   if (id === 'customers')  { DB.getCustomers ? DB.getCustomers().then(list => { if(list.length) customers = list; renderCustomers(); }).catch(() => renderCustomers()) : renderCustomers(); }
   if (id === 'drivers')    { drivers = getDrivers(); renderDrivers(); }
   if (id === 'loyalty')         loadLoyalty();
-  if (id === 'settings')        { loadSettings(); if (typeof loadAiKeysDisplay === 'function') loadAiKeysDisplay(); }
+  if (id === 'settings')        { loadSettings(); if (typeof loadAiKeysDisplay === 'function') loadAiKeysDisplay(); initAutoReload(); }
   if (id === 'reportes')       { if (typeof loadReportes       === 'function') loadReportes(); }
   if (id === 'cupones')        { if (typeof loadCupones        === 'function') loadCupones(); }
   if (id === 'notificaciones') { if (typeof loadNotificaciones === 'function') loadNotificaciones(); }
@@ -6392,6 +6392,223 @@ function migExportTxt() {
   URL.revokeObjectURL(url);
   showAdminToast(`Lista exportada: ${_migImageList.length} URLs`, 'success');
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ─── AUTO-RELOAD DE PRODUCTOS ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+//  Lógica:
+//  • Estado persistido en localStorage bajo la clave _AR_KEY
+//  • _arTimer: referencia al setInterval del countdown (tick cada 1s)
+//  • Usa Date.now() como fuente de verdad — no se desincroniza con pestañas inactivas
+//  • Al cumplirse el tiempo: recarga adminProducts + renderProductsTable()
+//    y actualiza también la tienda pública vía refreshStoreProducts() si existe
+//
+const _AR_KEY       = 'cm_autoreload';   // localStorage key
+const _AR_TICK_MS   = 1000;              // tick del countdown
+
+let _arTimer        = null;  // setInterval handle
+let _arNextReloadTs = 0;     // timestamp epoch cuando debe dispararse la próxima recarga
+
+// ── helpers ───────────────────────────────────────────────────────────────
+
+function _arLoadState() {
+  try { return JSON.parse(localStorage.getItem(_AR_KEY) || '{}'); } catch { return {}; }
+}
+function _arSaveState(patch) {
+  const s = { ..._arLoadState(), ...patch };
+  localStorage.setItem(_AR_KEY, JSON.stringify(s));
+}
+
+function _arFmtCountdown(ms) {
+  if (ms <= 0) return '00:00';
+  const totalSec = Math.ceil(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+// ── initAutoReload — aplica estado guardado a los controles ───────────────
+
+function initAutoReload() {
+  const state    = _arLoadState();
+  const enabled  = !!state.enabled;
+  const interval = parseInt(state.interval) || 5;
+
+  // Sincronizar controles HTML
+  const toggle   = document.getElementById('arToggle');
+  const selInt   = document.getElementById('arInterval');
+  if (toggle)  toggle.checked = enabled;
+  if (selInt)  selInt.value   = String(interval);
+
+  _arApplyToggleStyle(enabled);
+
+  if (enabled) {
+    // Si ya había un nextTs futuro, usarlo; si no, crear uno nuevo
+    const saved = parseInt(state.nextTs) || 0;
+    _arNextReloadTs = saved > Date.now() ? saved : Date.now() + interval * 60_000;
+    _arSaveState({ nextTs: _arNextReloadTs });
+    _arStartTick();
+  } else {
+    _arStopTick();
+  }
+}
+
+// ── onArToggleChange — disparado por el checkbox ──────────────────────────
+
+function onArToggleChange() {
+  const toggle  = document.getElementById('arToggle');
+  const enabled = toggle ? toggle.checked : false;
+  const selInt  = document.getElementById('arInterval');
+  const interval = parseInt(selInt?.value) || 5;
+
+  _arApplyToggleStyle(enabled);
+  _arSaveState({ enabled, interval });
+
+  if (enabled) {
+    _arNextReloadTs = Date.now() + interval * 60_000;
+    _arSaveState({ nextTs: _arNextReloadTs });
+    _arStartTick();
+    showAdminToast(`Auto-recarga activada — cada ${interval} min`, 'success');
+  } else {
+    _arStopTick();
+    showAdminToast('Auto-recarga desactivada', 'info');
+  }
+}
+
+// ── onArIntervalChange — cambia el intervalo sin desactivar ───────────────
+
+function onArIntervalChange() {
+  const selInt  = document.getElementById('arInterval');
+  const interval = parseInt(selInt?.value) || 5;
+  const toggle  = document.getElementById('arToggle');
+  const enabled = toggle ? toggle.checked : false;
+
+  _arSaveState({ interval });
+
+  if (enabled) {
+    // Reiniciar countdown con el nuevo intervalo
+    _arNextReloadTs = Date.now() + interval * 60_000;
+    _arSaveState({ nextTs: _arNextReloadTs });
+    _arStopTick();
+    _arStartTick();
+    showAdminToast(`Intervalo cambiado a ${interval} min`, 'info');
+  }
+}
+
+// ── arForceReload — botón "Recargar ahora" ────────────────────────────────
+
+async function arForceReload() {
+  await _arDoReload();
+  // Reiniciar countdown
+  const state    = _arLoadState();
+  const interval = parseInt(state.interval) || 5;
+  const toggle   = document.getElementById('arToggle');
+  const enabled  = toggle ? toggle.checked : false;
+  if (enabled) {
+    _arNextReloadTs = Date.now() + interval * 60_000;
+    _arSaveState({ nextTs: _arNextReloadTs });
+    _arStopTick();
+    _arStartTick();
+  }
+}
+
+// ── _arStartTick — arranca el setInterval del countdown ──────────────────
+
+function _arStartTick() {
+  _arStopTick(); // garantizar que no haya doble timer
+  _arShowBadge(true);
+  _arUpdateBadge();
+  _arTimer = setInterval(async () => {
+    const now = Date.now();
+    _arUpdateBadge();
+    if (now >= _arNextReloadTs) {
+      await _arDoReload();
+      // Reiniciar para el próximo ciclo
+      const state    = _arLoadState();
+      const interval = parseInt(state.interval) || 5;
+      _arNextReloadTs = Date.now() + interval * 60_000;
+      _arSaveState({ nextTs: _arNextReloadTs });
+    }
+  }, _AR_TICK_MS);
+}
+
+// ── _arStopTick — detiene el countdown ───────────────────────────────────
+
+function _arStopTick() {
+  if (_arTimer !== null) { clearInterval(_arTimer); _arTimer = null; }
+  _arShowBadge(false);
+}
+
+// ── _arDoReload — recarga datos y re-renderiza la tabla de productos ──────
+
+async function _arDoReload() {
+  try {
+    const list = await DB.getProducts({ full: true });
+    if (list && list.length) {
+      adminProducts = list;
+      // Si la sección productos está visible, re-renderizar
+      const secProd = document.getElementById('sec-products');
+      if (secProd && secProd.classList.contains('active')) {
+        renderProductsTable();
+      }
+      // Si inventario está visible, re-renderizar también
+      const secInv = document.getElementById('sec-inventory');
+      if (secInv && secInv.classList.contains('active')) {
+        if (typeof renderInventory === 'function') renderInventory();
+      }
+    }
+    // Marcar última recarga en la card
+    const now   = new Date();
+    const label = now.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const el = document.getElementById('arLastReloadTime');
+    if (el) el.textContent = label;
+    const wrap = document.getElementById('arLastReload');
+    if (wrap) wrap.style.display = '';
+    _arSaveState({ lastReload: now.toISOString() });
+  } catch (err) {
+    console.warn('[AutoReload] Error recargando productos:', err);
+  }
+}
+
+// ── _arUpdateBadge — actualiza el texto del countdown ────────────────────
+
+function _arUpdateBadge() {
+  const remaining = _arNextReloadTs - Date.now();
+  const textEl = document.getElementById('arCountdownText');
+  if (textEl) textEl.textContent = _arFmtCountdown(remaining);
+}
+
+// ── _arShowBadge — muestra u oculta badge + botón + último reload ─────────
+
+function _arShowBadge(visible) {
+  const badge  = document.getElementById('arCountdownBadge');
+  const btn    = document.getElementById('arForceBtn');
+  if (badge) badge.style.display = visible ? '' : 'none';
+  if (btn)   btn.style.display   = visible ? 'flex' : 'none';
+  if (!visible) {
+    const wrap = document.getElementById('arLastReload');
+    if (wrap) wrap.style.display = 'none';
+  }
+}
+
+// ── _arApplyToggleStyle — visual del toggle switch ────────────────────────
+
+function _arApplyToggleStyle(enabled) {
+  const track = document.getElementById('arToggleTrack');
+  const thumb = document.getElementById('arToggleThumb');
+  const label = document.getElementById('arToggleLabel');
+  if (track) track.style.background = enabled ? '#0891b2' : '#d1d5db';
+  if (thumb) thumb.style.transform  = enabled ? 'translateX(20px)' : 'translateX(0)';
+  if (label) {
+    label.textContent = enabled ? 'Activado' : 'Desactivado';
+    label.style.color = enabled ? '#0891b2'   : '#374151';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ─── FIN AUTO-RELOAD DE PRODUCTOS ─────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
 
 // ── PASO 4: Exportar JSON con rutas actualizadas ──────────────────────────
 function migExportJsonUpdated() {
