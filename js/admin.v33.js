@@ -6533,15 +6533,16 @@ function _arStartTick() {
   _arUpdateBadge();
   _arTimer = setInterval(async () => {
     const now = Date.now();
-    _arUpdateBadge();
     if (now >= _arNextReloadTs) {
-      await _arDoReload();
-      // Reiniciar para el próximo ciclo
+      // Primero reiniciar el timestamp para que el badge no quede pegado en 00:00
       const state    = _arLoadState();
       const interval = parseInt(state.interval) || 5;
-      _arNextReloadTs = Date.now() + interval * 60_000;
+      _arNextReloadTs = now + interval * 60_000;
       _arSaveState({ nextTs: _arNextReloadTs });
+      // Luego disparar la recarga (async, no bloquea el tick)
+      _arDoReload();
     }
+    _arUpdateBadge();
   }, _AR_TICK_MS);
 }
 
@@ -6555,21 +6556,33 @@ function _arStopTick() {
 // ── _arDoReload — recarga datos y re-renderiza la tabla de productos ──────
 
 async function _arDoReload() {
+  // Flash visual en badge: parpadea azul para indicar que está recargando
+  const badge = document.getElementById('arCountdownBadge');
+  if (badge) { badge.style.background = '#dbeafe'; badge.style.borderColor = '#93c5fd'; }
+  const textEl = document.getElementById('arCountdownText');
+  if (textEl) textEl.textContent = '⟳';
+
   try {
     const list = await DB.getProducts({ full: true });
     if (list && list.length) {
       adminProducts = list;
-      // Si la sección productos está visible, re-renderizar
+      // Siempre actualizar datos en memoria — sin importar qué sección está visible
+      // Re-renderizar Productos si está activa
       const secProd = document.getElementById('sec-products');
       if (secProd && secProd.classList.contains('active')) {
         renderProductsTable();
       }
-      // Si inventario está visible, re-renderizar también
+      // Re-renderizar Inventario si está activo
       const secInv = document.getElementById('sec-inventory');
       if (secInv && secInv.classList.contains('active')) {
         if (typeof renderInventory === 'function') renderInventory();
       }
     }
+    // Toast de confirmación siempre visible (esté en cualquier sección)
+    const state    = _arLoadState();
+    const interval = parseInt(state.interval) || 5;
+    showAdminToast(`✅ Productos actualizados — próxima recarga en ${interval} min`, 'success');
+
     // Marcar última recarga en la card
     const now   = new Date();
     const label = now.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -6580,6 +6593,10 @@ async function _arDoReload() {
     _arSaveState({ lastReload: now.toISOString() });
   } catch (err) {
     console.warn('[AutoReload] Error recargando productos:', err);
+    showAdminToast('⚠️ Error en auto-recarga de productos', 'error');
+  } finally {
+    // Restaurar color del badge
+    if (badge) { badge.style.background = '#ecfeff'; badge.style.borderColor = '#a5f3fc'; }
   }
 }
 
