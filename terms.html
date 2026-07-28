@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Términos de Uso — Supermercado Casa Mota</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" href="images/logo-casamota.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:      #1a7c3e;
+      --green-dark: #145e2e;
+      --green-pale: #e8f5ee;
+      --text:       #1a1a2e;
+      --muted:      #64748b;
+      --border:     #e2e8f0;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f8fafc;
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: #fff;
+      padding: 28px 24px;
+      text-align: center;
+    }
+    .header-logo {
+      width: 72px;
+      border-radius: 14px;
+      background: #fff;
+      padding: 6px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    }
+    header h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 6px; }
+    header p  { font-size: .88rem; opacity: .85; }
+
+    .back-bar {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+    }
+    .back-bar a {
+      color: var(--green);
+      text-decoration: none;
+      font-size: .88rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .back-bar a:hover { text-decoration: underline; }
+
+    main {
+      max-width: 780px;
+      margin: 32px auto;
+      padding: 0 24px 60px;
+    }
+    .last-updated {
+      background: var(--green-pale);
+      border-left: 4px solid var(--green);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: .85rem;
+      color: var(--green-dark);
+      margin-bottom: 36px;
+      font-weight: 500;
+    }
+    section {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.04);
+    }
+    section h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    section h2 .sec-num {
+      background: var(--green-pale);
+      color: var(--green-dark);
+      font-size: .78rem;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+    section p { font-size: .92rem; color: #444; margin-bottom: 12px; }
+    section p:last-child { margin-bottom: 0; }
+    section ul { padding-left: 20px; font-size: .92rem; color: #444; }
+    section ul li { margin-bottom: 8px; }
+    section ul li:last-child { margin-bottom: 0; }
+
+    .warning-box {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: .88rem;
+      color: #92400e;
+      margin-top: 14px;
+    }
+    .highlight-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: .88rem;
+      color: #166534;
+      margin-top: 14px;
+    }
+    .contact-card {
+      background: var(--green-pale);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-top: 14px;
+    }
+    .contact-card p { margin-bottom: 6px; font-size: .9rem; color: var(--green-dark); font-weight: 500; }
+    .contact-card a { color: var(--green); font-weight: 600; text-decoration: none; }
+    .contact-card a:hover { text-decoration: underline; }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: .8rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--green); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img src="images/logo-casamota.png" alt="Casa Mota" class="header-logo" />
+    <h1>Términos de Uso</h1>
+    <p>Supermercado Casa Mota — supermercadocasamota.com</p>
+  </header>
+
+  <div class="back-bar">
+    <a href="index.html">← Volver a la tienda</a>
+  </div>
+
+  <main>
+
+    <div class="last-updated">
+      📅 Última actualización: 28 de julio de 2026 · Versión 1.0
+    </div>
+
+    <section>
+      <h2><span class="sec-num">01</span> Aceptación de los términos</h2>
+      <p>
+        Al acceder o utilizar el sitio web <strong>supermercadocasamota.com</strong> o la
+        aplicación móvil <strong>Casa Mota</strong> (en adelante, "el Servicio"), aceptas
+        quedar vinculado por estos Términos de Uso y nuestra
+        <a href="privacy.html" style="color:var(--green);font-weight:600">Política de Privacidad</a>.
+      </p>
+      <p>
+        Si no estás de acuerdo con alguno de estos términos, te pedimos que no uses el Servicio.
+        El uso continuado del Servicio después de la publicación de cambios constituye tu
+        aceptación de los términos actualizados.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">02</span> Descripción del Servicio</h2>
+      <p>
+        Supermercado Casa Mota ofrece una plataforma de compras en línea que permite a los
+        clientes registrados:
+      </p>
+      <ul>
+        <li>Explorar el catálogo de productos del supermercado con precios actualizados.</li>
+        <li>Realizar pedidos de productos para entrega a domicilio.</li>
+        <li>Gestionar un historial de pedidos y una lista de favoritos.</li>
+        <li>Acumular y canjear puntos de fidelización.</li>
+        <li>Usar cupones de descuento disponibles.</li>
+        <li>Comunicarse con el asistente virtual Maya para consultas sobre productos y pedidos.</li>
+      </ul>
+      <div class="highlight-box">
+        🛒 El Servicio está disponible exclusivamente para clientes con cuenta activa creada
+        por el equipo de Casa Mota. Los pedidos se entregan dentro de las zonas de servicio habilitadas.
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">03</span> Cuentas de usuario</h2>
+      <p>
+        Las cuentas son creadas exclusivamente por el equipo administrativo de Supermercado
+        Casa Mota. Para solicitar una cuenta, debes contactarnos directamente por teléfono,
+        WhatsApp o correo electrónico.
+      </p>
+      <ul>
+        <li>Eres responsable de mantener la confidencialidad de tu contraseña.</li>
+        <li>Debes notificarnos inmediatamente si sospechas acceso no autorizado a tu cuenta.</li>
+        <li>No puedes transferir, vender ni compartir tu cuenta con terceros.</li>
+        <li>Debes proporcionar información veraz y actualizada al momento del registro.</li>
+      </ul>
+      <p>
+        Nos reservamos el derecho de suspender o eliminar cuentas que violen estos términos
+        o presenten actividad sospechosa.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">04</span> Pedidos y pagos</h2>
+      <p>
+        Al realizar un pedido a través del Servicio, aceptas las siguientes condiciones:
+      </p>
+      <ul>
+        <li><strong>Disponibilidad:</strong> Los productos están sujetos a disponibilidad en inventario. Si un producto no está disponible, te contactaremos para ofrecerte alternativas.</li>
+        <li><strong>Precios:</strong> Los precios mostrados son en pesos dominicanos (RD$) e incluyen ITBIS cuando aplique. Los precios pueden cambiar sin previo aviso.</li>
+        <li><strong>Confirmación:</strong> Un pedido se considera confirmado cuando recibes una notificación de confirmación por parte de nuestro equipo.</li>
+        <li><strong>Pago:</strong> El pago se realiza al momento de la entrega según los métodos aceptados por el repartidor (efectivo, transferencia bancaria u otros métodos indicados).</li>
+        <li><strong>Cancelaciones:</strong> Puedes cancelar un pedido antes de que sea procesado por nuestro equipo contactándonos directamente.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">05</span> Entregas</h2>
+      <p>
+        El Servicio de entrega a domicilio opera bajo las siguientes condiciones:
+      </p>
+      <ul>
+        <li><strong>Zona de cobertura:</strong> Las entregas se realizan dentro de las zonas habilitadas indicadas en la configuración del Servicio.</li>
+        <li><strong>Costo de envío:</strong> Se aplica un costo de envío estándar. Los pedidos que superen el monto mínimo establecido tienen envío gratuito.</li>
+        <li><strong>Tiempo estimado:</strong> El tiempo de entrega es estimado y puede variar según la distancia, disponibilidad de repartidores y condiciones externas.</li>
+        <li><strong>Recepción:</strong> Debes estar disponible en la dirección indicada para recibir el pedido. Si no hay nadie disponible, coordinaremos una nueva entrega.</li>
+      </ul>
+      <div class="warning-box">
+        ⚠️ Casa Mota no se hace responsable por demoras causadas por situaciones de fuerza mayor,
+        condiciones climáticas adversas o direcciones incorrectas proporcionadas por el cliente.
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">06</span> Devoluciones y reclamaciones</h2>
+      <p>
+        Nos comprometemos a entregar productos en buen estado y con las condiciones indicadas
+        en el catálogo. Si tienes alguna inconformidad:
+      </p>
+      <ul>
+        <li><strong>Productos en mal estado:</strong> Notifícanos en el momento de la entrega o dentro de las 2 horas siguientes con fotografías del producto.</li>
+        <li><strong>Producto incorrecto:</strong> Si recibes un producto diferente al solicitado, lo reemplazaremos sin costo adicional.</li>
+        <li><strong>Faltantes:</strong> Si falta algún producto en tu pedido, te haremos el reembolso o lo incluiremos en tu próxima entrega.</li>
+      </ul>
+      <p>
+        Para gestionar una reclamación, contáctanos por WhatsApp o teléfono con tu número
+        de pedido y descripción del problema.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">07</span> Puntos de fidelización y cupones</h2>
+      <p>
+        El programa de puntos y cupones de Casa Mota opera bajo las siguientes reglas:
+      </p>
+      <ul>
+        <li>Los puntos se acumulan por compras completadas y entregadas.</li>
+        <li>Los puntos no tienen valor en efectivo y no son transferibles a otras cuentas.</li>
+        <li>Los puntos pueden expirar según la política de vencimiento configurada por el administrador.</li>
+        <li>Los cupones son de uso único y no acumulables entre sí, salvo indicación contraria.</li>
+        <li>Nos reservamos el derecho de modificar, suspender o cancelar el programa de puntos con previo aviso.</li>
+        <li>El uso fraudulento de puntos o cupones resultará en la suspensión inmediata de la cuenta.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">08</span> Uso aceptable</h2>
+      <p>Al usar el Servicio, te comprometes a NO:</p>
+      <ul>
+        <li>Usar el Servicio para actividades ilegales o fraudulentas.</li>
+        <li>Intentar acceder a cuentas de otros usuarios sin autorización.</li>
+        <li>Publicar información falsa o engañosa en tu perfil o pedidos.</li>
+        <li>Realizar pedidos con intención de no pagar o cancelar de forma reiterada.</li>
+        <li>Intentar descompilar, modificar o hacer ingeniería inversa del Servicio.</li>
+        <li>Usar herramientas automatizadas (bots) para interactuar con el Servicio.</li>
+      </ul>
+      <div class="warning-box">
+        ⚠️ El incumplimiento de estas reglas puede resultar en la suspensión permanente
+        de tu cuenta y, de ser necesario, en acciones legales.
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">09</span> Asistente virtual Maya</h2>
+      <p>
+        El Servicio incluye un asistente de inteligencia artificial llamado <strong>Maya</strong>,
+        impulsado por tecnología de Groq. Al usar Maya, aceptas que:
+      </p>
+      <ul>
+        <li>Las respuestas de Maya son orientativas y pueden contener errores o información desactualizada.</li>
+        <li>Maya no reemplaza la confirmación directa con nuestro equipo para información crítica (precios, disponibilidad, horarios).</li>
+        <li>Las conversaciones pueden ser revisadas por nuestro equipo para mejorar el Servicio.</li>
+        <li>No debes compartir información financiera sensible (números de tarjeta, contraseñas) con Maya.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">10</span> Propiedad intelectual</h2>
+      <p>
+        Todo el contenido del Servicio — incluyendo logotipos, imágenes, textos, diseños
+        y código fuente — es propiedad de Supermercado Casa Mota o de sus respectivos
+        titulares y está protegido por las leyes de propiedad intelectual de la
+        República Dominicana.
+      </p>
+      <p>
+        Queda prohibida la reproducción, distribución o uso comercial de cualquier
+        elemento del Servicio sin autorización escrita previa de Casa Mota.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">11</span> Limitación de responsabilidad</h2>
+      <p>
+        En la medida permitida por la ley aplicable, Supermercado Casa Mota no será
+        responsable por:
+      </p>
+      <ul>
+        <li>Interrupciones temporales del Servicio por mantenimiento o causas técnicas.</li>
+        <li>Pérdida de datos causada por fallas del dispositivo del usuario.</li>
+        <li>Daños indirectos derivados del uso o imposibilidad de uso del Servicio.</li>
+        <li>Errores tipográficos en precios o descripciones de productos (los corregiremos tan pronto como sea posible).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">12</span> Legislación aplicable</h2>
+      <p>
+        Estos Términos de Uso se rigen por las leyes de la <strong>República Dominicana</strong>.
+        Cualquier disputa derivada del uso del Servicio será sometida a la jurisdicción de los
+        tribunales competentes de Santo Domingo, República Dominicana.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">13</span> Contacto</h2>
+      <p>
+        Para cualquier consulta sobre estos Términos de Uso, contáctanos:
+      </p>
+      <div class="contact-card">
+        <p>🏪 <strong>Supermercado Casa Mota</strong></p>
+        <p>📍 Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey, República Dominicana</p>
+        <p>📧 <a href="mailto:info@casamota.com.do">info@casamota.com.do</a></p>
+        <p>🌐 <a href="https://supermercadocasamota.com">supermercadocasamota.com</a></p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>© 2026 Supermercado Casa Mota · República Dominicana</p>
+    <p style="margin-top:6px">
+      <a href="index.html">Tienda</a> &nbsp;·&nbsp;
+      <a href="terms.html">Términos de Uso</a> &nbsp;·&nbsp;
+      <a href="privacy.html">Privacidad</a>
+    </p>
+  </footer>
+
+</body>
+</html>

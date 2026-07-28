@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Política de Privacidad — Supermercado Casa Mota</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" href="images/logo-casamota.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:      #1a7c3e;
+      --green-dark: #145e2e;
+      --green-pale: #e8f5ee;
+      --text:       #1a1a2e;
+      --muted:      #64748b;
+      --border:     #e2e8f0;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f8fafc;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: #fff;
+      padding: 28px 24px;
+      text-align: center;
+    }
+    .header-logo {
+      width: 72px;
+      border-radius: 14px;
+      background: #fff;
+      padding: 6px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    header p {
+      font-size: .88rem;
+      opacity: .85;
+    }
+
+    /* ── Nav de retorno ── */
+    .back-bar {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+    }
+    .back-bar a {
+      color: var(--green);
+      text-decoration: none;
+      font-size: .88rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .back-bar a:hover { text-decoration: underline; }
+
+    /* ── Contenido ── */
+    main {
+      max-width: 780px;
+      margin: 32px auto;
+      padding: 0 24px 60px;
+    }
+
+    .last-updated {
+      background: var(--green-pale);
+      border-left: 4px solid var(--green);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: .85rem;
+      color: var(--green-dark);
+      margin-bottom: 36px;
+      font-weight: 500;
+    }
+
+    section {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 28px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.04);
+    }
+    section h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    section h2 .sec-num {
+      background: var(--green-pale);
+      color: var(--green-dark);
+      font-size: .78rem;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+    section p {
+      font-size: .92rem;
+      color: #444;
+      margin-bottom: 12px;
+    }
+    section p:last-child { margin-bottom: 0; }
+    section ul {
+      padding-left: 20px;
+      font-size: .92rem;
+      color: #444;
+    }
+    section ul li { margin-bottom: 8px; }
+    section ul li:last-child { margin-bottom: 0; }
+
+    .highlight-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: .88rem;
+      color: #166534;
+      margin-top: 14px;
+    }
+
+    .contact-card {
+      background: var(--green-pale);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-top: 14px;
+    }
+    .contact-card p {
+      margin-bottom: 6px;
+      font-size: .9rem;
+      color: var(--green-dark);
+      font-weight: 500;
+    }
+    .contact-card a {
+      color: var(--green);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .contact-card a:hover { text-decoration: underline; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: .8rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--green); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img src="images/logo-casamota.png" alt="Casa Mota" class="header-logo" />
+    <h1>Política de Privacidad</h1>
+    <p>Supermercado Casa Mota — supermercadocasamota.com</p>
+  </header>
+
+  <div class="back-bar">
+    <a href="index.html">← Volver a la tienda</a>
+  </div>
+
+  <main>
+
+    <div class="last-updated">
+      📅 Última actualización: 28 de julio de 2026 · Versión 1.0
+    </div>
+
+    <section>
+      <h2><span class="sec-num">01</span> Introducción</h2>
+      <p>
+        Supermercado Casa Mota ("nosotros", "nuestro" o "la empresa") opera el sitio web
+        <strong>supermercadocasamota.com</strong> y la aplicación móvil <strong>Casa Mota</strong>
+        (en adelante, "el Servicio").
+      </p>
+      <p>
+        Esta Política de Privacidad describe cómo recopilamos, usamos, almacenamos y protegemos
+        tu información personal cuando utilizas nuestro Servicio. Al usar la aplicación o el sitio
+        web, aceptas los términos descritos en esta política.
+      </p>
+      <div class="highlight-box">
+        🔒 Nos comprometemos a proteger tu privacidad. Nunca vendemos ni compartimos tu información
+        personal con terceros con fines publicitarios.
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">02</span> Información que recopilamos</h2>
+      <p>Recopilamos los siguientes tipos de información:</p>
+      <ul>
+        <li><strong>Información de cuenta:</strong> nombre completo, correo electrónico, número de teléfono y contraseña (almacenada de forma cifrada).</li>
+        <li><strong>Información de entrega:</strong> dirección de entrega, ciudad y notas adicionales que proporcionas al realizar un pedido.</li>
+        <li><strong>Historial de pedidos:</strong> productos comprados, fechas, montos y estados de entrega.</li>
+        <li><strong>Preferencias:</strong> productos favoritos, lista de compras guardada y preferencias de notificaciones.</li>
+        <li><strong>Datos de uso:</strong> páginas visitadas, búsquedas realizadas y tiempo de uso del Servicio (de forma anónima y agregada).</li>
+        <li><strong>Datos del dispositivo:</strong> tipo de dispositivo, sistema operativo y versión de la aplicación (solo para soporte técnico).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">03</span> Cómo usamos tu información</h2>
+      <p>Utilizamos tu información exclusivamente para:</p>
+      <ul>
+        <li>Procesar y entregar tus pedidos en la dirección indicada.</li>
+        <li>Comunicarnos contigo sobre el estado de tu pedido via WhatsApp, teléfono o correo.</li>
+        <li>Gestionar tu cuenta, puntos de fidelización y cupones de descuento.</li>
+        <li>Enviarte notificaciones sobre ofertas, productos nuevos y actualizaciones del Servicio (solo si das tu consentimiento).</li>
+        <li>Mejorar la experiencia de uso del Servicio y solucionar problemas técnicos.</li>
+        <li>Cumplir con obligaciones legales y fiscales aplicables en la República Dominicana.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">04</span> Almacenamiento y seguridad</h2>
+      <p>
+        Tu información es almacenada de forma segura en servidores de <strong>Supabase</strong>
+        (infraestructura en la nube con certificación SOC 2). Las contraseñas son cifradas
+        con <strong>bcrypt</strong> y nunca se almacenan en texto plano.
+      </p>
+      <p>
+        Las imágenes y archivos multimedia se almacenan en <strong>Cloudflare R2</strong>,
+        una plataforma de almacenamiento segura con cifrado en reposo y en tránsito.
+      </p>
+      <ul>
+        <li>Todas las comunicaciones usan cifrado <strong>HTTPS/TLS</strong>.</li>
+        <li>El acceso a la base de datos está protegido por políticas de seguridad a nivel de fila (RLS).</li>
+        <li>Solo el personal autorizado de Casa Mota tiene acceso a tus datos personales.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">05</span> Compartir información con terceros</h2>
+      <p>
+        <strong>No vendemos ni alquilamos tu información personal.</strong> Solo compartimos
+        datos con terceros en los siguientes casos limitados:
+      </p>
+      <ul>
+        <li><strong>Repartidores:</strong> nombre, dirección y teléfono de contacto para completar la entrega.</li>
+        <li><strong>Proveedores de tecnología:</strong> Supabase y Cloudflare para almacenamiento seguro de datos (bajo acuerdos de confidencialidad).</li>
+        <li><strong>Requerimientos legales:</strong> cuando la ley dominicana así lo exija (ej. orden judicial).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">06</span> Permisos de la aplicación móvil</h2>
+      <p>La aplicación móvil de Casa Mota puede solicitar los siguientes permisos:</p>
+      <ul>
+        <li><strong>Cámara:</strong> para escanear códigos de barras de productos y agilizar tu compra. No se almacenan imágenes de la cámara.</li>
+        <li><strong>Notificaciones push:</strong> para informarte sobre el estado de tu pedido y ofertas especiales. Puedes desactivarlas en cualquier momento.</li>
+        <li><strong>Acceso a internet:</strong> necesario para cargar el catálogo, realizar pedidos y comunicarse con el servidor.</li>
+      </ul>
+      <div class="highlight-box">
+        📱 Todos los permisos son opcionales excepto el acceso a internet. Puedes usar la app sin cámara ni notificaciones.
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">07</span> Retención de datos</h2>
+      <p>
+        Conservamos tu información mientras mantengas una cuenta activa en el Servicio.
+        Si solicitas la eliminación de tu cuenta, borraremos tus datos personales en un plazo
+        de <strong>30 días hábiles</strong>, excepto los registros que debamos conservar por
+        obligaciones legales o fiscales (hasta 5 años según la legislación dominicana).
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">08</span> Tus derechos</h2>
+      <p>Como usuario tienes derecho a:</p>
+      <ul>
+        <li><strong>Acceso:</strong> solicitar una copia de los datos personales que tenemos sobre ti.</li>
+        <li><strong>Corrección:</strong> solicitar la corrección de datos incorrectos o desactualizados.</li>
+        <li><strong>Eliminación:</strong> solicitar la eliminación de tu cuenta y datos personales.</li>
+        <li><strong>Portabilidad:</strong> recibir tus datos en un formato legible por máquina.</li>
+        <li><strong>Oposición:</strong> oponerte al procesamiento de tus datos para fines de marketing.</li>
+      </ul>
+      <p>Para ejercer cualquiera de estos derechos, contáctanos a través de los medios indicados en la sección de Contacto.</p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">09</span> Cookies y almacenamiento local</h2>
+      <p>
+        El Servicio utiliza <strong>localStorage</strong> y <strong>sessionStorage</strong>
+        del navegador para guardar tu sesión activa, preferencias de la tienda y el carrito
+        de compras. No utilizamos cookies de rastreo de terceros ni publicidad.
+      </p>
+      <p>
+        Puedes limpiar estos datos en cualquier momento desde la configuración de tu navegador
+        o aplicación, lo que cerrará tu sesión activa.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">10</span> Menores de edad</h2>
+      <p>
+        El Servicio no está dirigido a menores de 13 años. No recopilamos intencionalmente
+        información personal de menores. Si eres padre/madre o tutor y crees que tu hijo
+        ha proporcionado datos personales, contáctanos para eliminarlos de inmediato.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">11</span> Cambios a esta política</h2>
+      <p>
+        Podemos actualizar esta Política de Privacidad periódicamente. Te notificaremos
+        sobre cambios significativos mediante un aviso visible en el Servicio o por correo
+        electrónico. La fecha de "última actualización" al inicio de este documento siempre
+        reflejará la versión vigente.
+      </p>
+      <p>
+        El uso continuado del Servicio después de publicar cambios constituye tu aceptación
+        de la política actualizada.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="sec-num">12</span> Contacto</h2>
+      <p>
+        Si tienes preguntas, solicitudes o inquietudes sobre esta Política de Privacidad,
+        puedes contactarnos por cualquiera de estos medios:
+      </p>
+      <div class="contact-card">
+        <p>🏪 <strong>Supermercado Casa Mota</strong></p>
+        <p>📍 Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey, República Dominicana</p>
+        <p>📧 <a href="mailto:info@casamota.com.do">info@casamota.com.do</a></p>
+        <p>🌐 <a href="https://supermercadocasamota.com">supermercadocasamota.com</a></p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>© 2026 Supermercado Casa Mota · República Dominicana</p>
+    <p style="margin-top:6px">
+      <a href="index.html">Tienda</a> &nbsp;·&nbsp;
+      <a href="terms.html">Términos de Uso</a> &nbsp;·&nbsp;
+      <a href="privacy.html">Privacidad</a>
+    </p>
+  </footer>
+
+</body>
+</html>
