@@ -40,9 +40,9 @@ async function _chatGroqKey() {
 
   // 3) Base de datos
   try {
-    const res  = await _supaFetch('settings?select=*&limit=1', {});
-    const data = res;
-    const key  = data[0]?.groqApiKey;
+    const res  = await _chatFetch('tables/settings?limit=1');
+    const data = await res.json();
+    const key  = data.data?.[0]?.groqApiKey;
     if (key && key.startsWith('gsk_')) {
       _chatGroqKeyCache = key;
       localStorage.setItem('groq_api_key', key); // cachear para próximas veces
@@ -62,9 +62,9 @@ async function _chatGroqKey() {
       _chatGroqKeyCache = local;
       return; // Ya la tenemos
     }
-    const res  = await _supaFetch('settings?select=*&limit=1', {});
-    const data = res;
-    const key  = data[0]?.groqApiKey;
+    const res  = await _chatFetch('tables/settings?limit=1');
+    const data = await res.json();
+    const key  = data.data?.[0]?.groqApiKey;
     if (key && key.startsWith('gsk_') && key.length > 20) {
       _chatGroqKeyCache = key;
       localStorage.setItem('groq_api_key', key);
@@ -85,37 +85,39 @@ let _unreadCount        = 0;
 let _pendingCartProducts = []; // Productos pendientes de confirmar para agregar al carrito
 let _chatStoreInfo      = null; // Datos de contacto del supermercado
 
-/** Carga los datos de contacto del supermercado desde settings */
+/** Carga los datos de contacto del supermercado desde settings.
+ *  USA DB.getSettings() — misma fuente que app.js y admin.v33.js
+ *  → siempre lee Supabase en producción, nunca datos hardcodeados de dev.
+ */
 async function _chatLoadStoreInfo() {
   if (_chatStoreInfo) return; // Ya cargados
   try {
-    const res  = await _supaFetch('settings?select=*&limit=1', {});
-    const data = res;
-    const s    = data[0] || {};
+    // DB.getSettings() maneja el entorno (Genspark vs Supabase) automáticamente
+    const s = await DB.getSettings();
     _chatStoreInfo = {
-      name:     s.storeName     || 'Supermercado Casa Mota',
-      address:  s.storeAddress  || 'Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey',
-      phone:    s.storePhone    || '',
-      email:    s.storeEmail    || '',
-      hoursWk:  s.hoursWeekday  || '',
-      hoursSun: s.hoursSunday   || '',
-      whatsapp: s.whatsapp      || s.storePhone || '',
-      delivery: s.deliveryZones || 'Santo Domingo y zonas metropolitanas',
-      shippingFee:    s.shippingFee     || '150',
+      name:            s.storeName      || 'Supermercado Casa Mota',
+      address:         s.storeAddress   || 'Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey',
+      phone:           s.storePhone     || '',
+      email:           s.storeEmail     || '',
+      hoursWk:         s.hoursWeekday   || '',
+      hoursSun:        s.hoursSunday    || '',
+      whatsapp:        s.storeWhatsapp  || '',   // ← campo correcto (storeWhatsapp, no whatsapp)
+      delivery:        s.serviceZones   || 'Hato Mayor del Rey y zonas cercanas',
+      shippingFee:     s.shippingFee    || '150',
       freeShippingMin: s.freeShippingMin || '1500',
     };
   } catch(_) {
-    // Datos por defecto si falla la carga
+    // Datos mínimos si falla la red — sin teléfono hardcodeado
     _chatStoreInfo = {
-      name:     'Supermercado Casa Mota',
-      address:  'Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey',
-      phone:    '',
-      email:    '',
-      hoursWk:  '',
-      hoursSun: '',
-      whatsapp: '',
-      delivery: 'Santo Domingo y zonas metropolitanas',
-      shippingFee: '150',
+      name:            'Supermercado Casa Mota',
+      address:         'Ave. Melchor Contín Alfau No.5, Centro, Hato Mayor del Rey',
+      phone:           '',
+      email:           '',
+      hoursWk:         '',
+      hoursSun:        '',
+      whatsapp:        '',
+      delivery:        'Hato Mayor del Rey y zonas cercanas',
+      shippingFee:     '150',
       freeShippingMin: '1500',
     };
   }
@@ -365,9 +367,9 @@ const _QUICK_SUGGESTIONS = _IS_ADMIN ? _QUICK_SUGGESTIONS_ADMIN : _QUICK_SUGGEST
 async function _chatLoadProducts() {
   if (_chatProdCache.length > 0) return; // Ya cargados
   try {
-    const resp = await _supaFetch('products?select=id,name,category,price,badge,deleted&limit=500&order=name.asc', {});
-    const data = resp;
-    _chatProdCache = (data || [])
+    const resp = await _chatFetch('tables/products?limit=500&sort=name');
+    const data = await resp.json();
+    _chatProdCache = (data.data || [])
       .filter(p => !p.deleted && p.active !== false)
       .map(p => ({ id: p.id, name: p.name, category: p.category, price: p.price, badge: p.badge }));
   } catch (_) {
