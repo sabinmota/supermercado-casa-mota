@@ -3554,8 +3554,14 @@ async function renderMyAccount() {
   const rkVal = (currentClient.ranking || currentClient.loyaltyTier || 'bronce').toLowerCase();
   const grid = document.getElementById('accountInfoGrid');
   if (grid) {
+    // Cédula o RNC — mostrar etiqueta correcta según longitud
+    const docNum   = currentClient.cedula || '—';
+    const docLabel = docNum !== '—' && docNum.replace(/\D/g,'').length > 11 ? 'RNC' : 'Cédula';
+
     grid.innerHTML = `
+      <div class="acc-info-item" style="grid-column:1/-1"><i class="fas fa-envelope"></i><span>${currentClient.email || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-phone"></i><span>${currentClient.phone || '—'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-id-card"></i><span>${docLabel}: ${docNum}</span></div>
       <div class="acc-info-item"><i class="fas fa-location-dot"></i><span>${currentClient.address || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-city"></i><span>${currentClient.city || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-circle-check"></i><span>${statusLabel[currentClient.status] || '✅ Cuenta Habilitada'}</span></div>
