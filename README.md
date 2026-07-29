@@ -1,21 +1,79 @@
 # 🛒 Supermercado Casa Mota — Estado del Proyecto
 
-## ✅ Estado actual (v33.5 — 2026-06-22)
+---
+
+## 📸 Posts de Marketing Instagram (1080×1080px) — ✅ COMPLETO (2026-07-27)
+
+### Archivos en `marketing/`
+
+| Archivo | Descripción | Estado |
+|---|---|---|
+| `index.html` | Galería con vista previa de los 4 posts | ✅ |
+| `post1-hero.html` | Post hero — "Descarga la App" | ✅ Logo inline SVG |
+| `post2-precios.html` | Post precios exclusivos App | ✅ **Imágenes solucionadas** |
+| `post3-puntos-cupones.html` | Post puntos y cupones | ✅ Logo inline SVG |
+| `post4-envio-gratis.html` | Post envío gratis | ✅ Logo inline SVG |
+
+### Solución de imágenes rotas en `post2-precios.html`
+
+**Problema:** Las rutas relativas (`img-bistec.jpg`, etc.) fallaban en contexto hosted porque el base URL cambia.
+
+**Solución implementada:**
+- Se generaron 5 imágenes de producto con IA (bistec, pollo, leche, aceite, brócoli)
+- Se convirtieron a PNG thumbnails más pequeños (bistec/pollo/leche/aceite) para reducir tamaño
+- Los base64 completos de las 5 imágenes se almacenaron en la **Table API** (`img_b64`)
+- `post2-precios.html` carga los base64 desde `tables/img_b64` al iniciar y los inyecta en los `<img>` tags
+- El script de fetch() sobre archivos locales fue eliminado y reemplazado por este enfoque
+
+### Tabla de datos: `img_b64`
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | text | Identificador: `bistec`, `pollo`, `leche`, `aceite`, `brocoli` |
+| `data_uri` | rich_text | Base64 data URI completo de la imagen |
+
+### Imágenes de producto en `marketing/`
+
+| Archivo | Tipo | Uso |
+|---|---|---|
+| `img-bistec.jpg` | JPG original | Referencia |
+| `img-bistec.png` | PNG thumbnail | Base para base64 en BD |
+| `img-pollo.jpg` / `.png` | JPG + PNG | Ídem |
+| `img-leche.jpg` / `.png` | JPG + PNG | Ídem |
+| `img-aceite.jpg` / `.png` | JPG + PNG | Ídem |
+| `img-brocoli.jpg` | JPG | Base para base64 en BD |
+
+---
+
+
+## ✅ Estado actual (v33.6 — 2026-07-28)
 
 | Componente | Estado |
 |---|---|
 | **Auto-recarga de Productos** | ✅ Card en Admin→Configuración con toggle ON/OFF, selector de intervalo (1-30 min), badge countdown animado, botón "Recargar ahora", y timestamp de última recarga |
 | **Persistencia auto-reload** | ✅ Estado (enabled/interval/nextTs) guardado en `localStorage` key `cm_autoreload` — sobrevive recargas de página |
-| **Campo WhatsApp en Settings** | ✅ Agregado `settingWhatsapp` (phone-widget) en `admin.html` |
-| **`storeWhatsapp` en admin.v33.js** | ✅ `saveSettings()` + `loadSettings()` incluyen `storeWhatsapp` |
+| **Campo WhatsApp en Settings** | ✅ `settingWhatsapp: ''` en `SETTINGS_FIELDS` — root cause fix (era el campo silenciosamente omitido en el forEach) |
+| **`storeWhatsapp` en admin.v33.js** | ✅ `saveSettings()` + `loadSettings()` (apiMap + rama `else if`) incluyen `storeWhatsapp` · `setPhoneValue` usa `Array.from(selEl.options).find()` (sin lista blanca hardcodeada) |
 | **WhatsApp footer tienda** | ✅ `li#storeWhatsappFooterLi` con `fab fa-whatsapp` verde — visible solo si configurado |
-| **`applyStoreInfo()` en app.js** | ✅ Lee `s.storeWhatsapp`, genera link `wa.me/` E.164, muestra/oculta dinámicamente |
-| **PDFs pedidos (extras.v33.js)** | ✅ `_storeWhatsapp` en línea Tel: del PDF de pedidos |
-| **PDFs reportes (extras.v33.js)** | ✅ `_storeWhatsapp` en línea Tel: del PDF de reportes |
-| **Email en PDFs en línea separada** | ✅ Email queda debajo de Tel/WA, no en la misma línea |
-| **`saveSettings` en api.js** | ✅ Reescrito con fetch directo (sin `_apiPatch`), payload limpio |
-| **Columna `storeWhatsapp` Supabase** | ✅ `ALTER TABLE settings ADD COLUMN storeWhatsapp TEXT` ejecutado |
-| **Versiones activas** | `app.js?v=320` · `api.js?v=304` · `admin.v33.js?v=329` · `extras.v33.js?v=305` |
+| **`applyStoreInfo()` en app.js** | ✅ Lee `s.storeWhatsapp`, genera link `wa.me/` con lógica E.164 (`startsWith('1-')` para detectar código de país ya incluido) |
+| **PDFs pedidos + reportes** | ✅ `_storeWhatsapp` en línea Tel/WA — email en línea separada debajo |
+| **`saveSettings` en api.js** | ✅ Reescrito con PATCH directo (sin `_apiPatch`), trae solo `id`, payload limpio (sin `created_at`/`deleted`) |
+| **Columna `storeWhatsapp` Supabase** | ✅ `ALTER TABLE settings ADD COLUMN "storeWhatsapp" TEXT` ejecutado · valor `809-751-5617` guardado |
+| **`points: 0` eliminado** | ✅ Eliminado del payload `newC` en `createCustomer` — causaba PGRST204 |
+| **`loadSettings()` inicial** | ✅ Eliminada la llamada prematura (línea 622) al inicio del admin — evita race condition con la llamada de línea 668 al navegar a Settings |
+| **Placeholder imagen productos** | ✅ `placeholder-product.png` (moto delivery gris flat) — CSS fade-in al cargar imagen real · `_injectImagesFromMemory()` detecta .png · edge case sin imagen: `img-loaded` inmediato |
+| **Sync Panel** | ✅ `btnCancel` rojo pulsante · `display:flex` fix · `pollLog` race condition corregida · `Date.now()` anti-throttling · APScheduler · `vInvArticulos` · `ArticuloID` en log |
+| **Versiones activas en producción** | `app.js?v=321` · `api.js?v=304` · `admin.v33.js?v=331` · `extras.v33.js?v=305` · `style.css?v=306` · `chat.js?v=225` |
+| **Maya chat — contacto dinámico** | ✅ `_chatLoadStoreInfo()` en `chat.js` reescrita para usar `DB.getSettings()` (igual que `app.js`). Antes usaba `tables/settings` hardcodeado (dev API) → en producción devolvía datos vacíos o de otra sesión. Campo `storeWhatsapp` corregido (era `s.whatsapp`). Sin teléfono hardcodeado en fallback. `chat.js?v=225`. |
+| **Modal "Solicitar cuenta" (login-cliente.html)** | ✅ `showRegisterInfo()` reescrita como `async` — lee `DB.getSettings()` directo de Supabase en lugar de `localStorage`. Muestra `…` mientras carga. Botón WhatsApp dinámico (verde, oculto si vacío). Fallback a `localStorage` si la red falla. `api.js?v=304`. |
+| **Bug "Pedido no encontrado" al cancelar (tienda)** | ✅ `cancelClientOrder()` en `app.js` usaba `_apiFetch('tables/orders/${orderId}')` — API dev, retorna `null` en producción. Fix: detección `_IS_GENSPARK` → en producción usa `fetch(${_SB_URL}/orders?id=eq.${id}&select=*)` con timeout 8s + `_orderFromSupa()`. `app.js?v=321`. |
+
+### 📋 Pendientes
+- ✅ ~~Subir a GitHub `admin.v33.js` v331 + `admin.html`~~
+- ✅ ~~Optimizar `placeholder-product.png` con Squoosh → WebP~~
+- ✅ ~~Campo `storeRNC` en admin/configuración~~
+- ✅ ~~Usuario `SyncCasaMota` en SQL Server~~
+- ✅ ~~Verificar PDF de pedidos muestra Tel + WA + email en líneas separadas~~
 
 ### 🔄 Auto-recarga de Productos — Detalles técnicos
 

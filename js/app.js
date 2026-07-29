@@ -3704,7 +3704,26 @@ async function cancelClientOrder(orderId) {
 
   try {
     // 1) Leer el pedido para validar y obtener productLines
-    const order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
+    //    En Genspark (dev) se usa la API interna; en producción se consulta Supabase directamente.
+    let order = null;
+    if (_IS_GENSPARK) {
+      order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
+    } else {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(
+          `${_SB_URL}/orders?id=eq.${orderId}&select=*`,
+          { headers: _SB_HEADERS, signal: ctrl.signal }
+        );
+        clearTimeout(timer);
+        const list = res.ok ? await res.json() : [];
+        order = list.length > 0 ? _orderFromSupa(list[0]) : null;
+      } catch (fetchErr) {
+        console.warn('[cancelClientOrder] fetch Supabase falló:', fetchErr);
+        order = null;
+      }
+    }
     if (!order) {
       if (card) { card.style.opacity = ''; card.style.pointerEvents = ''; }
       showToast('Pedido no encontrado', 'error');
