@@ -3597,8 +3597,11 @@ async function openSupportSheet() {
   const whatsapp = s.storeWhatsapp || '';
   const email    = s.storeEmail    || '';
   const waNumber = whatsapp.replace(/\D/g, '');
-  const waLink   = waNumber
-    ? 'https://wa.me/' + waNumber + '?text=Hola,%20necesito%20ayuda%20con%20mi%20pedido'
+  // WhatsApp requiere código de país completo.
+  // Si el número tiene 10 dígitos (RD: 809/829/849) le agregamos el código de país 1.
+  const waFull = waNumber.length === 10 ? '1' + waNumber : waNumber;
+  const waLink = waFull
+    ? 'https://wa.me/' + waFull + '?text=Hola,%20tengo%20una%20consulta'
     : '';
   const mailLink = email ? 'mailto:' + email : '';
 
