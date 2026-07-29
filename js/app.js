@@ -3796,7 +3796,26 @@ async function deleteClientOrder(orderId) {
 
   try {
     // Verificar que el pedido pertenece al cliente y está cancelado
-    const order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
+    // En Genspark (dev) se usa la API interna; en producción se consulta Supabase directamente.
+    let order = null;
+    if (_IS_GENSPARK) {
+      order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
+    } else {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(
+          `${_SB_URL}/orders?id=eq.${orderId}&select=*`,
+          { headers: _SB_HEADERS, signal: ctrl.signal }
+        );
+        clearTimeout(timer);
+        const list = res.ok ? await res.json() : [];
+        order = list.length > 0 ? _orderFromSupa(list[0]) : null;
+      } catch (fetchErr) {
+        console.warn('[deleteClientOrder] fetch Supabase falló:', fetchErr);
+        order = null;
+      }
+    }
     if (!order) { showToast('Pedido no encontrado', 'error'); return; }
     if (order.clientId !== currentClient.id && order.email !== currentClient.email) {
       showToast('No tienes permiso para eliminar este pedido', 'error');
