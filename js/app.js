@@ -3477,6 +3477,7 @@ function accOpenView(viewId) {
   if (viewId === 'cupones')        renderMyCoupons();
   if (viewId === 'notificaciones') renderClientNotificaciones();
   if (viewId === 'ubicacion')      renderLocationSection();
+  // soporte usa action sheet, no vista
 }
 
 // Regresa a la vista home
@@ -3569,6 +3570,64 @@ async function renderMyAccount() {
       <div class="acc-info-item"><i class="fas fa-cart-shopping"></i><span>${currentClient.orders || 0} pedido${(currentClient.orders||0)!==1?'s':''}</span></div>
       <div class="acc-info-item"><i class="fas fa-dollar-sign"></i><span>RD$ ${fmt$(currentClient.spent||0)} gastado</span></div>`;
   }
+}
+
+// ─── ACTION SHEET SOPORTE ────────────────────────────────────────────────────
+let _supportSettingsCache = null;
+
+async function openSupportSheet() {
+  const overlay = document.getElementById('supportSheetOverlay');
+  const sheet   = document.getElementById('supportSheet');
+  const opts    = document.getElementById('supportSheetOptions');
+  if (!sheet || !overlay) return;
+
+  // Mostrar sheet de inmediato con spinner
+  overlay.classList.remove('hidden');
+  sheet.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    sheet.classList.add('open');
+  });
+
+  // Cargar settings (con caché)
+  if (!_supportSettingsCache) {
+    try { _supportSettingsCache = await DB.getSettings(); } catch(e) { _supportSettingsCache = {}; }
+  }
+  const s        = _supportSettingsCache;
+  const whatsapp = s.storeWhatsapp || '';
+  const email    = s.storeEmail    || '';
+  const waNumber = whatsapp.replace(/\D/g, '');
+  const waLink   = waNumber
+    ? 'https://wa.me/' + waNumber + '?text=Hola,%20necesito%20ayuda%20con%20mi%20pedido'
+    : '';
+  const mailLink = email ? 'mailto:' + email : '';
+
+  opts.innerHTML =
+    (waLink ? `
+    <a href="${waLink}" target="_blank" rel="noopener"
+       class="support-sheet-option" onclick="closeSupportSheet()" style="--oc:#25d366">
+      <i class="fab fa-whatsapp"></i>
+      <span>WhatsApp<small>${whatsapp}</small></span>
+    </a>` : '') +
+    (mailLink ? `
+    <a href="${mailLink}"
+       class="support-sheet-option" onclick="closeSupportSheet()" style="--oc:#e65100">
+      <i class="fas fa-envelope"></i>
+      <span>Email<small>${email}</small></span>
+    </a>` : '') +
+    (!waLink && !mailLink ? '<p style="text-align:center;color:#aaa;padding:12px 0">No hay datos de contacto configurados.</p>' : '');
+}
+
+function closeSupportSheet() {
+  const overlay = document.getElementById('supportSheetOverlay');
+  const sheet   = document.getElementById('supportSheet');
+  if (!sheet || !overlay) return;
+  overlay.classList.remove('open');
+  sheet.classList.remove('open');
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    sheet.classList.add('hidden');
+  }, 300);
 }
 
 // ─── SECCIÓN MI PUNTOS ────────────────────────────────────────────────────────

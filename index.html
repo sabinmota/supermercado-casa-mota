@@ -106,7 +106,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=308" />
+  <link rel="stylesheet" href="css/style.css?v=310" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -947,6 +947,26 @@
             </div>
           </button>
 
+          <button class="acc-card" onclick="openSupportSheet()" style="--c:#e65100">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-headset"></i>
+              </div>
+              <span class="acc-card-label">Soporte</span>
+            </div>
+          </button>
+
+          <button class="acc-card" onclick="window.open('terms.html','_blank')" style="--c:#37474f">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-file-contract"></i>
+              </div>
+              <span class="acc-card-label">Términos y condiciones</span>
+            </div>
+          </button>
+
         </div><!-- /acc-cards-grid -->
       </div><!-- /acc-view-home -->
 
@@ -1083,6 +1103,19 @@
 
     </div><!-- Cierra account-panel-body -->
 
+  <!-- ══════════════════════════════════════════
+       ACTION SHEET — Soporte
+  ══════════════════════════════════════════ -->
+  <div class="support-sheet-overlay hidden" id="supportSheetOverlay" onclick="closeSupportSheet()"></div>
+  <div class="support-sheet hidden" id="supportSheet">
+    <div class="support-sheet-handle"></div>
+    <p class="support-sheet-title">Selecciona medio de contacto</p>
+    <div class="support-sheet-options" id="supportSheetOptions">
+      <div style="text-align:center;padding:16px;color:#aaa"><i class="fas fa-spinner fa-spin"></i></div>
+    </div>
+    <button class="support-sheet-cancel" onclick="closeSupportSheet()">Cancelar</button>
+  </div>
+
     <div class="account-panel-footer">
       <button class="btn-logout-client" onclick="logoutCliente()">
         <i class="fas fa-right-from-bracket"></i> Cerrar sesión
@@ -1099,7 +1132,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=326"></script>
+  <script src="js/app.js?v=328"></script>
   <!-- Chatbot IA para clientes -->
   <script src="js/chat.js?v=225"></script>
 
