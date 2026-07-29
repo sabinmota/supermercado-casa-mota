@@ -106,7 +106,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=306" />
+  <link rel="stylesheet" href="css/style.css?v=307" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -878,11 +878,55 @@
     </div>
 
     <div class="account-panel-body">
-    <!-- Info de la cuenta -->
-    <div class="account-info-grid" id="accountInfoGrid"></div>
+
+    <!-- ★ MENÚ GRID MODERNO ★ -->
+    <div class="acc-menu-grid">
+      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-pedidos')">
+        <div class="acc-menu-icon-wrap" style="--card-color:#1a7c3e">
+          <i class="fas fa-bag-shopping"></i>
+        </div>
+        <span>Mis pedidos</span>
+      </button>
+      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-perfil')">
+        <div class="acc-menu-icon-wrap" style="--card-color:#0e7fc2">
+          <i class="fas fa-user-circle"></i>
+        </div>
+        <span>Mi perfil</span>
+      </button>
+      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-ubicacion')">
+        <div class="acc-menu-icon-wrap" style="--card-color:#e07b00">
+          <i class="fas fa-location-dot"></i>
+        </div>
+        <span>Mi ubicación</span>
+      </button>
+      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-puntos')">
+        <div class="acc-menu-icon-wrap" style="--card-color:#7c3aed">
+          <i class="fas fa-star"></i>
+        </div>
+        <span>Mis puntos</span>
+      </button>
+      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-cupones')">
+        <div class="acc-menu-icon-wrap" style="--card-color:#c2185b">
+          <i class="fas fa-ticket"></i>
+        </div>
+        <span>Mis cupones</span>
+      </button>
+      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-notificaciones')">
+        <div class="acc-menu-icon-wrap" style="--card-color:#0097a7">
+          <i class="fas fa-bell"></i>
+        </div>
+        <span>Notificaciones</span>
+      </button>
+    </div>
+
+    <!-- Perfil / Info de la cuenta -->
+    <div id="acc-sec-perfil" class="acc-section-anchor">
+      <div class="account-section-title"><i class="fas fa-user-circle"></i> Mi perfil</div>
+      <div class="account-info-grid" id="accountInfoGrid"></div>
+    </div>
 
     <!-- Ubicación de entrega -->
-    <div class="account-location-section">
+    <div id="acc-sec-ubicacion" class="acc-section-anchor account-location-section">
       <div class="account-section-title"><i class="fas fa-location-dot"></i> Mi ubicación de entrega</div>
       <div id="locationStatus" class="location-status-box"></div>
       <div class="location-actions">
@@ -914,13 +958,13 @@
     </div>
 
     <!-- Mis Puntos / Fidelización -->
-    <div class="account-loyalty-section">
+    <div id="acc-sec-puntos" class="acc-section-anchor account-loyalty-section">
       <div class="account-section-title"><i class="fas fa-star"></i> Mis puntos</div>
       <div id="loyaltyCard"></div>
     </div>
 
     <!-- Historial de cupones usados -->
-    <div class="account-coupons-section">
+    <div id="acc-sec-cupones" class="acc-section-anchor account-coupons-section">
       <div class="account-section-title" id="myCouponsHeader">
         <div style="display:flex;align-items:center;gap:8px;flex:1">
           <i class="fas fa-ticket"></i> Mis cupones usados
@@ -934,17 +978,19 @@
     </div>
 
     <!-- Notificaciones del cliente -->
-    <div class="account-notifications-section">
+    <div id="acc-sec-notificaciones" class="acc-section-anchor account-notifications-section">
+      <div class="account-section-title"><i class="fas fa-bell"></i> Notificaciones</div>
       <div id="clientNotiList">
         <p style="text-align:center;color:#aaa;padding:10px">Cargando…</p>
       </div>
     </div>
 
     <!-- Historial de pedidos -->
-    <div class="account-orders-section">
+    <div id="acc-sec-pedidos" class="acc-section-anchor account-orders-section">
       <div class="account-section-title"><i class="fas fa-clock-rotate-left"></i> Mis pedidos</div>
       <div id="myOrdersList"><div class="account-empty"><i class="fas fa-box-open"></i><span>Sin pedidos aún</span></div></div>
     </div>
+
     </div><!-- Cierra account-panel-body -->
 
     <div class="account-panel-footer">
@@ -963,7 +1009,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=323"></script>
+  <script src="js/app.js?v=324"></script>
   <!-- Chatbot IA para clientes -->
   <script src="js/chat.js?v=225"></script>
 

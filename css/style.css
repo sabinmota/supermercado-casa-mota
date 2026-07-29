@@ -1082,21 +1082,23 @@ input, select { font-family: var(--font); }
 .product-img-wrap img { width: 100%; height: 100%; object-fit: contain; padding: 6px; transition: opacity .4s ease; }
 /* Sin scale en hover: evita el temblor al salir del card */
 
-/* Lazy loading: imagen oculta hasta cargarse */
+/* Lazy loading: placeholder visible → fade-in imagen real */
+.product-lazy-img {
+  transition: opacity .45s ease;
+}
 .product-lazy-img:not(.img-loaded) {
-  opacity: 0;
-  animation: skeleton-pulse 1.4s ease-in-out infinite;
-  background: linear-gradient(90deg, #f0f4f0 25%, #e0ebe0 50%, #f0f4f0 75%);
-  background-size: 200% 100%;
+  opacity: 1;           /* placeholder visible mientras carga */
+  object-fit: contain;
+  background: #f0f4f0;
+  padding: 4px;
 }
 .product-lazy-img.img-loaded {
-  opacity: 1;
-  animation: none;
+  animation: imgFadeIn .45s ease forwards;
   background: none;
 }
-@keyframes skeleton-pulse {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes imgFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* 🚫 OVERLAY TEMPORALMENTE DESACTIVADO PARA DEBUG 
@@ -1336,8 +1338,7 @@ input, select { font-family: var(--font); }
 /* Info grid */
 .account-info-grid {
   display: grid; grid-template-columns: 1fr 1fr;
-  gap: 8px; padding: 16px 18px;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 8px; padding: 4px 18px 16px;
   flex-shrink: 0;
 }
 .acc-info-item {
@@ -1347,10 +1348,55 @@ input, select { font-family: var(--font); }
 }
 .acc-info-item i { color: var(--green); font-size: .8rem; width: 14px; text-align: center; }
 
+/* ─── MENÚ GRID MODERNO ─────────────────────────────────────────────────────── */
+.acc-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 18px 16px 8px;
+  background: #f7f8fa;
+  border-bottom: 1px solid #eee;
+}
+.acc-menu-card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 18px 8px 14px;
+  background: #fff; border: 1.5px solid #eeeeee;
+  border-radius: 16px; cursor: pointer;
+  font-size: .78rem; font-weight: 600; color: #333;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  position: relative; overflow: hidden;
+}
+.acc-menu-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--card-color, #1a7c3e);
+  border-radius: 16px 16px 0 0;
+}
+.acc-menu-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.1);
+  border-color: var(--card-color, #1a7c3e);
+}
+.acc-menu-card:active { transform: translateY(0); }
+.acc-menu-icon-wrap {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: color-mix(in srgb, var(--card-color, #1a7c3e) 12%, #fff);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; color: var(--card-color, #1a7c3e);
+  transition: transform .15s;
+}
+.acc-menu-card:hover .acc-menu-icon-wrap { transform: scale(1.1); }
+
+/* Secciones con anchor para scroll */
+.acc-section-anchor {
+  scroll-margin-top: 12px;
+}
+
 /* Sección de pedidos */
 /* ─── Sección Ubicación ─────────────────────────────────────────────────────── */
 .account-location-section {
-  padding: 14px 18px 4px;
+  padding: 0 18px 14px;
   border-bottom: 1px solid #f0f0f0;
 }
 .location-status-box {
@@ -1412,9 +1458,8 @@ input, select { font-family: var(--font); }
 
 /* Sección de puntos / fidelización */
 .account-loyalty-section {
-  padding: 16px 18px 0;
+  padding: 0 18px 14px;
   border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 4px;
 }
 .loyalty-card {
   transition: box-shadow .2s;

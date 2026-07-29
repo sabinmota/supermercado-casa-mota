@@ -3459,6 +3459,16 @@ document.addEventListener('keydown', e => {
 
 // ─── SESIÓN DE CLIENTE — Header y panel Mi Cuenta ────────────────────────────
 
+// Scroll suave a una sección del panel Mi Cuenta
+function accScrollTo(sectionId) {
+  const panel = document.getElementById('accountPanel');
+  const body  = panel?.querySelector('.account-panel-body');
+  const el    = document.getElementById(sectionId);
+  if (!body || !el) return;
+  const offset = el.offsetTop - body.offsetTop;
+  body.scrollTo({ top: offset - 8, behavior: 'smooth' });
+}
+
 function applyClientSession(client) {
   // Saludo en el header
   const greeting = document.getElementById('clientGreeting');
