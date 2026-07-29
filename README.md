@@ -63,11 +63,11 @@
 | **`loadSettings()` inicial** | ✅ Eliminada la llamada prematura (línea 622) al inicio del admin — evita race condition con la llamada de línea 668 al navegar a Settings |
 | **Placeholder imagen productos** | ✅ `placeholder-product.png` (moto delivery gris flat) — CSS fade-in al cargar imagen real · `_injectImagesFromMemory()` detecta .png · edge case sin imagen: `img-loaded` inmediato |
 | **Sync Panel** | ✅ `btnCancel` rojo pulsante · `display:flex` fix · `pollLog` race condition corregida · `Date.now()` anti-throttling · APScheduler · `vInvArticulos` · `ArticuloID` en log |
-| **Versiones activas en producción** | `app.js?v=324` · `api.js?v=305` · `admin.v33.js?v=331` · `extras.v33.js?v=305` · `style.css?v=307` · `chat.js?v=225` |
+| **Versiones activas en producción** | `app.js?v=325` · `api.js?v=305` · `admin.v33.js?v=331` · `extras.v33.js?v=305` · `style.css?v=308` · `chat.js?v=225` |
 | **Maya chat — contacto dinámico** | ✅ `_chatLoadStoreInfo()` en `chat.js` reescrita para usar `DB.getSettings()` (igual que `app.js`). Antes usaba `tables/settings` hardcodeado (dev API) → en producción devolvía datos vacíos o de otra sesión. Campo `storeWhatsapp` corregido (era `s.whatsapp`). Sin teléfono hardcodeado en fallback. `chat.js?v=225`. |
 | **Modal "Solicitar cuenta" (login-cliente.html)** | ✅ `showRegisterInfo()` reescrita como `async` — lee `DB.getSettings()` directo de Supabase en lugar de `localStorage`. Muestra `…` mientras carga. Botón WhatsApp dinámico (verde, oculto si vacío). Fallback a `localStorage` si la red falla. `api.js?v=304`. |
 | **Bug "Pedido no encontrado" al cancelar (tienda)** | ✅ `cancelClientOrder()` + `deleteClientOrder()` en `app.js`: fetch pedido con `_IS_GENSPARK` + Supabase directo; `cancelledAt: Date.now()` (bigint ms). `_orderToSupa()` en `api.js` convierte ISO→ms defensivamente. `app.js?v=323`, `api.js?v=305`. |
-| **Rediseño Mi Cuenta — grid de tarjetas moderno** | ✅ Panel "Mi Cuenta" ahora muestra un grid 3×2 de tarjetas visuales (Mis pedidos, Mi perfil, Mi ubicación, Mis puntos, Mis cupones, Notificaciones) con iconos circulares de color, línea superior de acento y scroll suave hacia cada sección al hacer click. `style.css?v=307`, `app.js?v=324`. |
+| **Rediseño Mi Cuenta — navegación tipo app nativa** | ✅ Panel "Mi Cuenta" con sistema de vistas (pantallas): Home muestra grid 2×3 de tarjetas estilo app con iconos circulares, degradado y onda decorativa. Cada tarjeta abre su propia vista deslizante con header coloreado y botón back. Vistas: Mis pedidos, Mi perfil, Mi ubicación, Mis puntos, Mis cupones, Notificaciones. `style.css?v=308`, `app.js?v=325`. |
 
 ### 📋 Pendientes
 - ✅ ~~Subir a GitHub `admin.v33.js` v331 + `admin.html`~~

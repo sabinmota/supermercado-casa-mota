@@ -1302,11 +1302,10 @@ input, select { font-family: var(--font); }
 /* Body del panel con scroll */
 .account-panel-body {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;          /* Las vistas internas manejan su propio scroll */
+  position: relative;        /* Contexto para vistas absolutas */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y;  /* Permite scroll vertical, bloquea pinch-zoom dentro del panel */
 }
 
 /* Header del panel */
@@ -1348,50 +1347,126 @@ input, select { font-family: var(--font); }
 }
 .acc-info-item i { color: var(--green); font-size: .8rem; width: 14px; text-align: center; }
 
-/* ─── MENÚ GRID MODERNO ─────────────────────────────────────────────────────── */
-.acc-menu-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 18px 16px 8px;
+/* ═══════════════════════════════════════════════════════════
+   SISTEMA DE VISTAS — Mi Cuenta (navegación tipo app nativa)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Cada vista ocupa todo el panel body y se oculta/muestra */
+.acc-view {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: #f7f8fa;
-  border-bottom: 1px solid #eee;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  transform: translateX(100%);
+  transition: transform .28s cubic-bezier(.22,1,.36,1);
 }
-.acc-menu-card {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; padding: 18px 8px 14px;
-  background: #fff; border: 1.5px solid #eeeeee;
-  border-radius: 16px; cursor: pointer;
-  font-size: .78rem; font-weight: 600; color: #333;
-  transition: transform .15s, box-shadow .15s, border-color .15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,.05);
-  position: relative; overflow: hidden;
+.acc-view.active {
+  display: flex;
+  transform: translateX(0);
 }
-.acc-menu-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: var(--card-color, #1a7c3e);
-  border-radius: 16px 16px 0 0;
+/* Vista home: fondo blanco */
+.acc-view-home {
+  background: #fff;
+  overflow-y: auto;
 }
-.acc-menu-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(0,0,0,.1);
-  border-color: var(--card-color, #1a7c3e);
+
+/* Header de cada vista secundaria */
+.acc-view-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 18px;
+  background: var(--hc, #1a7c3e);
+  color: #fff;
+  font-size: 1rem; font-weight: 700;
+  flex-shrink: 0;
+  position: sticky; top: 0; z-index: 10;
 }
-.acc-menu-card:active { transform: translateY(0); }
-.acc-menu-icon-wrap {
-  width: 52px; height: 52px; border-radius: 50%;
-  background: color-mix(in srgb, var(--card-color, #1a7c3e) 12%, #fff);
+.acc-view-header i { font-size: 1.1rem; }
+.acc-back-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,.2); border: none;
+  color: #fff; cursor: pointer; font-size: .9rem;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.3rem; color: var(--card-color, #1a7c3e);
-  transition: transform .15s;
+  flex-shrink: 0; transition: background .15s;
 }
-.acc-menu-card:hover .acc-menu-icon-wrap { transform: scale(1.1); }
+.acc-back-btn:hover { background: rgba(255,255,255,.35); }
+.acc-view-content {
+  padding: 16px 18px;
+  flex: 1;
+}
+
+/* ─── GRID DE TARJETAS (vista home) ─────────────────────────── */
+.acc-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 18px 16px 24px;
+}
+.acc-card {
+  position: relative; overflow: hidden;
+  border: none; background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 3px 14px rgba(0,0,0,.08);
+  cursor: pointer;
+  padding: 0;
+  transition: transform .18s, box-shadow .18s;
+  aspect-ratio: 1 / 1;
+}
+.acc-card:hover  { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.13); }
+.acc-card:active { transform: scale(.96); }
+
+.acc-card-inner {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end;
+  width: 100%; height: 100%;
+  padding-bottom: 18px; gap: 10px;
+  position: relative;
+}
+
+/* Onda decorativa SVG en el fondo de la tarjeta */
+.acc-card-wave {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -10%,
+      color-mix(in srgb, var(--c,#1a7c3e) 14%, transparent) 0%,
+      transparent 70%);
+  border-radius: 20px;
+}
+.acc-card-wave::before {
+  content: '';
+  position: absolute; bottom: 0; left: -20%; right: -20%;
+  height: 55%;
+  background: color-mix(in srgb, var(--c,#1a7c3e) 7%, transparent);
+  border-radius: 50% 50% 0 0;
+}
+
+/* Círculo del icono */
+.acc-card-icon-wrap {
+  width: 62px; height: 62px; border-radius: 50%;
+  background: color-mix(in srgb, var(--c,#1a7c3e) 13%, #fff);
+  border: 2px solid color-mix(in srgb, var(--c,#1a7c3e) 20%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; color: var(--c, #1a7c3e);
+  position: relative; z-index: 1;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--c,#1a7c3e) 25%, transparent);
+  transition: transform .18s;
+}
+.acc-card:hover .acc-card-icon-wrap { transform: scale(1.08); }
+
+.acc-card-label {
+  font-size: .82rem; font-weight: 700; color: #2a2a2a;
+  position: relative; z-index: 1;
+  text-align: center; line-height: 1.2;
+  padding: 0 10px;
+}
 
 /* Secciones con anchor para scroll */
-.acc-section-anchor {
-  scroll-margin-top: 12px;
-}
+.acc-section-anchor { scroll-margin-top: 12px; }
 
 /* Sección de pedidos */
 /* ─── Sección Ubicación ─────────────────────────────────────────────────────── */

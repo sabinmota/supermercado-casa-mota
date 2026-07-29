@@ -3459,14 +3459,36 @@ document.addEventListener('keydown', e => {
 
 // ─── SESIÓN DE CLIENTE — Header y panel Mi Cuenta ────────────────────────────
 
-// Scroll suave a una sección del panel Mi Cuenta
-function accScrollTo(sectionId) {
-  const panel = document.getElementById('accountPanel');
-  const body  = panel?.querySelector('.account-panel-body');
-  const el    = document.getElementById(sectionId);
-  if (!body || !el) return;
-  const offset = el.offsetTop - body.offsetTop;
-  body.scrollTo({ top: offset - 8, behavior: 'smooth' });
+// Abre una vista secundaria del panel Mi Cuenta
+function accOpenView(viewId) {
+  // Ocultar home
+  const home = document.getElementById('acc-view-home');
+  if (home) home.classList.remove('active');
+  // Mostrar la vista solicitada
+  const view = document.getElementById('acc-view-' + viewId);
+  if (!view) return;
+  view.style.display = 'flex';
+  // Forzar reflow para que la transición ocurra
+  void view.offsetWidth;
+  view.classList.add('active');
+  // Renderizar contenido de esa vista si es necesario
+  if (viewId === 'pedidos')        renderMyOrders();
+  if (viewId === 'puntos')         renderLoyaltyCard();
+  if (viewId === 'cupones')        renderMyCoupons();
+  if (viewId === 'notificaciones') renderClientNotificaciones();
+  if (viewId === 'ubicacion')      renderLocationSection();
+}
+
+// Regresa a la vista home
+function accCloseView() {
+  // Ocultar todas las vistas secundarias
+  document.querySelectorAll('.acc-view:not(.acc-view-home)').forEach(v => {
+    v.classList.remove('active');
+    setTimeout(() => { v.style.display = 'none'; }, 300);
+  });
+  // Mostrar home
+  const home = document.getElementById('acc-view-home');
+  if (home) { home.style.display = 'flex'; void home.offsetWidth; home.classList.add('active'); }
 }
 
 function applyClientSession(client) {
@@ -3509,7 +3531,6 @@ function toggleMyAccount() {
 async function renderMyAccount() {
   if (!currentClient) return;
   const initials = currentClient.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-  renderLocationSection();
 
   // Header del panel
   const pa = document.getElementById('panelAvatar');
@@ -3519,8 +3540,16 @@ async function renderMyAccount() {
   if (pn) pn.textContent = currentClient.name;
   if (pe) pe.textContent = currentClient.email;
 
-  // Info grid
-  const statusLabel = { habilitado:'✅ Cuenta Habilitada', deshabilitado:'🚫 Cuenta Deshabilitada', activo:'✅ Cuenta Habilitada', inactivo:'🚫 Cuenta Deshabilitada' };
+  // Asegurar que arranca en la vista home
+  document.querySelectorAll('.acc-view:not(.acc-view-home)').forEach(v => {
+    v.classList.remove('active');
+    v.style.display = 'none';
+  });
+  const home = document.getElementById('acc-view-home');
+  if (home) { home.style.display = 'flex'; home.classList.add('active'); }
+
+  // Info grid del perfil (se renderiza siempre para tenerlo listo)
+  const statusLabel  = { habilitado:'✅ Cuenta Habilitada', deshabilitado:'🚫 Cuenta Deshabilitada', activo:'✅ Cuenta Habilitada', inactivo:'🚫 Cuenta Deshabilitada' };
   const rankingLabel = { vip:'💎 VIP', oro:'🥇 Oro', plata:'🥈 Plata', bronce:'🥉 Bronce' };
   const rkVal = (currentClient.ranking || currentClient.loyaltyTier || 'bronce').toLowerCase();
   const grid = document.getElementById('accountInfoGrid');
@@ -3534,11 +3563,6 @@ async function renderMyAccount() {
       <div class="acc-info-item"><i class="fas fa-cart-shopping"></i><span>${currentClient.orders || 0} pedido${(currentClient.orders||0)!==1?'s':''}</span></div>
       <div class="acc-info-item"><i class="fas fa-dollar-sign"></i><span>RD$ ${fmt$(currentClient.spent||0)} gastado</span></div>`;
   }
-
-  renderMyOrders();
-  renderLoyaltyCard();
-  renderMyCoupons();
-  renderClientNotificaciones();
 }
 
 // ─── SECCIÓN MI PUNTOS ────────────────────────────────────────────────────────

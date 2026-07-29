@@ -106,7 +106,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=307" />
+  <link rel="stylesheet" href="css/style.css?v=308" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -879,117 +879,207 @@
 
     <div class="account-panel-body">
 
-    <!-- ★ MENÚ GRID MODERNO ★ -->
-    <div class="acc-menu-grid">
-      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-pedidos')">
-        <div class="acc-menu-icon-wrap" style="--card-color:#1a7c3e">
-          <i class="fas fa-bag-shopping"></i>
-        </div>
-        <span>Mis pedidos</span>
-      </button>
-      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-perfil')">
-        <div class="acc-menu-icon-wrap" style="--card-color:#0e7fc2">
-          <i class="fas fa-user-circle"></i>
-        </div>
-        <span>Mi perfil</span>
-      </button>
-      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-ubicacion')">
-        <div class="acc-menu-icon-wrap" style="--card-color:#e07b00">
-          <i class="fas fa-location-dot"></i>
-        </div>
-        <span>Mi ubicación</span>
-      </button>
-      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-puntos')">
-        <div class="acc-menu-icon-wrap" style="--card-color:#7c3aed">
-          <i class="fas fa-star"></i>
-        </div>
-        <span>Mis puntos</span>
-      </button>
-      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-cupones')">
-        <div class="acc-menu-icon-wrap" style="--card-color:#c2185b">
-          <i class="fas fa-ticket"></i>
-        </div>
-        <span>Mis cupones</span>
-      </button>
-      <button class="acc-menu-card" onclick="accScrollTo('acc-sec-notificaciones')">
-        <div class="acc-menu-icon-wrap" style="--card-color:#0097a7">
-          <i class="fas fa-bell"></i>
-        </div>
-        <span>Notificaciones</span>
-      </button>
-    </div>
+      <!-- ══════════════════════════════════════════
+           VISTA HOME — Grid de tarjetas
+      ══════════════════════════════════════════ -->
+      <div class="acc-view acc-view-home active" id="acc-view-home">
 
-    <!-- Perfil / Info de la cuenta -->
-    <div id="acc-sec-perfil" class="acc-section-anchor">
-      <div class="account-section-title"><i class="fas fa-user-circle"></i> Mi perfil</div>
-      <div class="account-info-grid" id="accountInfoGrid"></div>
-    </div>
+        <!-- Tarjetas menú 2 columnas -->
+        <div class="acc-cards-grid">
 
-    <!-- Ubicación de entrega -->
-    <div id="acc-sec-ubicacion" class="acc-section-anchor account-location-section">
-      <div class="account-section-title"><i class="fas fa-location-dot"></i> Mi ubicación de entrega</div>
-      <div id="locationStatus" class="location-status-box"></div>
-      <div class="location-actions">
-        <button class="btn-location-gps" onclick="shareMyLocation()">
-          <i class="fas fa-crosshairs"></i> Usar mi ubicación GPS
-        </button>
-        <button class="btn-location-link" onclick="toggleMapLinkInput()">
-          <i class="fas fa-link"></i> Pegar enlace de Maps
-        </button>
-      </div>
-      <div id="mapLinkInputWrap" class="map-link-input-wrap hidden">
-        <input type="url" id="mapLinkInput" class="map-link-input"
-               placeholder="Pega aquí tu enlace de Google Maps…" />
-        <button class="btn-save-location" onclick="saveMapLink()">
-          <i class="fas fa-check"></i> Guardar
-        </button>
-      </div>
-      <div id="mapPreviewWrap" class="map-preview-wrap hidden">
-        <div class="map-preview-header">
-          <span><i class="fas fa-circle-check" style="color:#1a7c3e"></i> Ubicación guardada</span>
-          <a id="mapOpenLink" href="#" target="_blank" rel="noopener" class="map-open-btn">
-            <i class="fas fa-map-location-dot"></i> Abrir
-          </a>
-          <button class="map-delete-btn" onclick="deleteMyLocation()" title="Eliminar ubicación">
-            <i class="fas fa-trash"></i>
+          <button class="acc-card" onclick="accOpenView('pedidos')" style="--c:#1a7c3e">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-bag-shopping"></i>
+              </div>
+              <span class="acc-card-label">Mis pedidos</span>
+            </div>
           </button>
+
+          <button class="acc-card" onclick="accOpenView('perfil')" style="--c:#0e7fc2">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-user-circle"></i>
+              </div>
+              <span class="acc-card-label">Mi perfil</span>
+            </div>
+          </button>
+
+          <button class="acc-card" onclick="accOpenView('ubicacion')" style="--c:#e07b00">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-location-dot"></i>
+              </div>
+              <span class="acc-card-label">Mi ubicación</span>
+            </div>
+          </button>
+
+          <button class="acc-card" onclick="accOpenView('puntos')" style="--c:#7c3aed">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-star"></i>
+              </div>
+              <span class="acc-card-label">Mis puntos</span>
+            </div>
+          </button>
+
+          <button class="acc-card" onclick="accOpenView('cupones')" style="--c:#c2185b">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-ticket"></i>
+              </div>
+              <span class="acc-card-label">Mis cupones</span>
+            </div>
+          </button>
+
+          <button class="acc-card" onclick="accOpenView('notificaciones')" style="--c:#0097a7">
+            <div class="acc-card-inner">
+              <div class="acc-card-wave"></div>
+              <div class="acc-card-icon-wrap">
+                <i class="fas fa-bell"></i>
+              </div>
+              <span class="acc-card-label">Notificaciones</span>
+            </div>
+          </button>
+
+        </div><!-- /acc-cards-grid -->
+      </div><!-- /acc-view-home -->
+
+      <!-- ══════════════════════════════════════════
+           VISTA: MIS PEDIDOS
+      ══════════════════════════════════════════ -->
+      <div class="acc-view" id="acc-view-pedidos">
+        <div class="acc-view-header" style="--hc:#1a7c3e">
+          <button class="acc-back-btn" onclick="accCloseView()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <i class="fas fa-bag-shopping"></i>
+          <span>Mis pedidos</span>
+        </div>
+        <div class="acc-view-content">
+          <div id="myOrdersList">
+            <div class="account-empty"><i class="fas fa-box-open"></i><span>Sin pedidos aún</span></div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Mis Puntos / Fidelización -->
-    <div id="acc-sec-puntos" class="acc-section-anchor account-loyalty-section">
-      <div class="account-section-title"><i class="fas fa-star"></i> Mis puntos</div>
-      <div id="loyaltyCard"></div>
-    </div>
-
-    <!-- Historial de cupones usados -->
-    <div id="acc-sec-cupones" class="acc-section-anchor account-coupons-section">
-      <div class="account-section-title" id="myCouponsHeader">
-        <div style="display:flex;align-items:center;gap:8px;flex:1">
-          <i class="fas fa-ticket"></i> Mis cupones usados
-          <span class="coupon-savings-badge" id="totalSavingsBadge">Ahorro total: RD$ 0.00</span>
+      <!-- ══════════════════════════════════════════
+           VISTA: MI PERFIL
+      ══════════════════════════════════════════ -->
+      <div class="acc-view" id="acc-view-perfil">
+        <div class="acc-view-header" style="--hc:#0e7fc2">
+          <button class="acc-back-btn" onclick="accCloseView()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <i class="fas fa-user-circle"></i>
+          <span>Mi perfil</span>
         </div>
-        <!-- El botón "Limpiar todo" se inyecta dinámicamente por renderMyCoupons() -->
+        <div class="acc-view-content">
+          <div class="account-info-grid" id="accountInfoGrid"></div>
+        </div>
       </div>
-      <div id="myCouponsList">
-        <div class="account-empty"><i class="fas fa-ticket"></i><span>No has usado cupones aún</span></div>
-      </div>
-    </div>
 
-    <!-- Notificaciones del cliente -->
-    <div id="acc-sec-notificaciones" class="acc-section-anchor account-notifications-section">
-      <div class="account-section-title"><i class="fas fa-bell"></i> Notificaciones</div>
-      <div id="clientNotiList">
-        <p style="text-align:center;color:#aaa;padding:10px">Cargando…</p>
+      <!-- ══════════════════════════════════════════
+           VISTA: MI UBICACIÓN
+      ══════════════════════════════════════════ -->
+      <div class="acc-view" id="acc-view-ubicacion">
+        <div class="acc-view-header" style="--hc:#e07b00">
+          <button class="acc-back-btn" onclick="accCloseView()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <i class="fas fa-location-dot"></i>
+          <span>Mi ubicación de entrega</span>
+        </div>
+        <div class="acc-view-content">
+          <div id="locationStatus" class="location-status-box"></div>
+          <div class="location-actions">
+            <button class="btn-location-gps" onclick="shareMyLocation()">
+              <i class="fas fa-crosshairs"></i> Usar mi ubicación GPS
+            </button>
+            <button class="btn-location-link" onclick="toggleMapLinkInput()">
+              <i class="fas fa-link"></i> Pegar enlace de Maps
+            </button>
+          </div>
+          <div id="mapLinkInputWrap" class="map-link-input-wrap hidden">
+            <input type="url" id="mapLinkInput" class="map-link-input"
+                   placeholder="Pega aquí tu enlace de Google Maps…" />
+            <button class="btn-save-location" onclick="saveMapLink()">
+              <i class="fas fa-check"></i> Guardar
+            </button>
+          </div>
+          <div id="mapPreviewWrap" class="map-preview-wrap hidden">
+            <div class="map-preview-header">
+              <span><i class="fas fa-circle-check" style="color:#1a7c3e"></i> Ubicación guardada</span>
+              <a id="mapOpenLink" href="#" target="_blank" rel="noopener" class="map-open-btn">
+                <i class="fas fa-map-location-dot"></i> Abrir
+              </a>
+              <button class="map-delete-btn" onclick="deleteMyLocation()" title="Eliminar ubicación">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- Historial de pedidos -->
-    <div id="acc-sec-pedidos" class="acc-section-anchor account-orders-section">
-      <div class="account-section-title"><i class="fas fa-clock-rotate-left"></i> Mis pedidos</div>
-      <div id="myOrdersList"><div class="account-empty"><i class="fas fa-box-open"></i><span>Sin pedidos aún</span></div></div>
-    </div>
+      <!-- ══════════════════════════════════════════
+           VISTA: MIS PUNTOS
+      ══════════════════════════════════════════ -->
+      <div class="acc-view" id="acc-view-puntos">
+        <div class="acc-view-header" style="--hc:#7c3aed">
+          <button class="acc-back-btn" onclick="accCloseView()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <i class="fas fa-star"></i>
+          <span>Mis puntos</span>
+        </div>
+        <div class="acc-view-content">
+          <div id="loyaltyCard"></div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           VISTA: MIS CUPONES
+      ══════════════════════════════════════════ -->
+      <div class="acc-view" id="acc-view-cupones">
+        <div class="acc-view-header" style="--hc:#c2185b">
+          <button class="acc-back-btn" onclick="accCloseView()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <i class="fas fa-ticket"></i>
+          <span>Mis cupones usados</span>
+        </div>
+        <div class="acc-view-content">
+          <div id="myCouponsHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span class="coupon-savings-badge" id="totalSavingsBadge" style="font-size:.85rem">Ahorro total: RD$ 0.00</span>
+          </div>
+          <div id="myCouponsList">
+            <div class="account-empty"><i class="fas fa-ticket"></i><span>No has usado cupones aún</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           VISTA: NOTIFICACIONES
+      ══════════════════════════════════════════ -->
+      <div class="acc-view" id="acc-view-notificaciones">
+        <div class="acc-view-header" style="--hc:#0097a7">
+          <button class="acc-back-btn" onclick="accCloseView()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <i class="fas fa-bell"></i>
+          <span>Notificaciones</span>
+        </div>
+        <div class="acc-view-content">
+          <div id="clientNotiList">
+            <p style="text-align:center;color:#aaa;padding:20px">Cargando…</p>
+          </div>
+        </div>
+      </div>
 
     </div><!-- Cierra account-panel-body -->
 
@@ -1009,7 +1099,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=324"></script>
+  <script src="js/app.js?v=325"></script>
   <!-- Chatbot IA para clientes -->
   <script src="js/chat.js?v=225"></script>
 
