@@ -108,6 +108,11 @@ function _orderToSupa(o) {
   if ('email'          in r) { r.customer_email = r.email;          delete r.email; }
   if ('phone'          in r) { r.customer_phone = r.phone;          delete r.phone; }
   if ('shipping'       in r) { r.envio          = r.shipping;       delete r.shipping; }
+  // cancelledAt → bigint (ms). Si llega como ISO string lo convertimos.
+  if ('cancelledAt' in r) {
+    const v = r.cancelledAt;
+    r.cancelledAt = (typeof v === 'string') ? new Date(v).getTime() : Number(v);
+  }
   // Columnas que NO existen en Supabase → eliminar para no causar error 400
   if ('payMethodLabel' in r) { delete r.payMethodLabel; }
   if ('mapLink'        in r) { delete r.mapLink; }

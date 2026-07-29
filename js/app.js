@@ -3741,10 +3741,11 @@ async function cancelClientOrder(orderId) {
     }
 
     // 2) Marcar el pedido como cancelado — ÚNICA operación crítica que el usuario espera
+    // cancelledAt como bigint (ms) — la columna en Supabase es type bigint, no timestamptz
     await DB.patchOrder(orderId, {
       status:      'cancelado',
       cancelledBy: 'cliente',
-      cancelledAt: new Date().toISOString(),
+      cancelledAt: Date.now(),
     });
 
     // ── Feedback de éxito inmediato — el usuario ya puede seguir ──
