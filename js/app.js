@@ -4138,18 +4138,20 @@ function renderLocationSection() {
   if (!container) return;
 
   if (mapLink) {
-    // ── Extraer coordenadas del link para miniatura estática de Google Maps ──
-    let lat = '', lng = '';
-    const qMatch  = mapLink.match(/[?&]q=([-\d.]+),([-\d.]+)/);
-    const llMatch = mapLink.match(/@([-\d.]+),([-\d.]+)/);
-    if (qMatch)  { lat = qMatch[1];  lng = qMatch[2]; }
-    else if (llMatch) { lat = llMatch[1]; lng = llMatch[2]; }
-    const hasCoords  = lat && lng;
-    const staticMap  = hasCoords
-      ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&markers=color:red%7C${lat},${lng}&key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFmBWY`
-      : '';
-    // Miniatura iframe embebida (fallback cuando no hay coords)
-    const shortAddr  = currentClient.address ? currentClient.address.substring(0, 30) + (currentClient.address.length > 30 ? '…' : '') : 'Ver en mapa';
+    // ── Miniatura: iframe embed de Google Maps con el link guardado ──
+    // Convertir cualquier tipo de link de Maps a URL embebible
+    let embedSrc = '';
+    const coordMatch = mapLink.match(/[?&]q=([-\d.]+),([-\d.]+)/) || mapLink.match(/@([-\d.]+),([-\d.]+)/);
+    if (coordMatch) {
+      const lat = coordMatch[1], lng = coordMatch[2];
+      embedSrc = `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
+    } else {
+      // Link corto o dirección — encodear y embed directo
+      embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapLink)}&output=embed`;
+    }
+    const shortAddr = currentClient.address
+      ? currentClient.address.substring(0, 35) + (currentClient.address.length > 35 ? '…' : '')
+      : 'Ver en mapa';
 
     container.innerHTML = `
       <!-- Saludo -->
@@ -4172,10 +4174,14 @@ function renderLocationSection() {
       <div class="loc-card">
         <div class="loc-card-badge">Predeterminada</div>
         <a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb">
-          ${hasCoords
-            ? `<img src="${staticMap}" alt="Mapa" onerror="this.parentElement.innerHTML='<div class=loc-map-placeholder><i class=fas fa-map-location-dot></i></div>'">`
-            : `<div class="loc-map-placeholder"><i class="fas fa-map-location-dot"></i></div>`
-          }
+          <iframe
+            src="${embedSrc}"
+            width="100%" height="100%"
+            style="border:0;pointer-events:none;display:block"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="Mapa de ubicación">
+          </iframe>
         </a>
         <div class="loc-card-footer">
           <i class="fas fa-location-dot" style="color:#e07b00;flex-shrink:0"></i>
