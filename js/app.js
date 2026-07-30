@@ -3755,6 +3755,14 @@ async function renderMyOrders() {
     const canCancel = ['pendiente', 'procesando'].includes(o.status);
     // Botón eliminar: solo en pedidos cancelados
     const isCancelled = o.status === 'cancelado';
+    // Botón repetir: en entregados y cancelados (pedidos finalizados)
+    const canRepeat = ['entregado', 'cancelado'].includes(o.status) && (o.productLines || []).length > 0;
+
+    const repeatBtn = canRepeat
+      ? `<button class="btn-repeat-order" onclick="repeatOrder('${o.id}')" title="Volver a pedir los mismos artículos">
+           <i class="fas fa-rotate-right"></i> Repetir pedido
+         </button>`
+      : '';
 
     const actionBtn = canCancel
       ? `<button class="btn-cancel-order" onclick="cancelClientOrder('${o.id}')" title="Cancelar pedido">
@@ -3781,10 +3789,110 @@ async function renderMyOrders() {
           <span class="my-order-total">RD$ ${fmt$(o.total || 0)}</span>
           ${actionBtn}
         </div>
+        ${repeatBtn ? `<div class="my-order-repeat">${repeatBtn}</div>` : ''}
       </div>`;
   }).join('');
 
   container.innerHTML = header + cards;
+}
+
+// ─── Repetir pedido — carga todos los artículos al carrito ───────────────────
+async function repeatOrder(orderId) {
+  if (!currentClient) return;
+
+  // Buscar el pedido en los datos ya cargados
+  let order = null;
+  try {
+    const allOrders = await DB.getOrders();
+    order = allOrders.find(o => o.id === orderId);
+  } catch(e) { order = null; }
+
+  // Si no está en caché, buscarlo en Supabase directamente
+  if (!order) {
+    try {
+      if (_IS_GENSPARK) {
+        order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
+      } else {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(`${_SB_URL}/orders?id=eq.${orderId}&select=*`,
+          { headers: _SB_HEADERS, signal: ctrl.signal });
+        clearTimeout(timer);
+        const list = res.ok ? await res.json() : [];
+        order = list.length > 0 ? _orderFromSupa(list[0]) : null;
+      }
+    } catch(e) { order = null; }
+  }
+
+  const lines = order?.productLines || [];
+  if (lines.length === 0) {
+    showToast('<i class="fas fa-exclamation-circle"></i> No se encontraron artículos en este pedido', 'error');
+    return;
+  }
+
+  const liveProducts = getLiveProducts();
+  let added = 0, unavailable = [];
+
+  lines.forEach(line => {
+    const qty = line.cantidad || line.qty || 1;
+    // Buscar el producto en catálogo actual (precio actualizado)
+    const live = liveProducts.find(p => String(p.id) === String(line.productId));
+
+    if (live) {
+      // Producto sigue activo — usar datos actuales
+      const existing = cart.find(c => String(c.id) === String(live.id));
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        cart.push({ ...live, qty });
+      }
+      added++;
+    } else {
+      // Producto ya no disponible — usar datos guardados del pedido
+      const fallbackId = String(line.productId || line.id || '');
+      if (fallbackId) {
+        const existing = cart.find(c => String(c.id) === fallbackId);
+        if (existing) {
+          existing.qty += qty;
+        } else {
+          cart.push({
+            id:       fallbackId,
+            name:     line.name || 'Producto',
+            image:    line.image || '',
+            price:    line.price || 0,
+            unit:     line.unit || 'unidad',
+            category: line.category || '',
+            qty,
+          });
+        }
+        added++;
+      } else {
+        unavailable.push(line.name || 'Producto');
+      }
+    }
+  });
+
+  if (added === 0) {
+    showToast('<i class="fas fa-exclamation-circle"></i> No se pudieron agregar los artículos al carrito', 'error');
+    return;
+  }
+
+  saveCart();
+  updateCartUI();
+
+  // Mensaje de confirmación
+  let msg = `<i class="fas fa-rotate-right"></i> ${added} artículo${added !== 1 ? 's' : ''} agregado${added !== 1 ? 's' : ''} al carrito`;
+  if (unavailable.length > 0) {
+    msg += ` · ${unavailable.length} no disponible${unavailable.length !== 1 ? 's' : ''}`;
+  }
+  showToast(msg, 'success');
+
+  // Cerrar vista pedidos y abrir el carrito
+  accCloseView();
+  setTimeout(() => {
+    const cartPanel = document.getElementById('cartPanel');
+    if (cartPanel && !cartPanel.classList.contains('open')) toggleCart();
+  }, 400);
 }
 
 // ─── Cancelar pedido desde la tienda (cliente) ────────────────────────────────
