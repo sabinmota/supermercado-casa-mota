@@ -2665,6 +2665,8 @@ function noPreviewMap() {
   // ── URL corta goo.gl / maps.app → iframe no puede seguir redirects.
   //    Usar Google Maps embed con la dirección de texto del pedido (sin API Key)
   if (url.includes('goo.gl') || url.includes('maps.app')) {
+    const oldOv = document.getElementById('noMapOverlay');
+    if (oldOv) oldOv.style.display = 'none';
     const oldPh = document.getElementById('noMapPlaceholder');
     if (oldPh) oldPh.style.display = 'none';
     frame.style.display = 'block';
@@ -2676,6 +2678,20 @@ function noPreviewMap() {
     if (query) {
       // Google Maps embed con dirección de texto — no requiere API Key
       frame.src = `https://maps.google.com/maps?q=${encodeURIComponent(query + ', República Dominicana')}&output=embed&z=17`;
+      // Overlay transparente → al tocar abre el link ORIGINAL (pin exacto)
+      preview.style.position = 'relative';
+      let ov = document.getElementById('noMapOverlay');
+      if (!ov) {
+        ov = document.createElement('a');
+        ov.id = 'noMapOverlay';
+        ov.target = '_blank';
+        ov.rel = 'noopener';
+        ov.title = 'Abrir ubicación exacta en Google Maps';
+        ov.style.cssText = 'position:absolute;inset:0;z-index:2;display:block;cursor:pointer;';
+        preview.appendChild(ov);
+      }
+      ov.href = url;
+      ov.style.display = 'block';
       preview.style.display = '';
     } else {
       frame.style.display = 'none';
@@ -2692,7 +2708,9 @@ function noPreviewMap() {
     return;
   }
 
-  // Ocultar placeholder si existía y restaurar iframe
+  // URL normal → ocultar overlay y placeholder si existían
+  const ov = document.getElementById('noMapOverlay');
+  if (ov) ov.style.display = 'none';
   const ph = document.getElementById('noMapPlaceholder');
   if (ph) ph.style.display = 'none';
   frame.style.display = 'block';
@@ -3931,9 +3949,28 @@ function previewCustMap() {
     const cityVal = (document.getElementById('cCity')?.value || '').trim();
     const query   = [addrVal, cityVal].filter(Boolean).join(', ');
 
+    // Ocultar overlay anterior si existía
+    const oldOv = document.getElementById('cMapOverlay');
+    if (oldOv) oldOv.style.display = 'none';
+
     if (query) {
       // Google Maps embed con dirección de texto — no requiere API Key
       frame.src = `https://maps.google.com/maps?q=${encodeURIComponent(query + ', República Dominicana')}&output=embed&z=17`;
+      frame.style.display = 'block';
+      // Overlay transparente encima del iframe → al tocar abre el link ORIGINAL (pin exacto)
+      preview.style.position = 'relative';
+      let ov = document.getElementById('cMapOverlay');
+      if (!ov) {
+        ov = document.createElement('a');
+        ov.id = 'cMapOverlay';
+        ov.target = '_blank';
+        ov.rel = 'noopener';
+        ov.title = 'Abrir ubicación exacta en Google Maps';
+        ov.style.cssText = 'position:absolute;inset:0;z-index:2;display:block;cursor:pointer;';
+        preview.appendChild(ov);
+      }
+      ov.href = url;
+      ov.style.display = 'block';
       preview.style.display = '';
     } else {
       // Sin dirección → placeholder simple con botón
@@ -3951,7 +3988,9 @@ function previewCustMap() {
     return;
   }
 
-  // Ocultar placeholder si existía y mostrar iframe
+  // URL normal → ocultar overlay y placeholder si existían
+  const ov = document.getElementById('cMapOverlay');
+  if (ov) ov.style.display = 'none';
   const ph = document.getElementById('cMapPlaceholder');
   if (ph) ph.style.display = 'none';
   frame.style.display = 'block';
