@@ -4154,12 +4154,13 @@ function renderLocationSection() {
       ? currentClient.address.substring(0, 35) + (currentClient.address.length > 35 ? '…' : '')
       : 'Ver en mapa';
 
-    // Bloque del mapa: iframe normal o placeholder para links cortos
+    // Bloque del mapa: iframe Google Maps (URL larga) u OpenStreetMap (link corto)
+    const osmInitial = `https://www.openstreetmap.org/export/embed.html?bbox=-72.0,17.0,-68.0,20.5&layer=mapnik`;
     const mapBlock = isShortLink
-      ? `<a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb"
-           style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);text-decoration:none">
-           <i class="fas fa-map-location-dot" style="font-size:2.2rem;color:#1a56c4;opacity:.8"></i>
-           <span style="font-size:.8rem;color:#1a56c4;font-weight:600;text-align:center;padding:0 12px">Toca para abrir en Google Maps</span>
+      ? `<a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb" style="display:block">
+           <iframe id="locMapFrame" src="${osmInitial}" width="100%" height="100%"
+             style="border:0;pointer-events:none;display:block"
+             loading="lazy" title="Mapa de ubicación"></iframe>
          </a>`
       : `<a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb">
            <iframe src="${embedSrc}" width="100%" height="100%"
@@ -4212,6 +4213,23 @@ function renderLocationSection() {
         </button>
       </div>
     `;
+
+    // Si es link corto → geocodificar la dirección con Nominatim para centrar el mapa OSM
+    if (isShortLink && currentClient.address) {
+      const q = [currentClient.address, currentClient.city].filter(Boolean).join(', ');
+      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', República Dominicana')}&format=json&limit=1`)
+        .then(r => r.json())
+        .then(data => {
+          const f = document.getElementById('locMapFrame');
+          if (f && data && data[0]) {
+            const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+            const minLon = lon - 0.003, maxLon = lon + 0.003;
+            const minLat = lat - 0.002, maxLat = lat + 0.002;
+            f.src = `https://www.openstreetmap.org/export/embed.html?bbox=${minLon},${minLat},${maxLon},${maxLat}&layer=mapnik&marker=${lat},${lon}`;
+          }
+        })
+        .catch(() => {});
+    }
 
   } else {
     // ── Sin ubicación registrada ──

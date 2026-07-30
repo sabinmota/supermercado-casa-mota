@@ -2662,25 +2662,43 @@ function noPreviewMap() {
   if (!url) { _noResetMap(); return; }
   if (btn) { btn.href = url; btn.style.display = ''; }
 
-  // ── URL corta goo.gl / maps.app → iframe no puede seguir redirects
-  //    Mostramos placeholder visual con botón directo
+  // ── URL corta goo.gl / maps.app → iframe no puede seguir redirects.
+  //    Usar OpenStreetMap embed con la dirección del formulario de pedido
   if (url.includes('goo.gl') || url.includes('maps.app')) {
-    frame.src = '';
-    frame.style.display = 'none';
-    preview.style.display = '';
-    let ph = document.getElementById('noMapPlaceholder');
-    if (!ph) {
-      ph = document.createElement('div');
-      ph.id = 'noMapPlaceholder';
-      preview.appendChild(ph);
+    const oldPh = document.getElementById('noMapPlaceholder');
+    if (oldPh) oldPh.style.display = 'none';
+    frame.style.display = 'block';
+
+    const addrVal = (document.getElementById('noAddress')?.value || '').trim();
+    const cityVal = (document.getElementById('noCity')?.value || '').trim();
+    const query   = [addrVal, cityVal].filter(Boolean).join(', ');
+
+    if (query) {
+      frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=-72.0,17.0,-68.0,20.5&layer=mapnik&query=${encodeURIComponent(query)}`;
+      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', República Dominicana')}&format=json&limit=1`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data[0]) {
+            const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+            const minLon = lon - 0.003, maxLon = lon + 0.003;
+            const minLat = lat - 0.002, maxLat = lat + 0.002;
+            frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${minLon},${minLat},${maxLon},${maxLat}&layer=mapnik&marker=${lat},${lon}`;
+          }
+        })
+        .catch(() => {});
+      preview.style.display = '';
+    } else {
+      frame.style.display = 'none';
+      let ph = document.getElementById('noMapPlaceholder');
+      if (!ph) { ph = document.createElement('div'); ph.id = 'noMapPlaceholder'; preview.appendChild(ph); }
+      ph.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;height:180px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);';
+      ph.innerHTML = '<i class="fas fa-map-location-dot" style="font-size:2.5rem;color:#1a56c4;opacity:.8"></i>'
+        + '<a href="' + url + '" target="_blank" rel="noopener" '
+        + 'style="padding:8px 20px;background:#1a56c4;color:#fff;border-radius:8px;font-size:.8rem;text-decoration:none;font-weight:600">'
+        + '<i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>';
+      ph.style.display = 'flex';
+      preview.style.display = '';
     }
-    ph.style.display = 'flex';
-    ph.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;height:180px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);cursor:pointer;';
-    ph.innerHTML = '<i class="fas fa-map-location-dot" style="font-size:2.5rem;color:#1a56c4;opacity:.8"></i>'
-      + '<span style="font-size:.82rem;color:#1a56c4;font-weight:600">Link corto · No se puede previsualizar</span>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" '
-      + 'style="padding:8px 20px;background:#1a56c4;color:#fff;border-radius:8px;font-size:.8rem;text-decoration:none;font-weight:600">'
-      + '<i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>';
     return;
   }
 
@@ -3912,27 +3930,49 @@ function previewCustMap() {
   // Mostrar botón "Ver"
   if (btn) { btn.href = url; btn.style.display = ''; }
 
-  // ── URL corta goo.gl / maps.app → el iframe NO puede seguir redirects
-  //    Mostramos un placeholder visual con botón directo
+  // ── URL corta goo.gl / maps.app → el iframe no puede seguir redirects.
+  //    Usar OpenStreetMap embed con la dirección del cliente (campo cAddress + cCity)
   if (url.includes('goo.gl') || url.includes('maps.app')) {
-    frame.src = '';
-    preview.style.display = '';
-    preview.style.overflow = 'hidden';
-    // Reemplazar iframe por placeholder (se restaura en _resetCustMap si existe)
-    frame.style.display = 'none';
-    let ph = document.getElementById('cMapPlaceholder');
-    if (!ph) {
-      ph = document.createElement('div');
-      ph.id = 'cMapPlaceholder';
-      preview.appendChild(ph);
+    // Ocultar placeholder anterior si existe
+    const oldPh = document.getElementById('cMapPlaceholder');
+    if (oldPh) oldPh.style.display = 'none';
+    frame.style.display = 'block';
+
+    // Intentar construir la dirección desde los campos del formulario
+    const addrVal = (document.getElementById('cAddress')?.value || '').trim();
+    const cityVal = (document.getElementById('cCity')?.value || '').trim();
+    const query   = [addrVal, cityVal].filter(Boolean).join(', ');
+
+    if (query) {
+      // OpenStreetMap embed — funciona con texto de dirección, sin API Key
+      frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=-72.0,17.0,-68.0,20.5&layer=mapnik&marker=&query=${encodeURIComponent(query)}`;
+      // Usar Nominatim para obtener coords exactas y centrar el mapa
+      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', República Dominicana')}&format=json&limit=1`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data[0]) {
+            const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+            const zoom = 17;
+            const minLon = lon - 0.003, maxLon = lon + 0.003;
+            const minLat = lat - 0.002, maxLat = lat + 0.002;
+            frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${minLon},${minLat},${maxLon},${maxLat}&layer=mapnik&marker=${lat},${lon}`;
+          }
+        })
+        .catch(() => {/* silencioso */});
+      preview.style.display = '';
+    } else {
+      // Sin dirección → placeholder simple con botón
+      frame.style.display = 'none';
+      let ph = document.getElementById('cMapPlaceholder');
+      if (!ph) { ph = document.createElement('div'); ph.id = 'cMapPlaceholder'; preview.appendChild(ph); }
+      ph.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;height:180px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);';
+      ph.innerHTML = '<i class="fas fa-map-location-dot" style="font-size:2.5rem;color:#1a56c4;opacity:.8"></i>'
+        + '<a href="' + url + '" target="_blank" rel="noopener" '
+        + 'style="padding:8px 20px;background:#1a56c4;color:#fff;border-radius:8px;font-size:.8rem;text-decoration:none;font-weight:600">'
+        + '<i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>';
+      ph.style.display = 'flex';
+      preview.style.display = '';
     }
-    ph.style.display = 'flex';
-    ph.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;height:180px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);cursor:pointer;';
-    ph.innerHTML = '<i class="fas fa-map-location-dot" style="font-size:2.5rem;color:#1a56c4;opacity:.8"></i>'
-      + '<span style="font-size:.82rem;color:#1a56c4;font-weight:600">Link corto · No se puede previsualizar</span>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" '
-      + 'style="padding:8px 20px;background:#1a56c4;color:#fff;border-radius:8px;font-size:.8rem;text-decoration:none;font-weight:600">'
-      + '<i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>';
     return;
   }
 
