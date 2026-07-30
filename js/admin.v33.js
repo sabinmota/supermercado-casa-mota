@@ -2675,25 +2675,25 @@ function noPreviewMap() {
 
   } else if (url.includes('google.com/maps') || url.includes('maps.google.com')) {
 
-    // 1) Intentar extraer coordenadas @LAT,LNG del path (ej: @18.5678,-69.1234)
+    // 1) Coordenadas decimales @LAT,LNG
     const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
     if (atMatch) {
-      embedSrc = `https://www.google.com/maps/embed/v1/view?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&center=${atMatch[1]},${atMatch[2]}&zoom=17&maptype=roadmap`;
+      embedSrc = `https://maps.google.com/maps?q=${atMatch[1]},${atMatch[2]}&z=17&output=embed`;
 
-    // 2) Intentar extraer parámetro ?q= o &q=
+    // 2) Parámetro ?q= o &q=
     } else {
       const qMatch = url.match(/[?&]q=([^&]+)/);
       if (qMatch) {
-        embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${qMatch[1]}`;
+        embedSrc = `https://maps.google.com/maps?q=${qMatch[1]}&output=embed`;
 
-      // 3) Intentar extraer coordenadas del path tipo /place/18°N+69°W
+      // 3) /place/NOMBRE_O_COORDS en el path
       } else {
         const placeMatch = url.match(/\/place\/([^/@?]+)/);
         if (placeMatch) {
-          embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${placeMatch[1]}`;
+          embedSrc = `https://maps.google.com/maps?q=${placeMatch[1]}&output=embed`;
         } else {
-          // 4) Fallback: usar la URL completa como query
-          embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${encodeURIComponent(url)}`;
+          // 4) Fallback: usar URL completa como query
+          embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
         }
       }
     }
