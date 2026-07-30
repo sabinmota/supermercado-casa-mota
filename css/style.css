@@ -1938,6 +1938,37 @@ input, select { font-family: var(--font); }
 }
 .btn-clear-cancelled:hover { background: #e53935; border-color: #e53935; color: #fff; }
 
+/* Fila "Repetir pedido" debajo de la tarjeta */
+.my-order-repeat {
+  padding-top: 8px;
+  border-top: 1px dashed #e8e8e8;
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+.btn-repeat-order {
+  background: #e8f5e9;
+  border: none;
+  color: #2e7d32;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .18s, color .18s, transform .12s;
+  white-space: nowrap;
+}
+.btn-repeat-order i { font-size: .78rem; }
+.btn-repeat-order:hover {
+  background: #c8e6c9;
+  color: #1b5e20;
+  transform: translateY(-1px);
+}
+.btn-repeat-order:active { transform: translateY(0); }
+
 /* Status badges del panel cliente */
 .my-order-status {
   font-size: .7rem; font-weight: 700; padding: 3px 9px; border-radius: 20px;
