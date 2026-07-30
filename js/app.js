@@ -4129,22 +4129,114 @@ function scrollToOrder(orderId) {
 
 function renderLocationSection() {
   if (!currentClient) return;
-  // Usar mapLink de la sesión activa (se actualiza con _saveClientMapLink)
-  const mapLink = currentClient.mapLink || '';
+  const mapLink  = currentClient.mapLink || '';
+  const initials = currentClient.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const firstName = currentClient.name.split(' ')[0] || '';
 
-  const statusBox  = document.getElementById('locationStatus');
-  const previewWrap = document.getElementById('mapPreviewWrap');
-  const openLink   = document.getElementById('mapOpenLink');
-
-  if (!statusBox) return;
+  // Contenedor principal de la vista
+  const container = document.getElementById('locationViewContent');
+  if (!container) return;
 
   if (mapLink) {
-    statusBox.innerHTML = '';
-    if (previewWrap) previewWrap.classList.remove('hidden');
-    if (openLink)  { openLink.href = mapLink; }
+    // ── Extraer coordenadas del link para miniatura estática de Google Maps ──
+    let lat = '', lng = '';
+    const qMatch  = mapLink.match(/[?&]q=([-\d.]+),([-\d.]+)/);
+    const llMatch = mapLink.match(/@([-\d.]+),([-\d.]+)/);
+    if (qMatch)  { lat = qMatch[1];  lng = qMatch[2]; }
+    else if (llMatch) { lat = llMatch[1]; lng = llMatch[2]; }
+    const hasCoords  = lat && lng;
+    const staticMap  = hasCoords
+      ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&markers=color:red%7C${lat},${lng}&key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFmBWY`
+      : '';
+    // Miniatura iframe embebida (fallback cuando no hay coords)
+    const shortAddr  = currentClient.address ? currentClient.address.substring(0, 30) + (currentClient.address.length > 30 ? '…' : '') : 'Ver en mapa';
+
+    container.innerHTML = `
+      <!-- Saludo -->
+      <div class="loc-greeting">
+        <div class="loc-avatar">${initials}</div>
+        <div class="loc-greeting-text">
+          <span>Hola,</span>
+          <strong>${currentClient.name}</strong>
+        </div>
+      </div>
+
+      <!-- Botón editar -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="loc-edit-btn" onclick="deleteMyLocation()">
+          Editar <i class="fas fa-pen-to-square"></i>
+        </button>
+      </div>
+
+      <!-- Tarjeta de dirección -->
+      <div class="loc-card">
+        <div class="loc-card-badge">Predeterminada</div>
+        <a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb">
+          ${hasCoords
+            ? `<img src="${staticMap}" alt="Mapa" onerror="this.parentElement.innerHTML='<div class=loc-map-placeholder><i class=fas fa-map-location-dot></i></div>'">`
+            : `<div class="loc-map-placeholder"><i class="fas fa-map-location-dot"></i></div>`
+          }
+        </a>
+        <div class="loc-card-footer">
+          <i class="fas fa-location-dot" style="color:#e07b00;flex-shrink:0"></i>
+          <span>${currentClient.address || shortAddr}</span>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="location-actions" style="margin-top:16px">
+        <button class="btn-location-gps" onclick="shareMyLocation()">
+          <i class="fas fa-crosshairs"></i> Usar mi ubicación GPS
+        </button>
+        <button class="btn-location-link" onclick="toggleMapLinkInput()">
+          <i class="fas fa-link"></i> Pegar enlace de Maps
+        </button>
+      </div>
+      <div id="mapLinkInputWrap" class="map-link-input-wrap hidden">
+        <input type="url" id="mapLinkInput" class="map-link-input"
+               placeholder="Pega aquí tu enlace de Google Maps…" />
+        <button class="btn-save-location" onclick="saveMapLink()">
+          <i class="fas fa-check"></i> Guardar
+        </button>
+      </div>
+    `;
+
   } else {
-    statusBox.innerHTML = `<span style="color:#aaa;font-size:.8rem"><i class="fas fa-triangle-exclamation" style="color:#f59e0b"></i> Sin ubicación registrada. Agrégala para facilitar tu entrega.</span>`;
-    if (previewWrap) previewWrap.classList.add('hidden');
+    // ── Sin ubicación registrada ──
+    container.innerHTML = `
+      <!-- Saludo -->
+      <div class="loc-greeting">
+        <div class="loc-avatar">${initials}</div>
+        <div class="loc-greeting-text">
+          <span>Hola,</span>
+          <strong>${currentClient.name}</strong>
+        </div>
+      </div>
+
+      <!-- Estado vacío -->
+      <div class="loc-empty">
+        <i class="fas fa-map-location-dot"></i>
+        <p>No tienes una dirección guardada</p>
+        <small>Agrega tu ubicación para facilitar la entrega</small>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="location-actions">
+        <button class="btn-location-gps" onclick="shareMyLocation()">
+          <i class="fas fa-crosshairs"></i> Usar mi ubicación GPS
+        </button>
+        <button class="btn-location-link" onclick="toggleMapLinkInput()">
+          <i class="fas fa-link"></i> Pegar enlace de Maps
+        </button>
+      </div>
+      <div id="mapLinkInputWrap" class="map-link-input-wrap hidden">
+        <input type="url" id="mapLinkInput" class="map-link-input"
+               placeholder="Pega aquí tu enlace de Google Maps…" />
+        <button class="btn-save-location" onclick="saveMapLink()">
+          <i class="fas fa-check"></i> Guardar
+        </button>
+      </div>
+    `;
   }
 }
 

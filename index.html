@@ -106,7 +106,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=310" />
+  <link rel="stylesheet" href="css/style.css?v=311" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -1015,34 +1015,8 @@
           <i class="fas fa-location-dot"></i>
           <span>Mi ubicación de entrega</span>
         </div>
-        <div class="acc-view-content">
-          <div id="locationStatus" class="location-status-box"></div>
-          <div class="location-actions">
-            <button class="btn-location-gps" onclick="shareMyLocation()">
-              <i class="fas fa-crosshairs"></i> Usar mi ubicación GPS
-            </button>
-            <button class="btn-location-link" onclick="toggleMapLinkInput()">
-              <i class="fas fa-link"></i> Pegar enlace de Maps
-            </button>
-          </div>
-          <div id="mapLinkInputWrap" class="map-link-input-wrap hidden">
-            <input type="url" id="mapLinkInput" class="map-link-input"
-                   placeholder="Pega aquí tu enlace de Google Maps…" />
-            <button class="btn-save-location" onclick="saveMapLink()">
-              <i class="fas fa-check"></i> Guardar
-            </button>
-          </div>
-          <div id="mapPreviewWrap" class="map-preview-wrap hidden">
-            <div class="map-preview-header">
-              <span><i class="fas fa-circle-check" style="color:#1a7c3e"></i> Ubicación guardada</span>
-              <a id="mapOpenLink" href="#" target="_blank" rel="noopener" class="map-open-btn">
-                <i class="fas fa-map-location-dot"></i> Abrir
-              </a>
-              <button class="map-delete-btn" onclick="deleteMyLocation()" title="Eliminar ubicación">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          </div>
+        <div class="acc-view-content" id="locationViewContent">
+          <!-- Renderizado dinámicamente por renderLocationSection() -->
         </div>
       </div>
 
@@ -1132,7 +1106,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=330"></script>
+  <script src="js/app.js?v=331"></script>
   <!-- Chatbot IA para clientes -->
   <script src="js/chat.js?v=225"></script>
 
