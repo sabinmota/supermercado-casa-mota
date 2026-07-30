@@ -2576,10 +2576,18 @@ function toggleCart() {
     // Pequeño delay para asegurar que el foco se quite después de la animación
     setTimeout(_blurCartBtn, 50);
   } else {
-    // Abrir carrito
+    // Abrir carrito — asegurar que los settings estén cargados para el cálculo de envío
     _applyPanelTop();
     panel.classList.add('open');
     if (overlay) overlay.classList.add('open');
+    // Si el cache de settings aún no está listo, cargarlo y refrescar el UI
+    if (!_checkoutSettingsCache) {
+      DB.getSettings().then(s => {
+        _checkoutSettingsCache = s;
+        updateCartUI();
+        renderCartItems();
+      }).catch(() => {});
+    }
     renderCartItems();
     document.body.style.overflow = 'hidden';
     // Sincronizar toggle global con preferencias individuales de cada ítem
@@ -4484,11 +4492,15 @@ async function applyCupon() {
 // ─── Recalcula y actualiza el desglose de totales + footer en el checkout ────
 // ── Tarifa de envío según cantidad total de artículos ──────────────────────
 function _calcEnvio(totalItems, subtotal) {
-  if (subtotal >= 1500) return 0;          // Envío gratis ≥ RD$1,500
-  if (totalItems <= 2)  return  75;        // 1-2 artículos  → RD$75
-  if (totalItems <= 5)  return 125;        // 3-5 artículos  → RD$125
-  if (totalItems <= 10) return 175;        // 6-10 artículos → RD$175
-  return 225;                              // 11+ artículos  → RD$225
+  // Leer configuración dinámica desde el cache de settings (igual que admin)
+  const cfg     = _checkoutSettingsCache || {};
+  const base    = parseFloat(cfg.shippingFee    || 0) || 50;   // costo base configurado en admin
+  const freeMin = parseFloat(cfg.freeShippingMin || 0) || 3800; // mínimo para envío gratis
+
+  // Envío gratis si supera el umbral configurado
+  if (subtotal >= freeMin) return 0;
+  // Costo fijo base (mismo criterio que admin panel)
+  return base;
 }
 
 // ── Plan Cero Centavos: calcula los centavos a descontar para redondear ──────
