@@ -2662,36 +2662,59 @@ function noPreviewMap() {
   if (!url) { _noResetMap(); return; }
   if (btn) { btn.href = url; btn.style.display = ''; }
 
+  // ── URL corta goo.gl / maps.app → iframe no puede seguir redirects
+  //    Mostramos placeholder visual con botón directo
+  if (url.includes('goo.gl') || url.includes('maps.app')) {
+    frame.src = '';
+    frame.style.display = 'none';
+    preview.style.display = '';
+    let ph = document.getElementById('noMapPlaceholder');
+    if (!ph) {
+      ph = document.createElement('div');
+      ph.id = 'noMapPlaceholder';
+      preview.appendChild(ph);
+    }
+    ph.style.display = 'flex';
+    ph.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;height:180px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);cursor:pointer;';
+    ph.innerHTML = '<i class="fas fa-map-location-dot" style="font-size:2.5rem;color:#1a56c4;opacity:.8"></i>'
+      + '<span style="font-size:.82rem;color:#1a56c4;font-weight:600">Link corto · No se puede previsualizar</span>'
+      + '<a href="' + url + '" target="_blank" rel="noopener" '
+      + 'style="padding:8px 20px;background:#1a56c4;color:#fff;border-radius:8px;font-size:.8rem;text-decoration:none;font-weight:600">'
+      + '<i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>';
+    return;
+  }
+
+  // Ocultar placeholder si existía y restaurar iframe
+  const ph = document.getElementById('noMapPlaceholder');
+  if (ph) ph.style.display = 'none';
+  frame.style.display = 'block';
+
   let embedSrc = '';
 
-  // ── Ya es una URL de embed → usar directamente ───────────────────────────
+  // 1) Ya es una URL de embed → usar directamente
   if (url.includes('maps/embed')) {
     embedSrc = url;
 
-  // ── URL corta goo.gl / maps.app → embeber usando la URL como query
-  } else if (url.includes('goo.gl') || url.includes('maps.app')) {
-    embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
-
   } else if (url.includes('google.com/maps') || url.includes('maps.google.com')) {
 
-    // 1) Coordenadas decimales @LAT,LNG
+    // 2) Coordenadas decimales @LAT,LNG
     const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
     if (atMatch) {
       embedSrc = `https://maps.google.com/maps?q=${atMatch[1]},${atMatch[2]}&z=17&output=embed`;
 
-    // 2) Parámetro ?q= o &q=
+    // 3) Parámetro ?q= o &q=
     } else {
       const qMatch = url.match(/[?&]q=([^&]+)/);
       if (qMatch) {
         embedSrc = `https://maps.google.com/maps?q=${qMatch[1]}&output=embed`;
 
-      // 3) /place/NOMBRE_O_COORDS en el path
+      // 4) /place/NOMBRE_O_COORDS en el path
       } else {
         const placeMatch = url.match(/\/place\/([^/@?]+)/);
         if (placeMatch) {
           embedSrc = `https://maps.google.com/maps?q=${placeMatch[1]}&output=embed`;
         } else {
-          // 4) Fallback: usar URL completa como query
+          // 5) Fallback: usar URL completa como query
           embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
         }
       }
@@ -3889,6 +3912,35 @@ function previewCustMap() {
   // Mostrar botón "Ver"
   if (btn) { btn.href = url; btn.style.display = ''; }
 
+  // ── URL corta goo.gl / maps.app → el iframe NO puede seguir redirects
+  //    Mostramos un placeholder visual con botón directo
+  if (url.includes('goo.gl') || url.includes('maps.app')) {
+    frame.src = '';
+    preview.style.display = '';
+    preview.style.overflow = 'hidden';
+    // Reemplazar iframe por placeholder (se restaura en _resetCustMap si existe)
+    frame.style.display = 'none';
+    let ph = document.getElementById('cMapPlaceholder');
+    if (!ph) {
+      ph = document.createElement('div');
+      ph.id = 'cMapPlaceholder';
+      preview.appendChild(ph);
+    }
+    ph.style.display = 'flex';
+    ph.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;height:180px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);cursor:pointer;';
+    ph.innerHTML = '<i class="fas fa-map-location-dot" style="font-size:2.5rem;color:#1a56c4;opacity:.8"></i>'
+      + '<span style="font-size:.82rem;color:#1a56c4;font-weight:600">Link corto · No se puede previsualizar</span>'
+      + '<a href="' + url + '" target="_blank" rel="noopener" '
+      + 'style="padding:8px 20px;background:#1a56c4;color:#fff;border-radius:8px;font-size:.8rem;text-decoration:none;font-weight:600">'
+      + '<i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>';
+    return;
+  }
+
+  // Ocultar placeholder si existía y mostrar iframe
+  const ph = document.getElementById('cMapPlaceholder');
+  if (ph) ph.style.display = 'none';
+  frame.style.display = 'block';
+
   // Construir src embebible para el iframe (sin API Key)
   let embedSrc = '';
 
@@ -3896,28 +3948,24 @@ function previewCustMap() {
   if (url.includes('maps/embed')) {
     embedSrc = url;
 
-  // 2) URL corta goo.gl / maps.app → usarla como query
-  } else if (url.includes('goo.gl') || url.includes('maps.app')) {
-    embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
-
-  // 3) URL larga google.com/maps o maps.google.com
+  // 2) URL larga google.com/maps o maps.google.com
   } else if (url.includes('google.com/maps') || url.includes('maps.google.com')) {
-    // 3a) Coordenadas @LAT,LNG
+    // 2a) Coordenadas @LAT,LNG
     const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
     if (atMatch) {
       embedSrc = `https://maps.google.com/maps?q=${atMatch[1]},${atMatch[2]}&z=17&output=embed`;
     } else {
-      // 3b) Parámetro ?q= o &q=
+      // 2b) Parámetro ?q= o &q=
       const qMatch = url.match(/[?&]q=([^&]+)/);
       if (qMatch) {
         embedSrc = `https://maps.google.com/maps?q=${qMatch[1]}&output=embed`;
       } else {
-        // 3c) /place/NOMBRE en el path
+        // 2c) /place/NOMBRE en el path
         const placeMatch = url.match(/\/place\/([^/@?]+)/);
         if (placeMatch) {
           embedSrc = `https://maps.google.com/maps?q=${placeMatch[1]}&output=embed`;
         } else {
-          // 3d) Fallback: URL completa como query
+          // 2d) Fallback: URL completa como query
           embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
         }
       }

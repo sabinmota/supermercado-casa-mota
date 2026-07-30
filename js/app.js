@@ -4139,19 +4139,34 @@ function renderLocationSection() {
 
   if (mapLink) {
     // ── Miniatura: iframe embed de Google Maps con el link guardado ──
-    // Convertir cualquier tipo de link de Maps a URL embebible
+    // Distinguir link corto (no se puede embeber) de URL larga con coordenadas
+    const isShortLink = mapLink.includes('goo.gl') || mapLink.includes('maps.app');
     let embedSrc = '';
-    const coordMatch = mapLink.match(/[?&]q=([-\d.]+),([-\d.]+)/) || mapLink.match(/@([-\d.]+),([-\d.]+)/);
-    if (coordMatch) {
-      const lat = coordMatch[1], lng = coordMatch[2];
-      embedSrc = `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
-    } else {
-      // Link corto o dirección — encodear y embed directo
-      embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapLink)}&output=embed`;
+    if (!isShortLink) {
+      const coordMatch = mapLink.match(/[?&]q=([-\d.]+),([-\d.]+)/) || mapLink.match(/@([-\d.]+),([-\d.]+)/);
+      if (coordMatch) {
+        embedSrc = `https://maps.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}&z=15&output=embed`;
+      } else {
+        embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapLink)}&output=embed`;
+      }
     }
     const shortAddr = currentClient.address
       ? currentClient.address.substring(0, 35) + (currentClient.address.length > 35 ? '…' : '')
       : 'Ver en mapa';
+
+    // Bloque del mapa: iframe normal o placeholder para links cortos
+    const mapBlock = isShortLink
+      ? `<a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb"
+           style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:linear-gradient(135deg,#e8f0fe,#d2e3fc);text-decoration:none">
+           <i class="fas fa-map-location-dot" style="font-size:2.2rem;color:#1a56c4;opacity:.8"></i>
+           <span style="font-size:.8rem;color:#1a56c4;font-weight:600;text-align:center;padding:0 12px">Toca para abrir en Google Maps</span>
+         </a>`
+      : `<a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb">
+           <iframe src="${embedSrc}" width="100%" height="100%"
+             style="border:0;pointer-events:none;display:block"
+             loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+             title="Mapa de ubicación"></iframe>
+         </a>`;
 
     container.innerHTML = `
       <!-- Saludo -->
@@ -4173,16 +4188,7 @@ function renderLocationSection() {
       <!-- Tarjeta de dirección -->
       <div class="loc-card">
         <div class="loc-card-badge">Predeterminada</div>
-        <a href="${mapLink}" target="_blank" rel="noopener" class="loc-map-thumb">
-          <iframe
-            src="${embedSrc}"
-            width="100%" height="100%"
-            style="border:0;pointer-events:none;display:block"
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-            title="Mapa de ubicación">
-          </iframe>
-        </a>
+        ${mapBlock}
         <div class="loc-card-footer">
           <i class="fas fa-location-dot" style="color:#e07b00;flex-shrink:0"></i>
           <span>${currentClient.address || shortAddr}</span>
