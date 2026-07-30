@@ -2668,10 +2668,9 @@ function noPreviewMap() {
   if (url.includes('maps/embed')) {
     embedSrc = url;
 
-  // ── URL corta goo.gl / maps.app → solo mostrar botón, no se puede embeber
+  // ── URL corta goo.gl / maps.app → embeber usando la URL como query
   } else if (url.includes('goo.gl') || url.includes('maps.app')) {
-    if (preview) preview.style.display = 'none';
-    return;
+    embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
 
   } else if (url.includes('google.com/maps') || url.includes('maps.google.com')) {
 
@@ -3890,30 +3889,39 @@ function previewCustMap() {
   // Mostrar botón "Ver"
   if (btn) { btn.href = url; btn.style.display = ''; }
 
-  // Construir src embebible para el iframe
+  // Construir src embebible para el iframe (sin API Key)
   let embedSrc = '';
-  // Formato: https://www.google.com/maps/embed?pb=... (ya embebible)
+
+  // 1) Ya es URL de embed → usar directamente
   if (url.includes('maps/embed')) {
     embedSrc = url;
-  }
-  // Formato: https://maps.google.com/maps?q=... o https://www.google.com/maps?q=...
-  else if (url.includes('maps.google.com') || url.includes('google.com/maps')) {
-    // Transformar URL normal a embed
-    embedSrc = url
-      .replace('https://www.google.com/maps', 'https://www.google.com/maps/embed')
-      .replace('https://maps.google.com/maps', 'https://www.google.com/maps/embed');
-    if (!embedSrc.includes('/embed')) {
-      // Fallback: usar q= param
+
+  // 2) URL corta goo.gl / maps.app → usarla como query
+  } else if (url.includes('goo.gl') || url.includes('maps.app')) {
+    embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
+
+  // 3) URL larga google.com/maps o maps.google.com
+  } else if (url.includes('google.com/maps') || url.includes('maps.google.com')) {
+    // 3a) Coordenadas @LAT,LNG
+    const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (atMatch) {
+      embedSrc = `https://maps.google.com/maps?q=${atMatch[1]},${atMatch[2]}&z=17&output=embed`;
+    } else {
+      // 3b) Parámetro ?q= o &q=
       const qMatch = url.match(/[?&]q=([^&]+)/);
-      const place  = qMatch ? qMatch[1] : encodeURIComponent(url);
-      embedSrc = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3MeQ&q=${place}`;
+      if (qMatch) {
+        embedSrc = `https://maps.google.com/maps?q=${qMatch[1]}&output=embed`;
+      } else {
+        // 3c) /place/NOMBRE en el path
+        const placeMatch = url.match(/\/place\/([^/@?]+)/);
+        if (placeMatch) {
+          embedSrc = `https://maps.google.com/maps?q=${placeMatch[1]}&output=embed`;
+        } else {
+          // 3d) Fallback: URL completa como query
+          embedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
+        }
+      }
     }
-  }
-  // Formato corto goo.gl/maps o maps.app.goo.gl
-  else if (url.includes('goo.gl') || url.includes('maps.app')) {
-    // No se puede embeber directamente; mostrar sólo el botón
-    preview.style.display = 'none';
-    return;
   }
 
   if (embedSrc) {
