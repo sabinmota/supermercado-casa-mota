@@ -2663,7 +2663,7 @@ function noPreviewMap() {
   if (btn) { btn.href = url; btn.style.display = ''; }
 
   // ── URL corta goo.gl / maps.app → iframe no puede seguir redirects.
-  //    Usar OpenStreetMap embed con la dirección del formulario de pedido
+  //    Usar Google Maps embed con la dirección de texto del pedido (sin API Key)
   if (url.includes('goo.gl') || url.includes('maps.app')) {
     const oldPh = document.getElementById('noMapPlaceholder');
     if (oldPh) oldPh.style.display = 'none';
@@ -2674,18 +2674,8 @@ function noPreviewMap() {
     const query   = [addrVal, cityVal].filter(Boolean).join(', ');
 
     if (query) {
-      frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=-72.0,17.0,-68.0,20.5&layer=mapnik&query=${encodeURIComponent(query)}`;
-      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', República Dominicana')}&format=json&limit=1`)
-        .then(r => r.json())
-        .then(data => {
-          if (data && data[0]) {
-            const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-            const minLon = lon - 0.003, maxLon = lon + 0.003;
-            const minLat = lat - 0.002, maxLat = lat + 0.002;
-            frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${minLon},${minLat},${maxLon},${maxLat}&layer=mapnik&marker=${lat},${lon}`;
-          }
-        })
-        .catch(() => {});
+      // Google Maps embed con dirección de texto — no requiere API Key
+      frame.src = `https://maps.google.com/maps?q=${encodeURIComponent(query + ', República Dominicana')}&output=embed&z=17`;
       preview.style.display = '';
     } else {
       frame.style.display = 'none';
@@ -3931,34 +3921,19 @@ function previewCustMap() {
   if (btn) { btn.href = url; btn.style.display = ''; }
 
   // ── URL corta goo.gl / maps.app → el iframe no puede seguir redirects.
-  //    Usar OpenStreetMap embed con la dirección del cliente (campo cAddress + cCity)
+  //    Usar Google Maps embed con la dirección de texto del cliente (sin API Key)
   if (url.includes('goo.gl') || url.includes('maps.app')) {
-    // Ocultar placeholder anterior si existe
     const oldPh = document.getElementById('cMapPlaceholder');
     if (oldPh) oldPh.style.display = 'none';
     frame.style.display = 'block';
 
-    // Intentar construir la dirección desde los campos del formulario
     const addrVal = (document.getElementById('cAddress')?.value || '').trim();
     const cityVal = (document.getElementById('cCity')?.value || '').trim();
     const query   = [addrVal, cityVal].filter(Boolean).join(', ');
 
     if (query) {
-      // OpenStreetMap embed — funciona con texto de dirección, sin API Key
-      frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=-72.0,17.0,-68.0,20.5&layer=mapnik&marker=&query=${encodeURIComponent(query)}`;
-      // Usar Nominatim para obtener coords exactas y centrar el mapa
-      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', República Dominicana')}&format=json&limit=1`)
-        .then(r => r.json())
-        .then(data => {
-          if (data && data[0]) {
-            const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-            const zoom = 17;
-            const minLon = lon - 0.003, maxLon = lon + 0.003;
-            const minLat = lat - 0.002, maxLat = lat + 0.002;
-            frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${minLon},${minLat},${maxLon},${maxLat}&layer=mapnik&marker=${lat},${lon}`;
-          }
-        })
-        .catch(() => {/* silencioso */});
+      // Google Maps embed con dirección de texto — no requiere API Key
+      frame.src = `https://maps.google.com/maps?q=${encodeURIComponent(query + ', República Dominicana')}&output=embed&z=17`;
       preview.style.display = '';
     } else {
       // Sin dirección → placeholder simple con botón
