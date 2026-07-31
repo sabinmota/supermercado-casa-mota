@@ -750,6 +750,73 @@ const DBCached = {
   invalidateSettings() { _cache.settings = null; },
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  OAUTH — Auto-creación / recuperación de cliente por proveedor social
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * createClientFromOAuth(profile)
+ *
+ * Dado un perfil normalizado de Google/Apple, busca al cliente por email en
+ * Supabase. Si no existe, lo crea con status='habilitado' y authProvider marcado.
+ * Devuelve el objeto cliente listo para guardar en sesión (sin password).
+ *
+ * @param {object} profile
+ *   { email, name, given_name?, picture?, authProvider: 'google'|'apple', sub }
+ * @returns {Promise<object>} cliente de Supabase
+ */
+async function createClientFromOAuth(profile) {
+  const email = (profile.email || '').toLowerCase().trim();
+  if (!email) throw new Error('OAuth: email no disponible en el perfil.');
+
+  // 1) Buscar cliente existente por email
+  let existing = null;
+  try {
+    existing = await DB.getCustomerByEmail(email);
+  } catch(e) { /* continuar — red fallida */ }
+
+  if (existing) {
+    // Actualizar foto y proveedor si cambió
+    const patch = { authProvider: profile.authProvider, lastLogin: _nowTs() };
+    if (profile.picture && !existing.avatar) patch.avatar = profile.picture;
+    try { await DB.patchCustomer(existing.id, patch); } catch(e) { /* no crítico */ }
+    const { password: _pw, ...safe } = { ...existing, ...patch };
+    return safe;
+  }
+
+  // 2) No existe → crear cliente nuevo
+  const newClient = {
+    name:         profile.name || profile.given_name || email.split('@')[0],
+    email:        email,
+    phone:        '',
+    address:      '',
+    city:         '',
+    cedula:       '',
+    notes:        '',
+    status:       'habilitado',
+    ranking:      'bronce',
+    orders:       0,
+    spent:        0,
+    lastOrder:    '',
+    lastLogin:    _nowTs(),
+    createdAt:    _nowTs(),
+    authProvider: profile.authProvider || 'google',
+    avatar:       profile.picture || '',
+    // No se asigna password — es cliente OAuth
+  };
+
+  const created = await DB.createCustomer(newClient);
+  if (!created) throw new Error('OAuth: no se pudo crear el cliente en Supabase.');
+  const { password: _pw, ...safe } = created;
+  return safe;
+}
+
+/** Timestamp legible: "31/07/2026 14:30" */
+function _nowTs() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
 // ─── Helper de error legible ──────────────────────────────────────────────────
 function _friendlyApiError(err) {
   if (!err) return 'Error desconocido';

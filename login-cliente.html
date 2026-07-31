@@ -13,6 +13,10 @@
       } catch(e) {}
     })();
   </script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Apple Sign In JS -->
+  <script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png" />
@@ -458,9 +462,99 @@
       .register-modal { border-radius: 20px; max-width: 420px; }
       @keyframes sheetUp { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     }
+
+    /* ══════════════════════════════════════════
+       SEPARADOR "o continúa con"
+    ══════════════════════════════════════════ */
+    .oauth-divider {
+      display: flex; align-items: center; gap: 10px;
+      margin: 22px 0 16px;
+      color: #bbb; font-size: .8rem; font-weight: 500;
+    }
+    .oauth-divider::before, .oauth-divider::after {
+      content: ''; flex: 1; height: 1px; background: #e8edf0;
+    }
+
+    /* ══════════════════════════════════════════
+       BOTONES OAUTH (Google / Apple)
+    ══════════════════════════════════════════ */
+    .oauth-buttons {
+      display: flex; flex-direction: column; gap: 11px;
+    }
+    .btn-oauth {
+      width: 100%; padding: 13px 18px;
+      border-radius: 50px;
+      border: 1.5px solid #e2e8f0;
+      background: #fff;
+      font-family: inherit; font-size: .93rem; font-weight: 600;
+      color: #1a1a2e;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: background .15s, border-color .15s, box-shadow .15s, transform .12s;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-oauth:hover  { background: #f7f9fc; border-color: #c8d3dc; box-shadow: 0 2px 10px rgba(0,0,0,.09); }
+    .btn-oauth:active { transform: scale(.97); }
+    .btn-oauth:disabled { opacity: .6; pointer-events: none; }
+
+    /* Ícono SVG dentro del botón */
+    .btn-oauth .oauth-icon { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Apple: fondo oscuro */
+    .btn-oauth.apple { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+    .btn-oauth.apple:hover { background: #2a2a2a; border-color: #2a2a2a; }
+
+    /* Estado de carga dentro del botón OAuth */
+    .btn-oauth .oauth-spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(26,124,62,.2);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+      display: none; flex-shrink: 0;
+    }
+    .btn-oauth.apple .oauth-spinner {
+      border-color: rgba(255,255,255,.25);
+      border-top-color: #fff;
+    }
+    .btn-oauth.loading .oauth-spinner { display: block; }
+    .btn-oauth.loading .oauth-icon,
+    .btn-oauth.loading .oauth-label  { opacity: 0; position: absolute; }
+
+    /* ══════════════════════════════════════════
+       MODAL OVERLAY — Google One Tap / errores OAuth
+    ══════════════════════════════════════════ */
+    .oauth-error-toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: #1a1a2e; color: #fff; border-radius: 50px;
+      padding: 12px 22px; font-size: .87rem; font-weight: 500;
+      box-shadow: 0 6px 24px rgba(0,0,0,.3);
+      z-index: 99999; white-space: nowrap;
+      animation: toastIn .3s ease both;
+      display: none;
+    }
+    .oauth-error-toast.show { display: block; }
+    @keyframes toastIn {
+      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+      to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+    }
+
+    /* Apple — banner "próximamente" */
+    .apple-coming-soon {
+      font-size: .75rem; color: #f59e0b; font-weight: 600;
+      background: rgba(245,158,11,.12); border-radius: 20px;
+      padding: 2px 8px; letter-spacing: .02em;
+    }
   </style>
 </head>
 <body>
+
+  <!-- ── Toast OAuth errores ──────────────────────────────────── -->
+  <div id="oauthToast" class="oauth-error-toast"></div>
 
   <!-- ── Modal registro ─────────────────────────────────────────── -->
   <div id="registerModal" class="register-modal-backdrop hidden" onclick="if(event.target===this)closeRegisterModal()">
@@ -593,6 +687,39 @@
              style="color:var(--green);font-weight:600;text-decoration:none">Solicítala aquí</a>
         </div>
 
+        <!-- ── OAuth: Google + Apple ───────────────────── -->
+        <div class="oauth-divider">o continúa con</div>
+        <div class="oauth-buttons">
+
+          <!-- Google -->
+          <button type="button" class="btn-oauth google" id="btnGoogleLogin"
+                  onclick="handleGoogleLogin()">
+            <div class="oauth-spinner"></div>
+            <!-- Google G SVG oficial -->
+            <svg class="oauth-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              <path fill="none" d="M0 0h48v48H0z"/>
+            </svg>
+            <span class="oauth-label">Continuar con Google</span>
+          </button>
+
+          <!-- Apple -->
+          <button type="button" class="btn-oauth apple" id="btnAppleLogin"
+                  onclick="handleAppleLogin()">
+            <div class="oauth-spinner"></div>
+            <!-- Apple logo SVG -->
+            <svg class="oauth-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#fff">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+            </svg>
+            <span class="oauth-label">Continuar con Apple</span>
+            <span class="apple-coming-soon">Pronto</span>
+          </button>
+
+        </div>
+        <!-- /OAuth -->
 
       </div>
     </div>
@@ -746,6 +873,204 @@
     function closeRegisterModal() {
       document.getElementById('registerModal').classList.add('hidden');
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  GOOGLE SIGN IN — Google Identity Services (GIS)
+    // ══════════════════════════════════════════════════════════════════
+
+    const _GOOGLE_CLIENT_ID = '747300144353-1qbi69thi9t0sjrf3rrvddpt333fg7to.apps.googleusercontent.com';
+
+    /** Inicializa Google Identity Services cuando el SDK esté listo */
+    let _gisInited = false;
+    function _initGoogleGIS() {
+      if (_gisInited) return;
+      if (typeof google === 'undefined' || !google.accounts) return;
+      _gisInited = true;
+      google.accounts.id.initialize({
+        client_id:         _GOOGLE_CLIENT_ID,
+        callback:          _onGoogleCredential,
+        auto_select:       false,
+        cancel_on_tap_outside: true,
+        ux_mode:           'popup',
+      });
+    }
+
+    // El SDK de Google llama a esta función cuando está listo
+    window.onGoogleLibraryLoad = function() { _initGoogleGIS(); };
+    // Fallback: intentar inicializar después de que la página cargue
+    window.addEventListener('load', () => { setTimeout(_initGoogleGIS, 300); });
+
+    /** Click en botón "Continuar con Google" */
+    async function handleGoogleLogin() {
+      const btn = document.getElementById('btnGoogleLogin');
+      if (!btn || btn.disabled) return;
+
+      // Asegurar que GIS esté inicializado
+      if (typeof google === 'undefined' || !google.accounts) {
+        _showOAuthToast('Google Sign In no está disponible. Verifica tu conexión.');
+        return;
+      }
+
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      try {
+        // Usamos el flujo popup manual que da más control
+        await new Promise((resolve, reject) => {
+          google.accounts.oauth2.initTokenClient({
+            client_id: _GOOGLE_CLIENT_ID,
+            scope: 'openid email profile',
+            callback: async (tokenResponse) => {
+              if (tokenResponse.error) { reject(new Error(tokenResponse.error)); return; }
+              try {
+                // Obtener info del usuario con el access_token
+                const resp = await fetch(
+                  'https://www.googleapis.com/oauth2/v3/userinfo',
+                  { headers: { Authorization: 'Bearer ' + tokenResponse.access_token } }
+                );
+                if (!resp.ok) throw new Error('No se pudo obtener el perfil de Google.');
+                const profile = await resp.json();
+                await _processOAuthProfile({
+                  email:        profile.email,
+                  name:         profile.name,
+                  given_name:   profile.given_name,
+                  picture:      profile.picture,
+                  authProvider: 'google',
+                  sub:          profile.sub,
+                });
+                resolve();
+              } catch(e) { reject(e); }
+            },
+            error_callback: (err) => reject(new Error(err.message || 'Google OAuth cancelado')),
+          }).requestAccessToken({ prompt: 'select_account' });
+        });
+      } catch(err) {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        const msg = err.message || '';
+        if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('popup_closed')) {
+          // Usuario canceló — no mostrar error
+        } else {
+          _showOAuthToast('Error con Google: ' + (msg || 'Intenta de nuevo'));
+        }
+      }
+    }
+
+    /**
+     * Callback del flujo One Tap (credential response con ID token JWT).
+     * Se usa cuando GIS dispara One Tap automáticamente.
+     */
+    async function _onGoogleCredential(response) {
+      if (!response || !response.credential) return;
+      try {
+        // Decodificar el JWT del ID token (sin verificar — solo para extraer campos)
+        const parts   = response.credential.split('.');
+        const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+        await _processOAuthProfile({
+          email:        payload.email,
+          name:         payload.name,
+          given_name:   payload.given_name,
+          picture:      payload.picture,
+          authProvider: 'google',
+          sub:          payload.sub,
+        });
+      } catch(e) {
+        _showOAuthToast('Error procesando credencial de Google.');
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  APPLE SIGN IN
+    // ══════════════════════════════════════════════════════════════════
+
+    /** Click en botón "Continuar con Apple" */
+    async function handleAppleLogin() {
+      _showOAuthToast('Apple Sign In estará disponible muy pronto 🍎');
+      return;
+      /* --- Implementar cuando Apple Developer esté listo ---
+      const btn = document.getElementById('btnAppleLogin');
+      if (!btn || btn.disabled) return;
+      btn.classList.add('loading');
+      btn.disabled = true;
+      try {
+        AppleID.auth.init({
+          clientId:    'com.casamota.web',
+          scope:       'name email',
+          redirectURI: 'https://supermercadocasamota.com/login-cliente.html',
+          usePopup:    true,
+        });
+        const data = await AppleID.auth.signIn();
+        const jwt  = data.authorization.id_token;
+        const parts   = jwt.split('.');
+        const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+        const nameObj = data.user?.name;
+        const fullName = nameObj
+          ? ((nameObj.firstName || '') + ' ' + (nameObj.lastName || '')).trim()
+          : payload.email.split('@')[0];
+        await _processOAuthProfile({
+          email:        payload.email || payload.sub + '@privaterelay.appleid.com',
+          name:         fullName,
+          authProvider: 'apple',
+          sub:          payload.sub,
+        });
+      } catch(e) {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        const msg = e.error || e.message || '';
+        if (msg === 'popup_closed_by_user' || msg === 'user_cancelled_authorize') return;
+        _showOAuthToast('Error con Apple Sign In: ' + msg);
+      }
+      */
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  FLUJO COMÚN: Buscar/Crear cliente → Sesión → Redirigir
+    // ══════════════════════════════════════════════════════════════════
+
+    async function _processOAuthProfile(profile) {
+      const googleBtn = document.getElementById('btnGoogleLogin');
+      const appleBtn  = document.getElementById('btnAppleLogin');
+
+      // Mostrar loading en ambos botones mientras procesamos
+      [googleBtn, appleBtn].forEach(b => { if (b) { b.classList.add('loading'); b.disabled = true; } });
+
+      try {
+        // Buscar o crear cliente en Supabase
+        const client = await createClientFromOAuth(profile);
+
+        // Guardar sesión (igual que el login normal)
+        setClientSession(client);
+
+        // Feedback visual
+        const btn = profile.authProvider === 'google' ? googleBtn : appleBtn;
+        if (btn) {
+          btn.classList.remove('loading');
+          btn.innerHTML = '<i class="fas fa-check" style="color:#1a7c3e;font-size:1rem"></i> <span class="oauth-label">¡Bienvenido/a ' + (client.name || '').split(' ')[0] + '!</span>';
+          btn.style.border = '1.5px solid #1a7c3e';
+        }
+
+        setTimeout(() => { window.location.href = 'index.html'; }, 800);
+
+      } catch(err) {
+        [googleBtn, appleBtn].forEach(b => { if (b) { b.classList.remove('loading'); b.disabled = false; } });
+        _showOAuthToast('Error al iniciar sesión: ' + (err.message || 'Intenta de nuevo'));
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  TOAST de error OAuth
+    // ══════════════════════════════════════════════════════════════════
+
+    let _toastTimer = null;
+    function _showOAuthToast(msg, ms = 4000) {
+      const el = document.getElementById('oauthToast');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
   </script>
 </body>
 </html>
