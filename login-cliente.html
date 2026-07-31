@@ -861,7 +861,7 @@
 
     async function showRegisterInfo() {
       document.getElementById('registerModal').classList.remove('hidden');
-      _fillRegisterModal({ storeName: '…', storePhone: '…', storeEmail: '…', storeWhatsapp: '' });
+      // NO sobreescribimos con '…' — el HTML ya tiene los valores hardcodeados visibles
 
       if (!_regCfgCache) {
         try {
@@ -870,9 +870,9 @@
           const local = JSON.parse(localStorage.getItem('cm_settings') || '{}');
           _regCfgCache = {
             storeName:     local.settingName     || 'Supermercado Casa Mota',
-            storePhone:    local.settingPhone    || '',
-            storeEmail:    local.settingEmail    || '',
-            storeWhatsapp: local.settingWhatsapp || '',
+            storePhone:    local.settingPhone    || '809-553-2226',
+            storeEmail:    local.settingEmail    || 'soporte@supermercadocasamota.com',
+            storeWhatsapp: local.settingWhatsapp || '809-553-2226',
           };
         }
       }
@@ -881,35 +881,39 @@
 
     function _fillRegisterModal(cfg) {
       const name = cfg.storeName     || 'Supermercado Casa Mota';
-      const tel  = cfg.storePhone    || '';
-      const mail = cfg.storeEmail    || '';
-      const wa   = cfg.storeWhatsapp || '';
+      const tel  = cfg.storePhone    || '809-553-2226';
+      const mail = cfg.storeEmail    || 'soporte@supermercadocasamota.com';
+      const wa   = cfg.storeWhatsapp || '809-553-2226';
 
       document.getElementById('registerModalName').textContent = name;
 
       const phoneEl     = document.getElementById('registerModalPhone');
       const phoneTextEl = document.getElementById('registerModalPhoneText');
-      if (tel === '…') { phoneTextEl.textContent = '…'; phoneEl.style.display = 'flex'; }
-      else if (tel) { phoneEl.href = 'tel:' + tel.replace(/[^+\d]/g,''); phoneTextEl.textContent = tel; phoneEl.style.display = 'flex'; }
-      else { phoneEl.style.display = 'none'; }
+      // Solo actualizar si tiene valor real (nunca poner '…')
+      if (tel && tel !== '…') {
+        phoneEl.href = 'tel:+' + tel.replace(/[^\d]/g,'');
+        phoneTextEl.textContent = tel;
+        phoneEl.style.display = 'flex';
+      }
 
       const emailEl     = document.getElementById('registerModalEmail');
       const emailTextEl = document.getElementById('registerModalEmailText');
-      if (mail === '…') { emailTextEl.textContent = '…'; emailEl.style.display = 'flex'; }
-      else if (mail) { emailEl.href = 'mailto:' + mail; emailTextEl.textContent = mail; emailEl.style.display = 'flex'; }
-      else { emailEl.style.display = 'none'; }
+      if (mail && mail !== '…') {
+        emailEl.href = 'mailto:' + mail;
+        emailTextEl.textContent = mail;
+        emailEl.style.display = 'flex';
+      }
 
       const waEl     = document.getElementById('registerModalWhatsapp');
       const waTextEl = document.getElementById('registerModalWhatsappText');
-      if (wa && wa.trim()) {
+      if (wa && wa.trim() && wa !== '…') {
         const waDigits = wa.replace(/\D/g,'');
-        const waE164   = wa.startsWith('1-') ? waDigits : ('1' + waDigits);
+        const waE164   = '1' + waDigits;
         waEl.href = 'https://wa.me/' + waE164 + '?text=Hola,%20deseo%20crear%20una%20cuenta';
         waTextEl.textContent = wa;
         waEl.style.display = 'flex';
-      } else {
-        waEl.style.display = 'none';
       }
+      // Si no hay WhatsApp en settings pero el HTML ya tiene el valor, lo dejamos como está
     }
 
     function closeRegisterModal() {
