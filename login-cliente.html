@@ -227,7 +227,7 @@
     /* Header con botón back */
     .login-header {
       background: linear-gradient(135deg, var(--green-dark), var(--green-light));
-      padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 28px;
+      padding: calc(env(safe-area-inset-top, 0px) + 12px) 20px 18px;
       display: flex;
       align-items: center;
       gap: 14px;
@@ -255,14 +255,16 @@
     .login-header-wave {
       display: block;
       flex-shrink: 0;
+      height: 20px !important;
     }
 
     /* Cuerpo del formulario */
     .login-body {
       flex: 1;
-      padding: 28px 28px 32px;
+      padding: 24px 28px calc(env(safe-area-inset-bottom, 0px) + 32px);
       display: flex;
       flex-direction: column;
+      justify-content: center;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
