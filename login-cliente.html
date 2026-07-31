@@ -4,15 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Iniciar Sesión — Supermercado Casa Mota</title>
-  <!-- Guard: si ya hay sesión activa, ir directo a la tienda -->
   <script>
     (function() {
       try {
         var s = localStorage.getItem('cm_client_session')
              || sessionStorage.getItem('cm_client_session');
-        if (s && s !== 'null') {
-          window.location.replace('index.html');
-        }
+        if (s && s !== 'null') window.location.replace('index.html');
       } catch(e) {}
     })();
   </script>
@@ -22,219 +19,427 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --green:      #1a7c3e;
-      --green-dark: #145e2e;
-      --green-light:#27a35a;
-      --green-pale: #e8f5ee;
-      --red:        #e53935;
-      --border:     #e2e8f0;
+      --green:       #1a7c3e;
+      --green-dark:  #145e2e;
+      --green-light: #27a35a;
+      --green-pale:  #e8f5ee;
+      --red:         #e53935;
+      --border:      #e2e8f0;
     }
-    body {
+
+    html, body {
+      height: 100%; width: 100%;
       font-family: 'Inter', sans-serif;
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: #0d1b12;
       overflow: hidden;
+      background: #f5f7f5;
+    }
+
+    /* ══════════════════════════════════════════
+       CONTENEDOR DESLIZANTE (2 pantallas)
+    ══════════════════════════════════════════ */
+    .screens-wrap {
+      display: flex;
+      width: 200%;
+      height: 100%;
+      transition: transform .42s cubic-bezier(.4,0,.2,1);
+    }
+    .screens-wrap.show-login { transform: translateX(-50%); }
+
+    .screen {
+      width: 50%;
+      height: 100%;
+      overflow-y: auto;
       overflow-x: hidden;
-      overscroll-behavior: none;
+      -webkit-overflow-scrolling: touch;
     }
-    html { overflow-x: hidden; }
-    /* ─ Panel izquierdo: imagen/marca ─ */
-    .left-panel {
-      background: linear-gradient(160deg, #0d1b12 0%, #1a7c3e 50%, #27a35a 100%);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 40px;
-      position: relative; overflow: hidden;
+
+    /* ══════════════════════════════════════════
+       PANTALLA 1 — BIENVENIDA
+    ══════════════════════════════════════════ */
+    .welcome-screen {
+      background: linear-gradient(175deg, #0d1b12 0%, #1a7c3e 55%, #27a35a 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: env(safe-area-inset-top, 20px) 28px calc(env(safe-area-inset-bottom, 0px) + 40px);
+      min-height: 100%;
+      position: relative;
+      overflow: hidden;
     }
-    .left-panel::before {
+
+    /* Decoraciones de fondo */
+    .welcome-screen::before {
       content: '';
       position: absolute; inset: 0;
-      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
     }
-    .left-panel .brand-logo { width: 160px; margin-bottom: 28px; filter: drop-shadow(0 4px 16px rgba(0,0,0,.4)); position: relative; border-radius: 20px; background: #fff; padding: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.35); }
-    .left-panel h1 { color: #fff; font-size: 1.6rem; font-weight: 800; text-align: center; margin-bottom: 10px; position: relative; }
-    .left-panel p  { color: rgba(255,255,255,.75); font-size: .95rem; text-align: center; max-width: 320px; line-height: 1.6; position: relative; }
-    .left-features { margin-top: 36px; display: flex; flex-direction: column; gap: 14px; position: relative; }
-    .left-feat-item {
-      display: flex; align-items: center; gap: 12px;
-      background: rgba(255,255,255,.1); border-radius: 10px;
-      padding: 10px 16px; backdrop-filter: blur(4px);
+    /* Círculos decorativos */
+    .welcome-screen::after {
+      content: '';
+      position: absolute;
+      width: 380px; height: 380px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.04);
+      top: -80px; right: -100px;
+      pointer-events: none;
     }
-    .left-feat-item i { font-size: 1.1rem; color: #7dffb0; width: 22px; text-align: center; }
-    .left-feat-item span { color: rgba(255,255,255,.9); font-size: .88rem; font-weight: 500; }
+    .deco-circle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,.05);
+      pointer-events: none;
+    }
+    .deco-circle-1 { width: 220px; height: 220px; bottom: 160px; left: -70px; }
+    .deco-circle-2 { width: 140px; height: 140px; bottom: 60px; right: -40px; background: rgba(255,255,255,.03); }
 
-    /* ─ Panel derecho: formulario ─ */
-    .right-panel {
+    /* Contenido superior */
+    .welcome-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 40px;
+      flex: 1;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+      width: 100%;
+    }
+
+    .welcome-logo-wrap {
+      width: 110px; height: 110px;
+      border-radius: 28px;
       background: #fff;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 40px;
-      overflow-y: auto;
+      padding: 12px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.2);
+      margin-bottom: 28px;
+      display: flex; align-items: center; justify-content: center;
+      animation: logoIn .6s cubic-bezier(.34,1.56,.64,1) both;
     }
-    .login-box { width: 100%; max-width: 400px; }
-    .login-box h2 { font-size: 1.5rem; font-weight: 800; color: #1a1a2e; margin-bottom: 6px; }
-    .login-box .subtitle { font-size: .9rem; color: #888; margin-bottom: 30px; }
-    .login-box .subtitle a { color: var(--green); font-weight: 600; text-decoration: none; }
-    .login-box .subtitle a:hover { text-decoration: underline; }
+    @keyframes logoIn {
+      from { transform: scale(.5) translateY(30px); opacity: 0; }
+      to   { transform: scale(1) translateY(0);     opacity: 1; }
+    }
+    .welcome-logo-wrap img { width: 100%; height: 100%; object-fit: contain; border-radius: 18px; }
 
+    .welcome-title {
+      color: #fff;
+      font-size: 1.7rem;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 10px;
+      animation: fadeUp .5s .15s ease both;
+    }
+    .welcome-subtitle {
+      color: rgba(255,255,255,.72);
+      font-size: .93rem;
+      text-align: center;
+      line-height: 1.55;
+      max-width: 280px;
+      animation: fadeUp .5s .25s ease both;
+    }
+    @keyframes fadeUp {
+      from { transform: translateY(18px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* Características */
+    .welcome-features {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 320px;
+      margin-top: 32px;
+      animation: fadeUp .5s .35s ease both;
+      position: relative; z-index: 1;
+    }
+    .feat-item {
+      display: flex; align-items: center; gap: 11px;
+      background: rgba(255,255,255,.1);
+      border-radius: 12px; padding: 10px 14px;
+      backdrop-filter: blur(6px);
+    }
+    .feat-item i { color: #7dffb0; font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .feat-item span { color: rgba(255,255,255,.88); font-size: .84rem; font-weight: 500; }
+
+    /* Botones de bienvenida */
+    .welcome-actions {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative; z-index: 1;
+      animation: fadeUp .5s .45s ease both;
+      margin-top: 20px;
+    }
+
+    .btn-welcome-primary {
+      width: 100%; padding: 17px;
+      background: #fff;
+      color: var(--green-dark);
+      border: none; border-radius: 50px;
+      font-size: 1rem; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.2);
+      transition: transform .15s, box-shadow .15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-welcome-primary:active { transform: scale(.97); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+
+    .btn-welcome-secondary {
+      width: 100%; padding: 16px;
+      background: transparent;
+      color: #fff;
+      border: 2px solid rgba(255,255,255,.55);
+      border-radius: 50px;
+      font-size: 1rem; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: background .15s, border-color .15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-welcome-secondary:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.8); }
+    .btn-welcome-secondary:active { background: rgba(255,255,255,.15); }
+
+    /* ══════════════════════════════════════════
+       PANTALLA 2 — FORMULARIO LOGIN
+    ══════════════════════════════════════════ */
+    .login-screen {
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header con botón back */
+    .login-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green-light));
+      padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .btn-back {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.18);
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 1rem;
+      transition: background .15s;
+      flex-shrink: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-back:hover { background: rgba(255,255,255,.28); }
+    .login-header-text { flex: 1; }
+    .login-header-text h2 { color: #fff; font-size: 1.25rem; font-weight: 800; }
+    .login-header-text p  { color: rgba(255,255,255,.72); font-size: .82rem; margin-top: 2px; }
+
+    /* Ola decorativa debajo del header */
+    .login-header-wave {
+      display: block;
+      flex-shrink: 0;
+    }
+
+    /* Cuerpo del formulario */
+    .login-body {
+      flex: 1;
+      padding: 28px 28px 32px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Error */
+    .login-error {
+      display: none;
+      background: #fff3f3; border: 1px solid #ffcdd2;
+      border-left: 4px solid var(--red); border-radius: 10px;
+      padding: 11px 14px; font-size: .85rem; color: #c62828;
+      margin-bottom: 18px; gap: 8px; align-items: center;
+    }
+    .login-error.show { display: flex; animation: shake .35s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+
+    /* Grupos de campos */
     .form-group { margin-bottom: 18px; }
     .form-group label { display: block; font-size: .82rem; font-weight: 600; color: #444; margin-bottom: 7px; }
     .input-wrap { position: relative; }
-    .input-wrap > i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #ccc; font-size: .9rem; pointer-events: none; transition: color .2s; }
-    .input-wrap:focus-within > i { color: var(--green); }
-    .input-wrap input {
-      width: 100%; padding: 11px 42px;
-      border: 1.5px solid var(--border); border-radius: 8px;
-      font-size: 16px; /* ≥16px evita el zoom automático en iOS Safari */
-      font-family: inherit; color: #1a1a2e;
-      background: #fafafa; outline: none;
-      transition: border-color .2s, box-shadow .2s;
+    .input-wrap > i.ico-left {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: #ccc; font-size: .9rem; pointer-events: none; transition: color .2s;
     }
-    .input-wrap input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(26,124,62,.1); background:#fff; }
-    .toggle-pass { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #aaa; cursor: pointer; font-size: .9rem; padding: 4px; transition: color .2s; }
+    .input-wrap:focus-within > i.ico-left { color: var(--green); }
+    .input-wrap input {
+      width: 100%; padding: 13px 44px;
+      border: 1.5px solid var(--border); border-radius: 12px;
+      font-size: 16px; font-family: inherit; color: #1a1a2e;
+      background: #f9fbf9; outline: none;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+    .input-wrap input:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(26,124,62,.1);
+      background: #fff;
+    }
+    .toggle-pass {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #aaa; cursor: pointer;
+      font-size: .9rem; padding: 4px; transition: color .2s;
+    }
     .toggle-pass:hover { color: var(--green); }
 
-    .login-error {
-      display: none; background: #fff3f3; border: 1px solid #ffcdd2;
-      border-left: 4px solid var(--red); border-radius: 8px;
-      padding: 10px 14px; font-size: .85rem; color: #c62828;
-      margin-bottom: 16px; gap: 8px;
-    }
-    .login-error.show { display: flex; align-items: center; animation: shake .35s ease; }
-    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
-
+    /* Botón login */
     .btn-login {
-      width: 100%; padding: 15px;
+      width: 100%; padding: 16px;
       background: linear-gradient(135deg, var(--green-dark), var(--green-light));
-      color: #fff; border: none; border-radius: 8px;
+      color: #fff; border: none; border-radius: 50px;
       font-size: 1rem; font-weight: 700; font-family: inherit; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: 10px;
-      box-shadow: 0 4px 14px rgba(26,124,62,.35);
-      transition: opacity .2s, transform .2s;
-      margin-top: 4px;
-      min-height: 52px;
+      box-shadow: 0 6px 18px rgba(26,124,62,.35);
+      transition: opacity .2s, transform .15s;
+      min-height: 54px; margin-top: 6px;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
-      user-select: none;
     }
     .btn-login:hover { opacity: .92; transform: translateY(-1px); }
-    .btn-login:disabled,
-    .btn-login.loading { opacity: .75; pointer-events: none; cursor: not-allowed; }
+    .btn-login:disabled, .btn-login.loading { opacity: .75; pointer-events: none; }
     .spinner { width:20px;height:20px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none;flex-shrink:0; }
     .btn-login.loading .spinner { display:block; }
     .btn-login.loading .btn-text { display:none; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .register-link {
-      text-align: center; margin-top: 22px;
-      font-size: .85rem; color: #888;
-    }
-    .register-link a { color: var(--green); font-weight: 600; text-decoration: none; }
-    .register-link a:hover { text-decoration: underline; }
-
-    .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
-    .divider::before, .divider::after { content:''; flex:1; height:1px; background: var(--border); }
-    .divider span { font-size: .78rem; color: #bbb; white-space: nowrap; }
-
-    /* Logo solo visible en móvil (en desktop lo muestra el panel izquierdo) */
-    .mobile-logo {
-      display: none;
-      text-align: center;
-      margin-bottom: 28px;
-    }
-    .mobile-logo img {
-      width: 140px;
-      border-radius: 20px;
-      background: #fff;
-      padding: 10px;
-      box-shadow: 0 6px 24px rgba(0,0,0,.12);
-      border: 1.5px solid #e8f5ee;
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      body { grid-template-columns: 1fr; }
-      .left-panel { display: none; }
-      .right-panel { padding: 36px 24px; }
-      .mobile-logo { display: block; }
-    }
-
-    /* ── Modal de registro ─────────────────────────────────────── */
+    /* ══════════════════════════════════════════
+       MODAL REGISTRO
+    ══════════════════════════════════════════ */
     .register-modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,.45);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 999; padding: 20px;
+      position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 9999; padding: 0;
     }
     .register-modal-backdrop.hidden { display: none; }
     .register-modal {
-      background: #fff; border-radius: 18px; padding: 32px 28px;
-      max-width: 420px; width: 100%; position: relative;
-      box-shadow: 0 20px 60px rgba(0,0,0,.2);
-      text-align: center; animation: modalIn .25s ease;
+      background: #fff;
+      border-radius: 24px 24px 0 0;
+      padding: 28px 24px calc(env(safe-area-inset-bottom, 0px) + 28px);
+      width: 100%; max-width: 480px;
+      position: relative;
+      box-shadow: 0 -8px 40px rgba(0,0,0,.2);
+      text-align: center;
+      animation: sheetUp .3s cubic-bezier(.4,0,.2,1) both;
     }
-    @keyframes modalIn { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     .register-modal-close {
       position: absolute; top: 14px; right: 16px;
-      background: none; border: none; font-size: 1.1rem;
-      color: #aaa; cursor: pointer; transition: color .15s;
+      background: #f0f0f0; border: none; width: 32px; height: 32px;
+      border-radius: 50%; font-size: .85rem; color: #666;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
     }
-    .register-modal-close:hover { color: #333; }
+    .register-modal-close:hover { background: #e0e0e0; }
+    .sheet-handle {
+      width: 40px; height: 4px; border-radius: 4px;
+      background: #e0e0e0; margin: 0 auto 20px;
+    }
     .register-modal-icon {
-      width: 64px; height: 64px; border-radius: 50%;
+      width: 60px; height: 60px; border-radius: 50%;
       background: linear-gradient(135deg, #e8f5ee, #d0f0df);
       display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 16px; font-size: 1.6rem; color: #1a7c3e;
+      margin: 0 auto 14px; font-size: 1.5rem; color: #1a7c3e;
     }
-    .register-modal h3 { font-size: 1.2rem; font-weight: 800; color: #1a1a2e; margin-bottom: 10px; }
-    .register-modal p  { font-size: .88rem; color: #555; line-height: 1.5; margin-bottom: 20px; }
-    .register-modal-contacts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .register-modal h3 { font-size: 1.15rem; font-weight: 800; color: #1a1a2e; margin-bottom: 8px; }
+    .register-modal > p { font-size: .87rem; color: #555; line-height: 1.5; margin-bottom: 18px; }
+    .register-modal-contacts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
     .register-contact-btn {
       display: flex; align-items: center; gap: 12px;
-      padding: 13px 18px; border-radius: 10px;
-      font-weight: 700; font-size: .92rem; text-decoration: none;
-      transition: opacity .15s;
+      padding: 13px 18px; border-radius: 12px;
+      font-weight: 700; font-size: .9rem; text-decoration: none;
+      transition: opacity .15s, transform .12s;
+      text-align: left;
     }
-    .register-contact-btn:hover { opacity: .85; }
+    .register-contact-btn:active { transform: scale(.97); opacity: .85; }
     .register-contact-btn i { font-size: 1.1rem; width: 22px; text-align: center; flex-shrink: 0; }
     .register-contact-btn.phone    { background: #e8f5ee; color: #1a7c3e; }
     .register-contact-btn.email    { background: #e8f0ff; color: #4527a0; }
     .register-contact-btn.whatsapp { background: #e8fef0; color: #128c7e; }
     .register-modal-note {
-      font-size: .78rem; color: #aaa; display: flex;
-      align-items: flex-start; gap: 6px; text-align: left;
-      background: #f9f9f9; border-radius: 8px; padding: 10px 12px;
-      margin-bottom: 20px;
+      font-size: .77rem; color: #aaa;
+      display: flex; align-items: flex-start; gap: 6px; text-align: left;
+      background: #f9f9f9; border-radius: 10px; padding: 10px 12px;
+      margin-bottom: 18px;
     }
     .register-modal-note i { color: #90a4ae; flex-shrink: 0; margin-top: 2px; }
     .btn-register-ok {
-      width: 100%; padding: 13px; background: linear-gradient(135deg,#1a7c3e,#27a35a);
-      color: #fff; border: none; border-radius: 10px; font-size: .95rem;
-      font-weight: 700; cursor: pointer; transition: opacity .15s;
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, #1a7c3e, #27a35a);
+      color: #fff; border: none; border-radius: 50px;
+      font-size: .95rem; font-weight: 700; cursor: pointer;
+      transition: opacity .15s; font-family: inherit;
     }
     .btn-register-ok:hover { opacity: .9; }
+
+    /* ══════════════════════════════════════════
+       DESKTOP — layout dos columnas
+    ══════════════════════════════════════════ */
+    @media (min-width: 769px) {
+      html, body { overflow: auto; }
+      .screens-wrap {
+        width: 100%; height: 100vh;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        transition: none;
+        transform: none !important;
+      }
+      .screen { width: 100%; height: 100vh; overflow: hidden; }
+
+      /* En desktop, la pantalla de bienvenida siempre visible como panel izquierdo */
+      .welcome-screen { overflow-y: auto; justify-content: space-between; gap: 0; padding: 40px 40px 40px; }
+      .welcome-actions { display: flex; max-width: 340px; }
+      .welcome-features { margin-top: 24px; margin-bottom: 0; }
+
+      /* Panel derecho: siempre muestra el formulario */
+      .login-screen {
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0;
+      }
+      .login-header { display: none; }
+      .login-header-wave { display: none; }
+      .mobile-register-link { display: none; }
+      .login-body {
+        padding: 48px 56px;
+        flex: unset;
+        overflow: visible;
+      }
+      .login-body-title {
+        display: block !important;
+        margin-bottom: 30px;
+      }
+
+      /* Modal en desktop: centrado */
+      .register-modal-backdrop { align-items: center; padding: 20px; }
+      .register-modal { border-radius: 20px; max-width: 420px; }
+      @keyframes sheetUp { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Panel izquierdo -->
-  <div class="left-panel">
-    <img src="images/logo-casamota.png" alt="Casa Mota" class="brand-logo" />
-    <h1>Bienvenido a Casa Mota</h1>
-    <p>Tu supermercado dominicano de confianza. Compra desde casa y recibe en la puerta.</p>
-    <div class="left-features">
-      <div class="left-feat-item"><i class="fas fa-truck-fast"></i><span>Entrega rápida</span></div>
-      <div class="left-feat-item"><i class="fas fa-tags"></i><span>Ofertas y descuentos exclusivos</span></div>
-      <div class="left-feat-item"><i class="fas fa-shield-halved"></i><span>Compra segura y garantizada</span></div>
-      <div class="left-feat-item"><i class="fas fa-clock-rotate-left"></i><span>Historial de tus pedidos</span></div>
-    </div>
-  </div>
-
-  <!-- Modal: cómo crear cuenta -->
+  <!-- ── Modal registro ─────────────────────────────────────────── -->
   <div id="registerModal" class="register-modal-backdrop hidden" onclick="if(event.target===this)closeRegisterModal()">
     <div class="register-modal">
       <button class="register-modal-close" onclick="closeRegisterModal()"><i class="fas fa-times"></i></button>
+      <div class="sheet-handle"></div>
       <div class="register-modal-icon"><i class="fas fa-user-plus"></i></div>
       <h3>¿Cómo crear tu cuenta?</h3>
       <p>Las cuentas son creadas por el equipo de <strong id="registerModalName">Supermercado Casa Mota</strong>. Contáctanos y un administrador te asignará tu acceso:</p>
@@ -257,71 +462,143 @@
     </div>
   </div>
 
-  <!-- Panel derecho: formulario -->
-  <div class="right-panel">
-    <div class="login-box">
-      <!-- Logo visible solo en móvil -->
-      <div class="mobile-logo">
-        <img src="images/logo-casamota.png" alt="Supermercado Casa Mota" />
-      </div>
-      <h2>Iniciar sesión</h2>
-      <p class="subtitle">¿No tienes cuenta? <a href="#" onclick="showRegisterInfo()">Solicítala al supermercado</a></p>
+  <!-- ── Contenedor deslizante ──────────────────────────────────── -->
+  <div class="screens-wrap" id="screensWrap">
 
-      <div class="login-error" id="loginError">
-        <i class="fas fa-circle-xmark"></i>
-        <span id="loginErrorMsg">Correo o contraseña incorrectos.</span>
-      </div>
+    <!-- PANTALLA 1: Bienvenida -->
+    <div class="screen welcome-screen">
+      <div class="deco-circle deco-circle-1"></div>
+      <div class="deco-circle deco-circle-2"></div>
 
-      <form onsubmit="handleClientLogin(event)">
-        <div class="form-group">
-          <label>Correo electrónico</label>
-          <div class="input-wrap">
-            <i class="fas fa-envelope"></i>
-            <input type="email" id="clientEmail" placeholder="tucorreo@ejemplo.com" required autocomplete="email" />
-          </div>
+      <div class="welcome-top">
+        <div class="welcome-logo-wrap">
+          <img src="images/logo-casamota.png" alt="Casa Mota" />
         </div>
-        <div class="form-group">
-          <label>Contraseña</label>
-          <div class="input-wrap">
-            <i class="fas fa-lock"></i>
-            <input type="password" id="clientPass" placeholder="••••••••" required autocomplete="current-password" />
-            <button type="button" class="toggle-pass" onclick="toggleClientPass()">
-              <i class="fas fa-eye" id="clientPassEye"></i>
-            </button>
-          </div>
-        </div>
+        <h1 class="welcome-title">¡Bienvenido a Casa Mota!</h1>
+        <p class="welcome-subtitle">Tu supermercado dominicano. Compra desde casa y recibe en la puerta.</p>
 
-        <button type="submit" class="btn-login" id="clientLoginBtn">
-          <div class="spinner"></div>
-          <span class="btn-text"><i class="fas fa-right-to-bracket"></i> Entrar a la tienda</span>
+        <div class="welcome-features">
+          <div class="feat-item"><i class="fas fa-truck-fast"></i><span>Entrega rápida a domicilio</span></div>
+          <div class="feat-item"><i class="fas fa-tags"></i><span>Ofertas y descuentos exclusivos</span></div>
+          <div class="feat-item"><i class="fas fa-shield-halved"></i><span>Compra segura y garantizada</span></div>
+          <div class="feat-item"><i class="fas fa-clock-rotate-left"></i><span>Historial de tus pedidos</span></div>
+        </div>
+      </div>
+
+      <div class="welcome-actions">
+        <button class="btn-welcome-primary" onclick="showLoginForm()">
+          <i class="fas fa-right-to-bracket"></i> Iniciar sesión
         </button>
-      </form>
+        <button class="btn-welcome-secondary" onclick="showRegisterInfo()">
+          <i class="fas fa-user-plus"></i> Crear una cuenta
+        </button>
+      </div>
 
-      <div class="divider"><span>o</span></div>
 
-      <div class="register-link">
-        <p>¿Eres administrador? <a href="login.html">Accede al panel admin →</a></p>
+    </div>
+
+    <!-- PANTALLA 2: Formulario login -->
+    <div class="screen login-screen" id="loginScreen">
+
+      <!-- Header con back (solo mobile) -->
+      <div class="login-header">
+        <button class="btn-back" onclick="showWelcome()" aria-label="Volver">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div class="login-header-text">
+          <h2>Iniciar sesión</h2>
+          <p>Ingresa tus credenciales</p>
+        </div>
+        <img src="images/logo-casamota.png" alt="" style="width:36px;height:36px;border-radius:10px;background:#fff;padding:4px;opacity:.9" />
+      </div>
+
+      <!-- Ola SVG decorativa -->
+      <svg class="login-header-wave" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 48" preserveAspectRatio="none" style="width:100%;height:32px;display:block;margin-top:-1px;flex-shrink:0">
+        <path fill="#27a35a" d="M0,48 L0,18 C360,48 1080,0 1440,24 L1440,48 Z"/>
+      </svg>
+
+      <!-- Título solo visible en desktop -->
+      <div class="login-body-title" style="display:none;padding:0 56px;margin-top:8px">
+        <h2 style="font-size:1.5rem;font-weight:800;color:#1a1a2e;margin-bottom:4px">Iniciar sesión</h2>
+        <p style="font-size:.9rem;color:#888">Ingresa tus credenciales para acceder</p>
+      </div>
+
+      <div class="login-body">
+        <div class="login-error" id="loginError">
+          <i class="fas fa-circle-xmark"></i>
+          <span id="loginErrorMsg">Correo o contraseña incorrectos.</span>
+        </div>
+
+        <form onsubmit="handleClientLogin(event)">
+          <div class="form-group">
+            <label>Correo electrónico</label>
+            <div class="input-wrap">
+              <i class="fas fa-envelope ico-left"></i>
+              <input type="email" id="clientEmail" placeholder="tucorreo@ejemplo.com"
+                     required autocomplete="email" inputmode="email" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Contraseña</label>
+            <div class="input-wrap">
+              <i class="fas fa-lock ico-left"></i>
+              <input type="password" id="clientPass" placeholder="••••••••"
+                     required autocomplete="current-password" />
+              <button type="button" class="toggle-pass" onclick="toggleClientPass()">
+                <i class="fas fa-eye" id="clientPassEye"></i>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-login" id="clientLoginBtn">
+            <div class="spinner"></div>
+            <span class="btn-text"><i class="fas fa-right-to-bracket"></i> Entrar a la tienda</span>
+          </button>
+        </form>
+
+        <!-- Link para solicitar cuenta (solo mobile, debajo del form) -->
+        <div style="text-align:center;margin-top:22px;font-size:.85rem;color:#888" class="mobile-register-link">
+          ¿No tienes cuenta?
+          <a href="#" onclick="showRegisterInfo();return false"
+             style="color:var(--green);font-weight:600;text-decoration:none">Solicítala aquí</a>
+        </div>
+
+
       </div>
     </div>
-  </div>
+
+  </div><!-- /screens-wrap -->
 
   <script src="js/api.js?v=305"></script>
   <script src="js/auth.v33.js?v=295"></script>
   <script>
-    // Redirigir si ya hay sesión de cliente activa
+    // ── Redirigir si ya hay sesión ─────────────────────────────────
     (function() {
       const s = getClientSession();
       if (s) window.location.href = 'index.html';
     })();
 
-    // Flag para evitar múltiples envíos simultáneos (doble tap en iOS)
+    // ── Navegación entre pantallas ─────────────────────────────────
+    function showLoginForm() {
+      document.getElementById('screensWrap').classList.add('show-login');
+      // Hacer foco en el email después de la animación
+      setTimeout(() => {
+        const emailInput = document.getElementById('clientEmail');
+        if (emailInput) emailInput.focus();
+      }, 450);
+    }
+
+    function showWelcome() {
+      document.getElementById('screensWrap').classList.remove('show-login');
+      document.getElementById('loginError').classList.remove('show');
+    }
+
+    // ── Login ──────────────────────────────────────────────────────
     let _isLoggingIn = false;
 
     async function handleClientLogin(e) {
       e.preventDefault();
       e.stopPropagation();
-
-      // Bloquear si ya hay un intento en curso
       if (_isLoggingIn) return;
 
       const email = document.getElementById('clientEmail').value.trim();
@@ -331,13 +608,11 @@
 
       if (!email || !pass) return;
 
-      // Activar estado de carga y bloquear el botón
       _isLoggingIn = true;
       errEl.classList.remove('show');
       btn.classList.add('loading');
       btn.disabled = true;
 
-      // Timeout de seguridad: si la API no responde en 15s, desbloquear
       const loginTimeout = setTimeout(() => {
         if (_isLoggingIn) {
           _isLoggingIn = false;
@@ -353,13 +628,10 @@
         clearTimeout(loginTimeout);
 
         if (result.ok) {
-          // Éxito: mostrar mensaje de bienvenida y redirigir
           btn.innerHTML = `<i class="fas fa-check"></i> <span>¡Bienvenido/a ${result.client.name.split(' ')[0]}!</span>`;
           btn.style.background = 'linear-gradient(135deg,#1a7c3e,#27a35a)';
-          // Mantener bloqueado durante la redirección
           setTimeout(() => { window.location.href = 'index.html'; }, 700);
         } else {
-          // Credenciales incorrectas: desbloquear para que pueda intentar de nuevo
           _isLoggingIn = false;
           btn.classList.remove('loading');
           btn.disabled = false;
@@ -385,20 +657,17 @@
       icon.className = inp.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
     }
 
-    // Caché en memoria — evita llamar a Supabase en cada apertura del modal
+    // ── Modal registro ─────────────────────────────────────────────
     let _regCfgCache = null;
 
     async function showRegisterInfo() {
-      // Mostrar el modal de inmediato con puntos suspensivos mientras carga
       document.getElementById('registerModal').classList.remove('hidden');
-      _fillRegisterModal({ storeName: '\u2026', storePhone: '\u2026', storeEmail: '\u2026', storeWhatsapp: '' });
+      _fillRegisterModal({ storeName: '…', storePhone: '…', storeEmail: '…', storeWhatsapp: '' });
 
-      // Usar caché si ya tenemos los datos
       if (!_regCfgCache) {
         try {
           _regCfgCache = await DB.getSettings();
         } catch(e) {
-          // Fallback a localStorage como último recurso
           const local = JSON.parse(localStorage.getItem('cm_settings') || '{}');
           _regCfgCache = {
             storeName:     local.settingName     || 'Supermercado Casa Mota',
@@ -419,41 +688,24 @@
 
       document.getElementById('registerModalName').textContent = name;
 
-      // ── Teléfono ──────────────────────────────────────────────
       const phoneEl     = document.getElementById('registerModalPhone');
       const phoneTextEl = document.getElementById('registerModalPhoneText');
-      if (tel === '\u2026') {
-        phoneTextEl.textContent = '\u2026';
-        phoneEl.style.display = 'flex';
-      } else if (tel) {
-        phoneEl.href = 'tel:' + tel.replace(/[^+\d]/g, '');
-        phoneTextEl.textContent = tel;
-        phoneEl.style.display = 'flex';
-      } else {
-        phoneEl.style.display = 'none';
-      }
+      if (tel === '…') { phoneTextEl.textContent = '…'; phoneEl.style.display = 'flex'; }
+      else if (tel) { phoneEl.href = 'tel:' + tel.replace(/[^+\d]/g,''); phoneTextEl.textContent = tel; phoneEl.style.display = 'flex'; }
+      else { phoneEl.style.display = 'none'; }
 
-      // ── Email ─────────────────────────────────────────────────
       const emailEl     = document.getElementById('registerModalEmail');
       const emailTextEl = document.getElementById('registerModalEmailText');
-      if (mail === '\u2026') {
-        emailTextEl.textContent = '\u2026';
-        emailEl.style.display = 'flex';
-      } else if (mail) {
-        emailEl.href = 'mailto:' + mail;
-        emailTextEl.textContent = mail;
-        emailEl.style.display = 'flex';
-      } else {
-        emailEl.style.display = 'none';
-      }
+      if (mail === '…') { emailTextEl.textContent = '…'; emailEl.style.display = 'flex'; }
+      else if (mail) { emailEl.href = 'mailto:' + mail; emailTextEl.textContent = mail; emailEl.style.display = 'flex'; }
+      else { emailEl.style.display = 'none'; }
 
-      // ── WhatsApp (visible solo si está configurado en admin) ──
       const waEl     = document.getElementById('registerModalWhatsapp');
       const waTextEl = document.getElementById('registerModalWhatsappText');
-      if (wa && wa.trim() !== '') {
-        const waDigits = wa.replace(/\D/g, '');
+      if (wa && wa.trim()) {
+        const waDigits = wa.replace(/\D/g,'');
         const waE164   = wa.startsWith('1-') ? waDigits : ('1' + waDigits);
-        waEl.href = 'https://wa.me/' + waE164;
+        waEl.href = 'https://wa.me/' + waE164 + '?text=Hola,%20deseo%20crear%20una%20cuenta';
         waTextEl.textContent = wa;
         waEl.style.display = 'flex';
       } else {
