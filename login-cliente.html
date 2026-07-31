@@ -563,7 +563,7 @@
       <div class="sheet-handle"></div>
       <div class="register-modal-icon"><i class="fas fa-user-plus"></i></div>
       <h3>¿Cómo crear tu cuenta?</h3>
-      <p>Crea tu cuenta al instante con Google o Apple, o contáctanos y un administrador te asignará tu acceso:</p>
+      <p>Crea tu cuenta al instante con Google o Apple, o contáctanos y un administrador de <strong id="registerModalName">Supermercado Casa Mota</strong> te asignará tu acceso:</p>
 
       <div class="register-modal-contacts">
 
@@ -593,24 +593,27 @@
         </button>
 
         <!-- Divisor -->
-        <div class="oauth-divider" style="margin:6px 0 2px">o contáctanos</div>
+        <div class="oauth-divider" style="margin:8px 0 4px">o contáctanos</div>
 
-        <!-- 3. WhatsApp -->
-        <a id="registerModalWhatsapp" href="#" class="register-contact-btn whatsapp" style="display:none">
+        <!-- 3. WhatsApp — se muestra solo si hay número configurado en settings -->
+        <a id="registerModalWhatsapp" href="https://wa.me/18095532226?text=Hola,%20deseo%20crear%20una%20cuenta"
+           class="register-contact-btn whatsapp">
           <i class="fab fa-whatsapp"></i>
-          <span id="registerModalWhatsappText"></span>
+          <span id="registerModalWhatsappText">809-553-2226 (WhatsApp)</span>
         </a>
 
         <!-- 4. Teléfono -->
-        <a id="registerModalPhone" href="#" class="register-contact-btn phone">
+        <a id="registerModalPhone" href="tel:+18095532226"
+           class="register-contact-btn phone">
           <i class="fas fa-phone"></i>
-          <span id="registerModalPhoneText"></span>
+          <span id="registerModalPhoneText">809-553-2226</span>
         </a>
 
         <!-- 5. Email -->
-        <a id="registerModalEmail" href="#" class="register-contact-btn email">
+        <a id="registerModalEmail" href="mailto:soporte@supermercadocasamota.com"
+           class="register-contact-btn email">
           <i class="fas fa-envelope"></i>
-          <span id="registerModalEmailText"></span>
+          <span id="registerModalEmailText">soporte@supermercadocasamota.com</span>
         </a>
 
       </div>
