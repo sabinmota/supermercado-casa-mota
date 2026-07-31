@@ -258,10 +258,27 @@
       height: 20px !important;
     }
 
+    /* Logo centrado en pantalla de login */
+    .login-logo-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 24px 0 4px;
+      flex-shrink: 0;
+    }
+    .login-logo-wrap img {
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+      object-fit: contain;
+      background: #fff;
+      padding: 8px;
+      box-shadow: 0 6px 24px rgba(26,124,62,.18), 0 2px 8px rgba(0,0,0,.08);
+    }
+
     /* Cuerpo del formulario */
     .login-body {
       flex: 1;
-      padding: 24px 28px calc(env(safe-area-inset-bottom, 0px) + 32px);
+      padding: 16px 28px calc(env(safe-area-inset-bottom, 0px) + 32px);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -425,6 +442,7 @@
       }
       .login-header { display: none; }
       .login-header-wave { display: none; }
+      .login-logo-wrap { display: none; }
       .mobile-register-link { display: none; }
       .login-body {
         padding: 48px 56px;
@@ -518,7 +536,7 @@
           <h2>Iniciar sesión</h2>
           <p>Ingresa tus credenciales</p>
         </div>
-        <img src="images/logo-casamota.png" alt="" style="width:36px;height:36px;border-radius:10px;background:#fff;padding:4px;opacity:.9" />
+
       </div>
 
       <!-- Ola SVG decorativa -->
@@ -530,6 +548,10 @@
       <div class="login-body-title" style="display:none;padding:0 56px;margin-top:8px">
         <h2 style="font-size:1.5rem;font-weight:800;color:#1a1a2e;margin-bottom:4px">Iniciar sesión</h2>
         <p style="font-size:.9rem;color:#888">Ingresa tus credenciales para acceder</p>
+      </div>
+
+      <div class="login-logo-wrap">
+        <img src="images/logo-casamota.png" alt="Casa Mota" />
       </div>
 
       <div class="login-body">
