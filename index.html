@@ -7,18 +7,34 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Supermercado Casa Mota - Compras en línea</title>
+  <!-- Ocultar HTML instantáneamente hasta verificar sesión -->
+  <style>html { visibility: hidden; }</style>
   <script>
-    /* ── Forzar versión correcta ── */
+    /* ── Verificar sesión + versión — PRIMER script, bloquea render ── */
     (function(){
-      const VER = '312';
-      const KEY = 'cm_app_ver';
-      const stored = sessionStorage.getItem(KEY);
-      if (stored !== VER) {
-        sessionStorage.setItem(KEY, VER);
-        if (stored !== null) {
-          window.location.reload(true);
+      /* 1) Sesión */
+      try {
+        var s = localStorage.getItem('cm_client_session')
+               || sessionStorage.getItem('cm_client_session');
+        if (!s || s === 'null') {
+          window.location.replace('login-cliente.html');
+          /* No mostrar nada — la redirección ocurre antes del paint */
+        } else {
+          /* Hay sesión válida: mostrar página */
+          document.documentElement.style.visibility = 'visible';
         }
+      } catch(e) {
+        window.location.replace('login-cliente.html');
       }
+      /* 2) Versión */
+      try {
+        var VER = '312', KEY = 'cm_app_ver';
+        var stored = sessionStorage.getItem(KEY);
+        if (stored !== VER) {
+          sessionStorage.setItem(KEY, VER);
+          if (stored !== null) window.location.reload(true);
+        }
+      } catch(e) {}
     })();
   </script>
 
