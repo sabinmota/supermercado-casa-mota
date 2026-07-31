@@ -776,36 +776,67 @@ async function createClientFromOAuth(profile) {
   } catch(e) { /* continuar — red fallida */ }
 
   if (existing) {
-    // Actualizar foto y proveedor si cambió
-    const patch = { authProvider: profile.authProvider, lastLogin: _nowTs() };
-    if (profile.picture && !existing.avatar) patch.avatar = profile.picture;
-    try { await DB.patchCustomer(existing.id, patch); } catch(e) { /* no crítico */ }
-    const { password: _pw, ...safe } = { ...existing, ...patch };
+    // Actualizar lastLogin siempre — campos opcionales solo si la columna existe
+    // Usamos patches separados: primero el seguro, luego los opcionales (por si la
+    // columna authProvider/avatar aún no fue creada en Supabase)
+    const safePatch = { lastLogin: _nowTs() };
+    try { await DB.patchCustomer(existing.id, safePatch); } catch(e) { /* no crítico */ }
+
+    // Patch opcional — authProvider + avatar (requiere ALTER TABLE si falla)
+    const optPatch = {};
+    if (profile.authProvider) optPatch.authProvider = profile.authProvider;
+    if (profile.picture && !existing.avatar) optPatch.avatar = profile.picture;
+    if (Object.keys(optPatch).length > 0) {
+      try { await DB.patchCustomer(existing.id, optPatch); } catch(e) {
+        console.warn('[OAuth] Columnas opcionales no existen aún (authProvider/avatar). Ejecuta el SQL en Supabase.');
+      }
+    }
+
+    const { password: _pw, ...safe } = { ...existing, ...safePatch, ...optPatch };
     return safe;
   }
 
   // 2) No existe → crear cliente nuevo
+  // Campos base: siempre presentes en la tabla customers
   const newClient = {
-    name:         profile.name || profile.given_name || email.split('@')[0],
-    email:        email,
-    phone:        '',
-    address:      '',
-    city:         '',
-    cedula:       '',
-    notes:        '',
-    status:       'habilitado',
-    ranking:      'bronce',
-    orders:       0,
-    spent:        0,
-    lastOrder:    '',
-    lastLogin:    _nowTs(),
-    createdAt:    _nowTs(),
-    authProvider: profile.authProvider || 'google',
-    avatar:       profile.picture || '',
+    name:      profile.name || profile.given_name || email.split('@')[0],
+    email:     email,
+    phone:     '',
+    address:   '',
+    city:      '',
+    cedula:    '',
+    notes:     '',
+    status:    'habilitado',
+    ranking:   'bronce',
+    orders:    0,
+    spent:     0,
+    lastOrder: '',
+    lastLogin: _nowTs(),
+    createdAt: _nowTs(),
     // No se asigna password — es cliente OAuth
   };
 
-  const created = await DB.createCustomer(newClient);
+  // Intentar crear con campos opcionales primero
+  const fullClient = {
+    ...newClient,
+    authProvider: profile.authProvider || 'google',
+    avatar:       profile.picture || '',
+  };
+
+  let created = null;
+  try {
+    created = await DB.createCustomer(fullClient);
+  } catch(e) {
+    // Si falla por columnas opcionales (PGRST204), reintentar solo con campos base
+    const isSchemaError = (e.message || '').includes('PGRST204') || (e.message || '').includes('schema cache');
+    if (isSchemaError) {
+      console.warn('[OAuth] Reintentando crear cliente sin columnas opcionales. Ejecuta el SQL en Supabase.');
+      created = await DB.createCustomer(newClient);
+    } else {
+      throw e;
+    }
+  }
+
   if (!created) throw new Error('OAuth: no se pudo crear el cliente en Supabase.');
   const { password: _pw, ...safe } = created;
   return safe;

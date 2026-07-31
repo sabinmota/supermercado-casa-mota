@@ -705,6 +705,8 @@
             </svg>
             <span class="oauth-label">Continuar con Google</span>
           </button>
+          <!-- Fallback: botón nativo de Google si One Tap es bloqueado por el navegador -->
+          <div id="googleBtnFallback" style="display:none;margin-top:-4px"></div>
 
           <!-- Apple -->
           <button type="button" class="btn-oauth apple" id="btnAppleLogin"
@@ -876,6 +878,8 @@
 
     // ══════════════════════════════════════════════════════════════════
     //  GOOGLE SIGN IN — Google Identity Services (GIS)
+    //  Flujo: google.accounts.id.prompt() — overlay nativo sin popup
+    //  Evita Cross-Origin-Opener-Policy (COOP) que bloquea requestAccessToken
     // ══════════════════════════════════════════════════════════════════
 
     const _GOOGLE_CLIENT_ID = '747300144353-1qbi69thi9t0sjrf3rrvddpt333fg7to.apps.googleusercontent.com';
@@ -886,84 +890,87 @@
       if (_gisInited) return;
       if (typeof google === 'undefined' || !google.accounts) return;
       _gisInited = true;
+      // Usamos google.accounts.id (ID token) — NO oauth2.initTokenClient
+      // Este flujo devuelve un JWT directamente, sin abrir popup externo
       google.accounts.id.initialize({
-        client_id:         _GOOGLE_CLIENT_ID,
-        callback:          _onGoogleCredential,
-        auto_select:       false,
+        client_id:             _GOOGLE_CLIENT_ID,
+        callback:              _onGoogleCredential,
+        auto_select:           false,
         cancel_on_tap_outside: true,
-        ux_mode:           'popup',
+        // ux_mode: 'popup' causa COOP en Cloudflare Pages — usamos el flujo
+        // por defecto (overlay/One Tap) que no abre ventana separada
       });
     }
 
-    // El SDK de Google llama a esta función cuando está listo
     window.onGoogleLibraryLoad = function() { _initGoogleGIS(); };
-    // Fallback: intentar inicializar después de que la página cargue
-    window.addEventListener('load', () => { setTimeout(_initGoogleGIS, 300); });
+    window.addEventListener('load', () => { setTimeout(_initGoogleGIS, 400); });
 
-    /** Click en botón "Continuar con Google" */
-    async function handleGoogleLogin() {
+    /** Click en botón "Continuar con Google" — dispara el selector de cuenta */
+    function handleGoogleLogin() {
       const btn = document.getElementById('btnGoogleLogin');
       if (!btn || btn.disabled) return;
 
-      // Asegurar que GIS esté inicializado
-      if (typeof google === 'undefined' || !google.accounts) {
+      if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
         _showOAuthToast('Google Sign In no está disponible. Verifica tu conexión.');
         return;
       }
 
+      // Asegurar que GIS esté inicializado
+      if (!_gisInited) _initGoogleGIS();
+
       btn.classList.add('loading');
       btn.disabled = true;
 
-      try {
-        // Usamos el flujo popup manual que da más control
-        await new Promise((resolve, reject) => {
-          google.accounts.oauth2.initTokenClient({
-            client_id: _GOOGLE_CLIENT_ID,
-            scope: 'openid email profile',
-            callback: async (tokenResponse) => {
-              if (tokenResponse.error) { reject(new Error(tokenResponse.error)); return; }
-              try {
-                // Obtener info del usuario con el access_token
-                const resp = await fetch(
-                  'https://www.googleapis.com/oauth2/v3/userinfo',
-                  { headers: { Authorization: 'Bearer ' + tokenResponse.access_token } }
-                );
-                if (!resp.ok) throw new Error('No se pudo obtener el perfil de Google.');
-                const profile = await resp.json();
-                await _processOAuthProfile({
-                  email:        profile.email,
-                  name:         profile.name,
-                  given_name:   profile.given_name,
-                  picture:      profile.picture,
-                  authProvider: 'google',
-                  sub:          profile.sub,
-                });
-                resolve();
-              } catch(e) { reject(e); }
-            },
-            error_callback: (err) => reject(new Error(err.message || 'Google OAuth cancelado')),
-          }).requestAccessToken({ prompt: 'select_account' });
-        });
-      } catch(err) {
-        btn.classList.remove('loading');
-        btn.disabled = false;
-        const msg = err.message || '';
-        if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('popup_closed')) {
-          // Usuario canceló — no mostrar error
-        } else {
-          _showOAuthToast('Error con Google: ' + (msg || 'Intenta de nuevo'));
+      // Disparar el One Tap / selector de cuenta nativo de Google
+      // Este overlay NO abre una ventana separada → no hay conflicto COOP
+      google.accounts.id.prompt((notification) => {
+        const reason = notification.getNotDisplayedReason?.() || '';
+        const skipped = notification.isSkippedMoment?.() || false;
+        const dismissed = notification.isDismissedMoment?.() || false;
+
+        if (dismissed || skipped) {
+          // Usuario cerró el selector — restaurar botón
+          btn.classList.remove('loading');
+          btn.disabled = false;
         }
-      }
+
+        // Si no se mostró (bloqueado por navegador, etc.) — intentar renderButton
+        if (notification.isNotDisplayed?.()) {
+          btn.classList.remove('loading');
+          btn.disabled = false;
+          // Fallback: renderizar el botón oficial de Google como alternativa
+          _showGoogleButtonFallback();
+        }
+      });
+    }
+
+    /** Fallback: renderizar el botón oficial de Google si One Tap es bloqueado */
+    function _showGoogleButtonFallback() {
+      const container = document.getElementById('googleBtnFallback');
+      if (!container || container.children.length > 0) return;
+      container.style.display = 'block';
+      google.accounts.id.renderButton(container, {
+        theme:  'outline',
+        size:   'large',
+        width:  '100%',
+        text:   'continue_with',
+        locale: 'es',
+      });
     }
 
     /**
-     * Callback del flujo One Tap (credential response con ID token JWT).
-     * Se usa cuando GIS dispara One Tap automáticamente.
+     * Callback del flujo One Tap — recibe el ID token JWT directamente.
+     * Se ejecuta en el contexto de la página (sin popup), sin conflicto COOP.
      */
     async function _onGoogleCredential(response) {
-      if (!response || !response.credential) return;
+      if (!response || !response.credential) {
+        const btn = document.getElementById('btnGoogleLogin');
+        if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+        return;
+      }
       try {
-        // Decodificar el JWT del ID token (sin verificar — solo para extraer campos)
+        // Decodificar el JWT payload (sin verificar firma — solo para extraer campos)
+        // La verificación real la haría el servidor; aquí solo necesitamos el email y nombre
         const parts   = response.credential.split('.');
         const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
         await _processOAuthProfile({
@@ -975,7 +982,10 @@
           sub:          payload.sub,
         });
       } catch(e) {
-        _showOAuthToast('Error procesando credencial de Google.');
+        const btn = document.getElementById('btnGoogleLogin');
+        if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+        _showOAuthToast('Error al procesar cuenta de Google. Intenta de nuevo.');
+        console.error('[Google OAuth]', e);
       }
     }
 
