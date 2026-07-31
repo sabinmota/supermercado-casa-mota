@@ -262,8 +262,7 @@
     .login-logo-wrap {
       display: flex;
       justify-content: center;
-      padding: 8px 0 16px;
-      flex-shrink: 0;
+      padding: 0 0 24px;
     }
     .login-logo-wrap img {
       width: 120px;
@@ -278,7 +277,7 @@
     /* Cuerpo del formulario */
     .login-body {
       flex: 1;
-      padding: 8px 28px calc(env(safe-area-inset-bottom, 0px) + 32px);
+      padding: 0 28px calc(env(safe-area-inset-bottom, 0px) + 32px);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -550,11 +549,11 @@
         <p style="font-size:.9rem;color:#888">Ingresa tus credenciales para acceder</p>
       </div>
 
-      <div class="login-logo-wrap">
-        <img src="images/logo-casamota.png" alt="Casa Mota" />
-      </div>
-
       <div class="login-body">
+
+        <div class="login-logo-wrap">
+          <img src="images/logo-casamota.png" alt="Casa Mota" />
+        </div>
         <div class="login-error" id="loginError">
           <i class="fas fa-circle-xmark"></i>
           <span id="loginErrorMsg">Correo o contraseña incorrectos.</span>
