@@ -128,16 +128,24 @@
       font-size: 1.7rem;
       font-weight: 800;
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
       animation: fadeUp .5s .15s ease both;
     }
-    .welcome-subtitle {
-      color: rgba(255,255,255,.72);
-      font-size: .93rem;
+    .welcome-slogan {
+      color: rgba(255,255,255,.95);
+      font-size: 1.45rem;
+      font-weight: 800;
+      font-style: italic;
       text-align: center;
-      line-height: 1.55;
-      max-width: 280px;
-      animation: fadeUp .5s .25s ease both;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      animation: fadeUp .5s .22s ease both;
+      text-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+    .slogan-dots {
+      color: #7dffb0;
+      font-style: normal;
     }
     @keyframes fadeUp {
       from { transform: translateY(18px); opacity: 0; }
@@ -475,13 +483,12 @@
           <img src="images/logo-casamota.png" alt="Casa Mota" />
         </div>
         <h1 class="welcome-title">¡Bienvenido a Casa Mota!</h1>
-        <p class="welcome-subtitle">Tu supermercado dominicano. Compra desde casa y recibe en la puerta.</p>
+        <p class="welcome-slogan">Lo Nuestro<span class="slogan-dots">..!</span></p>
 
         <div class="welcome-features">
           <div class="feat-item"><i class="fas fa-truck-fast"></i><span>Entrega rápida a domicilio</span></div>
           <div class="feat-item"><i class="fas fa-tags"></i><span>Ofertas y descuentos exclusivos</span></div>
           <div class="feat-item"><i class="fas fa-shield-halved"></i><span>Compra segura y garantizada</span></div>
-          <div class="feat-item"><i class="fas fa-clock-rotate-left"></i><span>Historial de tus pedidos</span></div>
         </div>
       </div>
 
