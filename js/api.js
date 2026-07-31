@@ -797,47 +797,60 @@ async function createClientFromOAuth(profile) {
   }
 
   // 2) No existe → crear cliente nuevo
-  // Campos base: siempre presentes en la tabla customers
-  const newClient = {
-    name:      profile.name || profile.given_name || email.split('@')[0],
-    email:     email,
-    phone:     '',
-    address:   '',
-    city:      '',
-    cedula:    '',
-    notes:     '',
-    status:    'habilitado',
-    ranking:   'bronce',
-    orders:    0,
-    spent:     0,
-    lastOrder: '',
-    lastLogin: _nowTs(),
-    createdAt: _nowTs(),
-    // No se asigna password — es cliente OAuth
+  // Se intenta en 3 niveles descendentes de columnas para tolerar schema cache desactualizado.
+
+  const _name = profile.name || profile.given_name || email.split('@')[0];
+
+  // Nivel A — todos los campos conocidos (incluyendo authProvider/avatar)
+  const clientFull = {
+    name: _name, email, phone: '', address: '', city: '',
+    cedula: '', notes: '', status: 'habilitado',
+    ranking: 'bronce', orders: 0, spent: 0,
+    lastOrder: '', lastLogin: _nowTs(), createdAt: _nowTs(),
+    authProvider: profile.authProvider || 'google',
+    avatar: profile.picture || '',
   };
 
-  // Intentar crear con campos opcionales primero
-  const fullClient = {
-    ...newClient,
-    authProvider: profile.authProvider || 'google',
-    avatar:       profile.picture || '',
+  // Nivel B — sin authProvider/avatar (columnas nuevas que pueden faltar)
+  const clientBase = {
+    name: _name, email, phone: '', address: '', city: '',
+    cedula: '', notes: '', status: 'habilitado',
+    ranking: 'bronce', orders: 0, spent: 0,
+    lastOrder: '', lastLogin: _nowTs(), createdAt: _nowTs(),
   };
+
+  // Nivel C — solo lo absolutamente mínimo (name, email, status)
+  // Útil cuando el schema cache de PostgREST no reconoce columnas que SÍ existen
+  const clientMinimal = {
+    name: _name, email, status: 'habilitado',
+  };
+
+  function _isSchemaErr(e) {
+    const m = (e.message || '').toLowerCase();
+    return m.includes('pgrst204') || m.includes('schema cache') ||
+           m.includes('could not find') || m.includes('400');
+  }
 
   let created = null;
   try {
-    created = await DB.createCustomer(fullClient);
-  } catch(e) {
-    // Si falla por columnas opcionales (PGRST204), reintentar solo con campos base
-    const isSchemaError = (e.message || '').includes('PGRST204') || (e.message || '').includes('schema cache');
-    if (isSchemaError) {
-      console.warn('[OAuth] Reintentando crear cliente sin columnas opcionales. Ejecuta el SQL en Supabase.');
-      created = await DB.createCustomer(newClient);
-    } else {
-      throw e;
+    created = await DB.createCustomer(clientFull);
+  } catch(e1) {
+    if (!_isSchemaErr(e1)) throw e1;
+    console.warn('[OAuth] Nivel A falló — reintentando sin authProvider/avatar.');
+    try {
+      created = await DB.createCustomer(clientBase);
+    } catch(e2) {
+      if (!_isSchemaErr(e2)) throw e2;
+      console.warn('[OAuth] Nivel B falló — reintentando con campos mínimos.');
+      try {
+        created = await DB.createCustomer(clientMinimal);
+      } catch(e3) {
+        throw new Error('OAuth: no se pudo crear el cliente. Verifica el schema de Supabase. Detalle: ' + (e3.message || e3));
+      }
     }
   }
 
-  if (!created) throw new Error('OAuth: no se pudo crear el cliente en Supabase.');
+  if (!created) throw new Error('OAuth: Supabase no devolvió el cliente creado.');
   const { password: _pw, ...safe } = created;
   return safe;
 }
