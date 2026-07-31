@@ -3773,10 +3773,15 @@ function renderCustomers() {
     const rkCls  = rankingMap[rkVal]  || 'cst-bronce';
     const rkLbl  = rankingLabel[rkVal] || '🥉 Bronce';
     const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-    // Indicador de acceso a la tienda (tiene contraseña?)
-    const accessIcon = c.password
-      ? `<span title="Puede iniciar sesión en la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#e8f5ee;color:#1a7c3e;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-circle-check"></i> Acceso</span>`
-      : `<span title="Sin contraseña — no puede entrar a la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#fff3cd;color:#856404;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-lock"></i> Sin acceso</span>`;
+    // Indicador de acceso a la tienda (tiene contraseña o es OAuth?)
+    const _isOAuth   = !!(c.authProvider && c.authProvider !== '');
+    const _oauthIcon = c.authProvider === 'apple' ? 'fa-apple' : 'fa-google';
+    const _oauthLbl  = c.authProvider === 'apple' ? 'Apple' : 'Google';
+    const accessIcon = _isOAuth
+      ? `<span title="Accede vía ${_oauthLbl}" style="display:inline-flex;align-items:center;gap:3px;background:#e8f0ff;color:#1a56c4;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fab ${_oauthIcon}"></i> ${_oauthLbl}</span>`
+      : c.password
+        ? `<span title="Puede iniciar sesión en la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#e8f5ee;color:#1a7c3e;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-circle-check"></i> Acceso</span>`
+        : `<span title="Sin contraseña — no puede entrar a la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#fff3cd;color:#856404;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-lock"></i> Sin acceso</span>`;
     return `
     <tr>
       <td><strong>${i+1}</strong></td>
@@ -3871,6 +3876,28 @@ function openCustomerModal(id) {
     document.getElementById('cNotes').value   = c.notes   || '';
     document.getElementById('cMapLink').value = c.mapLink || '';
     previewCustMap();
+
+    // ── Fix OAuth: si el cliente usa Google/Apple, informar que no requiere contraseña ──
+    const custAccessForm = document.getElementById('custAccessForm');
+    if (custAccessForm) {
+      const isOAuthClient = !!(c.authProvider && c.authProvider !== '');
+      if (isOAuthClient) {
+        const oauthProviderLabel = c.authProvider === 'apple' ? 'Apple ID' : 'Google';
+        const oauthProviderIcon  = c.authProvider === 'apple' ? 'fa-apple' : 'fa-google';
+        // Reemplazar el contenido del bloque de acceso con mensaje informativo
+        const accessBlock = custAccessForm.closest('div');
+        if (accessBlock) {
+          accessBlock.innerHTML = `
+            <div style="font-size:.82rem;font-weight:700;color:#1a56c4;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+              <i class="fab ${oauthProviderIcon}"></i> Acceso vía ${oauthProviderLabel}
+            </div>
+            <div style="background:#e8f0ff;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#1a56c4;display:flex;align-items:center;gap:10px">
+              <i class="fab ${oauthProviderIcon}" style="font-size:1.2rem"></i>
+              <span>Este cliente inicia sesión con su cuenta de <strong>${oauthProviderLabel}</strong>. No necesita ni puede tener contraseña manual asignada.</span>
+            </div>`;
+        }
+      }
+    }
   } else {
     setPhoneValue('cPhone', 'cPhonePrefix', '');
     ['cName','cEmail','cCedula','cAddress','cCity','cNotes','cMapLink'].forEach(f => {
@@ -4191,11 +4218,16 @@ function viewCustomerDetail(id) {
   const stCls = c.status === 'vip' ? 'cst-vip' : c.status === 'inactivo' ? 'cst-inactivo' : 'cst-activo';
   const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 
-  // Estado de acceso a la tienda
-  const hasAccess = !!c.password;
-  const accessBadge = hasAccess
-    ? `<span style="display:inline-flex;align-items:center;gap:5px;background:#e8f5ee;color:#1a7c3e;border:1px solid #b2dfcc;border-radius:20px;padding:3px 10px;font-size:.78rem;font-weight:700"><i class="fas fa-circle-check"></i> Acceso activo</span>`
-    : `<span style="display:inline-flex;align-items:center;gap:5px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:20px;padding:3px 10px;font-size:.78rem;font-weight:700"><i class="fas fa-triangle-exclamation"></i> Sin contraseña</span>`;
+  // Estado de acceso a la tienda — detectar clientes OAuth (Google/Apple)
+  const isOAuth    = !!(c.authProvider && c.authProvider !== '');
+  const hasAccess  = !!c.password || isOAuth;
+  const oauthLabel = c.authProvider === 'apple' ? 'Apple ID' : 'Google';
+  const oauthIcon  = c.authProvider === 'apple' ? 'fa-apple' : 'fa-google';
+  const accessBadge = isOAuth
+    ? `<span style="display:inline-flex;align-items:center;gap:5px;background:#e8f0ff;color:#1a56c4;border:1px solid #b3d1ff;border-radius:20px;padding:3px 10px;font-size:.78rem;font-weight:700"><i class="fab ${oauthIcon}"></i> Acceso vía ${oauthLabel}</span>`
+    : hasAccess
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;background:#e8f5ee;color:#1a7c3e;border:1px solid #b2dfcc;border-radius:20px;padding:3px 10px;font-size:.78rem;font-weight:700"><i class="fas fa-circle-check"></i> Acceso activo</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:5px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:20px;padding:3px 10px;font-size:.78rem;font-weight:700"><i class="fas fa-triangle-exclamation"></i> Sin contraseña</span>`;
 
   document.getElementById('orderModalTitle').textContent = 'Perfil: ' + c.name;
   document.getElementById('orderModalBody').innerHTML = `
@@ -4215,6 +4247,10 @@ function viewCustomerDetail(id) {
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.85rem;color:#795548">
       <i class="fas fa-info-circle" style="color:#f9a825;font-size:1rem"></i>
       <span>Este cliente <strong>no puede iniciar sesión</strong> en la tienda. <a href="javascript:void(0)" onclick="closeOrderModal();openCustomerModal('${c.id}')" style="color:#1a7c3e;font-weight:700;text-decoration:underline">Editar para asignar contraseña →</a></span>
+    </div>` : isOAuth ? `
+    <div style="background:#e8f0ff;border:1px solid #b3d1ff;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.85rem;color:#1a56c4">
+      <i class="fab ${oauthIcon}" style="font-size:1rem"></i>
+      <span>Este cliente inicia sesión con su cuenta de <strong>${oauthLabel}</strong>. No requiere contraseña manual.</span>
     </div>` : ''}
 
     <div class="order-detail-grid">
@@ -4223,7 +4259,30 @@ function viewCustomerDetail(id) {
       <div class="order-detail-item"><label>Cédula / RNC</label><span>${c.cedula||'—'}</span></div>
       <div class="order-detail-item"><label>Ciudad</label><span>${c.city||'—'}</span></div>
       <div class="order-detail-item"><label>Dirección</label><span>${c.address||'—'}</span></div>
-      ${c.mapLink ? `<div class="order-detail-item" style="grid-column:1/-1"><label><i class="fas fa-location-dot" style="color:#e53935"></i> Ubicación en Maps</label><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px"><a href="${c.mapLink}" target="_blank" rel="noopener" class="btn-map-link"><i class="fas fa-map-location-dot"></i> Abrir en Google Maps</a><span style="font-size:.73rem;color:#aaa">Compartir con el repartidor</span></div></div>` : `<div class="order-detail-item"><label><i class="fas fa-location-dot" style="color:#ccc"></i> Ubicación Maps</label><span style="color:#bbb;font-size:.82rem">No registrada</span></div>`}
+      ${(() => {
+        // Prioridad: 1) locLat/locLng (GPS), 2) mapLink (manual)
+        const hasGPS     = c.locLat && c.locLng;
+        const gpsUrl     = hasGPS ? `https://maps.google.com/maps?q=${c.locLat},${c.locLng}&z=17` : '';
+        const embedUrl   = hasGPS ? `https://maps.google.com/maps?q=${c.locLat},${c.locLng}&z=17&output=embed` : '';
+        const manualLink = c.mapLink || '';
+        const hasAnyMap  = hasGPS || manualLink;
+        const finalUrl   = hasGPS ? gpsUrl : manualLink;
+
+        if (!hasAnyMap) return `<div class="order-detail-item"><label><i class="fas fa-location-dot" style="color:#ccc"></i> Ubicación Maps</label><span style="color:#bbb;font-size:.82rem">No registrada</span></div>`;
+
+        return `<div class="order-detail-item" style="grid-column:1/-1">
+          <label><i class="fas fa-location-dot" style="color:#e53935"></i> Ubicación ${hasGPS ? 'GPS' : 'Maps'}</label>
+          ${hasGPS ? `
+          <div style="margin-top:6px;border-radius:10px;overflow:hidden;border:1px solid #b3d1ff;margin-bottom:8px">
+            <iframe src="${embedUrl}" width="100%" height="180" style="border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>` : ''}
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <a href="${finalUrl}" target="_blank" rel="noopener" class="btn-map-link"><i class="fas fa-map-location-dot"></i> Abrir en Google Maps</a>
+            ${hasGPS ? `<span style="font-size:.73rem;color:#888"><i class="fas fa-satellite-dish" style="color:#1a56c4"></i> Coordenadas GPS: ${parseFloat(c.locLat).toFixed(5)}, ${parseFloat(c.locLng).toFixed(5)}</span>` : ''}
+            <span style="font-size:.73rem;color:#aaa">Compartir con el repartidor</span>
+          </div>
+        </div>`;
+      })()}
       <div class="order-detail-item"><label>Pedidos realizados</label><span><strong>${c.orders}</strong></span></div>
       <div class="order-detail-item"><label>Total gastado</label><span style="color:#1a7c3e;font-weight:700">RD$ ${fmt$(c.spent||0)}</span></div>
       <div class="order-detail-item"><label>Último pedido</label><span>${c.lastOrder||'—'}</span></div>
