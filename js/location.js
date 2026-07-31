@@ -34,6 +34,7 @@ function openLocationModal(onConfirm, forceOpen = false) {
   const client = (typeof getClientSession === 'function') ? getClientSession() : null;
   const existingAddress = (client && client.address) ? client.address : '';
   const existingCity    = (client && client.city)    ? client.city    : '';
+  const existingPhone   = (client && client.phone)   ? client.phone   : '';
 
   const modal = document.getElementById('locationModal');
   if (!modal) { console.warn('[location.js] #locationModal no encontrado'); return; }
@@ -42,10 +43,12 @@ function openLocationModal(onConfirm, forceOpen = false) {
   _locSetStep('idle');
 
   // Pre-rellenar campos
-  const addrInput = document.getElementById('locAddressInput');
-  const cityInput = document.getElementById('locCityInput');
-  if (addrInput) addrInput.value = existingAddress;
-  if (cityInput) cityInput.value = existingCity;
+  const addrInput  = document.getElementById('locAddressInput');
+  const cityInput  = document.getElementById('locCityInput');
+  const phoneInput = document.getElementById('locPhoneInput');
+  if (addrInput)  addrInput.value  = existingAddress;
+  if (cityInput)  cityInput.value  = existingCity;
+  if (phoneInput) phoneInput.value = existingPhone;
 
   // Mostrar el mapa si ya tiene coordenadas guardadas
   if (client && client.locLat && client.locLng) {
@@ -182,10 +185,12 @@ function _onGPSError(err) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function locConfirmAddress() {
-  const addrInput = document.getElementById('locAddressInput');
-  const cityInput = document.getElementById('locCityInput');
-  const address   = (addrInput?.value || '').trim();
-  const city      = (cityInput?.value || '').trim();
+  const addrInput  = document.getElementById('locAddressInput');
+  const cityInput  = document.getElementById('locCityInput');
+  const phoneInput = document.getElementById('locPhoneInput');
+  const address    = (addrInput?.value  || '').trim();
+  const city       = (cityInput?.value  || '').trim();
+  const phone      = (phoneInput?.value || '').trim();
 
   if (!address || address.length < 4) {
     _locShowError('Por favor ingresa una dirección válida (mínimo 4 caracteres).');
@@ -204,10 +209,12 @@ async function locConfirmAddress() {
     // Campos a actualizar
     const patch = {
       address,
-      city:    city || client.city || '',
+      city:    city  || client.city  || '',
       locLat:  _gpsDetectedLat  || client.locLat  || null,
       locLng:  _gpsDetectedLng  || client.locLng  || null,
     };
+    // Guardar teléfono solo si el usuario escribió algo
+    if (phone) patch.phone = phone;
 
     // Guardar en Supabase
     await DB.patchCustomer(client.id, patch);
@@ -244,7 +251,7 @@ async function locConfirmAddress() {
     _locShowError('Error al guardar la dirección. Intenta de nuevo.');
     console.error('[location.js] locConfirmAddress error:', e);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Confirmar dirección'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Confirmar dirección y teléfono'; }
   }
 }
 
@@ -370,6 +377,7 @@ function renderLocationSection() {
   const lat     = c.locLat  || null;
   const lng     = c.locLng  || null;
 
+  const phone      = c.phone   || '';
   const hasAddress = address && address.trim().length > 2;
 
   // Mapa embed
@@ -408,13 +416,26 @@ function renderLocationSection() {
              <div style="font-weight:600;color:#1a1a2e;font-size:.92rem">${_escLocHtml(address)}</div>
            </div>
          </div>
-         ${city ? `<div style="display:flex;align-items:center;gap:10px">
+         ${city ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
            <i class="fas fa-city" style="color:#0e7fc2;flex-shrink:0"></i>
            <div>
              <div style="font-size:.78rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Ciudad</div>
              <div style="font-weight:600;color:#1a1a2e;font-size:.92rem">${_escLocHtml(city)}</div>
            </div>
          </div>` : ''}
+         ${phone ? `<div style="display:flex;align-items:center;gap:10px">
+           <i class="fas fa-phone" style="color:#1a7c3e;flex-shrink:0"></i>
+           <div>
+             <div style="font-size:.78rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Teléfono</div>
+             <div style="font-weight:600;color:#1a1a2e;font-size:.92rem">${_escLocHtml(phone)}</div>
+           </div>
+         </div>` : `<div style="display:flex;align-items:center;gap:10px">
+           <i class="fas fa-phone" style="color:#ccc;flex-shrink:0"></i>
+           <div>
+             <div style="font-size:.78rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Teléfono</div>
+             <div style="font-size:.82rem;color:#bbb">No registrado — actualiza para añadir</div>
+           </div>
+         </div>`}
        </div>`
     : '';
 
@@ -426,7 +447,7 @@ function renderLocationSection() {
       <button onclick="openLocationModal(null, true)"
               style="width:100%;padding:14px;background:linear-gradient(135deg,#e07b00,#f59e0b);color:#fff;border:none;border-radius:50px;font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 14px rgba(224,123,0,.3)">
         <i class="fas fa-${hasAddress ? 'pen-to-square' : 'location-dot'}"></i>
-        ${hasAddress ? 'Actualizar mi dirección' : 'Agregar dirección de entrega'}
+        ${hasAddress ? 'Actualizar dirección y teléfono' : 'Agregar dirección de entrega'}
       </button>
       <p style="text-align:center;font-size:.75rem;color:#aaa;margin-top:12px">
         <i class="fas fa-lock" style="margin-right:4px"></i>Tu ubicación solo se usa para coordinar tu entrega

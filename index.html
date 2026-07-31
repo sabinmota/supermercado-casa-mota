@@ -1284,12 +1284,23 @@
       </div>
 
       <!-- Campo ciudad -->
-      <div style="margin-bottom:20px">
+      <div style="margin-bottom:14px">
         <label style="display:block;font-size:.82rem;font-weight:600;color:#444;margin-bottom:6px">
           <i class="fas fa-city" style="color:#0e7fc2"></i> Ciudad / Municipio
         </label>
         <input id="locCityInput" type="text"
                placeholder="Santo Domingo, Santiago…"
+               style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:inherit;color:#1a1a2e;background:#f9fbf9;outline:none" />
+      </div>
+
+      <!-- Campo teléfono -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:.82rem;font-weight:600;color:#444;margin-bottom:6px">
+          <i class="fas fa-phone" style="color:#1a7c3e"></i> Teléfono de contacto
+          <span style="font-weight:400;color:#aaa;font-size:.76rem;margin-left:4px">(para coordinar tu entrega)</span>
+        </label>
+        <input id="locPhoneInput" type="tel"
+               placeholder="809-000-0000"
                style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:inherit;color:#1a1a2e;background:#f9fbf9;outline:none" />
       </div>
 
@@ -1311,13 +1322,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.1/umd/index.min.js"></script>
   <!-- Quagga2: fallback para decodificación de foto estática -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
-<script src="js/api.js?v=305"></script>
+<script src="js/api.js?v=310"></script>
   <script src="js/auth.js?v=201"></script>
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
   <script src="js/app.js?v=337"></script>
-  <script src="js/location.js?v=100"></script>
+  <script src="js/location.js?v=120"></script>
   <!-- Chatbot IA para clientes -->
   <script src="js/chat.js?v=225"></script>
 
