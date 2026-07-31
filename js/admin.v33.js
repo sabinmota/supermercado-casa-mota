@@ -3877,6 +3877,9 @@ function openCustomerModal(id) {
     document.getElementById('cMapLink').value = c.mapLink || '';
     previewCustMap();
 
+    // ── GPS: mostrar iframe con coordenadas si el cliente las tiene ──
+    _renderCustGpsPreview(c.locLat, c.locLng);
+
     // ── Fix OAuth: si el cliente usa Google/Apple, informar que no requiere contraseña ──
     const custAccessForm = document.getElementById('custAccessForm');
     if (custAccessForm) {
@@ -3906,6 +3909,7 @@ function openCustomerModal(id) {
     document.getElementById('cStatus').value  = 'habilitado';
     document.getElementById('cRanking').value = 'bronce';
     previewCustMap();
+    _renderCustGpsPreview(null, null);  // ocultar GPS en modo "nuevo cliente"
   }
   document.getElementById('custModalBackdrop').classList.remove('hidden');
   setTimeout(() => document.getElementById('cName').focus(), 100);
@@ -4061,7 +4065,38 @@ function previewCustMap() {
   }
 }
 
-let _savingCustomer = false;
+/**
+ * Muestra u oculta el bloque GPS en el modal de edición de cliente.
+ * Si hay locLat/locLng → muestra iframe embed + coordenadas + link.
+ * Si no hay → oculta el bloque completamente.
+ */
+function _renderCustGpsPreview(lat, lng) {
+  const wrap    = document.getElementById('cGpsPreview');
+  const frame   = document.getElementById('cGpsFrame');
+  const openBtn = document.getElementById('cGpsOpenBtn');
+  const coords  = document.getElementById('cGpsCoords');
+  if (!wrap || !frame) return;
+
+  const hasGPS = lat && lng && parseFloat(lat) !== 0 && parseFloat(lng) !== 0;
+
+  if (!hasGPS) {
+    wrap.style.display = 'none';
+    if (frame) frame.src = '';
+    return;
+  }
+
+  const latF = parseFloat(lat);
+  const lngF = parseFloat(lng);
+  const mapsUrl  = `https://maps.google.com/maps?q=${latF},${lngF}&z=17`;
+  const embedUrl = `https://maps.google.com/maps?q=${latF},${lngF}&z=17&output=embed`;
+
+  frame.src = embedUrl;
+  if (openBtn) { openBtn.href = mapsUrl; }
+  if (coords)  { coords.textContent = `📍 GPS: ${latF.toFixed(5)}, ${lngF.toFixed(5)}`; }
+  wrap.style.display = '';
+}
+
+
 function saveCustomer() {
   if (_savingCustomer) return;
   const name     = document.getElementById('cName').value.trim();
