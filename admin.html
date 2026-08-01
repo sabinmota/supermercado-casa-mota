@@ -1837,6 +1837,12 @@
           </div>
         </div>
         </form><!-- /custAccessForm -->
+
+        <!-- Bloque OAuth — se muestra en lugar del form de contraseña para clientes Google/Apple -->
+        <div id="cOauthInfo" style="display:none;border-radius:10px;padding:14px 16px;margin-bottom:4px">
+          <div id="cOauthInfoHeader" style="font-size:.82rem;font-weight:700;color:#1a56c4;margin-bottom:10px;display:flex;align-items:center;gap:6px"></div>
+          <div id="cOauthInfoBody" style="background:#e8f0ff;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#1a56c4;display:flex;align-items:center;gap:10px"></div>
+        </div>
         <!-- Ubicación GPS (automática desde la app del cliente) -->
         <div id="cGpsPreview" style="display:none;background:#f0f6ff;border:1px solid #b3d1ff;border-radius:10px;padding:14px 16px;margin-bottom:10px">
           <div style="font-size:.82rem;font-weight:700;color:#1a56c4;margin-bottom:10px;display:flex;align-items:center;gap:6px">
@@ -2927,7 +2933,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=350"></script>
+  <script src="js/admin.v33.js?v=355"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=305"></script>
   <!-- IA: Groq integration -->

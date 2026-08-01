@@ -3880,26 +3880,28 @@ function openCustomerModal(id) {
     // ── GPS: mostrar iframe con coordenadas si el cliente las tiene ──
     _renderCustGpsPreview(c.locLat, c.locLng);
 
-    // ── Fix OAuth: si el cliente usa Google/Apple, informar que no requiere contraseña ──
+    // ── OAuth: mostrar info o form de contraseña según tipo de cliente ──
     const custAccessForm = document.getElementById('custAccessForm');
-    if (custAccessForm) {
-      const isOAuthClient = !!(c.authProvider && c.authProvider !== '');
-      if (isOAuthClient) {
+    const cOauthInfo     = document.getElementById('cOauthInfo');
+    const isOAuthClient  = !!(c.authProvider && c.authProvider !== '');
+
+    if (isOAuthClient) {
+      // Ocultar form de contraseña — mostrar bloque informativo OAuth
+      if (custAccessForm) custAccessForm.style.display = 'none';
+      if (cOauthInfo) {
         const oauthProviderLabel = c.authProvider === 'apple' ? 'Apple ID' : 'Google';
         const oauthProviderIcon  = c.authProvider === 'apple' ? 'fa-apple' : 'fa-google';
-        // Reemplazar el contenido del bloque de acceso con mensaje informativo
-        const accessBlock = custAccessForm.closest('div');
-        if (accessBlock) {
-          accessBlock.innerHTML = `
-            <div style="font-size:.82rem;font-weight:700;color:#1a56c4;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-              <i class="fab ${oauthProviderIcon}"></i> Acceso vía ${oauthProviderLabel}
-            </div>
-            <div style="background:#e8f0ff;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#1a56c4;display:flex;align-items:center;gap:10px">
-              <i class="fab ${oauthProviderIcon}" style="font-size:1.2rem"></i>
-              <span>Este cliente inicia sesión con su cuenta de <strong>${oauthProviderLabel}</strong>. No necesita ni puede tener contraseña manual asignada.</span>
-            </div>`;
-        }
+        document.getElementById('cOauthInfoHeader').innerHTML =
+          `<i class="fab ${oauthProviderIcon}"></i> Acceso vía ${oauthProviderLabel}`;
+        document.getElementById('cOauthInfoBody').innerHTML =
+          `<i class="fab ${oauthProviderIcon}" style="font-size:1.2rem"></i>
+           <span>Este cliente inicia sesión con su cuenta de <strong>${oauthProviderLabel}</strong>. No necesita ni puede tener contraseña manual asignada.</span>`;
+        cOauthInfo.style.display = '';
       }
+    } else {
+      // Restaurar form de contraseña — ocultar bloque OAuth
+      if (custAccessForm) custAccessForm.style.display = '';
+      if (cOauthInfo)     cOauthInfo.style.display     = 'none';
     }
   } else {
     setPhoneValue('cPhone', 'cPhonePrefix', '');
@@ -3908,8 +3910,13 @@ function openCustomerModal(id) {
     });
     document.getElementById('cStatus').value  = 'habilitado';
     document.getElementById('cRanking').value = 'bronce';
+    // Modo nuevo cliente: siempre mostrar form contraseña, ocultar OAuth
+    const custAccessForm = document.getElementById('custAccessForm');
+    const cOauthInfo     = document.getElementById('cOauthInfo');
+    if (custAccessForm) custAccessForm.style.display = '';
+    if (cOauthInfo)     cOauthInfo.style.display     = 'none';
     previewCustMap();
-    _renderCustGpsPreview(null, null);  // ocultar GPS en modo "nuevo cliente"
+    _renderCustGpsPreview(null, null);
   }
   document.getElementById('custModalBackdrop').classList.remove('hidden');
   setTimeout(() => document.getElementById('cName').focus(), 100);
