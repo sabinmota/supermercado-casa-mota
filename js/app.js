@@ -220,10 +220,16 @@ async function _refreshProductsSilent() {
     // ── Preservar imágenes ya cargadas en F2 (base64 no viene en F1) ─────────
     const imgMap = {};
     (_liveProducts || []).forEach(p => { if (p.image) imgMap[p.id] = p.image; });
-    all.forEach(p => { if (imgMap[p.id]) p.image = imgMap[p.id]; });
+    // Solo se rellena si el payload nuevo NO trae imagen, para no pisar una
+    // foto actualizada en el admin si algún día la fase 1 empieza a incluirla.
+    all.forEach(p => { if (!p.image && imgMap[p.id]) p.image = imgMap[p.id]; });
 
     // ── Verificar si algo cambió realmente ───────────────────────────────
-    const _sig = arr => JSON.stringify(arr.map(p => `${p.id}|${p.price}|${p.stock}|${p.badge}|${p.name}`));
+    // Incluye todos los campos visibles que llegan en la fase 1 (ver
+    // _SELECT_FIELDS.products en api.js). `image` NO entra: no viene en F1.
+    const _sig = arr => JSON.stringify(arr.map(p =>
+      `${p.id}|${p.name}|${p.category}|${p.price}|${p.originalPrice}|${p.unit}|${p.stock}|${p.badge}|${p.rating}|${p.description}`
+    ));
     const cambiosDatos = _sig(_liveProducts || []) !== _sig(all);
 
     if (!cambiosDatos && !hayNuevos && !hayEliminados) return; // nada cambió
@@ -239,7 +245,12 @@ async function _refreshProductsSilent() {
       // Solo cambios de datos (precio, stock…): actualizar DOM quirúrgicamente
       // sin tocar las imágenes que ya están cargadas
       updateCartUI();
-      _updateProductCardsDOMOnly(all);
+      // Si algún cambio no se puede parchear (aparece un badge o un precio
+      // tachado que antes no existían), se re-renderiza todo como plan B.
+      if (!_updateProductCardsDOMOnly(all)) {
+        renderProducts();
+        _loadImagesBackground();
+      }
     }
 
     console.log(`🔄 Productos sincronizados silenciosamente (${all.length})`);
@@ -284,6 +295,8 @@ function _injectImagesFromMemory() {
  * sin destruir las imágenes ni re-renderizar nada.
  */
 function _updateProductCardsDOMOnly(products) {
+  let todoAplicado = true;
+
   products.forEach(p => {
     // Buscar la tarjeta de este producto en el DOM actual
     const imgEl = document.querySelector(`.product-lazy-img[data-product-id="${p.id}"]`);
@@ -291,14 +304,70 @@ function _updateProductCardsDOMOnly(products) {
     const card = imgEl.closest('.product-card');
     if (!card) return;
 
-    // Actualizar precio
-    const priceEl = card.querySelector('.product-price');
-    if (priceEl) priceEl.textContent = `RD$ ${fmt$(+p.price || 0)}`;
+    // Nombre (y texto alternativo de la imagen)
+    const nameEl = card.querySelector('.product-name');
+    if (nameEl && nameEl.textContent !== p.name) nameEl.textContent = p.name;
+    if (imgEl.alt !== p.name) imgEl.alt = p.name;
 
-    // Actualizar badge
-    const badgeEl = card.querySelector('.product-badge');
-    if (badgeEl) badgeEl.style.display = p.badge ? '' : 'none';
+    // Descripción
+    const descEl  = card.querySelector('.product-desc');
+    const descTxt = p.description || '';
+    if (descEl && descEl.textContent !== descTxt) descEl.textContent = descTxt;
+
+    // Categoría
+    const catEl = card.querySelector('.product-cat-tag');
+    if (catEl) {
+      const catTxt = catLabel(p.category);
+      if (catEl.textContent !== catTxt) catEl.textContent = catTxt;
+    }
+
+    // Valoración (estrellas)
+    const starsEl = card.querySelector('.stars');
+    if (starsEl) {
+      const starsHTML = renderStars(p.rating);
+      if (starsEl.innerHTML !== starsHTML) starsEl.innerHTML = starsHTML;
+    }
+
+    // Precio actual + unidad
+    const priceEl = card.querySelector('.price-current');
+    if (priceEl) {
+      const priceHTML = `RD$ ${fmt$(p.price)} <span class="price-unit">/ ${p.unit}</span>`;
+      if (priceEl.innerHTML !== priceHTML) priceEl.innerHTML = priceHTML;
+    }
+
+    // Precio original tachado
+    const origEl = card.querySelector('.price-original');
+    if (p.originalPrice) {
+      if (!origEl) todoAplicado = false;          // hay que crearlo → re-render
+      else origEl.textContent = `RD$ ${fmt$(p.originalPrice)}`;
+    } else if (origEl) {
+      origEl.remove();                            // se quitó la oferta
+    }
+
+    // Badge (Nuevo / Oferta / Favorito)
+    const badgeWrap = card.querySelector('.product-badge');
+    if (p.badge) {
+      if (!badgeWrap) {
+        todoAplicado = false;                     // hay que crearlo → re-render
+      } else {
+        const spanEl = badgeWrap.querySelector('.badge');
+        if (spanEl) {
+          const discount = p.originalPrice
+            ? Math.round((1 - p.price / p.originalPrice) * 100)
+            : null;
+          const txt = p.badge === 'offer'
+            ? (discount != null ? `-${discount}%` : 'Oferta')
+            : p.badge === 'new' ? 'Nuevo' : 'Favorito';
+          spanEl.className   = `badge badge-${p.badge}`;
+          spanEl.textContent = txt;
+        }
+      }
+    } else if (badgeWrap) {
+      badgeWrap.remove();                         // se quitó el badge
+    }
   });
+
+  return todoAplicado;
 }
 
 // ─── Sesión del cliente actual ───────────────────────────────────────────────
