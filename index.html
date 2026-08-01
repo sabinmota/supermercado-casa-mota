@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '357', KEY = 'cm_app_ver';
+        var VER = '358', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1330,7 +1330,7 @@
   <script src="js/app.js?v=338"></script>
   <script src="js/location.js?v=120"></script>
   <!-- Chatbot IA para clientes -->
-  <script src="js/chat.js?v=225"></script>
+  <script src="js/chat.js?v=226"></script>
 
   <!-- ═══ Escáner: auto-abrir cámara al mostrar modo foto ════════════════ -->
   <script>
@@ -1458,10 +1458,11 @@
           console.log('[Scanner] Clave Groq lista (localStorage)');
           return;
         }
-        // Si no, leerla desde la base de datos y guardarla localmente
-        const res  = await fetch('tables/settings?limit=1');
-        const data = await res.json();
-        const key  = data.data?.[0]?.groqApiKey;
+        // Si no, leerla desde la base de datos y guardarla localmente.
+        // DB.getSettings() resuelve el entorno solo (Supabase en producción).
+        // NO usar 'tables/settings': no existe en producción y devuelve 404.
+        const s    = (typeof DB !== 'undefined' && DB.getSettings) ? await DB.getSettings() : null;
+        const key  = s && s.groqApiKey;
         if (key && key.startsWith('gsk_') && key.length > 20) {
           _cachedGroqKey = key;
           localStorage.setItem('groq_api_key', key);
@@ -1581,9 +1582,8 @@
       // 2) Si no hay en localStorage, buscar en base de datos
       if (_cachedGroqKey) return _cachedGroqKey;
       try {
-        const res  = await fetch('tables/settings?limit=1');
-        const data = await res.json();
-        const key  = data.data?.[0]?.groqApiKey;
+        const s    = (typeof DB !== 'undefined' && DB.getSettings) ? await DB.getSettings() : null;
+        const key  = s && s.groqApiKey;
         if (key && key.startsWith('gsk_')) {
           _cachedGroqKey = key;
           localStorage.setItem('groq_api_key', key); // cachear localmente

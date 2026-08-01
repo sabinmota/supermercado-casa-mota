@@ -38,11 +38,13 @@ async function _chatGroqKey() {
     return local;
   }
 
-  // 3) Base de datos
+  // 3) Base de datos — vía DB.getSettings(), que resuelve solo el entorno
+  //    (Supabase en producción / tables API en el editor). NO usar 'tables/...'
+  //    directamente: esa ruta no existe en producción y devuelve 404.
   try {
-    const res  = await _chatFetch('tables/settings?limit=1');
-    const data = await res.json();
-    const key  = data.data?.[0]?.groqApiKey;
+    if (typeof DB === 'undefined' || !DB.getSettings) return null;
+    const s   = await DB.getSettings();
+    const key = s && s.groqApiKey;
     if (key && key.startsWith('gsk_')) {
       _chatGroqKeyCache = key;
       localStorage.setItem('groq_api_key', key); // cachear para próximas veces
@@ -62,9 +64,9 @@ async function _chatGroqKey() {
       _chatGroqKeyCache = local;
       return; // Ya la tenemos
     }
-    const res  = await _chatFetch('tables/settings?limit=1');
-    const data = await res.json();
-    const key  = data.data?.[0]?.groqApiKey;
+    if (typeof DB === 'undefined' || !DB.getSettings) return;
+    const s   = await DB.getSettings();
+    const key = s && s.groqApiKey;
     if (key && key.startsWith('gsk_') && key.length > 20) {
       _chatGroqKeyCache = key;
       localStorage.setItem('groq_api_key', key);

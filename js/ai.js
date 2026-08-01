@@ -143,24 +143,13 @@ async function saveGroqKey() {
   input.value = key.substring(0, 8) + '••••••••••••••••••••••••';
 
   // 2) Guardar en la base de datos (disponible para TODOS los dispositivos)
+  //    DB.saveSettings() hace un PATCH parcial contra Supabase y resuelve el
+  //    entorno solo. NO usar 'tables/settings': esa ruta no existe en producción,
+  //    fallaba en silencio y la clave se quedaba solo en este navegador.
   try {
-    // Buscar si ya existe un registro de settings
-    const res = await fetch('tables/settings?limit=1');
-    const data = await res.json();
-    if (data.data && data.data.length > 0) {
-      // Actualizar registro existente
-      await fetch(`tables/settings/${data.data[0].id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groqApiKey: key })
-      });
-    } else {
-      // Crear nuevo registro
-      await fetch('tables/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groqApiKey: key })
-      });
+    await DB.saveSettings({ groqApiKey: key });
+    if (typeof DBCached !== 'undefined' && DBCached.invalidateSettings) {
+      DBCached.invalidateSettings();  // fuerza recarga en la próxima lectura
     }
     showAdminToast('✅ API key de Groq guardada en todos los dispositivos', 'success');
   } catch(e) {
