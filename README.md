@@ -2,6 +2,82 @@
 
 ---
 
+## ✅ Estado actual (v33.8 — 2026-07-31) — Modal GPS dirección de entrega
+
+| Componente | Estado |
+|---|---|
+| **Modal "¿Dónde llevamos tu pedido?"** | ✅ `js/location.js` + HTML en `index.html` — bottom sheet con GPS, Nominatim reverse geocoding y mapa embed |
+| **Botón "Detectar mi ubicación"** | ✅ `navigator.geolocation` → Nominatim OpenStreetMap → rellena campos automáticamente |
+| **Reverse geocoding** | ✅ `nominatim.openstreetmap.org/reverse` — gratuito, sin API key, devuelve calle + número + barrio + ciudad |
+| **Mapa embed sin API key** | ✅ `maps.google.com/maps?q=lat,lng&z=17&output=embed` — muestra pin en coordenadas detectadas |
+| **Guard de checkout** | ✅ `_installCheckoutGuard()` — wrappea `window.confirmOrder` para verificar dirección antes de confirmar |
+| **Guardar en Supabase** | ✅ `DB.patchCustomer()` guarda `address`, `city`, `locLat`, `locLng` en la tabla `customers` |
+| **Sesión actualizada** | ✅ `setClientSession()` actualiza la sesión local después de guardar |
+| **Vista "Mi Ubicación"** | ✅ `renderLocationSection()` en `location.js` — muestra mapa + datos actuales + botón editar |
+| **Editar desde Mi Cuenta** | ✅ Botón "Actualizar mi dirección" → abre modal con datos pre-rellenados |
+| **Clientes OAuth sin dirección** | ✅ El guard intercepta el primer checkout y pide la dirección antes de proceder |
+
+### 📋 Archivos modificados esta sesión
+
+| Archivo | Cambios |
+|---|---|
+| `js/location.js` | ✅ **Nuevo** — modal GPS completo, guard checkout, renderLocationSection |
+| `index.html` | ✅ Modal HTML insertado + CSS estilos + `<script src="js/location.js?v=100">` |
+
+### 🗄️ Campos nuevos en tabla `customers` (Supabase)
+
+Si la tabla no tiene estas columnas, ejecutar en Supabase SQL Editor:
+```sql
+ALTER TABLE customers
+  ADD COLUMN IF NOT EXISTS "locLat"  NUMERIC,
+  ADD COLUMN IF NOT EXISTS "locLng"  NUMERIC;
+```
+> Los campos `address` y `city` ya existen en la tabla.
+
+---
+
+
+
+| Componente | Estado |
+|---|---|
+| **Google Sign In** | ✅ Implementado en `login-cliente.html` — Google Identity Services (GIS) con flujo popup + access_token + userinfo endpoint |
+| **Apple Sign In** | ⏳ Botón visible con badge "Pronto" — bloqueado por error Team ID en Apple Developer Portal |
+| **`createClientFromOAuth()`** | ✅ Función en `js/api.js` — busca cliente por email, crea si no existe con `authProvider: 'google'/'apple'`, sin password |
+| **Auto-crear cliente OAuth** | ✅ Al hacer login con Google por primera vez, el cliente se crea en Supabase `customers` con `status: 'habilitado'`, `ranking: 'bronce'` |
+| **Diseño login-cliente.html** | ✅ Botones "Continuar con Google" (logo SVG oficial) y "Continuar con Apple" (logo blanco sobre negro) con separador "o continúa con" |
+| **Fix warning GIS doble init** | ✅ Flag `_gisInited` evita llamar `google.accounts.id.initialize()` dos veces |
+| **Toast de errores OAuth** | ✅ `#oauthToast` — aparece 4s con mensaje de error centrado en la parte inferior |
+| **Sesión OAuth** | ✅ `setClientSession(client)` — igual que login normal, redirige a `index.html` |
+| **Versiones activas en producción** | `app.js?v=337` · `api.js?v=305` · `admin.v33.js?v=337` · `style.css?v=313` |
+
+### 🔑 Credenciales OAuth configuradas
+
+| Proveedor | Estado | Valor |
+|---|---|---|
+| **Google Client ID** | ✅ Activo | `747300144353-1qbi69thi9t0sjrf3rrvddpt333fg7to.apps.googleusercontent.com` |
+| **Apple Service ID** | ❌ Bloqueado | `com.casamota.web` — error Team ID `G8W2B79CY4` en Apple Developer Portal |
+| **Google Cloud Project** | ✅ | "Casa Mota" — consent screen configurado |
+
+### 📋 Archivos modificados esta sesión
+
+| Archivo | Cambios |
+|---|---|
+| `login-cliente.html` | Botones Google+Apple, CSS OAuth, toast errores, JS flujo completo |
+| `js/api.js` | `createClientFromOAuth()` + `_nowTs()` helper |
+
+### 🔄 Pendientes OAuth
+
+- [ ] **Resolver error Apple Developer** — "Unable to find a team with Team ID G8W2B79CY4" → contactar Apple Developer Support
+- [ ] **Configurar Apple Service ID** `com.casamota.web` con dominio `supermercadocasamota.com`
+- [ ] **Implementar flujo Apple Sign In** — descomentar bloque en `handleAppleLogin()` cuando esté listo
+- [ ] **Publicar consent screen Google** — cambiar de Testing a Production en Google Cloud Console
+- [ ] **Agregar dominio producción** a Authorized JavaScript Origins en Google Cloud Console: `https://supermercadocasamota.com`
+- [ ] **Modal "¿Dónde llevamos tu pedido?"** — GPS + Nominatim reverse geocoding al hacer checkout por primera vez
+- [ ] **Guard checkout** — si cliente OAuth no tiene dirección, pedir antes de confirmar pedido
+- [ ] **Subir a GitHub** `login-cliente.html` e `js/api.js`
+
+---
+
 ## 📸 Posts de Marketing Instagram (1080×1080px) — ✅ COMPLETO (2026-07-27)
 
 ### Archivos en `marketing/`
@@ -63,8 +139,10 @@
 | **`loadSettings()` inicial** | ✅ Eliminada la llamada prematura (línea 622) al inicio del admin — evita race condition con la llamada de línea 668 al navegar a Settings |
 | **Placeholder imagen productos** | ✅ `placeholder-product.png` (moto delivery gris flat) — CSS fade-in al cargar imagen real · `_injectImagesFromMemory()` detecta .png · edge case sin imagen: `img-loaded` inmediato |
 | **Sync Panel** | ✅ `btnCancel` rojo pulsante · `display:flex` fix · `pollLog` race condition corregida · `Date.now()` anti-throttling · APScheduler · `vInvArticulos` · `ArticuloID` en log |
-| **Fix mapa admin — Modal Editar Cliente (`previewCustMap`)** | ✅ `previewCustMap()` en `admin.v33.js`: links cortos `maps.app.goo.gl` ya no se descartan con `return` — se emberan como `maps.google.com/maps?q=URL_ENCODADA&output=embed`. Eliminada dependencia de API Key (se usaba en fallback). Lógica unificada: embed directo → goo.gl/maps.app → @LAT,LNG → ?q= → /place/ → fallback. `admin.v33.js?v=333`. |
-| **Versiones activas en producción** | `app.js?v=332` · `api.js?v=305` · `admin.v33.js?v=333` · `extras.v33.js?v=305` · `style.css?v=311` · `chat.js?v=225` |
+| **Fix mapa admin — Modal Editar Cliente (`previewCustMap`)** | ✅ Links cortos `maps.app.goo.gl`: iframe usa **OpenStreetMap embed** + Nominatim geocoding con dirección del cliente (cAddress + cCity). Mismo fix en `noPreviewMap()` (Nuevo Pedido) y `renderLocationSection()` en `app.js` (Mi Ubicación tienda). `admin.v33.js?v=335`, `app.js?v=334`. |
+| **Repetir pedido (tienda)** | ✅ Botón "Repetir pedido" en tarjetas de pedidos `entregado` y `cancelado`. `repeatOrder(orderId)` carga todos los artículos del pedido al carrito (usa precio actual del catálogo; si el producto ya no existe, usa los datos guardados del pedido). Cierra vista pedidos y abre el carrito automáticamente. `app.js?v=336`, `style.css?v=312`. |
+| **Fix cálculo de envío en carrito** | ✅ `_calcEnvio()` ya no tiene tabla hardcodeada (75/125/175/225). Ahora lee `shippingFee` y `freeShippingMin` directamente del cache de settings (`_checkoutSettingsCache`), igual que el admin panel. Con base=50 y mínimo gratis=3800: envío = RD$50 siempre que subtotal < RD$3,800. Si el cache no está listo al abrir el carrito, se carga automáticamente y refresca el UI. `app.js?v=337`. |
+| **Versiones activas en producción** | `app.js?v=337` · `api.js?v=305` · `admin.v33.js?v=337` · `extras.v33.js?v=305` · `style.css?v=313` · `chat.js?v=225` |
 | **Maya chat — contacto dinámico** | ✅ `_chatLoadStoreInfo()` en `chat.js` reescrita para usar `DB.getSettings()` (igual que `app.js`). Antes usaba `tables/settings` hardcodeado (dev API) → en producción devolvía datos vacíos o de otra sesión. Campo `storeWhatsapp` corregido (era `s.whatsapp`). Sin teléfono hardcodeado en fallback. `chat.js?v=225`. |
 | **Modal "Solicitar cuenta" (login-cliente.html)** | ✅ `showRegisterInfo()` reescrita como `async` — lee `DB.getSettings()` directo de Supabase en lugar de `localStorage`. Muestra `…` mientras carga. Botón WhatsApp dinámico (verde, oculto si vacío). Fallback a `localStorage` si la red falla. `api.js?v=304`. |
 | **Bug "Pedido no encontrado" al cancelar (tienda)** | ✅ `cancelClientOrder()` + `deleteClientOrder()` en `app.js`: fetch pedido con `_IS_GENSPARK` + Supabase directo; `cancelledAt: Date.now()` (bigint ms). `_orderToSupa()` en `api.js` convierte ISO→ms defensivamente. `app.js?v=323`, `api.js?v=305`. |
