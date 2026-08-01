@@ -776,23 +776,30 @@ async function createClientFromOAuth(profile) {
   } catch(e) { /* continuar — red fallida */ }
 
   if (existing) {
-    // Actualizar lastLogin siempre — campos opcionales solo si la columna existe
-    // Usamos patches separados: primero el seguro, luego los opcionales (por si la
-    // columna authProvider/avatar aún no fue creada en Supabase)
+    // Actualizar lastLogin siempre
     const safePatch = { lastLogin: _nowTs() };
     try { await DB.patchCustomer(existing.id, safePatch); } catch(e) { /* no crítico */ }
 
-    // Patch opcional — authProvider + avatar (requiere ALTER TABLE si falla)
+    // Patch authProvider + avatar — intentarlo aunque falle (schema cache puede estar desact.)
     const optPatch = {};
-    if (profile.authProvider) optPatch.authProvider = profile.authProvider;
-    if (profile.picture && !existing.avatar) optPatch.avatar = profile.picture;
+    if (profile.authProvider && !existing.authProvider) optPatch.authProvider = profile.authProvider;
+    if (profile.picture      && !existing.avatar)       optPatch.avatar       = profile.picture;
     if (Object.keys(optPatch).length > 0) {
-      try { await DB.patchCustomer(existing.id, optPatch); } catch(e) {
-        console.warn('[OAuth] Columnas opcionales no existen aún (authProvider/avatar). Ejecuta el SQL en Supabase.');
+      try {
+        await DB.patchCustomer(existing.id, optPatch);
+        console.log('[OAuth] authProvider actualizado en Supabase ✅', optPatch);
+      } catch(e) {
+        console.warn('[OAuth] patch authProvider falló (schema cache?) — solo se actualiza en sesión local.', e?.message || e);
       }
     }
 
-    const { password: _pw, ...safe } = { ...existing, ...safePatch, ...optPatch };
+    // SIEMPRE incluir authProvider en la sesión local aunque el patch haya fallado,
+    // así el admin muestra el badge correcto en esta sesión.
+    const sessionOverride = {};
+    if (profile.authProvider) sessionOverride.authProvider = profile.authProvider;
+    if (profile.picture && !existing.avatar) sessionOverride.avatar = profile.picture;
+
+    const { password: _pw, ...safe } = { ...existing, ...safePatch, ...sessionOverride };
     return safe;
   }
 
@@ -832,18 +839,23 @@ async function createClientFromOAuth(profile) {
   }
 
   let created = null;
+  let createdWithAuthProvider = false;
+
   try {
     created = await DB.createCustomer(clientFull);
+    createdWithAuthProvider = true;  // Nivel A incluye authProvider
   } catch(e1) {
     if (!_isSchemaErr(e1)) throw e1;
     console.warn('[OAuth] Nivel A falló — reintentando sin authProvider/avatar.');
     try {
       created = await DB.createCustomer(clientBase);
+      // Nivel B: creado sin authProvider — intentar parchear inmediatamente
     } catch(e2) {
       if (!_isSchemaErr(e2)) throw e2;
       console.warn('[OAuth] Nivel B falló — reintentando con campos mínimos.');
       try {
         created = await DB.createCustomer(clientMinimal);
+        // Nivel C: creado sin authProvider — intentar parchear inmediatamente
       } catch(e3) {
         throw new Error('OAuth: no se pudo crear el cliente. Verifica el schema de Supabase. Detalle: ' + (e3.message || e3));
       }
@@ -851,6 +863,25 @@ async function createClientFromOAuth(profile) {
   }
 
   if (!created) throw new Error('OAuth: Supabase no devolvió el cliente creado.');
+
+  // Si el cliente fue creado sin authProvider (Nivel B o C),
+  // intentar parchear authProvider + avatar de inmediato
+  if (!createdWithAuthProvider && created.id) {
+    const postPatch = {};
+    if (profile.authProvider || 'google') postPatch.authProvider = profile.authProvider || 'google';
+    if (profile.picture) postPatch.avatar = profile.picture;
+    try {
+      await DB.patchCustomer(created.id, postPatch);
+      // Incorporar al objeto local aunque el patch haya ido bien
+      Object.assign(created, postPatch);
+      console.log('[OAuth] authProvider parcheado post-creación ✅');
+    } catch(ep) {
+      // El patch falló — al menos el objeto local en sesión tendrá authProvider correcto
+      Object.assign(created, postPatch);
+      console.warn('[OAuth] post-patch authProvider falló — solo en sesión local.', ep?.message || ep);
+    }
+  }
+
   const { password: _pw, ...safe } = created;
   return safe;
 }
