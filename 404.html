@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Página no encontrada — Supermercado Casa Mota</title>
+<meta name="robots" content="noindex" />
+<meta name="theme-color" content="#1a7c3e" />
+<link rel="icon" href="images/logo-casamota.png" />
+<style>
+  /* Página autónoma: sin CDN ni JS externo, para que funcione aunque falle todo lo demás */
+  :root { --green: #1a7c3e; --green-dark: #14632f; --ink: #1a1a2e; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(160deg, #f4faf6 0%, #e8f3ec 100%);
+    color: var(--ink);
+  }
+  .error-card {
+    width: 100%; max-width: 460px; text-align: center;
+    background: #fff; border-radius: 20px; padding: 40px 28px;
+    box-shadow: 0 10px 40px rgba(26,124,62,.14);
+  }
+  .error-logo { width: 84px; height: 84px; object-fit: contain; margin-bottom: 18px; }
+  .error-code {
+    font-size: 4.2rem; font-weight: 800; line-height: 1;
+    color: var(--green); margin: 0 0 6px;
+    letter-spacing: -2px;
+  }
+  .error-title { font-size: 1.3rem; margin: 0 0 10px; }
+  .error-text  { font-size: .97rem; color: #55606b; line-height: 1.55; margin: 0 0 26px; }
+  .error-actions { display: flex; flex-direction: column; gap: 12px; }
+  .btn {
+    display: block; padding: 14px 20px; border-radius: 12px;
+    font-size: 1rem; font-weight: 600; text-decoration: none;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary {
+    background: var(--green); color: #fff;
+    box-shadow: 0 4px 14px rgba(26,124,62,.32);
+  }
+  .btn-primary:hover { background: var(--green-dark); }
+  .btn-secondary { background: #f1f4f6; color: var(--ink); }
+  .error-foot { margin-top: 26px; font-size: .82rem; color: #8b959e; }
+  @media (max-width: 380px) { .error-code { font-size: 3.4rem; } }
+</style>
+</head>
+<body>
+
+  <main class="error-card" id="error-404">
+    <img src="images/logo-casamota.png" alt="Logo de Supermercado Casa Mota" class="error-logo" />
+
+    <p class="error-code">404</p>
+    <h1 class="error-title">No encontramos esta página</h1>
+    <p class="error-text">
+      Puede que el enlace esté roto o que la página se haya movido.
+      Vuelve a la tienda para seguir con tu compra.
+    </p>
+
+    <nav class="error-actions" aria-label="Acciones disponibles">
+      <a href="/index.html" class="btn btn-primary" id="back-to-store">Volver a la tienda</a>
+      <a href="/login-cliente" class="btn btn-secondary" id="go-to-login">Acceder a mi cuenta</a>
+    </nav>
+
+    <p class="error-foot">Supermercado Casa Mota</p>
+  </main>
+
+</body>
+</html>

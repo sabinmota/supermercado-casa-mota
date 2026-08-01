@@ -1,0 +1,6 @@
+# Cloudflare Pages — reglas de redirección
+# /tables/* es la API del entorno de desarrollo, no existe en producción.
+# Sin esta regla devolvería HTML con estado 200 y JSON.parse() fallaría raro.
+# En producción los datos salen SIEMPRE de Supabase (flag _IS_GENSPARK).
+
+/tables/*  /404.html  404
