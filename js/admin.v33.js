@@ -3801,6 +3801,85 @@ function applyPointsAdjustment(customerId) {
 }
 
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
+
+// ── Estadísticas de cliente calculadas EN VIVO desde los pedidos ──────────────
+// Las columnas customers.orders / spent / lastOrder son contadores denormalizados
+// que solo se incrementan al crear un pedido (app.js:2986 y admin.v33.js:3174).
+// Nunca se recalculan, así que se desincronizan con: cancelaciones, pedidos
+// borrados, pedidos creados antes de que existiera ese código, o un PATCH que
+// falla en silencio (todos usan .catch(() => {})). Por eso aquí NO se leen:
+// se cuentan los pedidos reales. Los contadores solo se usan como respaldo si
+// el array de pedidos no está disponible.
+
+const _txt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+/** Etiqueta corta de un pedido: "#12". Si el pedido es antiguo y su
+ *  order_number es el UUID entero, se abrevia a los 6 últimos caracteres
+ *  ("#4C9A1F") en vez de escupir 36 caracteres en pantalla. */
+function _orderShortLabel(o) {
+  if (!o) return '—';
+  const n = String(o.order_number ?? o.id ?? '').trim();
+  if (!n) return '—';
+  if (/^\d{1,6}$/.test(n)) return '#' + n;                    // correlativo normal
+  return '#' + n.replace(/-/g, '').slice(-6).toUpperCase();   // UUID → cola corta
+}
+
+/** Las fechas se guardan como "dd/mm/aaaa HH:MM" (app.js:2886), que Date() no
+ *  entiende. Se convierte a milisegundos para poder ordenar. */
+function _orderTime(o) {
+  if (o?.created_at) { const t = Number(o.created_at); if (!isNaN(t) && t > 0) return t; }
+  const m = String(o?.date || '').match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
+  const t = Date.parse(o?.date || '');
+  return isNaN(t) ? 0 : t;
+}
+
+/** Pedidos de un cliente. El email manda (identificador fiable); si el pedido
+ *  no lo trae, se compara por nombre normalizado. Misma regla que js/chat.js. */
+function _ordersOfCustomer(c) {
+  if (!Array.isArray(orders) || !orders.length) return null;   // null = sin datos
+  const email  = _txt(c.email);
+  const nombre = _txt(c.name);
+  return orders.filter(o => {
+    if (o.deleted) return false;
+    if (String(o.clientId || '') && String(o.clientId) === String(c.id)) return true;
+    const oe = _txt(o.email);
+    if (email && oe) return oe === email;
+    return nombre && _txt(o.customer) === nombre;
+  });
+}
+
+/** {count, spent, cancelled, last, lastLabel} de un cliente. */
+function _customerStats(c) {
+  const mine = _ordersOfCustomer(c);
+
+  // Sin pedidos cargados (fallo de red, vista abierta antes de tiempo):
+  // devolvemos los contadores guardados para no mostrar ceros falsos.
+  if (mine === null) {
+    return {
+      count: Number(c.orders) || 0,
+      spent: Number(c.spent)  || 0,
+      cancelled: 0,
+      lastLabel: c.lastOrder || '—',
+      estimado: true,
+    };
+  }
+
+  const validos = mine.filter(o => o.status !== 'cancelado');
+  const last    = mine.slice().sort((a, b) => _orderTime(a) - _orderTime(b)).pop();
+
+  return {
+    count:     validos.length,
+    spent:     validos.reduce((s, o) => s + (Number(o.total) || 0), 0),
+    cancelled: mine.length - validos.length,
+    lastLabel: last ? `${_orderShortLabel(last)} · ${last.date || 's/f'}` : '—',
+    estimado:  false,
+  };
+}
+
+/** Teléfono siempre con guiones al mostrarlo, venga como venga de la BD. */
+const _telAdmin = v => (typeof fmtPhoneDO === 'function' ? fmtPhoneDO(v) : (v || ''));
+
 function renderCustomers() {
   const q    = (document.getElementById('custSearch')?.value || '').toLowerCase();
   const sort = document.getElementById('custSortFilter')?.value || '';
@@ -3812,8 +3891,10 @@ function renderCustomers() {
   );
 
   if (sort === 'name')   list = list.sort((a,b) => a.name.localeCompare(b.name));
-  if (sort === 'spent')  list = list.sort((a,b) => b.spent  - a.spent);
-  if (sort === 'orders') list = list.sort((a,b) => b.orders - a.orders);
+  // Ordenar por los mismos números que se muestran (calculados), no por los
+  // contadores guardados, o la lista saldría ordenada por cifras que no se ven.
+  if (sort === 'spent')  list = list.sort((a,b) => _customerStats(b).spent - _customerStats(a).spent);
+  if (sort === 'orders') list = list.sort((a,b) => _customerStats(b).count - _customerStats(a).count);
 
   const total = list.length;
   const pg    = _pages.customers;
@@ -3846,6 +3927,8 @@ function renderCustomers() {
       : c.password
         ? `<span title="Puede iniciar sesión en la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#e8f5ee;color:#1a7c3e;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-circle-check"></i> Acceso</span>`
         : `<span title="Sin contraseña — no puede entrar a la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#fff3cd;color:#856404;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-lock"></i> Sin acceso</span>`;
+    // Pedidos / gastado / último pedido: calculados en vivo, no leídos del cliente
+    const st = _customerStats(c);
     return `
     <tr>
       <td><strong>${i+1}</strong></td>
@@ -3863,11 +3946,11 @@ function renderCustomers() {
         </div>
       </td>
       <td>${c.email}</td>
-      <td>${c.phone || '&mdash;'}</td>
+      <td>${_telAdmin(c.phone) || '&mdash;'}</td>
       <td style="max-width:160px;font-size:0.83rem;color:#555">${c.address || '&mdash;'}</td>
-      <td><strong>${c.orders}</strong></td>
-      <td><strong style="color:#1a7c3e">RD$ ${fmt$(c.spent||0)}</strong></td>
-      <td>${c.lastOrder || '&mdash;'}</td>
+      <td><strong>${st.count}</strong>${st.cancelled ? `<br><small style="color:#c62828;font-size:.7rem">${st.cancelled} cancelado${st.cancelled > 1 ? 's' : ''}</small>` : ''}</td>
+      <td><strong style="color:#1a7c3e">RD$ ${fmt$(st.spent)}</strong></td>
+      <td style="font-size:.82rem">${st.lastLabel}</td>
       <td>
         <div class="action-btns">
           <button class="action-btn action-btn-view" onclick="viewCustomerDetail('${c.id}')" title="Ver detalle"><i class="fas fa-eye"></i></button>
@@ -4226,7 +4309,7 @@ function saveCustomer() {
   const data = {
     name,
     email,
-    phone:       getPhoneValue('cPhone', 'cPhonePrefix'),
+    phone:       _telAdmin(getPhoneValue('cPhone', 'cPhonePrefix')),
     cedula:      document.getElementById('cCedula').value.trim(),
     address:     document.getElementById('cAddress').value.trim(),
     city:        document.getElementById('cCity').value.trim(),
@@ -4323,6 +4406,8 @@ function viewCustomerDetail(id) {
   const statusLabel = { activo:'Activo', inactivo:'Inactivo', vip:'⭐ VIP' };
   const stCls = c.status === 'vip' ? 'cst-vip' : c.status === 'inactivo' ? 'cst-inactivo' : 'cst-activo';
   const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  // Pedidos / gastado / último pedido: contados en vivo desde `orders`
+  const st = _customerStats(c);
 
   // Estado de acceso a la tienda — detectar clientes OAuth (Google/Apple)
   const isOAuth    = !!(c.authProvider && c.authProvider !== '');
@@ -4361,7 +4446,7 @@ function viewCustomerDetail(id) {
 
     <div class="order-detail-grid">
       <div class="order-detail-item"><label>Email</label><span>${c.email}</span></div>
-      <div class="order-detail-item"><label>Teléfono</label><span>${c.phone||'—'}</span></div>
+      <div class="order-detail-item"><label>Teléfono</label><span>${_telAdmin(c.phone)||'—'}</span></div>
       <div class="order-detail-item"><label>Cédula / RNC</label><span>${c.cedula||'—'}</span></div>
       <div class="order-detail-item"><label>Ciudad</label><span>${c.city||'—'}</span></div>
       <div class="order-detail-item"><label>Dirección</label><span>${c.address||'—'}</span></div>
@@ -4389,9 +4474,9 @@ function viewCustomerDetail(id) {
           </div>
         </div>`;
       })()}
-      <div class="order-detail-item"><label>Pedidos realizados</label><span><strong>${c.orders}</strong></span></div>
-      <div class="order-detail-item"><label>Total gastado</label><span style="color:#1a7c3e;font-weight:700">RD$ ${fmt$(c.spent||0)}</span></div>
-      <div class="order-detail-item"><label>Último pedido</label><span>${c.lastOrder||'—'}</span></div>
+      <div class="order-detail-item"><label>Pedidos realizados</label><span><strong>${st.count}</strong>${st.cancelled ? ` <small style="color:#c62828">(+${st.cancelled} cancelado${st.cancelled > 1 ? 's' : ''})</small>` : ''}</span></div>
+      <div class="order-detail-item"><label>Total gastado</label><span style="color:#1a7c3e;font-weight:700">RD$ ${fmt$(st.spent)}</span></div>
+      <div class="order-detail-item"><label>Último pedido</label><span>${st.lastLabel}</span></div>
       <div class="order-detail-item"><label><i class="fas fa-star" style="color:#7c3aed"></i> Puntos acumulados</label><span style="font-weight:800;font-size:1.05rem;color:#7c3aed">${(c.loyaltyPoints||0).toLocaleString('es-DO')} pts &nbsp;${loyaltyBadgeHTML(c.loyaltyPoints||0)}</span></div>
       ${c.createdAt ? `<div class="order-detail-item"><label>Registrado</label><span>${c.createdAt}</span></div>` : ''}
       ${c.lastLogin ? `<div class="order-detail-item"><label>Último acceso tienda</label><span>${c.lastLogin}</span></div>` : ''}

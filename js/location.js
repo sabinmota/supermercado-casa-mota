@@ -17,6 +17,37 @@ let _gpsDetectedAddress = '';
 let _gpsDetectedCity    = '';
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  TELÉFONO — máscara 809-696-1013
+// ═══════════════════════════════════════════════════════════════════════════════
+// El formateo real vive en api.js (fmtPhoneDO) para que la tienda y el panel
+// usen exactamente la misma regla. Aquí solo se envuelve por si api.js aún no
+// ha cargado, y se engancha la máscara al <input type="tel"> del modal.
+
+const _locFmtTel = v =>
+  (typeof fmtPhoneDO === 'function') ? fmtPhoneDO(v) : String(v || '').trim();
+
+const _locFmtTelParcial = v =>
+  (typeof fmtPhoneDOPartial === 'function') ? fmtPhoneDOPartial(v) : String(v || '');
+
+/** Inserta los guiones mientras el cliente escribe. Solo reformatea cuando el
+ *  cursor está al final, para no hacerlo saltar si edita en medio del número. */
+function _locBindPhoneMask(input) {
+  if (!input || input._telMaskBound) return;
+  input._telMaskBound = true;
+  input.setAttribute('inputmode', 'numeric');
+  input.setAttribute('maxlength', '12');          // 809-696-1013
+  input.addEventListener('input', () => {
+    const alFinal = input.selectionStart === input.value.length;
+    const nuevo   = _locFmtTelParcial(input.value);
+    if (nuevo !== input.value && alFinal) {
+      input.value = nuevo;
+      try { input.setSelectionRange(nuevo.length, nuevo.length); } catch (e) {}
+    }
+  });
+  input.addEventListener('blur', () => { input.value = _locFmtTelParcial(input.value); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  API PÚBLICA
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -48,7 +79,11 @@ function openLocationModal(onConfirm, forceOpen = false) {
   const phoneInput = document.getElementById('locPhoneInput');
   if (addrInput)  addrInput.value  = existingAddress;
   if (cityInput)  cityInput.value  = existingCity;
-  if (phoneInput) phoneInput.value = existingPhone;
+  // El teléfono se muestra SIEMPRE con guiones, aunque en la BD esté sin ellos
+  if (phoneInput) {
+    phoneInput.value = _locFmtTel(existingPhone);
+    _locBindPhoneMask(phoneInput);
+  }
 
   // Mostrar el mapa si ya tiene coordenadas guardadas
   if (client && client.locLat && client.locLng) {
@@ -190,11 +225,21 @@ async function locConfirmAddress() {
   const phoneInput = document.getElementById('locPhoneInput');
   const address    = (addrInput?.value  || '').trim();
   const city       = (cityInput?.value  || '').trim();
-  const phone      = (phoneInput?.value || '').trim();
+  // Normalizado a 809-696-1013 ANTES de guardar: así el panel nunca recibe
+  // números pegados como "8096961013" (era el caso hasta el build 367).
+  const phone      = _locFmtTel(phoneInput?.value || '');
 
   if (!address || address.length < 4) {
     _locShowError('Por favor ingresa una dirección válida (mínimo 4 caracteres).');
     addrInput?.focus();
+    return;
+  }
+
+  // El teléfono sigue siendo opcional, pero si lo escriben debe estar completo:
+  // un número a medias no sirve para coordinar la entrega.
+  if (phone && phone.replace(/\D/g, '').length !== 10) {
+    _locShowError('El teléfono debe tener 10 dígitos. Ejemplo: 809-696-1013');
+    if (phoneInput) { phoneInput.value = _locFmtTelParcial(phoneInput.value); phoneInput.focus(); }
     return;
   }
 

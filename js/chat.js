@@ -669,10 +669,22 @@ function _chatEstadisticasGlobales() {
     .filter(o => _norm(o.status) !== 'cancelado')
     .reduce((s, o) => s + (Number(o.total) || 0), 0);
 
-  const top = [..._chatClientes]
-    .sort((a, b) => (Number(b.spent) || 0) - (Number(a.spent) || 0))
+  // El top se calcula contando pedidos reales, NO leyendo customers.spent:
+  // esas columnas son contadores denormalizados que se desincronizan
+  // (ver la sección "contadores de cliente" en casamota-estado.md).
+  const top = _chatClientes
+    .map(c => {
+      const suyos = _pedidosDeCliente(c).filter(o => _norm(o.status) !== 'cancelado');
+      return {
+        name:  c.name,
+        n:     suyos.length,
+        total: suyos.reduce((s, o) => s + (Number(o.total) || 0), 0),
+      };
+    })
+    .filter(x => x.n > 0)
+    .sort((a, b) => b.total - a.total)
     .slice(0, 5)
-    .map((c, i) => `  ${i + 1}. ${c.name} — RD$ ${(Number(c.spent) || 0).toFixed(2)} (${c.orders || 0} pedidos)`)
+    .map((c, i) => `  ${i + 1}. ${c.name} — RD$ ${c.total.toFixed(2)} (${c.n} pedidos)`)
     .join('\n');
 
   return [

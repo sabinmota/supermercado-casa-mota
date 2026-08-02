@@ -97,6 +97,38 @@ const _SELECT_FIELDS = {
   settings:  '*',
 };
 
+// ─── TELÉFONOS — formato dominicano 809-696-1013 ─────────────────────────────
+// Fuente ÚNICA de verdad. Vive en api.js porque es el único fichero que cargan
+// las dos caras: la tienda (js/location.js, al guardar) y el panel
+// (js/admin.v33.js, al mostrar). Así un número guardado en su día como
+// "8096961013" se ve con guiones sin tener que tocar la base de datos.
+function fmtPhoneDO(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  let d = raw.replace(/\D/g, '');
+  if (!d) return raw;                                     // texto sin dígitos → intacto
+  if (d.length === 11 && d[0] === '1') d = d.slice(1);    // 1-809-… → 809-…
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 7)  return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return raw;   // longitud rara o número extranjero → no lo tocamos
+}
+
+/** Formato progresivo mientras se escribe: 8 → 809 → 809-69 → 809-696-1013.
+ *  Solo dígitos, tope 10. Se usa en los <input type="tel"> de la tienda. */
+function fmtPhoneDOPartial(value) {
+  let d = String(value ?? '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') d = d.slice(1);
+  d = d.slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
+if (typeof window !== 'undefined') {
+  window.fmtPhoneDO        = fmtPhoneDO;
+  window.fmtPhoneDOPartial = fmtPhoneDOPartial;
+}
+
 // ─── MAPEO DE CAMPOS orders (app ↔ Supabase) ─────────────────────────────────
 // Supabase usa snake_case y nombres distintos; el app usa camelCase propio.
 // _orderToSupa  : convierte objeto del app → columnas reales de Supabase
