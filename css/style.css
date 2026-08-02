@@ -3312,7 +3312,19 @@ input, select { font-family: var(--font); }
 }
 
 /* ============================================================
-   CHATBOT ASISTENTE IA — MAYA  (tamaño accesible)
+   [LEGACY · INERTE] CHATBOT "MAYA" — RETIRADO DE LA TIENDA
+   ------------------------------------------------------------
+   Build 361: se elimin\u00f3 el markup del chat de index.html, por lo
+   que NINGUNA de las reglas .chat-* de aqu\u00ed abajo se aplica ya.
+   Se conservan por dos motivos:
+     1) No hay forma segura de comentarlas (el bloque contiene
+        comentarios y CSS no permite anidarlos).
+     2) Reescribir 490 l\u00edneas a mano arriesga la hoja entera a
+        cambio de ~11 KB cacheados. No compensa.
+   DEUDA T\u00c9CNICA: purgar este bloque (hasta el final del fichero)
+   en una limpieza de CSS dedicada, con herramienta de purge.
+   OJO: el admin S\u00cd usa su chat \u2014 sus estilos viven en
+   css/admin.v33.css y NO deben tocarse.
    ============================================================ */
 
 /* ── Wrapper FAB (contiene botón + badge) ── */

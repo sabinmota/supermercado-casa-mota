@@ -142,20 +142,13 @@ async function saveGroqKey() {
   localStorage.setItem('groq_api_key', key);
   input.value = key.substring(0, 8) + '••••••••••••••••••••••••';
 
-  // 2) Guardar en la base de datos (disponible para TODOS los dispositivos)
-  //    DB.saveSettings() hace un PATCH parcial contra Supabase y resuelve el
-  //    entorno solo. NO usar 'tables/settings': esa ruta no existe en producción,
-  //    fallaba en silencio y la clave se quedaba solo en este navegador.
-  try {
-    await DB.saveSettings({ groqApiKey: key });
-    if (typeof DBCached !== 'undefined' && DBCached.invalidateSettings) {
-      DBCached.invalidateSettings();  // fuerza recarga en la próxima lectura
-    }
-    showAdminToast('✅ API key de Groq guardada en todos los dispositivos', 'success');
-  } catch(e) {
-    showAdminToast('✅ API key guardada localmente (sin sincronizar)', 'success');
-    console.warn('[saveGroqKey]', e.message);
-  }
+  // 2) NO se guarda en Supabase — a propósito.
+  //    La tabla `settings` la lee cualquier cliente de la tienda con la clave
+  //    anónima, así que escribir aquí la API key equivaldría a publicarla.
+  //    Desde 2026-08-01 la clave de producción vive en una variable de entorno
+  //    de Cloudflare (GROQ_API_KEY) y la usa el proxy functions/api/chat.js.
+  //    Este campo sirve solo como respaldo local para este navegador.
+  showAdminToast('✅ Guardada solo en este dispositivo. La clave de producción se configura en Cloudflare.', 'success');
 }
 
 function saveGeminiKey() {

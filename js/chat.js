@@ -6,6 +6,13 @@
 
 // ─── CONFIGURACIÓN ───────────────────────────────────────────────────────────
 const _CHAT_GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+
+// Proxy propio (Cloudflare Pages Function en functions/api/chat.js).
+// La API key vive en el servidor y NUNCA se descarga al navegador.
+// Si el proxy no está desplegado (404), se cae a la llamada directa siempre
+// que este navegador tenga clave en localStorage (caso del admin).
+const _CHAT_PROXY_URL  = '/api/chat';
+const _CHAT_USE_PROXY  = true;
 const _CHAT_GROQ_MODEL = 'llama-3.1-8b-instant'; // Modelo ligero: 20K tokens/min vs 6K del 70b
 const _CHAT_FETCH_TIMEOUT_MS = 8000; // 8 s máximo para fetches internos del chat
 
@@ -19,6 +26,41 @@ function _chatFetch(url, opts = {}) {
 
 // Cache en memoria para evitar llamadas repetidas a la DB
 let _chatGroqKeyCache = null;
+
+// Se pone a true si el proxy responde 404/501 (no desplegado todavía)
+let _chatProxyCaido = false;
+
+/**
+ * Envía el cuerpo al modelo, primero por el proxy y si no por Groq directo.
+ * @returns {Promise<Response|null>} null si no hay ninguna vía disponible
+ */
+async function _chatLLMFetch(body, groqKey) {
+  // 1) Proxy propio — sin cabecera Authorization: la pone el servidor
+  if (_CHAT_USE_PROXY && !_chatProxyCaido) {
+    try {
+      const res = await _chatFetch(_CHAT_PROXY_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      // 404/501 = la Function no existe en este despliegue → usar plan B
+      if (res.status !== 404 && res.status !== 501) return res;
+      _chatProxyCaido = true;
+      console.warn('[Chat] Proxy /api/chat no disponible — llamada directa');
+    } catch (e) {
+      _chatProxyCaido = true;
+      console.warn('[Chat] Proxy /api/chat falló:', e.message);
+    }
+  }
+
+  // 2) Llamada directa — solo si este navegador tiene la clave
+  if (!groqKey) return null;
+  return _chatFetch(_CHAT_GROQ_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
+    body:    JSON.stringify(body),
+  });
+}
 
 /**
  * Obtiene la clave Groq:
@@ -796,7 +838,7 @@ INSTRUCCIONES IMPORTANTES:
 
   // 1️⃣ Intentar Groq primero
   const groqKey = await _chatGroqKey();
-  if (groqKey) {
+  if (groqKey || _CHAT_USE_PROXY) {
     try {
       const groqBody = {
         model: _CHAT_GROQ_MODEL,
@@ -808,11 +850,8 @@ INSTRUCCIONES IMPORTANTES:
         max_tokens: 200,
         temperature: 0.7
       };
-      const res = await _chatFetch(_CHAT_GROQ_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
-        body: JSON.stringify(groqBody)
-      });
+      const res = await _chatLLMFetch(groqBody, groqKey);
+      if (!res) throw new Error('Sin proxy ni clave disponible');
       // Leer el body UNA SOLA VEZ (no se puede leer dos veces)
       const data = await res.json().catch(() => null);
       if (res.ok && data) {
@@ -824,13 +863,9 @@ INSTRUCCIONES IMPORTANTES:
         if ((res.status === 413 || res.status === 400) && data) {
           const shortPrompt = systemPrompt.split('\n').slice(0, 8).join('\n');
           const shortBody = { ...groqBody, messages: [{ role: 'system', content: shortPrompt }, { role: 'user', content: userMsg }] };
-          const res2 = await _chatFetch(_CHAT_GROQ_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
-            body: JSON.stringify(shortBody)
-          });
-          const d2 = await res2.json().catch(() => null);
-          if (res2.ok && d2) {
+          const res2 = await _chatLLMFetch(shortBody, groqKey);
+          const d2 = res2 ? await res2.json().catch(() => null) : null;
+          if (res2 && res2.ok && d2) {
             const t2 = d2.choices?.[0]?.message?.content;
             if (t2) return t2.trim();
           }

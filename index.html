@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '358', KEY = 'cm_app_ver';
+        var VER = '361', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -122,7 +122,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=313" />
+  <link rel="stylesheet" href="css/style.css?v=314" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -897,68 +897,17 @@
 
   </div><!-- /checkoutModal -->
 
-  <!-- ===================== CHATBOT ASISTENTE IA ===================== -->
-
-  <!-- Botón flotante (FAB) -->
-  <div class="chat-fab-wrap" id="chatFabWrap">
-    <button class="chat-fab" id="chatFabBtn" onclick="toggleChat()" aria-label="Asistente de compras">
-      <img src="images/maya-avatar-v2.png" alt="Maya" class="chat-fab-logo">
-    </button>
-    <span class="chat-fab-badge" id="chatFabBadge" style="display:none">1</span>
-  </div>
-
-  <!-- Panel del chat -->
-  <div class="chat-panel" id="chatPanel">
-
-    <!-- Cabecera -->
-    <div class="chat-header">
-      <div class="chat-header-left">
-        <div class="chat-header-avatar">
-          <img src="images/maya-avatar-v2.png" alt="Maya" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
-          <span class="chat-online-dot"></span>
-        </div>
-        <div>
-          <div class="chat-header-name">Maya · Asistente IA</div>
-          <div class="chat-header-status">En línea · Casa Mota</div>
-        </div>
-      </div>
-      <div class="chat-header-actions">
-        <button class="chat-header-btn" onclick="chatClear()" title="Nueva conversación">
-          <i class="fas fa-rotate-right"></i>
-        </button>
-        <button class="chat-header-btn" onclick="closeChat()" title="Cerrar">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    </div>
-
-    <!-- Mensajes -->
-    <div class="chat-messages" id="chatMessages">
-      <!-- Se llena dinámicamente -->
-    </div>
-
-    <!-- Input de mensaje -->
-    <div class="chat-input-area">
-      <textarea
-        id="chatMsgInput"
-        class="chat-input"
-        placeholder="Pregúntame algo… ej: ¿tienen pollo?"
-        rows="1"
-        onkeydown="chatInputKeydown(event)"
-        oninput="chatInputAutoResize(this)"
-      ></textarea>
-      <button class="chat-send-btn" id="chatSendBtn" onclick="chatSend()" aria-label="Enviar">
-        <i class="fas fa-paper-plane"></i>
-      </button>
-    </div>
-
-    <!-- Footer -->
-    <div class="chat-footer-note">
-      <i class="fas fa-robot"></i> Impulsado por IA · Groq
-    </div>
-
-  </div>
-  <!-- ===================== FIN CHATBOT ===================== -->
+  <!-- ===================================================================
+       CHATBOT "MAYA" — ELIMINADO DE LA TIENDA (build 361, 2026)
+       -------------------------------------------------------------------
+       Decisión de producto: no aportaba valor real al cliente final.
+       · El motor js/chat.js SIGUE EXISTIENDO y lo usa el panel admin.
+       · El proxy functions/api/chat.js SE MANTIENE: lo necesita el
+         escáner de códigos de barras (visión IA) y el Maya del admin.
+       · Estilos .chat-* de css/style.css: neutralizados (ver ese fichero).
+       Para restaurarlo: recuperar este bloque de backup/v28.0/index.html
+       y volver a incluir el script de js/chat.js al final del documento.
+       =================================================================== -->
 
   <!-- ===================== TOAST NOTIFICATIONS ===================== -->
   <div class="toast-container" id="toastContainer"></div>
@@ -1329,8 +1278,7 @@
   <script src="js/favorites.js?v=280"></script>
   <script src="js/app.js?v=338"></script>
   <script src="js/location.js?v=120"></script>
-  <!-- Chatbot IA para clientes -->
-  <script src="js/chat.js?v=226"></script>
+  <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
 
   <!-- ═══ Escáner: auto-abrir cámara al mostrar modo foto ════════════════ -->
   <script>
@@ -1621,16 +1569,19 @@
     }
 
     async function _groqVisionReadBarcode(base64Img) {
+      // Se intenta primero el proxy propio (/api/chat), donde la API key vive
+      // en el servidor. Si no está desplegado, se cae a la llamada directa
+      // siempre que este navegador tenga clave guardada.
       const key = await _getScanGroqKey();
-      if (!key) return null;
 
-      try {
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      // Construye la petición: por proxy va sin Authorization
+      const _enviar = (usarProxy) => fetch(
+        usarProxy ? '/api/chat' : 'https://api.groq.com/openai/v1/chat/completions',
+        {
           method: 'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${key}`
-          },
+          headers: usarProxy
+            ? { 'Content-Type': 'application/json' }
+            : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
           body: JSON.stringify({
             model: 'meta-llama/llama-4-scout-17b-16e-instruct',
             messages: [{
@@ -1673,7 +1624,16 @@ If you cannot clearly see a stripe barcode, return: NULL`
             max_tokens: 50,
             temperature: 0
           })
-        });
+        }
+      );
+
+      try {
+        // 1) Proxy propio; 2) si no está desplegado, llamada directa con clave
+        let res = await _enviar(true);
+        if (res.status === 404 || res.status === 501) {
+          if (!key) { console.warn('[GroqVision] Sin proxy ni clave'); return null; }
+          res = await _enviar(false);
+        }
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
