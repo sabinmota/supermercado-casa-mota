@@ -5060,10 +5060,12 @@ function saveDriver() {
   };
 
   if (editingDriverId) {
+    // La memoria se actualiza SOLO si el guardado funciona. Antes se hacía antes
+    // del PATCH, así que un error 400 dejaba la pantalla mostrando un cambio
+    // que en realidad nunca llegó a la base de datos.
     const idx = drivers.findIndex(d => d.id === editingDriverId);
-    if (idx > -1) drivers[idx] = { ...drivers[idx], ...data };
     DB.patchDriver(editingDriverId, data)
-      .then(() => { _unlockD(); DBCached.invalidateDrivers(); closeDriverModal(); renderDrivers(); showAdminToast('Repartidor actualizado correctamente', 'success'); })
+      .then(() => { if (idx > -1) drivers[idx] = { ...drivers[idx], ...data }; _unlockD(); DBCached.invalidateDrivers(); closeDriverModal(); renderDrivers(); showAdminToast('Repartidor actualizado correctamente', 'success'); })
       .catch(err => { _unlockD(); console.error('saveDriver PATCH error:', err); showAdminToast('Error al guardar repartidor: ' + (err?.message || err), 'error'); });
   } else {
     // NO incluir id ni campos JS internos — Supabase genera el UUID
