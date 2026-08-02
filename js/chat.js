@@ -454,18 +454,31 @@ let _chatRepartidores = [];
  *  panel admin, así que si ya estaban cargados no hay ninguna petición extra). */
 async function _chatLoadGestion(force = false) {
   if (!_IS_ADMIN) return;                 // la tienda nunca debe ver estos datos
-  try {
-    const [ped, cli, drv] = await Promise.all([
-      DBCached.getOrders(force),
-      DBCached.getCustomers(force),
-      DBCached.getDrivers(force),
-    ]);
-    _chatPedidos      = (ped || []).filter(o => !o.deleted);
-    _chatClientes     = (cli || []).filter(c => !c.deleted);
-    _chatRepartidores = (drv || []).filter(d => !d.deleted);
-  } catch (e) {
-    console.warn('[Chat] No se pudieron cargar pedidos/clientes/repartidores:', e);
-  }
+
+  // allSettled y NO all: con Promise.all, si una sola de las tres consultas
+  // falla se pierden las otras dos y Maya se queda ciega de todo a la vez.
+  const [ped, cli, drv] = await Promise.allSettled([
+    DBCached.getOrders(force),
+    DBCached.getCustomers(force),
+    DBCached.getDrivers(force),
+  ]);
+
+  const ok = (r, etiqueta) => {
+    if (r.status === 'fulfilled') return r.value || [];
+    console.warn(`[Chat] No se pudieron cargar ${etiqueta}:`, r.reason);
+    return null;                          // null = fallo real, [] = vacío legítimo
+  };
+
+  const p = ok(ped, 'pedidos');
+  const c = ok(cli, 'clientes');
+  const d = ok(drv, 'repartidores');
+
+  if (p) _chatPedidos      = p.filter(o => !o.deleted);
+  if (c) _chatClientes     = c.filter(x => !x.deleted);
+  if (d) _chatRepartidores = d.filter(x => !x.deleted);
+
+  console.log(`[Chat] Contexto de gestión: ${_chatPedidos.length} pedidos · `
+            + `${_chatClientes.length} clientes · ${_chatRepartidores.length} repartidores`);
 }
 
 const _norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -603,7 +616,18 @@ function _chatBuscarRepartidores(userMsg) {
  *  así que se envía siempre: cubre "¿cuántos ha entregado cada uno?" sin que el
  *  admin tenga que nombrar a nadie. */
 function _chatRepartidoresResumen() {
-  if (!_chatRepartidores.length) return '';
+  // Nunca devolver '' en silencio: si la lista está vacía el modelo se inventa
+  // que "no tiene acceso a esa información". Mejor decírselo explícitamente,
+  // y de paso el propio chat delata que la carga falló.
+  if (!_chatRepartidores.length) {
+    return [
+      '── REPARTIDORES ──',
+      'La lista de repartidores llegó VACÍA (0 registros).',
+      'Responde que no se pudieron cargar los repartidores y que se revise la',
+      'pantalla Repartidores del panel. NO digas que no tienes acceso a ese dato.',
+      '──────────────────',
+    ].join('\n');
+  }
 
   const filas = _chatRepartidores.slice(0, 25).map(d => {
     const ped   = _pedidosDeRepartidor(d.id);
