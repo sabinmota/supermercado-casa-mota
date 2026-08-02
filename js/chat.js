@@ -407,18 +407,64 @@ const _QUICK_SUGGESTIONS = _IS_ADMIN ? _QUICK_SUGGESTIONS_ADMIN : _QUICK_SUGGEST
 
 // ─── INICIALIZACIÓN ───────────────────────────────────────────────────────────
 
-/** Carga los productos en caché para dar contexto a la IA */
-async function _chatLoadProducts() {
-  if (_chatProdCache.length > 0) return; // Ya cargados
+/** Umbral de "stock bajo". DEBE coincidir con js/admin.v33.js (p.stock < 20),
+ *  o Maya dará cifras distintas a las de la pantalla de Inventario. */
+const _STOCK_BAJO = 20;
+
+/** Carga los productos en caché para dar contexto a la IA.
+ *  Usa DBCached.getProducts() — NUNCA `tables/products`, que es la API de
+ *  desarrollo de Genspark y devuelve 404 en producción (Maya se quedaba sin datos).
+ *  Se reconstruye en cada llamada: DBCached sirve de memoria, así que no hay
+ *  peticiones extra, y si el admin edita un producto e invalida la caché,
+ *  Maya ve el dato nuevo sin recargar la página.
+ */
+async function _chatLoadProducts(force = false) {
   try {
-    const resp = await _chatFetch('tables/products?limit=500&sort=name');
-    const data = await resp.json();
-    _chatProdCache = (data.data || [])
+    const src = (typeof DBCached !== 'undefined' && DBCached.getProducts)
+      ? await DBCached.getProducts(force)
+      : await DB.getProducts();
+    _chatProdCache = (src || [])
       .filter(p => !p.deleted && p.active !== false)
-      .map(p => ({ id: p.id, name: p.name, category: p.category, price: p.price, badge: p.badge }));
-  } catch (_) {
-    _chatProdCache = [];
+      .map(p => ({
+        id:       p.id,
+        name:     p.name,
+        category: p.category,
+        price:    p.price,
+        badge:    p.badge,
+        unit:     p.unit,                 // faltaba: el catálogo lo usaba y siempre era undefined
+        stock:    Number(p.stock) || 0,   // faltaba: sin esto Maya no podía hablar de inventario
+      }));
+  } catch (e) {
+    console.warn('[Chat] No se pudieron cargar los productos:', e);
+    if (!_chatProdCache.length) _chatProdCache = [];
   }
+}
+
+/** Resumen de inventario para el prompt de admin.
+ *  Se calcula aparte del catálogo porque las preguntas tipo "¿qué tiene poco
+ *  stock?" no contienen el nombre de ningún producto, y el filtro por
+ *  relevancia jamás los seleccionaría. */
+function _chatInventarioResumen() {
+  if (!_chatProdCache.length) return 'INVENTARIO: sin datos cargados todavía.';
+
+  const agotados = _chatProdCache.filter(p => p.stock === 0);
+  const bajos    = _chatProdCache
+    .filter(p => p.stock > 0 && p.stock < _STOCK_BAJO)
+    .sort((a, b) => a.stock - b.stock);
+
+  const lista = arr => arr.slice(0, 20)
+    .map(p => `• ${p.name} — ${p.stock} ${p.unit || 'uds'}`)
+    .join('\n');
+
+  return [
+    `── INVENTARIO (umbral de stock bajo: menos de ${_STOCK_BAJO} unidades) ──`,
+    `Productos activos: ${_chatProdCache.length}`,
+    `Sin stock (0 unidades): ${agotados.length}`,
+    agotados.length ? lista(agotados) : '• ninguno',
+    `Stock bajo (1 a ${_STOCK_BAJO - 1} unidades): ${bajos.length}`,
+    bajos.length ? lista(bajos) : '• ninguno',
+    '──────────────────',
+  ].join('\n');
 }
 
 // ─── TOGGLE CHAT ─────────────────────────────────────────────────────────────
@@ -718,12 +764,24 @@ async function _chatSendMsg(msg) {
  */
 function _getRelevantProducts(userMsg) {
   const normalize = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const words = normalize(userMsg).split(/\s+/).filter(w => w.length > 3);
+
+  // Preguntas de inventario ("¿qué tiene poco stock?") no nombran ningún producto,
+  // así que el filtro por palabras devolvería los primeros por orden alfabético.
+  // En ese caso ordenamos por stock ascendente, que es lo que se está preguntando.
+  const msgNorm = normalize(userMsg);
+  const esPreguntaStock = ['stock', 'inventario', 'agotad', 'existencia', 'quedan',
+                           'reponer', 'reabastec', 'faltan', 'poco']
+                          .some(k => msgNorm.includes(k));
+  if (esPreguntaStock) {
+    return [..._chatProdCache].sort((a, b) => a.stock - b.stock).slice(0, 40);
+  }
+
+  const words = msgNorm.split(/\s+/).filter(w => w.length > 3);
   if (words.length === 0) return _chatProdCache.slice(0, 40);
 
   // Puntuar cada producto según relevancia
   const scored = _chatProdCache.map(p => {
-    const pNorm = normalize(p.name + ' ' + (p.category || ''));
+    const pNorm = normalize((p.name || '') + ' ' + (p.category || ''));
     let score = 0;
     words.forEach(w => { if (pNorm.includes(w)) score += 2; });
     return { p, score };
@@ -735,10 +793,15 @@ function _getRelevantProducts(userMsg) {
 }
 
 async function _chatCallAI(userMsg) {
+  // Refrescar desde DBCached (memoria) por si el admin acaba de editar algo
+  await _chatLoadProducts();
+
   // Contexto de productos: máx 15 más relevantes para no exceder tokens de Groq
   const relevant = _getRelevantProducts(userMsg).slice(0, 15);
   const catalog = relevant
-    .map(p => `• ${p.name} RD$${p.price}${p.unit ? ' / ' + p.unit : ''}${p.badge ? ' [' + p.badge + ']' : ''}`)
+    .map(p => `• ${p.name} RD$${p.price}${p.unit ? ' / ' + p.unit : ''}`
+      + (_IS_ADMIN ? ` · stock: ${p.stock}` : '')
+      + (p.badge ? ` [${p.badge}]` : ''))
     .join('\n');
 
   // ── Contexto del cliente logueado ─────────────────────────────────────────
@@ -788,9 +851,22 @@ ${favNames ? 'Productos favoritos: ' + favNames : 'Sin favoritos guardados'}
 
   const systemPrompt = _IS_ADMIN
     ? `Eres Maya, asistente de gestión interna del Supermercado Casa Mota. Llevas más de 70 años sirviendo a las familias dominicanas con productos frescos y calidad garantizada. Trabajas para el equipo administrativo y los ayudas con gestión de inventario, stock, precios, pedidos y estrategias comerciales.
-Inventario actual (${_chatProdCache.length} productos, mostrando los más relevantes):
-${catalog || 'Sin datos'}
-Responde en español dominicano profesional, máx 3 oraciones. No inventes datos.`
+
+${_chatInventarioResumen()}
+
+── PRODUCTOS RELEVANTES A LA PREGUNTA ──
+${catalog || 'Sin coincidencias'}
+──────────────────
+
+INSTRUCCIONES:
+- El bloque INVENTARIO son datos REALES y actuales de la base de datos. ÚSALOS.
+- NUNCA digas que no tienes acceso al inventario ni que debes consultar a otro
+  departamento: los datos ya están arriba.
+- Si te preguntan por stock bajo o productos agotados, responde con los nombres y
+  las cantidades exactas del bloque INVENTARIO.
+- Si una lista está vacía ("ninguno"), dilo con claridad: es un dato válido, no una falta de información.
+- Español dominicano profesional. Máx 3 oraciones, salvo que te pidan una lista.
+- No inventes datos que no estén en este contexto.`
     : `Eres Maya 🧡, la asistente virtual oficial del Supermercado Casa Mota. Fuiste creada exclusivamente para ayudar a los clientes de Casa Mota.
 
 ── QUIÉN ERES ──
