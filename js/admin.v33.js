@@ -2056,6 +2056,7 @@ function openOrderModal(id) {
   document.getElementById('orderModalTitle').textContent = `Pedido #${o.order_number || o.id} — ${o.customer}`;
 
   _renderOrderModalProducts(o);
+  _toggleDriverRequired();   // pinta el aviso si el estado ya exige repartidor
 
   document.getElementById('orderModalBackdrop').classList.remove('hidden');
   // Bloquear scroll del body para evitar reflow que resetea el scroll del modal
@@ -2272,7 +2273,7 @@ function _renderOrderModalProducts(o) {
     <div class="order-status-section">
       <div class="order-section-title"><i class="fas fa-rotate"></i> Actualizar estado del pedido</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <select class="form-input" id="orderStatusEdit" style="max-width:240px">
+        <select class="form-input" id="orderStatusEdit" style="max-width:240px" onchange="_toggleDriverRequired()">
           <option value="pendiente"  ${o.status==='pendiente' ?'selected':''}>⏳ Pendiente</option>
           <option value="procesando" ${o.status==='procesando'?'selected':''}>⚙️ Procesando</option>
           <option value="enviado"    ${o.status==='enviado'   ?'selected':''}>🚚 Enviado</option>
@@ -2280,6 +2281,24 @@ function _renderOrderModalProducts(o) {
           <option value="cancelado"  ${o.status==='cancelado' ?'selected':''}>❌ Cancelado</option>
         </select>
         <div style="font-size:.8rem;color:#888">El cliente será notificado al cambiar el estado.</div>
+      </div>
+
+      <!-- REPARTIDOR ASIGNADO — sin esto los KPIs de Repartidores quedan siempre en 0 -->
+      <div style="margin-top:14px">
+        <label for="orderDriverEdit" style="font-size:.8rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.4px">
+          <i class="fas fa-motorcycle"></i> Repartidor asignado
+        </label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:6px">
+          <select class="form-input" id="orderDriverEdit" style="max-width:300px" onchange="_toggleDriverRequired()">
+            <option value="">— Selecciona un repartidor —</option>
+            ${(typeof drivers !== 'undefined' ? drivers : [])
+              .filter(d => d.status !== 'inactivo')
+              .map(d => `<option value="${d.id}" ${String(o.driverId||'') === String(d.id) ? 'selected' : ''}>${d.name}${d.zone ? ' · ' + d.zone : ''}</option>`)
+              .join('')}
+            <option value="_retiro" ${o.driverId === '_retiro' ? 'selected' : ''}>🏬 Retiro en tienda (sin repartidor)</option>
+          </select>
+          <div id="orderDriverHint" style="font-size:.8rem;color:#888"></div>
+        </div>
       </div>
     </div>
 
@@ -2292,6 +2311,30 @@ function _renderOrderModalProducts(o) {
                 placeholder="Instrucciones de entrega, observaciones…"
                 style="margin-top:6px">${o.notes || ''}</textarea>
     </div>`;
+}
+
+/**
+ * Marca visualmente si el repartidor es obligatorio según el estado elegido.
+ * «Enviado» y «Entregado» exigen saber QUIÉN lo llevó: es el dato que alimenta
+ * las columnas Asignados / Entregados / Pendientes de la pantalla Repartidores.
+ */
+function _toggleDriverRequired() {
+  const st   = document.getElementById('orderStatusEdit')?.value;
+  const sel  = document.getElementById('orderDriverEdit');
+  const hint = document.getElementById('orderDriverHint');
+  if (!sel || !hint) return;
+
+  const obligatorio = (st === 'enviado' || st === 'entregado');
+  if (obligatorio && !sel.value) {
+    hint.innerHTML = '<span style="color:#e65100;font-weight:700">⚠️ Obligatorio para «Enviado» y «Entregado»</span>';
+    sel.style.borderColor = '#f57c00';
+  } else if (obligatorio) {
+    hint.innerHTML = '<span style="color:#1a7c3e;font-weight:600">✓ Asignado</span>';
+    sel.style.borderColor = '';
+  } else {
+    hint.textContent = 'Opcional en este estado.';
+    sel.style.borderColor = '';
+  }
 }
 
 // ── Helper: stock actual de un producto en adminProducts (en memoria) ─────────
@@ -2492,8 +2535,22 @@ function saveOrderStatus() {
   };
   const newStatus = document.getElementById('orderStatusEdit').value;
   const notes     = document.getElementById('orderNotes')?.value || '';
+
+  // ── Repartidor obligatorio en «enviado» y «entregado» ─────────────────────
+  // Sin este dato, las columnas Asignados/Entregados/Pendientes de la pantalla
+  // Repartidores se quedan permanentemente en 0.
+  const driverSel = document.getElementById('orderDriverEdit');
+  const driverVal = driverSel ? driverSel.value : '';
+  if ((newStatus === 'enviado' || newStatus === 'entregado') && !driverVal) {
+    showAdminToast(`⚠️ Indica qué repartidor lo llevó antes de marcarlo como «${newStatus}»`, 'warn');
+    _toggleDriverRequired();
+    driverSel?.focus();
+    _unlockOS();
+    return;
+  }
+
   const idx = orders.findIndex(o => o.id === editingOrderId);
-  if (idx === -1) return;
+  if (idx === -1) { _unlockOS(); return; }   // antes salía sin desbloquear el botón
 
   const order      = orders[idx];
   const prevStatus = order.status;
@@ -2554,12 +2611,19 @@ function saveOrderStatus() {
 
   orders[idx].status = newStatus;
   orders[idx].notes  = notes;
+  // Guardar el repartidor. Cadena vacía → null, para no ensuciar la columna.
+  if (driverSel) orders[idx].driverId = driverVal || null;
+
   DB.updateOrder(orders[idx].id, orders[idx])
     .then(() => {
       DBCached.invalidateOrders();
       renderOrdersTable();
       renderInventory();
       updatePendingBadge();
+      // Refrescar los KPIs de Repartidores si esa vista está montada
+      if (typeof renderDrivers === 'function' && document.getElementById('driversTbody')) {
+        try { renderDrivers(); } catch (_) {}
+      }
       _unlockOS();
       closeOrderModal();
       showAdminToast('Pedido actualizado correctamente', 'success');
@@ -4888,14 +4952,19 @@ function renderDrivers() {
 }
 
 // ── Helpers de pedidos por repartidor ─────────────────────────────────────────
+// Comparación por String(): driverId llega de Supabase como TEXT y d.id puede ser
+// número o UUID. Con === estricto los contadores daban 0 aunque hubiera asignación.
+const _mismoDriver = (o, drvId) =>
+  o.driverId != null && o.driverId !== '' && String(o.driverId) === String(drvId);
+
 function _driverAssigned(drvId, allOrders) {
-  return allOrders.filter(o => o.driverId === drvId).length;
+  return allOrders.filter(o => _mismoDriver(o, drvId)).length;
 }
 function _driverDelivered(drvId, allOrders) {
-  return allOrders.filter(o => o.driverId === drvId && o.status === 'entregado').length;
+  return allOrders.filter(o => _mismoDriver(o, drvId) && o.status === 'entregado').length;
 }
 function _driverPending(drvId, allOrders) {
-  return allOrders.filter(o => o.driverId === drvId && ['pendiente','procesando','enviado'].includes(o.status)).length;
+  return allOrders.filter(o => _mismoDriver(o, drvId) && ['pendiente','procesando','enviado'].includes(o.status)).length;
 }
 
 // ── Modal crear/editar ────────────────────────────────────────────────────────
