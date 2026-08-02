@@ -397,10 +397,10 @@ const _QUICK_SUGGESTIONS_STORE = [
 // Sugerencias para el equipo admin (gestión de la tienda)
 const _QUICK_SUGGESTIONS_ADMIN = [
   '¿Cuáles productos tienen poco stock?',
+  '¿Cuántos pedidos pendientes hay?',
+  '¿Cuántos pedidos entregados tiene Sabin Mota?',
+  '¿Quiénes son los clientes que más han comprado?',
   'Dame ideas de descripciones para frutas',
-  '¿Qué categorías tienen más productos?',
-  'Sugiere precios competitivos para aceites',
-  '¿Cómo puedo mejorar las ventas de carnes?',
 ];
 
 const _QUICK_SUGGESTIONS = _IS_ADMIN ? _QUICK_SUGGESTIONS_ADMIN : _QUICK_SUGGESTIONS_STORE;
@@ -438,6 +438,138 @@ async function _chatLoadProducts(force = false) {
     console.warn('[Chat] No se pudieron cargar los productos:', e);
     if (!_chatProdCache.length) _chatProdCache = [];
   }
+}
+
+// ─── PEDIDOS Y CLIENTES (solo modo admin) ────────────────────────────────────
+
+/** Estados reales de pedido. Deben coincidir con el <select> de js/admin.v33.js:2276 */
+const _ESTADOS_PEDIDO = ['pendiente', 'procesando', 'enviado', 'entregado', 'cancelado'];
+
+let _chatPedidos  = [];
+let _chatClientes = [];
+
+/** Carga pedidos y clientes vía DBCached (comparte caché con el panel admin,
+ *  así que si ya estaban cargados no hay ninguna petición extra). */
+async function _chatLoadGestion(force = false) {
+  if (!_IS_ADMIN) return;                 // la tienda nunca debe ver estos datos
+  try {
+    const [ped, cli] = await Promise.all([
+      DBCached.getOrders(force),
+      DBCached.getCustomers(force),
+    ]);
+    _chatPedidos  = (ped || []).filter(o => !o.deleted);
+    _chatClientes = (cli || []).filter(c => !c.deleted);
+  } catch (e) {
+    console.warn('[Chat] No se pudieron cargar pedidos/clientes:', e);
+  }
+}
+
+const _norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Cuenta pedidos por estado y devuelve un objeto {pendiente:0, procesando:0, ...} */
+function _contarPorEstado(pedidos) {
+  const c = Object.fromEntries(_ESTADOS_PEDIDO.map(e => [e, 0]));
+  let otros = 0;
+  pedidos.forEach(o => {
+    const st = _norm(o.status);
+    if (st in c) c[st]++; else otros++;
+  });
+  if (otros) c.otros = otros;
+  return c;
+}
+
+const _fmtEstados = c => _ESTADOS_PEDIDO
+  .map(e => `${e} ${c[e] || 0}`).join(' · ') + (c.otros ? ` · otros ${c.otros}` : '');
+
+/** Busca en el mensaje el cliente al que se refiere el admin.
+ *  Exige coincidir 2+ palabras del nombre (o el nombre completo) para no confundir
+ *  "Sabin Mota" con "Saury Mota", que comparten apellido. */
+function _chatBuscarClientes(userMsg) {
+  if (!_chatClientes.length) return [];
+  const msg = _norm(userMsg);
+
+  const scored = _chatClientes.map(c => {
+    const nombre = _norm(c.name);
+    if (!nombre) return { c, score: 0 };
+    if (msg.includes(nombre)) return { c, score: 99 };      // nombre completo literal
+    const tokens = nombre.split(/\s+/).filter(t => t.length >= 3);
+    const hits = tokens.filter(t => msg.includes(t)).length;
+    return { c, score: hits };
+  }).filter(x => x.score >= 2);                              // 1 sola palabra = ambiguo
+
+  if (!scored.length) return [];
+  scored.sort((a, b) => b.score - a.score);
+  const mejor = scored[0].score;
+  return scored.filter(x => x.score === mejor).slice(0, 3).map(x => x.c);
+}
+
+/** Pedidos de un cliente. Prioriza el email (identificador fiable);
+ *  si el pedido no lo trae, compara por nombre normalizado. */
+function _pedidosDeCliente(cli) {
+  const email  = _norm(cli.email);
+  const nombre = _norm(cli.name);
+  return _chatPedidos.filter(o => {
+    const oe = _norm(o.email);
+    if (email && oe) return oe === email;
+    return _norm(o.customer) === nombre;
+  });
+}
+
+/** Bloque de contexto de uno o varios clientes concretos.
+ *  NO incluye teléfono, dirección, cédula ni GPS: son datos personales que no
+ *  necesitan salir hacia Groq para responder preguntas de gestión. */
+function _chatClienteResumen(userMsg) {
+  const encontrados = _chatBuscarClientes(userMsg);
+  if (!encontrados.length) return '';
+
+  return encontrados.map(cli => {
+    const pedidos = _pedidosDeCliente(cli);
+    const cnt     = _contarPorEstado(pedidos);
+    const gastado = pedidos
+      .filter(o => _norm(o.status) !== 'cancelado')
+      .reduce((s, o) => s + (Number(o.total) || 0), 0);
+
+    const ultimos = pedidos.slice(-5).reverse()
+      .map(o => `  • #${o.order_number || o.id} — ${o.date || 's/f'} — ${o.status} — RD$ ${(Number(o.total) || 0).toFixed(2)}`)
+      .join('\n');
+
+    return [
+      `── CLIENTE: ${cli.name} ──`,
+      `Email: ${cli.email || '—'}`,
+      `Pedidos encontrados: ${pedidos.length}`,
+      `Desglose por estado: ${_fmtEstados(cnt)}`,
+      `Total gastado (sin cancelados): RD$ ${gastado.toFixed(2)}`,
+      `Puntos de fidelización: ${cli.loyaltyPoints || 0} (${cli.ranking || cli.loyaltyTier || 'bronce'})`,
+      pedidos.length ? `Últimos pedidos:\n${ultimos}` : 'Sin pedidos registrados.',
+      '──────────────────',
+    ].join('\n');
+  }).join('\n');
+}
+
+/** Estadísticas globales del negocio. Tamaño fijo y pequeño: va siempre. */
+function _chatEstadisticasGlobales() {
+  if (!_chatPedidos.length && !_chatClientes.length) return '';
+
+  const cnt = _contarPorEstado(_chatPedidos);
+  const ventas = _chatPedidos
+    .filter(o => _norm(o.status) !== 'cancelado')
+    .reduce((s, o) => s + (Number(o.total) || 0), 0);
+
+  const top = [..._chatClientes]
+    .sort((a, b) => (Number(b.spent) || 0) - (Number(a.spent) || 0))
+    .slice(0, 5)
+    .map((c, i) => `  ${i + 1}. ${c.name} — RD$ ${(Number(c.spent) || 0).toFixed(2)} (${c.orders || 0} pedidos)`)
+    .join('\n');
+
+  return [
+    '── ESTADÍSTICAS GLOBALES ──',
+    `Pedidos totales: ${_chatPedidos.length}`,
+    `Desglose por estado: ${_fmtEstados(cnt)}`,
+    `Ventas acumuladas (sin cancelados): RD$ ${ventas.toFixed(2)}`,
+    `Clientes registrados: ${_chatClientes.length}`,
+    top ? `Top 5 clientes por gasto:\n${top}` : '',
+    '──────────────────',
+  ].filter(Boolean).join('\n');
 }
 
 /** Resumen de inventario para el prompt de admin.
@@ -492,6 +624,7 @@ function toggleChat() {
       Promise.all([
         _chatLoadProducts(),
         _chatLoadStoreInfo(),
+        _chatLoadGestion(),      // pedidos + clientes (solo admin)
         _chatGroqKey(),          // precalentar clave en cache
       ]).catch(() => {});        // ignorar errores de precarga
     }
@@ -547,7 +680,7 @@ function _chatRenderWelcome() {
       <div class="chat-welcome-text">
         <strong>${greeting}</strong>
         ${_IS_ADMIN
-          ? 'Soy <strong>Maya</strong>, tu asistente de gestión de <strong>Casa Mota</strong>. Puedo ayudarte con stock, precios, descripciones y estrategias para la tienda. 📊'
+          ? 'Soy <strong>Maya</strong>, tu asistente de gestión de <strong>Casa Mota</strong>. Consulto inventario, pedidos y clientes en tiempo real. 📊'
           : 'Soy el asistente virtual de <strong>Casa Mota</strong>. Puedo ayudarte a encontrar productos, precios y armar tu lista de compras. 🛒'
         }
       </div>
@@ -795,6 +928,7 @@ function _getRelevantProducts(userMsg) {
 async function _chatCallAI(userMsg) {
   // Refrescar desde DBCached (memoria) por si el admin acaba de editar algo
   await _chatLoadProducts();
+  await _chatLoadGestion();
 
   // Contexto de productos: máx 15 más relevantes para no exceder tokens de Groq
   const relevant = _getRelevantProducts(userMsg).slice(0, 15);
@@ -854,17 +988,31 @@ ${favNames ? 'Productos favoritos: ' + favNames : 'Sin favoritos guardados'}
 
 ${_chatInventarioResumen()}
 
+${_chatEstadisticasGlobales()}
+
+${_chatClienteResumen(userMsg)}
+
 ── PRODUCTOS RELEVANTES A LA PREGUNTA ──
 ${catalog || 'Sin coincidencias'}
 ──────────────────
 
+ESTADOS DE PEDIDO VÁLIDOS: pendiente, procesando, enviado, entregado, cancelado.
+
 INSTRUCCIONES:
-- El bloque INVENTARIO son datos REALES y actuales de la base de datos. ÚSALOS.
-- NUNCA digas que no tienes acceso al inventario ni que debes consultar a otro
-  departamento: los datos ya están arriba.
+- Los bloques INVENTARIO, ESTADÍSTICAS GLOBALES y CLIENTE son datos REALES y
+  actuales de la base de datos. ÚSALOS.
+- NUNCA digas que no tienes acceso ni que debes consultar a otro departamento:
+  los datos ya están arriba.
 - Si te preguntan por stock bajo o productos agotados, responde con los nombres y
   las cantidades exactas del bloque INVENTARIO.
+- Para preguntas sobre un cliente concreto usa SOLO su bloque CLIENTE. Si no
+  aparece ningún bloque CLIENTE, di que no encontraste a esa persona y pide el
+  nombre completo. NO uses las cifras globales como si fueran de ese cliente.
+- Si aparecen varios bloques CLIENTE, es que el nombre es ambiguo: muéstralos y
+  pide que concreten.
+- Da siempre cifras exactas, nunca aproximaciones.
 - Si una lista está vacía ("ninguno"), dilo con claridad: es un dato válido, no una falta de información.
+- No reveles teléfonos ni direcciones: no los tienes y no debes inventarlos.
 - Español dominicano profesional. Máx 3 oraciones, salvo que te pidan una lista.
 - No inventes datos que no estén en este contexto.`
     : `Eres Maya 🧡, la asistente virtual oficial del Supermercado Casa Mota. Fuiste creada exclusivamente para ayudar a los clientes de Casa Mota.
