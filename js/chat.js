@@ -400,6 +400,7 @@ const _QUICK_SUGGESTIONS_ADMIN = [
   '¿Cuántos pedidos pendientes hay?',
   '¿Cuántos pedidos entregados tiene Sabin Mota?',
   '¿Quiénes son los clientes que más han comprado?',
+  '¿Cuántos pedidos ha entregado cada repartidor?',
   'Dame ideas de descripciones para frutas',
 ];
 
@@ -445,22 +446,25 @@ async function _chatLoadProducts(force = false) {
 /** Estados reales de pedido. Deben coincidir con el <select> de js/admin.v33.js:2276 */
 const _ESTADOS_PEDIDO = ['pendiente', 'procesando', 'enviado', 'entregado', 'cancelado'];
 
-let _chatPedidos  = [];
-let _chatClientes = [];
+let _chatPedidos      = [];
+let _chatClientes     = [];
+let _chatRepartidores = [];
 
-/** Carga pedidos y clientes vía DBCached (comparte caché con el panel admin,
- *  así que si ya estaban cargados no hay ninguna petición extra). */
+/** Carga pedidos, clientes y repartidores vía DBCached (comparte caché con el
+ *  panel admin, así que si ya estaban cargados no hay ninguna petición extra). */
 async function _chatLoadGestion(force = false) {
   if (!_IS_ADMIN) return;                 // la tienda nunca debe ver estos datos
   try {
-    const [ped, cli] = await Promise.all([
+    const [ped, cli, drv] = await Promise.all([
       DBCached.getOrders(force),
       DBCached.getCustomers(force),
+      DBCached.getDrivers(force),
     ]);
-    _chatPedidos  = (ped || []).filter(o => !o.deleted);
-    _chatClientes = (cli || []).filter(c => !c.deleted);
+    _chatPedidos      = (ped || []).filter(o => !o.deleted);
+    _chatClientes     = (cli || []).filter(c => !c.deleted);
+    _chatRepartidores = (drv || []).filter(d => !d.deleted);
   } catch (e) {
-    console.warn('[Chat] No se pudieron cargar pedidos/clientes:', e);
+    console.warn('[Chat] No se pudieron cargar pedidos/clientes/repartidores:', e);
   }
 }
 
@@ -541,6 +545,116 @@ function _chatClienteResumen(userMsg) {
       `Total gastado (sin cancelados): RD$ ${gastado.toFixed(2)}`,
       `Puntos de fidelización: ${cli.loyaltyPoints || 0} (${cli.ranking || cli.loyaltyTier || 'bronce'})`,
       pedidos.length ? `Últimos pedidos:\n${ultimos}` : 'Sin pedidos registrados.',
+      '──────────────────',
+    ].join('\n');
+  }).join('\n');
+}
+
+// ─── REPARTIDORES (solo modo admin) ──────────────────────────────────────────
+// Los KPIs se calculan aquí con la MISMA regla que la pantalla de Repartidores
+// (_mismoDriver en js/admin.v33.js:4957). Si algún día cambia allí, cambiarla
+// también aquí o Maya dará cifras distintas a las de la pantalla.
+
+/** Valor especial que guarda el modal de pedidos cuando no hubo reparto. */
+const _DRIVER_RETIRO = '_retiro';
+
+/** Estados "en curso" de un pedido: aún no se entregó ni se canceló. */
+const _ESTADOS_EN_CURSO = ['pendiente', 'procesando', 'enviado'];
+
+const _VEHICULO_LABEL = { moto: 'moto', bicicleta: 'bicicleta', carro: 'carro', a_pie: 'a pie' };
+const _ESTADO_DRIVER  = { activo: 'activo', en_ruta: 'en ruta', descanso: 'en descanso', inactivo: 'inactivo' };
+
+/** Comparación por String(): driverId llega de Supabase como TEXT y d.id puede
+ *  ser número o UUID. Con === estricto los contadores darían siempre 0. */
+const _mismoDriverChat = (o, drvId) =>
+  o.driverId != null && o.driverId !== '' && String(o.driverId) === String(drvId);
+
+function _pedidosDeRepartidor(drvId) {
+  return _chatPedidos.filter(o => _mismoDriverChat(o, drvId));
+}
+
+/** Busca el repartidor al que se refiere el admin.
+ *  A diferencia de los clientes, aquí SÍ se acepta una sola palabra: son pocos
+ *  y con nombres distintos entre sí, pero solo si esa palabra identifica a uno
+ *  único (así "Reyes" funciona y un apellido compartido seguiría siendo ambiguo). */
+function _chatBuscarRepartidores(userMsg) {
+  if (!_chatRepartidores.length) return [];
+  const msg = _norm(userMsg);
+
+  const scored = _chatRepartidores.map(d => {
+    const nombre = _norm(d.name);
+    if (!nombre) return { d, score: 0 };
+    if (msg.includes(nombre)) return { d, score: 99 };       // nombre completo literal
+    const tokens = nombre.split(/\s+/).filter(t => t.length >= 4);
+    const hits = tokens.filter(t => msg.includes(t)).length;
+    return { d, score: hits };
+  }).filter(x => x.score >= 1);
+
+  if (!scored.length) return [];
+  scored.sort((a, b) => b.score - a.score);
+  const mejor = scored[0].score;
+  const empatados = scored.filter(x => x.score === mejor);
+  // Una sola palabra coincidente y más de un repartidor la comparte → ambiguo
+  if (mejor === 1 && empatados.length > 1) return empatados.slice(0, 3).map(x => x.d);
+  return empatados.slice(0, 3).map(x => x.d);
+}
+
+/** Tabla resumen de TODOS los repartidores. Es pequeña (una línea por persona),
+ *  así que se envía siempre: cubre "¿cuántos ha entregado cada uno?" sin que el
+ *  admin tenga que nombrar a nadie. */
+function _chatRepartidoresResumen() {
+  if (!_chatRepartidores.length) return '';
+
+  const filas = _chatRepartidores.slice(0, 25).map(d => {
+    const ped   = _pedidosDeRepartidor(d.id);
+    const entr  = ped.filter(o => _norm(o.status) === 'entregado').length;
+    const curso = ped.filter(o => _ESTADOS_EN_CURSO.includes(_norm(o.status))).length;
+    const canc  = ped.filter(o => _norm(o.status) === 'cancelado').length;
+    const monto = ped
+      .filter(o => _norm(o.status) === 'entregado')
+      .reduce((s, o) => s + (Number(o.total) || 0), 0);
+
+    return `• ${d.name} — ${_VEHICULO_LABEL[d.vehicle] || d.vehicle || 'sin vehículo'}`
+         + ` · zona: ${d.zone || '—'} · ${_ESTADO_DRIVER[d.status] || d.status || '—'}`
+         + ` · asignados ${ped.length} · entregados ${entr} · pendientes ${curso}`
+         + (canc ? ` · cancelados ${canc}` : '')
+         + ` · valor entregado RD$ ${monto.toFixed(2)}`;
+  }).join('\n');
+
+  // Pedidos que ya salieron pero no tienen a nadie detrás: dato útil de control
+  const repartidos = _chatPedidos.filter(o => ['enviado', 'entregado'].includes(_norm(o.status)));
+  const sinAsignar = repartidos.filter(o => !o.driverId).length;
+  const retiro     = _chatPedidos.filter(o => String(o.driverId) === _DRIVER_RETIRO).length;
+
+  return [
+    '── REPARTIDORES ──',
+    `Total registrados: ${_chatRepartidores.length}`,
+    filas,
+    `Pedidos enviados/entregados SIN repartidor asignado: ${sinAsignar}`,
+    `Pedidos marcados como retiro en tienda: ${retiro}`,
+    '──────────────────',
+  ].filter(Boolean).join('\n');
+}
+
+/** Detalle ampliado cuando el admin nombra a un repartidor concreto. */
+function _chatRepartidorDetalle(userMsg) {
+  const encontrados = _chatBuscarRepartidores(userMsg);
+  if (!encontrados.length) return '';
+
+  return encontrados.map(d => {
+    const ped = _pedidosDeRepartidor(d.id);
+    const cnt = _contarPorEstado(ped);
+    const ultimos = ped.slice(-5).reverse()
+      .map(o => `  • #${o.order_number || o.id} — ${o.date || 's/f'} — ${o.status} — ${o.customer || 'cliente s/n'} — RD$ ${(Number(o.total) || 0).toFixed(2)}`)
+      .join('\n');
+
+    return [
+      `── REPARTIDOR: ${d.name} ──`,
+      `Vehículo: ${_VEHICULO_LABEL[d.vehicle] || d.vehicle || '—'}${d.plate ? ' (placa ' + d.plate + ')' : ''}`,
+      `Zona: ${d.zone || '—'} · Estado: ${_ESTADO_DRIVER[d.status] || d.status || '—'}`,
+      `Pedidos asignados en total: ${ped.length}`,
+      `Desglose por estado: ${_fmtEstados(cnt)}`,
+      ped.length ? `Últimos pedidos:\n${ultimos}` : 'Todavía no tiene pedidos asignados.',
       '──────────────────',
     ].join('\n');
   }).join('\n');
@@ -990,7 +1104,11 @@ ${_chatInventarioResumen()}
 
 ${_chatEstadisticasGlobales()}
 
+${_chatRepartidoresResumen()}
+
 ${_chatClienteResumen(userMsg)}
+
+${_chatRepartidorDetalle(userMsg)}
 
 ── PRODUCTOS RELEVANTES A LA PREGUNTA ──
 ${catalog || 'Sin coincidencias'}
@@ -998,9 +1116,11 @@ ${catalog || 'Sin coincidencias'}
 
 ESTADOS DE PEDIDO VÁLIDOS: pendiente, procesando, enviado, entregado, cancelado.
 
+ESTADOS DE REPARTIDOR: activo, en ruta, en descanso, inactivo.
+
 INSTRUCCIONES:
-- Los bloques INVENTARIO, ESTADÍSTICAS GLOBALES y CLIENTE son datos REALES y
-  actuales de la base de datos. ÚSALOS.
+- Los bloques INVENTARIO, ESTADÍSTICAS GLOBALES, REPARTIDORES, CLIENTE y
+  REPARTIDOR son datos REALES y actuales de la base de datos. ÚSALOS.
 - NUNCA digas que no tienes acceso ni que debes consultar a otro departamento:
   los datos ya están arriba.
 - Si te preguntan por stock bajo o productos agotados, responde con los nombres y
@@ -1010,6 +1130,14 @@ INSTRUCCIONES:
   nombre completo. NO uses las cifras globales como si fueran de ese cliente.
 - Si aparecen varios bloques CLIENTE, es que el nombre es ambiguo: muéstralos y
   pide que concreten.
+- Para repartidores usa el bloque REPARTIDORES (tabla de todos) o el bloque
+  REPARTIDOR (detalle de uno concreto). "Pendientes" de un repartidor = pedidos
+  suyos en estado pendiente, procesando o enviado; "entregados" = solo entregado.
+- NO confundas clientes con repartidores: son listas distintas. Un cliente COMPRA,
+  un repartidor ENTREGA.
+- Si un repartidor tiene 0 pedidos, dilo tal cual y menciona, si procede, cuántos
+  pedidos enviados/entregados están SIN repartidor asignado: esos no cuentan para
+  nadie hasta que se les asigne uno en Pedidos → Ver detalles.
 - Da siempre cifras exactas, nunca aproximaciones.
 - Si una lista está vacía ("ninguno"), dilo con claridad: es un dato válido, no una falta de información.
 - No reveles teléfonos ni direcciones: no los tienes y no debes inventarlos.
