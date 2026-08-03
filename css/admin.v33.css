@@ -308,6 +308,16 @@ input, select, textarea { font-family: var(--font); }
 .page-header h1 { font-size: 1.55rem; font-weight: 800; color: var(--text-dark); }
 .page-header p { font-size: .87rem; color: var(--text-mid); margin-top: 2px; }
 
+/* Grupo de botones a la derecha del título (Pedidos: aviso + refrescar + nuevo).
+   En móvil se envuelven en vez de desbordar. */
+.orders-header-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .orders-header-actions { width: 100%; }
+  .orders-header-actions button { flex: 1 1 auto; justify-content: center; }
+}
+
 /* ─── KPI CARDS ────────────────────────────────────────────── */
 .kpi-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);

@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '373';
+      const VER = '374';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -35,7 +35,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png" />
-  <link rel="stylesheet" href="css/admin.v33.css?v=256" />
+  <link rel="stylesheet" href="css/admin.v33.css?v=257" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -430,9 +430,20 @@
     <section class="section-content" id="sec-orders">
       <div class="page-header">
         <h1>Gestión de Pedidos</h1>
-        <button class="btn-primary" onclick="openNewOrderModal()">
-          <i class="fas fa-plus"></i> Nuevo pedido
-        </button>
+        <div class="orders-header-actions">
+          <!-- Vigilancia de pedidos: la lista se refresca sola cada 30 s.
+               Estos dos botones los gestiona js/pedidos-vigilancia.js -->
+          <button class="btn-secondary" id="pvBtnSonido" type="button" onclick="pvToggleSonido()">
+            <i class="fas fa-bell"></i> Aviso: activado
+          </button>
+          <button class="btn-secondary" id="pvBtnRefrescar" type="button" onclick="pvSondearAhora()"
+                  title="Buscar pedidos nuevos ahora mismo, sin esperar los 30 s">
+            <i class="fas fa-rotate"></i> Refrescar
+          </button>
+          <button class="btn-primary" onclick="openNewOrderModal()">
+            <i class="fas fa-plus"></i> Nuevo pedido
+          </button>
+        </div>
       </div>
 
       <div class="filter-bar">
@@ -2938,7 +2949,9 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=359"></script>
+  <script src="js/admin.v33.js?v=360"></script>
+  <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
+  <script src="js/pedidos-vigilancia.js?v=3"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=305"></script>
   <!-- IA: Groq integration -->

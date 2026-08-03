@@ -657,7 +657,7 @@ function showSection(id, el) {
 
   // El dashboard siempre recarga (el usuario puede querer ver datos frescos)
   if (id === 'dashboard')  loadDashboard();
-  if (id === 'orders')     { DB.getOrders().then(list => { orders = list; renderOrdersTable(); updatePendingBadge(); }).catch(() => { renderOrdersTable(); updatePendingBadge(); }); }
+  if (id === 'orders')     { DB.getOrders().then(list => { orders = list; renderOrdersTable(); updatePendingBadge(); if (typeof pvRegistrarLista === 'function') pvRegistrarLista(list); }).catch(() => { renderOrdersTable(); updatePendingBadge(); }); }
   if (id === 'products')   { DB.getProducts({full:true}).then(list => { if(list.length) adminProducts = list; renderProductsTable(); }).catch(() => renderProductsTable()); }
   if (id === 'inventory')  { DB.getProducts({full:true}).then(list => { if(list.length) adminProducts = list; renderInventory(); }).catch(() => renderInventory()); }
   if (id === 'staff')      renderStaff();
@@ -670,6 +670,11 @@ function showSection(id, el) {
   if (id === 'notificaciones') { if (typeof loadNotificaciones === 'function') loadNotificaciones(); }
   if (id === 'categories')      loadCategories();
   if (id === 'respaldo')        initRespaldo();
+
+  // Vigilancia de pedidos (js/pedidos-vigilancia.js): arranca el sondeo de 30 s
+  // al entrar en Pedidos/Dashboard y lo detiene al salir. Va con guarda porque
+  // el módulo es opcional: si no está cargado, el panel funciona igual.
+  if (typeof pvNotificarSeccion === 'function') pvNotificarSeccion(id);
 
   return false;
 }
