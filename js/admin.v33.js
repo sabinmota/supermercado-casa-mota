@@ -3179,9 +3179,10 @@ async function saveNewOrder() {
   const shipping = subtotal >= freeThreshold ? 0 : shippingFee;
   const total    = parseFloat((subtotal + shipping).toFixed(2));
 
-  // Generar número correlativo basado en order_number (no en id que ahora es UUID)
-  const maxId = orders.reduce((mx, o) => Math.max(mx, Number(o.order_number) || Number(o.id) || 0), 0);
-  const newId = maxId + 1;
+  // El número de pedido lo asigna la base de datos (secuencia de Postgres).
+  // Antes se calculaba aquí como max()+1 sobre la lista en memoria, que además
+  // podía estar desactualizada respecto a los pedidos entrados desde la tienda.
+  // Ver limpieza/8-secuencia-order-number.sql.
 
   const now     = new Date();
   const dateStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -3189,7 +3190,6 @@ async function saveNewOrder() {
   const driverId = document.getElementById('noDriver')?.value || null;
 
   const newOrder = {
-    id:             newId,
     clientId:       client.id,
     customer:       client.name,
     email:          client.email,
@@ -3251,12 +3251,17 @@ async function saveNewOrder() {
     .then(saved => {
       orders.unshift(saved || newOrder);
       DBCached.invalidateOrders();
+      // Registrar el pedido en la vigilancia para que no lo anuncie como
+      // "nuevo" 30 s después: acabas de crearlo tú desde aquí.
+      if (typeof pvRegistrarLista === 'function') pvRegistrarLista(orders);
       _unlockNO();
       closeNewOrderModal();
       renderOrdersTable();
       updatePendingBadge();
       renderInventory();
-      showAdminToast(`✅ Pedido #${newId} creado para ${client.name}`, 'success');
+      // El número lo puso la base de datos: se lee de la fila devuelta.
+      const num = saved && saved.order_number != null ? ` #${saved.order_number}` : '';
+      showAdminToast(`✅ Pedido${num} creado para ${client.name}`, 'success');
     })
     .catch(() => { _unlockNO(); showAdminToast('Error al guardar el pedido', 'error'); });
 }

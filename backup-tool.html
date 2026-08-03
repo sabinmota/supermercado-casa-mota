@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Casa Mota — Backup Completo BD</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <!-- Capa de datos: aporta DB.exportTable() y DB.countTable(). Sin esto la
+       herramienta no puede leer la base de datos en producción. -->
+  <script src="js/api.js?v=323"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 4px 30px rgba(0,0,0,.10);
+      width: 100%;
+      max-width: 760px;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1a7c3e 0%, #27ae60 100%);
+      padding: 28px 32px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header i { font-size: 2.2rem; opacity: .9; }
+    .header h1 { font-size: 1.45rem; font-weight: 700; }
+    .header p  { font-size: .85rem; opacity: .85; margin-top: 3px; }
+
+    /* Tablas */
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      padding: 24px 28px 0;
+    }
+
+    .table-chip {
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all .2s;
+      user-select: none;
+    }
+    .table-chip:hover  { border-color: #1a7c3e; background: #f0faf4; }
+    .table-chip.active { border-color: #1a7c3e; background: #e8f5ee; }
+    .table-chip .chip-icon { font-size: 1.3rem; width: 28px; text-align: center; }
+    .table-chip .chip-info { flex: 1; }
+    .table-chip .chip-name  { font-size: .82rem; font-weight: 700; color: #1a3a2a; }
+    .table-chip .chip-count { font-size: .72rem; color: #6b7280; margin-top: 2px; }
+    .table-chip .chip-check { color: #1a7c3e; font-size: .9rem; opacity: 0; transition: opacity .2s; }
+    .table-chip.active .chip-check { opacity: 1; }
+
+    /* Controles */
+    .controls {
+      padding: 20px 28px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      border-top: 1px solid #f1f5f9;
+      margin-top: 20px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary  { background: #1a7c3e; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #156232; }
+    .btn-secondary { background: #f1f5f9; color: #374151; }
+    .btn-secondary:hover:not(:disabled) { background: #e2e8f0; }
+    .btn-danger { background: #fee2e2; color: #dc2626; }
+    .btn-danger:hover:not(:disabled) { background: #fecaca; }
+    .btn-lg { padding: 13px 28px; font-size: .95rem; }
+
+    .spacer { flex: 1; }
+
+    /* Progress */
+    .progress-wrap {
+      padding: 0 28px 20px;
+      display: none;
+    }
+    .progress-bar-bg {
+      background: #e2e8f0;
+      border-radius: 99px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #1a7c3e, #27ae60);
+      border-radius: 99px;
+      width: 0%;
+      transition: width .3s;
+    }
+    .progress-label {
+      font-size: .78rem;
+      color: #6b7280;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* Log */
+    .log-wrap {
+      margin: 0 28px 24px;
+      background: #0f172a;
+      border-radius: 12px;
+      overflow: hidden;
+      display: none;
+    }
+    .log-header {
+      background: #1e293b;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .log-header span { color: #94a3b8; font-size: .75rem; font-family: monospace; }
+    .log-body {
+      padding: 12px 14px;
+      max-height: 220px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: .78rem;
+      line-height: 1.7;
+    }
+    .log-line { display: flex; gap: 10px; }
+    .log-line .ts  { color: #475569; white-space: nowrap; }
+    .log-line .msg { color: #e2e8f0; }
+    .log-line.ok  .msg { color: #4ade80; }
+    .log-line.err .msg { color: #f87171; }
+    .log-line.info .msg { color: #60a5fa; }
+
+    /* Resultado final */
+    .result-wrap {
+      margin: 0 28px 28px;
+      border: 2px solid #bbf7d0;
+      border-radius: 14px;
+      background: #f0faf4;
+      padding: 20px 22px;
+      display: none;
+    }
+    .result-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a7c3e;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem;
+    }
+    .result-table th {
+      background: #dcfce7;
+      color: #166534;
+      padding: 7px 12px;
+      text-align: left;
+      font-weight: 700;
+    }
+    .result-table td {
+      padding: 7px 12px;
+      border-bottom: 1px solid #d1fae5;
+      color: #374151;
+    }
+    .result-table tr:last-child td { border-bottom: none; }
+    .badge-ok    { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+    .badge-empty { background: #fef9c3; color: #854d0e; padding: 2px 8px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+    .badge-err   { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+
+    .download-all-btn {
+      margin-top: 16px;
+      width: 100%;
+    }
+
+    /* Instrucciones */
+    .info-box {
+      margin: 0 28px 28px;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      background: #eff6ff;
+      padding: 14px 18px;
+    }
+    .info-box h4 { color: #1d4ed8; font-size: .85rem; margin-bottom: 8px; }
+    .info-box ol { padding-left: 18px; font-size: .8rem; color: #374151; line-height: 2; }
+    .info-box code {
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: .78rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .header { padding: 20px; }
+      .tables-grid { padding: 16px; }
+      .controls { padding: 14px 16px; }
+      .log-wrap, .result-wrap, .info-box { margin-left: 16px; margin-right: 16px; }
+      .progress-wrap { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- HEADER -->
+  <div class="header">
+    <i class="fas fa-database"></i>
+    <div>
+      <h1>Backup Completo — Casa Mota</h1>
+      <p>Exporta todas las tablas de la base de datos a un archivo JSON</p>
+    </div>
+  </div>
+
+  <!-- TABLAS -->
+  <div class="tables-grid" id="tablesGrid">
+    <!-- Se genera por JS -->
+  </div>
+
+  <!-- CONTROLES -->
+  <div class="controls">
+    <button class="btn btn-secondary" onclick="selectAll()">
+      <i class="fas fa-check-double"></i> Seleccionar todo
+    </button>
+    <button class="btn btn-danger" onclick="deselectAll()">
+      <i class="fas fa-times"></i> Deseleccionar
+    </button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary btn-lg" id="btnExport" onclick="startExport()">
+      <i class="fas fa-download"></i> Exportar seleccionadas
+    </button>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-label" id="progressLabel">Iniciando…</div>
+  </div>
+
+  <!-- LOG -->
+  <div class="log-wrap" id="logWrap">
+    <div class="log-header">
+      <span><i class="fas fa-terminal" style="margin-right:6px"></i>Log de exportación</span>
+      <span id="logCount">0 líneas</span>
+    </div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+
+  <!-- RESULTADO -->
+  <div class="result-wrap" id="resultWrap">
+    <div class="result-title"><i class="fas fa-circle-check"></i> Exportación completada</div>
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th>Tabla</th>
+          <th>Registros</th>
+          <th>Tamaño</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+    <button class="btn btn-primary download-all-btn" id="btnDownloadAll" onclick="downloadAll()">
+      <i class="fas fa-file-zipper"></i> Descargar backup completo (JSON)
+    </button>
+  </div>
+
+  <!-- INSTRUCCIONES -->
+  <div class="info-box">
+    <h4><i class="fas fa-circle-info" style="margin-right:6px"></i>¿Cómo usar este backup?</h4>
+    <ol>
+      <li>Selecciona las tablas que deseas exportar (o usa <strong>Seleccionar todo</strong>)</li>
+      <li>Presiona <strong>Exportar seleccionadas</strong> y espera que termine</li>
+      <li>Descarga el archivo <code>casamota-backup-[fecha].json</code></li>
+      <li>Guarda el archivo en tu PC junto con los archivos del proyecto</li>
+      <li>Para restaurar: importa el JSON en Supabase (SQL Editor → <code>INSERT</code>) o
+          usa <code>DB.saveProduct()</code> / <code>DB.saveOrder()</code> según la tabla</li>
+    </ol>
+    <p style="margin-top:10px;font-size:.84rem;color:#6b7280">
+      <strong>Nota:</strong> el respaldo incluye también los registros marcados como
+      borrados (<code>deleted</code>), para que sea fiel a la base de datos y no una
+      vista filtrada de la tienda.
+    </p>
+  </div>
+
+</div><!-- /card -->
+
+<script>
+// ─── CONFIGURACIÓN DE TABLAS ──────────────────────────────────────────────────
+const TABLES = [
+  { name: 'products',       label: 'Productos',      icon: '🛒', limit: 500 },
+  { name: 'categories',     label: 'Categorías',     icon: '🏷️', limit: 200 },
+  { name: 'orders',         label: 'Pedidos',        icon: '📦', limit: 500 },
+  { name: 'customers',      label: 'Clientes',       icon: '👥', limit: 500 },
+  { name: 'drivers',        label: 'Repartidores',   icon: '🏍️', limit: 200 },
+  { name: 'staff',          label: 'Personal',       icon: '👤', limit: 200 },
+  { name: 'cupones',        label: 'Cupones',        icon: '🎟️', limit: 200 },
+  { name: 'notificaciones', label: 'Notificaciones', icon: '🔔', limit: 500 },
+  { name: 'settings',       label: 'Configuración',  icon: '⚙️', limit: 50  },
+  { name: 'productos',      label: 'Productos (v1)', icon: '🗄️', limit: 500 },
+];
+
+let selected   = new Set(TABLES.map(t => t.name));
+let exportData = {};
+let logLines   = 0;
+
+// ─── RENDER CHIPS ─────────────────────────────────────────────────────────────
+function renderChips() {
+  const grid = document.getElementById('tablesGrid');
+  grid.innerHTML = TABLES.map(t => `
+    <div class="table-chip active" id="chip-${t.name}" onclick="toggleTable('${t.name}')">
+      <span class="chip-icon">${t.icon}</span>
+      <div class="chip-info">
+        <div class="chip-name">${t.label}</div>
+        <div class="chip-count" id="count-${t.name}">—</div>
+      </div>
+      <i class="fas fa-check chip-check"></i>
+    </div>
+  `).join('');
+  loadCounts();
+}
+
+async function loadCounts() {
+  for (const t of TABLES) {
+    try {
+      // DB.countTable devuelve null si la tabla no existe o no se puede contar,
+      // lo que permite distinguir "0 registros" de "no disponible".
+      const n = await DB.countTable(t.name);
+      setCount(t.name, n === null ? 'No disponible' : `${n} registros`);
+    } catch {
+      setCount(t.name, 'Error');
+    }
+  }
+}
+
+function setCount(name, text) {
+  const el = document.getElementById(`count-${name}`);
+  if (el) el.textContent = text;
+}
+
+function toggleTable(name) {
+  const chip = document.getElementById(`chip-${name}`);
+  if (selected.has(name)) { selected.delete(name); chip.classList.remove('active'); }
+  else                     { selected.add(name);    chip.classList.add('active');    }
+}
+
+function selectAll()   { TABLES.forEach(t => { selected.add(t.name);    document.getElementById(`chip-${t.name}`)?.classList.add('active');    }); }
+function deselectAll() { TABLES.forEach(t => { selected.delete(t.name); document.getElementById(`chip-${t.name}`)?.classList.remove('active'); }); }
+
+// ─── LOG ──────────────────────────────────────────────────────────────────────
+function addLog(msg, type = '') {
+  const body = document.getElementById('logBody');
+  const ts   = new Date().toLocaleTimeString('es-DO');
+  const line = document.createElement('div');
+  line.className = `log-line ${type}`;
+  line.innerHTML = `<span class="ts">[${ts}]</span><span class="msg">${msg}</span>`;
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+  logLines++;
+  document.getElementById('logCount').textContent = `${logLines} líneas`;
+}
+
+// ─── PROGRESS ─────────────────────────────────────────────────────────────────
+function setProgress(pct, label) {
+  document.getElementById('progressFill').style.width  = pct + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+// ─── EXPORTAR TABLA (con paginación) ─────────────────────────────────────────
+// Delega en DB.exportTable() (js/api.js), que sabe hablar tanto con Supabase
+// como con la API de desarrollo. Antes esta función llamaba a `tables/<tabla>`
+// directamente: esa ruta NO existe en producción, así que el backup salía vacío.
+async function exportTable(tableCfg) {
+  const { name, limit } = tableCfg;
+  addLog(`⏳ Exportando "${name}"…`, 'info');
+
+  let ultimoAviso = 0;
+  const rows = await DB.exportTable(name, {
+    pageSize: limit,
+    onProgress: (acumuladas, total) => {
+      // No inundar el log: una línea por cada bloque descargado.
+      if (acumuladas === ultimoAviso) return;
+      ultimoAviso = acumuladas;
+      addLog(`   ✔ ${acumuladas}${total !== null ? '/' + total : ''} registros`, 'ok');
+    },
+  });
+
+  return rows;
+}
+
+// ─── INICIO EXPORTACIÓN ──────────────────────────────────────────────────────
+async function startExport() {
+  if (!selected.size) { alert('Selecciona al menos una tabla.'); return; }
+
+  exportData = {};
+  logLines   = 0;
+  document.getElementById('logBody').innerHTML    = '';
+  document.getElementById('resultBody').innerHTML = '';
+
+  // Mostrar UI de progreso
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('logWrap').style.display      = 'block';
+  document.getElementById('resultWrap').style.display   = 'none';
+  document.getElementById('btnExport').disabled         = true;
+
+  const tables = TABLES.filter(t => selected.has(t.name));
+  const total  = tables.length;
+  const results = [];
+
+  addLog(`🚀 Iniciando backup de ${total} tabla(s)…`, 'info');
+
+  for (let i = 0; i < tables.length; i++) {
+    const t   = tables[i];
+    const pct = Math.round((i / total) * 100);
+    setProgress(pct, `Exportando ${t.label} (${i + 1}/${total})…`);
+
+    try {
+      const rows = await exportTable(t);
+      exportData[t.name] = rows;
+
+      const size = formatBytes(JSON.stringify(rows).length);
+      results.push({ name: t.name, label: t.label, count: rows.length, size, status: 'ok' });
+      addLog(`✅ "${t.name}" — ${rows.length} registros (${size})`, 'ok');
+    } catch (err) {
+      results.push({ name: t.name, label: t.label, count: 0, size: '—', status: 'error', err: err.message });
+      addLog(`❌ Error en "${t.name}": ${err.message}`, 'err');
+    }
+  }
+
+  const okCount    = results.filter(r => r.status === 'ok').length;
+  const totalFilas = Object.values(exportData).reduce((s, arr) => s + arr.length, 0);
+
+  setProgress(100, okCount === total ? '✅ Exportación completada' : '⚠️ Completada con errores');
+  addLog(`🏁 Backup finalizado. ${okCount}/${total} tablas — ${totalFilas} registros en total.`, 'info');
+
+  // ── AVISO CRÍTICO ──
+  // Un respaldo vacío es peor que ninguno: da falsa sensación de seguridad.
+  // Este era exactamente el fallo que tenía la herramienta en producción.
+  const btnDescargar = document.getElementById('btnDownloadAll');
+  if (totalFilas === 0) {
+    addLog('⛔ EL RESPALDO ESTÁ VACÍO — no se descargó ningún registro. NO sirve como copia de seguridad.', 'err');
+    if (btnDescargar) {
+      btnDescargar.disabled = true;
+      btnDescargar.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Respaldo vacío — nada que descargar';
+    }
+  } else if (btnDescargar) {
+    btnDescargar.disabled = false;
+    btnDescargar.innerHTML = '<i class="fas fa-file-zipper"></i> Descargar backup completo (JSON)';
+  }
+
+  // Mostrar resultados
+  showResults(results);
+  document.getElementById('btnExport').disabled = false;
+}
+
+// ─── MOSTRAR RESULTADOS ───────────────────────────────────────────────────────
+function showResults(results) {
+  const tbody = document.getElementById('resultBody');
+  tbody.innerHTML = results.map(r => {
+    const badge = r.status === 'ok'
+      ? (r.count > 0 ? `<span class="badge-ok">✅ ${r.count} registros</span>` : `<span class="badge-empty">⚠️ Vacía</span>`)
+      : `<span class="badge-err">❌ Error</span>`;
+    return `
+      <tr>
+        <td><strong>${r.label}</strong><br><small style="color:#9ca3af">${r.name}</small></td>
+        <td>${r.count}</td>
+        <td>${r.size}</td>
+        <td>${badge}</td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('resultWrap').style.display = 'block';
+  document.getElementById('resultWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── DESCARGAR JSON ───────────────────────────────────────────────────────────
+function downloadAll() {
+  // Segunda barrera: nunca entregar un archivo sin datos.
+  const totalFilas = Object.values(exportData).reduce((s, arr) => s + arr.length, 0);
+  if (totalFilas === 0) {
+    alert('El respaldo está vacío: no se descargó ningún registro.\n\n'
+        + 'No se genera el archivo porque no serviría como copia de seguridad.\n'
+        + 'Revisa el registro de actividad para ver qué falló.');
+    return;
+  }
+
+  const now    = new Date();
+  const stamp  = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const filename = `casamota-backup-${stamp}.json`;
+
+  const payload = {
+    _meta: {
+      exportDate:   now.toISOString(),
+      exportedBy:   'backup-tool.html',
+      project:      'Casa Mota Supermercado',
+      tables:       Object.keys(exportData),
+      totalRecords: Object.values(exportData).reduce((s, arr) => s + arr.length, 0),
+    },
+    ...exportData
+  };
+
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  addLog(`💾 Archivo descargado: ${filename} (${formatBytes(json.length)})`, 'ok');
+}
+
+// ─── UTILIDADES ──────────────────────────────────────────────────────────────
+function formatBytes(bytes) {
+  if (bytes < 1024)       return bytes + ' B';
+  if (bytes < 1024*1024)  return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(2) + ' MB';
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+// Comprobación de arranque: sin js/api.js esta herramienta no puede leer nada.
+// Mejor decirlo claro que dejar que produzca un backup vacío en silencio.
+if (typeof DB === 'undefined' || typeof DB.exportTable !== 'function') {
+  document.getElementById('tablesGrid').innerHTML =
+    '<div style="padding:18px;background:#fef2f2;border:1px solid #fecaca;'
+  + 'border-radius:10px;color:#991b1b;font-size:.9rem">'
+  + '<strong>Error de carga.</strong> No se encontró <code>js/api.js</code> '
+  + '(o es una versión anterior sin <code>DB.exportTable</code>). '
+  + 'Sin él no se puede leer la base de datos. Recarga la página con Ctrl+F5.'
+  + '</div>';
+  const btn = document.getElementById('btnExport');
+  if (btn) btn.disabled = true;
+} else {
+  renderChips();
+}
+</script>
+</body>
+</html>

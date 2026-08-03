@@ -178,9 +178,17 @@ function _orderFromSupa(o) {
   r.email = r.customer_email ?? r.email ?? '';
   r.phone = r.customer_phone ?? r.phone ?? '';
   if ('envio' in r) { r.shipping = r.envio; }
-  // order_number: número correlativo corto (máx 3 cifras) para mostrar al usuario
-  // Si no existe (pedidos viejos), fallback al id completo
-  if (!r.order_number && r.id) r.order_number = r.id;
+  // NO se rellena order_number con el id.
+  //
+  // Antes había aquí `if (!r.order_number && r.id) r.order_number = r.id;`, que
+  // copiaba el UUID dentro del número de pedido. Consecuencias:
+  //   · la tienda mostraba "#3735c83a-d24a-400f-..." en vez de "#1" (bug 373);
+  //   · y sobre todo, ENMASCARABA el caso de order_number vacío, haciéndolo
+  //     indistinguible de uno legítimo. Ahora un número ausente se ve como
+  //     ausente y se puede detectar.
+  //
+  // Cada punto de visualización ya resuelve el caso vacío por su cuenta
+  // (`orderLabel()` en app.js, `order_number || id` en el panel).
   return r;
 }
 
@@ -503,14 +511,50 @@ const DB = {
     return Array.isArray(list) ? list.map(_orderFromSupa) : [];
   },
 
+  // El número de pedido lo asigna LA BASE DE DATOS, no el navegador.
+  //
+  // Antes se enviaba `order_number` calculado en JS como max()+1. Eso reutilizaba
+  // números al borrar el pedido más alto, podía dar el mismo número a dos
+  // clientes simultáneos, y ante un fallo de red generaba un número aleatorio de
+  // 5 cifras (`Date.now() % 100000`).
+  //
+  // Ahora la columna tiene DEFAULT nextval(orders_order_number_seq) — ver
+  // `limpieza/8-secuencia-order-number.sql`. Basta con NO enviar el campo para
+  // que Postgres ponga el siguiente número de forma atómica.
+  //
+  // Devuelve la fila creada, que ya incluye el `order_number` real: quien llama
+  // debe usar ESE valor para mostrárselo al cliente, no uno calculado antes.
   async createOrder(order) {
     const payload = _orderToSupa(order);
-    // Guardar el número correlativo corto como order_number (el id numérico generado en app.js)
-    // El UUID lo genera Supabase automáticamente en la columna id
-    if (order.id && !isNaN(Number(order.id))) {
-      payload.order_number = Number(order.id);
+
+    // Nunca imponer el número: se deja que lo ponga la secuencia.
+    delete payload.order_number;
+
+    const creado = await _apiCreate('orders', payload);
+
+    // Red de seguridad para el caso de que el SQL de la secuencia aún no se haya
+    // ejecutado en esta base de datos: sin DEFAULT, la columna quedaría NULL.
+    // Se rellena entonces con el método antiguo, avisando en consola. Es un
+    // camino de emergencia, no el normal.
+    if (creado && (creado.order_number === null || creado.order_number === undefined)) {
+      console.warn(
+        '[DB.createOrder] La base de datos no asignó order_number. '
+      + '¿Falta ejecutar limpieza/8-secuencia-order-number.sql? '
+      + 'Asignando número de reserva.'
+      );
+      try {
+        const todos = await DB.getOrders();
+        const max = todos.reduce(
+          (m, o) => Math.max(m, Number(o.order_number) || 0), 0
+        );
+        const parche = await _apiPatch('orders', creado.id, { order_number: max + 1 });
+        return parche || { ...creado, order_number: max + 1 };
+      } catch (e) {
+        console.error('[DB.createOrder] tampoco se pudo asignar el número de reserva:', e);
+      }
     }
-    return _apiCreate('orders', payload);
+
+    return creado;
   },
 
   async updateOrder(id, order) {
@@ -866,6 +910,128 @@ const DB = {
 
   async deleteCategory(apiUuid) {
     return _apiDelete('categories', apiUuid);
+  },
+
+  // ── Exportación genérica (respaldos) ───────────────────────────────────────
+  //
+  // POR QUÉ EXISTE ESTA FUNCIÓN
+  // ───────────────────────────
+  // `backup-tool.html` llamaba directamente a `fetch('tables/<tabla>')`, que es
+  // la API interna de Genspark. En producción esa ruta NO existe → cada tabla
+  // fallaba y el backup salía VACÍO. Lo peor: la herramienta no daba error
+  // claro, así que daba una falsa sensación de seguridad.
+  //
+  // Se resuelve aquí, en la capa de datos, y no en el HTML: así la herramienta
+  // de respaldo hereda automáticamente la detección de entorno, las cabeceras,
+  // los timeouts y los reintentos que ya usa todo lo demás.
+  //
+  // Devuelve TODAS las filas, incluidas las marcadas `deleted` — un respaldo
+  // debe ser fiel a la base de datos, no una vista filtrada de la tienda.
+  //
+  // @param {string}   tabla       nombre real de la tabla
+  // @param {object}   opts
+  // @param {number}   opts.pageSize  filas por petición (por defecto 1000)
+  // @param {function} opts.onProgress callback(filasAcumuladas, total|null)
+  // @returns {Promise<Array>}
+  async exportTable(tabla, opts = {}) {
+    const pageSize   = Number(opts.pageSize) || 1000;
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+
+    if (_IS_GENSPARK) {
+      // Entorno de desarrollo: API interna paginada de Genspark.
+      const todo = [];
+      let page = 1, total = null;
+      while (true) {
+        const res = await fetch(`tables/${tabla}?limit=${pageSize}&page=${page}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status} al leer "${tabla}"`);
+        const json = await res.json();
+        if (total === null) total = json.total ?? null;
+        const filas = json.data || [];
+        todo.push(...filas);
+        if (onProgress) onProgress(todo.length, total);
+        if (filas.length < pageSize) break;
+        if (total !== null && todo.length >= total) break;
+        page++;
+      }
+      return todo;
+    }
+
+    // Producción: Supabase PostgREST. La paginación va por cabecera Range,
+    // no por ?page= — usar ?page= devolvería SIEMPRE la primera página.
+    const todo = [];
+    let desde = 0;
+    while (true) {
+      const hasta = desde + pageSize - 1;
+      const res = await fetch(
+        `${_SB_URL}/${tabla}?select=*&order=id.asc`,
+        {
+          headers: {
+            ..._SB_HEADERS,
+            'Range-Unit': 'items',
+            'Range': `${desde}-${hasta}`,
+            // Pide a PostgREST el total exacto en Content-Range
+            'Prefer': 'count=exact',
+          },
+        }
+      );
+
+      // 416 = rango fuera de los datos: significa que ya no hay más filas.
+      if (res.status === 416) break;
+      if (!res.ok) {
+        const detalle = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} al leer "${tabla}"${detalle ? ': ' + detalle.slice(0, 200) : ''}`);
+      }
+
+      const filas = await res.json();
+      if (!Array.isArray(filas)) throw new Error(`Respuesta inesperada en "${tabla}"`);
+      todo.push(...filas);
+
+      // Content-Range: "0-999/4213" → el total va tras la barra
+      let total = null;
+      const cr = res.headers.get('content-range');
+      if (cr && cr.includes('/')) {
+        const t = cr.split('/')[1];
+        if (t && t !== '*') total = Number(t);
+      }
+      if (onProgress) onProgress(todo.length, total);
+
+      if (filas.length < pageSize) break;
+      if (total !== null && todo.length >= total) break;
+      desde += pageSize;
+    }
+    return todo;
+  },
+
+  // Cuenta filas sin descargarlas. Para mostrar los totales antes de exportar.
+  // Devuelve null si la tabla no existe o no se puede contar (así la interfaz
+  // puede distinguir "0 registros" de "no disponible").
+  async countTable(tabla) {
+    try {
+      if (_IS_GENSPARK) {
+        const res = await fetch(`tables/${tabla}?limit=1&page=1`);
+        if (!res.ok) return null;
+        const json = await res.json();
+        return json.total ?? 0;
+      }
+      const res = await fetch(
+        `${_SB_URL}/${tabla}?select=id`,
+        {
+          headers: {
+            ..._SB_HEADERS,
+            'Range-Unit': 'items',
+            'Range': '0-0',
+            'Prefer': 'count=exact',
+          },
+        }
+      );
+      if (!res.ok) return null;
+      const cr = res.headers.get('content-range');
+      if (cr && cr.includes('/')) {
+        const t = cr.split('/')[1];
+        if (t && t !== '*') return Number(t);
+      }
+      return null;
+    } catch { return null; }
   },
 
 };

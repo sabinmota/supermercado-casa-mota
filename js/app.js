@@ -2920,22 +2920,16 @@ async function confirmOrder() {
       sustitucion: getSustItemPref(c.id),   // true = cliente autoriza sustituir este producto
     }));
 
-    // Generar ID correlativo basado en order_number (no en id que ahora es UUID de Supabase)
-    let nextNum = 1;
-    try {
-      const allOrders = await DB.getOrders();
-      if (allOrders.length > 0) {
-        const maxNum = allOrders.reduce((max, o) => {
-          const n = Number(o.order_number) || parseInt(o.id, 10) || 0;
-          return (n > max) ? n : max;
-        }, 0);
-        nextNum = maxNum + 1;
-      }
-    } catch(e) { nextNum = Date.now() % 100000; }
-    const newId = String(nextNum);
+    // El número de pedido lo asigna la BASE DE DATOS (secuencia de Postgres),
+    // no este navegador. Ver limpieza/8-secuencia-order-number.sql.
+    //
+    // El código anterior leía todos los pedidos y hacía max()+1, con tres
+    // problemas: reutilizaba el número al borrar el pedido más alto, dos
+    // clientes simultáneos podían recibir el mismo número, y si la consulta
+    // fallaba asignaba `Date.now() % 100000` — un número aleatorio de 5 cifras.
+    // Se lee del pedido ya creado, unas líneas más abajo.
 
     const newOrder = {
-      id:             newId,
       customer:       currentClient.name,
       email:          currentClient.email,
       phone:          currentClient.phone   || '',
@@ -2968,8 +2962,12 @@ async function confirmOrder() {
       mapLink:             currentClient.mapLink || '',
     };
 
-    // Guardar pedido en la API
-    await DB.createOrder(newOrder);
+    // Guardar pedido en la API. La respuesta trae el order_number que asignó
+    // Postgres — ese es el número que se le muestra al cliente.
+    const pedidoCreado = await DB.createOrder(newOrder);
+    const numeroPedido = (pedidoCreado && pedidoCreado.order_number != null)
+      ? String(pedidoCreado.order_number)
+      : null;
 
     // Descontar stock (fire-and-forget, no bloquea el flujo)
     DB.getProducts().then(stockActual => {
@@ -3019,8 +3017,11 @@ async function confirmOrder() {
       renderMyOrders();
     }
 
+    // Si por lo que sea no llegó el número, se confirma sin él antes que mostrar
+    // "#undefined" o un número inventado. El pedido está guardado igualmente.
+    const etiquetaNum = numeroPedido ? ` <strong>#${numeroPedido}</strong>` : '';
     showToast(
-      `<i class="fas fa-check-circle"></i> ¡Pedido <strong>#${newId}</strong> confirmado!<br>
+      `<i class="fas fa-check-circle"></i> ¡Pedido${etiquetaNum} confirmado!<br>
        <span style="font-size:.82rem;opacity:.85"><i class="fas fa-${payMethod==='efectivo'?'money-bill-wave':'mobile-screen-button'}"></i> ${payLabels[payMethod] || payMethod} · RD$ ${fmt$(total)}</span>`,
 
       'success'
