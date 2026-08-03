@@ -311,6 +311,89 @@ async function _apiDelete(table, id) {
   });
 }
 
+// PATCH masivo por filtro en vez de por id. Sirve para desvincular de golpe
+// todos los pedidos de un cliente con UNA sola petición.
+//   _apiPatchWhere('orders', 'clientId=eq.abc', { clientId: null })
+async function _apiPatchWhere(table, filter, data) {
+  const payload = { ...data, updated_at: new Date().toISOString() };
+  return _apiFetch(`${_SB_URL}/${table}?${filter}`, {
+    method:  'PATCH',
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+    body:    JSON.stringify(payload),
+  });
+}
+
+// ─── BORRADO SEGURO: DESVINCULAR ANTES DE BORRAR ──────────────────────────────
+//
+// EL BUG QUE ESTO ARREGLA (build 372)
+// ───────────────────────────────────
+// `_apiDelete` hace un DELETE REAL, no un `deleted = true`. Cuando se borraba
+// una ficha de cliente, la fila desaparecía de `customers` pero sus pedidos
+// seguían en `orders` con un `clientId` apuntando a un id que ya no existía.
+//
+// Consecuencia: pedidos HUÉRFANOS. No se los podía atribuir a nadie, no
+// aparecían en las estadísticas de ningún cliente, y su importe se esfumaba
+// de los totales. En la base de producción encontramos 4 así (RD$1.898).
+//
+// LO QUE NO SE HACE Y POR QUÉ
+// ───────────────────────────
+// · NO se borran los pedidos junto al cliente. Son registros contables:
+//   una venta entregada ocurrió, aunque la ficha del comprador se elimine.
+// · NO se usa borrado suave (`deleted = true`) en `customers`. Habría que
+//   filtrar `deleted` en getCustomers(), en el login de la tienda y en cada
+//   pantalla del panel; demasiada superficie para este arreglo. El cliente
+//   debe desaparecer de verdad, como espera quien pulsa «Eliminar».
+//
+// LO QUE SÍ SE HACE
+// ─────────────────
+// Antes del DELETE, los pedidos se vuelven autosuficientes:
+//   1. Se les copia la identidad del cliente (nombre / email / teléfono) en
+//      sus propias columnas, si les faltaba alguna.
+//   2. Se pone `clientId = null` → deja de ser una referencia rota y pasa a
+//      ser un pedido explícitamente sin ficha asociada.
+// Así el histórico de ventas sobrevive y no queda ni un puntero muerto.
+
+async function _desvincularPedidosDeCliente(customerId) {
+  // 1) ¿Qué pedidos cuelgan de esta ficha?
+  const url = `${_SB_URL}/orders`
+            + `?clientId=eq.${encodeURIComponent(customerId)}`
+            + `&select=id,customer,client,customer_email,email,customer_phone,phone`;
+  const res = await fetch(url, { headers: _SB_HEADERS });
+  if (!res.ok) throw new Error(`No se pudieron leer los pedidos del cliente (${res.status})`);
+  const pedidos = await res.json();
+  if (!Array.isArray(pedidos) || pedidos.length === 0) return 0;
+
+  // 2) Traer la identidad de la ficha para estamparla donde falte.
+  let ficha = null;
+  try {
+    const r = await fetch(
+      `${_SB_URL}/customers?id=eq.${encodeURIComponent(customerId)}&select=name,email,phone`,
+      { headers: _SB_HEADERS }
+    );
+    if (r.ok) { const arr = await r.json(); ficha = Array.isArray(arr) ? arr[0] : null; }
+  } catch (e) {
+    console.warn('[deleteCustomer] no se pudo leer la ficha para estampar identidad:', e?.message || e);
+  }
+
+  if (ficha) {
+    for (const p of pedidos) {
+      const parche = {};
+      if (!p.customer && !p.client && ficha.name)             parche.customer       = ficha.name;
+      if (!p.customer_email && !p.email && ficha.email)       parche.customer_email = ficha.email;
+      if (!p.customer_phone && !p.phone && ficha.phone)       parche.customer_phone = ficha.phone;
+      if (Object.keys(parche).length === 0) continue;
+      // Si esto falla no abortamos: lo importante es el paso 3.
+      try { await _apiPatch('orders', p.id, parche); }
+      catch (e) { console.warn(`[deleteCustomer] pedido ${p.id}: identidad no estampada —`, e?.message || e); }
+    }
+  }
+
+  // 3) Cortar el vínculo de todos de una vez. Este paso SÍ debe funcionar:
+  //    si falla, el error sube y el cliente NO se borra.
+  await _apiPatchWhere('orders', `clientId=eq.${encodeURIComponent(customerId)}`, { clientId: null });
+  return pedidos.length;
+}
+
 // ─── PRODUCTOS ────────────────────────────────────────────────────────────────
 let _totalProductsInDB = 0;
 
@@ -488,8 +571,25 @@ const DB = {
     return _apiPatch('customers', id, fields);
   },
 
+  /**
+   * Borra la ficha de un cliente SIN dejar sus pedidos huérfanos.
+   *
+   * Los pedidos NO se borran (son historial contable): se les estampa la
+   * identidad del cliente y se les pone `clientId = null`. Ver el comentario
+   * de `_desvincularPedidosDeCliente` arriba para el porqué.
+   *
+   * Si la desvinculación falla, el cliente NO se borra — antes un botón que
+   * da error que una base de datos con referencias rotas.
+   *
+   * @returns {Promise<{pedidosDesvinculados: number}>}
+   */
   async deleteCustomer(id) {
-    return _apiDelete('customers', id);
+    const pedidosDesvinculados = await _desvincularPedidosDeCliente(id);
+    await _apiDelete('customers', id);
+    if (pedidosDesvinculados > 0) {
+      console.log(`[deleteCustomer] ${pedidosDesvinculados} pedido(s) desvinculado(s) y conservados.`);
+    }
+    return { pedidosDesvinculados };
   },
 
   // ── Personal (Staff) ───────────────────────────────────────────────────────
@@ -577,8 +677,32 @@ const DB = {
     return _apiPatch('drivers', id, fields);
   },
 
+  /**
+   * Borra un repartidor sin dejar pedidos apuntando a un `driverId` inexistente.
+   * Mismo criterio que deleteCustomer: los pedidos se conservan, se les copia
+   * el nombre del repartidor si la columna existe y se anula la referencia.
+   */
   async deleteDriver(id) {
-    return _apiDelete('drivers', id);
+    let pedidosDesvinculados = 0;
+    try {
+      const r = await fetch(
+        `${_SB_URL}/orders?driverId=eq.${encodeURIComponent(id)}&select=id`,
+        { headers: _SB_HEADERS }
+      );
+      if (r.ok) {
+        const arr = await r.json();
+        if (Array.isArray(arr) && arr.length > 0) {
+          await _apiPatchWhere('orders', `driverId=eq.${encodeURIComponent(id)}`, { driverId: null });
+          pedidosDesvinculados = arr.length;
+        }
+      }
+    } catch (e) {
+      // A diferencia del cliente, aquí no bloqueamos el borrado: `driverId`
+      // suelto solo afecta a la etiqueta del repartidor, no a las ventas.
+      console.warn('[deleteDriver] no se pudo desvincular pedidos:', e?.message || e);
+    }
+    await _apiDelete('drivers', id);
+    return { pedidosDesvinculados };
   },
 
   // ── Configuración ──────────────────────────────────────────────────────────

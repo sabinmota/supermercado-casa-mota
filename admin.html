@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '371';
+      const VER = '372';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1910,10 +1910,15 @@
       </div>
       <div class="modal-body">
         <p style="margin:0;font-size:1rem">¿Estás seguro de que deseas eliminar al cliente <strong id="custDeleteName"></strong>? Esta acción no se puede deshacer.</p>
+        <p style="margin:.75rem 0 0;font-size:.875rem;color:var(--gray-600, #666);line-height:1.5">
+          <i class="fas fa-circle-info" aria-hidden="true"></i>
+          Sus <strong>pedidos no se borran</strong>: se conservan en el historial de ventas,
+          con su nombre, pero dejarán de estar asociados a una ficha de cliente.
+        </p>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" onclick="closeCustDeleteModal()">Cancelar</button>
-        <button class="btn-danger" onclick="confirmDeleteCustomer()"><i class="fas fa-trash"></i> Sí, eliminar</button>
+        <button class="btn-danger" id="custDeleteConfirmBtn" onclick="confirmDeleteCustomer()"><i class="fas fa-trash"></i> Sí, eliminar</button>
       </div>
     </div>
   </div>
@@ -2928,12 +2933,12 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=321"></script>
+  <script src="js/api.js?v=322"></script>
   <script src="js/auth.v33.js?v=295"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=358"></script>
+  <script src="js/admin.v33.js?v=359"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=305"></script>
   <!-- IA: Groq integration -->

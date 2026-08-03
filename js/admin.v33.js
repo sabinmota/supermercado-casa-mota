@@ -4394,15 +4394,43 @@ function closeCustDeleteModal() {
 
 function confirmDeleteCustomer() {
   if (!deleteCustomerId) return;
-  DB.deleteCustomer(deleteCustomerId)
-    .then(() => {
-      customers = customers.filter(c => c.id !== deleteCustomerId);
+
+  // Se guarda innerHTML, no textContent: el botón lleva un <i> de Font Awesome
+  // dentro y con textContent lo perderíamos al restaurarlo.
+  const btn = document.getElementById('custDeleteConfirmBtn');
+  const htmlOriginal = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando…';
+  }
+
+  // DB.deleteCustomer (build 372) desvincula primero los pedidos del cliente
+  // para no dejarlos huérfanos, y sólo entonces borra la ficha. Por eso puede
+  // tardar más que antes y por eso devuelve el número de pedidos afectados.
+  const idBorrado = deleteCustomerId;
+  DB.deleteCustomer(idBorrado)
+    .then(res => {
+      customers = customers.filter(c => c.id !== idBorrado);
       DBCached.invalidateCustomers();
+      // Los pedidos cambiaron (clientId → null): el caché ya no es válido.
+      DBCached.invalidateOrders();
       renderCustomers();
       closeCustDeleteModal();
-      showAdminToast('Cliente eliminado', 'info');
+      const n = (res && res.pedidosDesvinculados) || 0;
+      showAdminToast(
+        n > 0
+          ? `Cliente eliminado — sus ${n} pedido${n === 1 ? '' : 's'} se conservan en el historial`
+          : 'Cliente eliminado',
+        'info'
+      );
     })
-    .catch(() => showAdminToast('Error al eliminar cliente', 'error'));
+    .catch(err => {
+      console.error('deleteCustomer error:', err);
+      showAdminToast('Error al eliminar cliente: ' + (err?.message || err), 'error');
+    })
+    .finally(() => {
+      if (btn) { btn.disabled = false; btn.innerHTML = htmlOriginal; }
+    });
 }
 
 function viewCustomerDetail(id) {
