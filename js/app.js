@@ -3780,6 +3780,30 @@ async function renderLoyaltyCard() {
     </div>`;
 }
 
+/**
+ * Número de pedido para MOSTRAR al cliente.
+ *
+ * BUG QUE ESTO ARREGLA (build 373)
+ * ───────────────────────────────
+ * En "Mis pedidos" se pintaba `#${o.id}`, y desde la migración a Supabase
+ * `id` es un UUID. El cliente veía cosas como
+ *   #3735c83a-d24a-400f-a8e1-51123f133146
+ * mientras el panel admin mostraba el mismo pedido como #1.
+ *
+ * El número corto vive en `order_number`; `id` (UUID) sigue siendo la clave
+ * para buscar, cancelar o repetir el pedido — NO sustituir esos usos.
+ *
+ * El fallback recorta el UUID a 6 caracteres para pedidos antiguos sin
+ * `order_number`: es feo, pero no ocupa media pantalla.
+ */
+function orderLabel(o) {
+  const n = o && o.order_number;
+  if (n !== undefined && n !== null && String(n).trim() !== '') return String(n);
+  const id = String((o && o.id) || '').trim();
+  if (!id) return '—';
+  return id.length > 8 ? id.slice(-6).toUpperCase() : id;
+}
+
 async function renderMyOrders() {
   if (!currentClient) return;
   const container = document.getElementById('myOrdersList');
@@ -3856,7 +3880,7 @@ async function renderMyOrders() {
       <div class="my-order-card" id="order-card-${o.id}">
         <div class="my-order-top">
           <div>
-            <span class="my-order-id">#${o.id}</span>
+            <span class="my-order-id">#${orderLabel(o)}</span>
             <span class="my-order-date">${o.date}</span>
           </div>
           <span class="my-order-status ${st.cls}"><i class="fas ${st.icon}"></i> ${st.label}</span>
@@ -4037,7 +4061,8 @@ async function cancelClientOrder(orderId) {
     });
 
     // ── Feedback de éxito inmediato — el usuario ya puede seguir ──
-    showToast(`<i class="fas fa-check-circle"></i> Pedido <strong>#${orderId}</strong> cancelado.`, 'success');
+    // orderLabel(order), no orderId: orderId es el UUID de Supabase.
+    showToast(`<i class="fas fa-check-circle"></i> Pedido <strong>#${orderLabel(order)}</strong> cancelado.`, 'success');
     renderMyOrders(); // Re-renderizar la lista ya con el nuevo estado
 
     // 3) Reponer stock y actualizar estadísticas en background (fire-and-forget)
@@ -4235,7 +4260,7 @@ async function renderMyCoupons() {
         <div class="coupon-history-middle">
           <i class="fas fa-receipt" style="color:#aaa"></i>
           <span>Usado en pedido</span>
-          <a href="#" class="coupon-order-link" onclick="event.preventDefault(); scrollToOrder('${o.id}');">#${o.id}</a>
+          <a href="#" class="coupon-order-link" onclick="event.preventDefault(); scrollToOrder('${o.id}');">#${orderLabel(o)}</a>
           <span style="color:#aaa">•</span>
           <span style="color:var(--green-primary);font-weight:600">${discountPercent}% OFF</span>
         </div>
