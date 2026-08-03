@@ -97,6 +97,24 @@ const _SELECT_FIELDS = {
   settings:  '*',
 };
 
+// ─── ERRORES SILENCIOSOS ─────────────────────────────────────────────────────
+// Sustituto de `.catch(() => {})`. Esas escrituras son deliberadamente
+// "fire-and-forget" (no deben bloquear al usuario), pero tragarse el error
+// sin más nos costó caro: los contadores de cliente llevaban meses desfasados
+// porque los PATCH fallaban sin dejar ni una línea en la consola.
+//
+//   Antes:  DB.patchCustomer(id, campos).catch(() => {});
+//   Ahora:  DB.patchCustomer(id, campos).catch(logFail('contadores del cliente'));
+//
+// Sigue sin molestar al usuario, pero queda rastro para depurar.
+function logFail(contexto) {
+  return function (e) {
+    console.warn(`⚠️ [Casa Mota] Falló ${contexto}:`, (e && e.message) ? e.message : e);
+    return undefined;   // la promesa se resuelve: el flujo continúa igual que antes
+  };
+}
+if (typeof window !== 'undefined') window.logFail = logFail;
+
 // ─── TELÉFONOS — formato dominicano 809-696-1013 ─────────────────────────────
 // Fuente ÚNICA de verdad. Vive en api.js porque es el único fichero que cargan
 // las dos caras: la tienda (js/location.js, al guardar) y el panel

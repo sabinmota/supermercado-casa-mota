@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Diagnóstico Escáner — Casa Mota</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #0f1117; color: #fff; padding: 16px; }
+    h1 { font-size: 1.1rem; color: #00e676; margin-bottom: 4px; }
+    p.sub { font-size: .8rem; color: #888; margin-bottom: 20px; }
+
+    .card { background: #1a1d2e; border-radius: 12px; padding: 16px; margin-bottom: 14px; border: 1px solid #2a2d3e; }
+    .card h2 { font-size: .85rem; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+
+    input[type="file"] { display: none; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #3a3d4e;
+      background: #000; color: #ffd740; font-family: monospace; font-size: .85rem; margin-bottom: 8px;
+    }
+
+    button {
+      width: 100%; padding: 13px; border-radius: 10px; border: none;
+      font-size: .92rem; font-weight: 600; cursor: pointer; margin-bottom: 8px;
+    }
+    .btn-green  { background: #00e676; color: #000; }
+    .btn-blue   { background: #2979ff; color: #fff; }
+    .btn-purple { background: #7c3aed; color: #fff; }
+    .btn-grey   { background: #2a2d3e; color: #fff; border: 1px solid #3a3d4e; }
+    .btn-red    { background: #ff5252; color: #fff; }
+    .btn-orange { background: #ff6d00; color: #fff; }
+
+    .engine-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+      background: #0d0f1a; border: 1px solid #2a2d3e; font-size: .85rem;
+    }
+    .engine-icon { font-size: 1.2rem; }
+    .engine-name { flex: 1; font-weight: 600; }
+    .engine-status { font-size: .75rem; padding: 3px 10px; border-radius: 20px; font-weight: 700; }
+    .s-ok     { background: #00e67622; color: #00e676; border: 1px solid #00e67644; }
+    .s-err    { background: #ff525222; color: #ff5252; border: 1px solid #ff525244; }
+    .s-warn   { background: #ffd74022; color: #ffd740; border: 1px solid #ffd74044; }
+    .s-grey   { background: #33333322; color: #888;    border: 1px solid #33333344; }
+
+    #log {
+      background: #000; border-radius: 8px; padding: 12px;
+      font-family: monospace; font-size: .78rem; line-height: 1.7;
+      min-height: 100px; max-height: 380px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    }
+    .ok   { color: #00e676; }
+    .err  { color: #ff5252; }
+    .warn { color: #ffd740; }
+    .info { color: #64b5f6; }
+    .dim  { color: #666; }
+
+    .result-box { border-radius: 8px; padding: 14px; text-align: center; font-weight: 700; font-size: .95rem; margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>🔍 Diagnóstico Escáner — Casa Mota</h1>
+  <p class="sub">Verifica cuáles motores de lectura funcionan en este dispositivo</p>
+
+  <!-- ① ESTADO DE LOS 3 MOTORES -->
+  <div class="card">
+    <h2>① Estado de los motores</h2>
+    <div class="engine-row">
+      <span class="engine-icon">⚡</span>
+      <span class="engine-name">BarcodeDetector nativo</span>
+      <span class="engine-status s-grey" id="st-native">Verificando…</span>
+    </div>
+    <div class="engine-row">
+      <span class="engine-icon">🤖</span>
+      <span class="engine-name">Groq Vision (Maya)</span>
+      <span class="engine-status s-grey" id="st-groq">Verificando…</span>
+    </div>
+    <div class="engine-row">
+      <span class="engine-icon">📷</span>
+      <span class="engine-name">Quagga (clásico)</span>
+      <span class="engine-status s-grey" id="st-quagga">Verificando…</span>
+    </div>
+    <button class="btn-green" onclick="checkEngines()">▶ Verificar motores</button>
+  </div>
+
+  <!-- ② PROBAR CON FOTO (los 3 motores en cascada) -->
+  <div class="card">
+    <h2>② Probar escáner completo con foto</h2>
+    <p style="font-size:.8rem;color:#aaa;margin-bottom:10px">Simula exactamente lo que hace la tienda: BarcodeDetector → Groq → Quagga</p>
+    <input type="file" id="fullScanImg" accept="image/*" capture="environment">
+    <button class="btn-blue" onclick="document.getElementById('fullScanImg').click()">📸 Tomar foto del código</button>
+    <div id="fullScanResult" class="result-box"></div>
+  </div>
+
+  <!-- ③ GUARDAR CLAVE -->
+  <div class="card">
+    <h2>③ Guardar clave Groq</h2>
+    <p style="font-size:.8rem;color:#aaa;margin-bottom:10px">Si Groq muestra ❌, pega aquí la clave y guarda:</p>
+    <input type="password" id="keyInput" placeholder="gsk_xxxxxxxxxxxxxxxx…">
+    <button class="btn-purple" onclick="saveKey()">💾 Guardar clave en base de datos</button>
+    <button class="btn-red"    onclick="clearLocalKey()">🗑 Borrar clave local</button>
+  </div>
+
+  <!-- ④ LOG -->
+  <div class="card">
+    <h2>④ Log detallado</h2>
+    <div id="log"><span class="dim">Pulsa "Verificar motores" para comenzar…</span></div>
+    <button class="btn-grey" style="margin-top:8px" onclick="clearLog()">🗑 Limpiar log</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
+  <!-- Capa de datos real (Supabase). Sin esto la pagina usaba 'tables/settings',
+       que solo existe en el entorno de desarrollo y da 404 en produccion. -->
+  <script src="js/api.js?v=321"></script>
+
+  <script>
+  // ─── LOG ────────────────────────────────────────────────────────────────────
+  const logEl = document.getElementById('log');
+  function log(msg, type = 'dim') {
+    if (logEl.querySelector('.dim')) logEl.innerHTML = '';
+    const d = document.createElement('div');
+    d.className = type;
+    const t = new Date().toLocaleTimeString('es', { hour12: false });
+    d.textContent = `[${t}] ${msg}`;
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() { logEl.innerHTML = ''; }
+
+  // ─── OBTENER CLAVE GROQ ──────────────────────────────────────────────────────
+  // Usa DB.getSettings() (js/api.js). NUNCA 'tables/settings': esa ruta es la API
+  // del entorno de desarrollo de Genspark y devuelve 404 en produccion.
+  async function getGroqKey() {
+    const local = localStorage.getItem('groq_api_key');
+    if (local && local.startsWith('gsk_') && local.length > 20) return local;
+    if (typeof DB === 'undefined' || !DB.getSettings) {
+      log('⚠️ js/api.js no se cargó — no puedo leer la clave de la base de datos', 'warn');
+      return null;
+    }
+    try {
+      const settings = await DB.getSettings();
+      const key = settings?.groqApiKey;
+      if (key && key.startsWith('gsk_') && key.length > 20) {
+        localStorage.setItem('groq_api_key', key);
+        return key;
+      }
+    } catch (e) {
+      log('⚠️ No se pudo leer la configuración: ' + (e?.message || e), 'warn');
+    }
+    return null;
+  }
+
+  // ─── ① VERIFICAR MOTORES ────────────────────────────────────────────────────
+  async function checkEngines() {
+    log('Verificando motores de escáner…', 'info');
+
+    // BarcodeDetector nativo
+    const el1 = document.getElementById('st-native');
+    if ('BarcodeDetector' in window) {
+      try {
+        const formats = await BarcodeDetector.getSupportedFormats();
+        const hasEan  = formats.some(f => f.includes('ean') || f.includes('upc'));
+        el1.textContent = hasEan ? '✅ Disponible' : '⚠️ Sin EAN';
+        el1.className   = 'engine-status ' + (hasEan ? 's-ok' : 's-warn');
+        log(`BarcodeDetector ✅ — formatos: ${formats.slice(0,5).join(', ')}…`, 'ok');
+      } catch(e) {
+        el1.textContent = '⚠️ Error'; el1.className = 'engine-status s-warn';
+        log('BarcodeDetector error: ' + e.message, 'warn');
+      }
+    } else {
+      el1.textContent = '❌ No soportado'; el1.className = 'engine-status s-err';
+      log('BarcodeDetector ❌ — no disponible en este navegador (normal en iOS/Safari)', 'warn');
+    }
+
+    // Groq Vision
+    const el2 = document.getElementById('st-groq');
+    const key  = await getGroqKey();
+    if (key) {
+      log('Probando clave Groq…', 'info');
+      try {
+        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: 'Di: OK' }], max_tokens: 5 })
+        });
+        if (r.ok) {
+          el2.textContent = '✅ Activo'; el2.className = 'engine-status s-ok';
+          log('Groq Vision ✅ — clave válida y funcionando', 'ok');
+        } else {
+          const d = await r.json().catch(() => ({}));
+          el2.textContent = `❌ HTTP ${r.status}`; el2.className = 'engine-status s-err';
+          log(`Groq ❌ HTTP ${r.status}: ${d?.error?.message || 'error'}`, 'err');
+          if (r.status === 401) log('→ Clave revocada — genera una nueva en console.groq.com', 'warn');
+        }
+      } catch(e) {
+        el2.textContent = '❌ Sin red'; el2.className = 'engine-status s-err';
+        log('Groq ❌ sin red: ' + e.message, 'err');
+      }
+    } else {
+      el2.textContent = '❌ Sin clave'; el2.className = 'engine-status s-err';
+      log('Groq ❌ — sin clave. Pégala en la sección ③', 'err');
+    }
+
+    // Quagga
+    const el3 = document.getElementById('st-quagga');
+    if (typeof Quagga !== 'undefined') {
+      el3.textContent = '✅ Cargado'; el3.className = 'engine-status s-ok';
+      log('Quagga ✅ — cargado (funciona como último recurso)', 'ok');
+    } else {
+      el3.textContent = '❌ No cargado'; el3.className = 'engine-status s-err';
+      log('Quagga ❌ — no se cargó la librería', 'err');
+    }
+
+    log('── Verificación completa ──', 'info');
+  }
+
+  // ─── ② ESCANEO COMPLETO CON LOS 3 MOTORES ───────────────────────────────────
+  document.getElementById('fullScanImg').addEventListener('change', async function() {
+    if (!this.files || !this.files[0]) return;
+    const box = document.getElementById('fullScanResult');
+    box.style.display = 'block'; box.style.background = '#1a1d2e'; box.style.color = '#ffd740';
+    box.textContent = '⏳ Procesando…';
+    const file = this.files[0];
+    log('── Iniciando escaneo completo ──', 'info');
+
+    // Motor 1: BarcodeDetector
+    if ('BarcodeDetector' in window) {
+      log('Motor 1: BarcodeDetector nativo…', 'info');
+      box.textContent = '⚡ Probando BarcodeDetector…';
+      const code = await tryNative(file);
+      if (code) {
+        box.style.background = '#00e67622'; box.style.color = '#00e676';
+        box.textContent = `⚡ BarcodeDetector: ${code}`;
+        log('✅ BarcodeDetector detectó: ' + code, 'ok');
+        this.value = ''; return;
+      }
+      log('BarcodeDetector no detectó — siguiente motor…', 'warn');
+    } else {
+      log('BarcodeDetector no disponible — saltando…', 'dim');
+    }
+
+    // Motor 2: Groq Vision
+    const key = await getGroqKey();
+    if (key) {
+      log('Motor 2: Groq Vision (Maya)…', 'info');
+      box.textContent = '🤖 Analizando con Maya…';
+      const code = await tryGroq(file, key);
+      if (code) {
+        box.style.background = '#00e67622'; box.style.color = '#00e676';
+        box.textContent = `🤖 Maya detectó: ${code}`;
+        log('✅ Groq Vision detectó: ' + code, 'ok');
+        this.value = ''; return;
+      }
+      log('Groq Vision no detectó — siguiente motor…', 'warn');
+    } else {
+      log('Sin clave Groq — saltando Maya…', 'warn');
+    }
+
+    // Motor 3: Quagga
+    log('Motor 3: Quagga clásico…', 'info');
+    box.textContent = '📷 Probando Quagga…';
+    const code = await tryQuagga(file);
+    if (code) {
+      box.style.background = '#00e67622'; box.style.color = '#00e676';
+      box.textContent = `📷 Quagga detectó: ${code}`;
+      log('✅ Quagga detectó: ' + code, 'ok');
+    } else {
+      box.style.background = '#ff525222'; box.style.color = '#ff5252';
+      box.textContent = '❌ Ningún motor pudo leer el código';
+      log('❌ Todos los motores fallaron', 'err');
+    }
+    this.value = '';
+  });
+
+  // ─── ③ GUARDAR CLAVE ─────────────────────────────────────────────────────────
+  async function saveKey() {
+    const key = document.getElementById('keyInput').value.trim();
+    if (!key || !key.startsWith('gsk_') || key.length < 30) {
+      log('❌ Clave inválida — debe empezar con gsk_', 'err'); return;
+    }
+    localStorage.setItem('groq_api_key', key);
+    log('Guardada en localStorage ✅', 'ok');
+    if (typeof DB === 'undefined' || !DB.saveSettings) {
+      log('⚠️ js/api.js no se cargó — la clave solo quedó en este dispositivo', 'warn');
+    } else {
+      try {
+        // DB.saveSettings hace PATCH sobre la fila activa (o INSERT si no existe).
+        await DB.saveSettings({ groqApiKey: key });
+        log('✅ Guardada en DB — disponible en TODOS los dispositivos', 'ok');
+      } catch (e) {
+        log('❌ Error DB: ' + (e?.message || e), 'err');
+      }
+    }
+    document.getElementById('keyInput').value = '';
+    checkEngines();
+  }
+
+  function clearLocalKey() {
+    localStorage.removeItem('groq_api_key');
+    log('🗑 Clave local eliminada', 'warn');
+  }
+
+  // ─── HELPERS ─────────────────────────────────────────────────────────────────
+  async function tryNative(file) {
+    try {
+      const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf'] });
+      const bitmap   = await createImageBitmap(file);
+      const results  = await detector.detect(bitmap);
+      bitmap.close();
+      return results?.[0]?.rawValue || null;
+    } catch(e) { log('BarcodeDetector error: ' + e.message, 'warn'); return null; }
+  }
+
+  async function tryGroq(file, key) {
+    try {
+      const b64 = await toBase64(file);
+      const r   = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: `You are a professional barcode reader. Your ONLY job is to read the NUMBER that belongs to the MAIN STRIPED BARCODE in the image.
+
+STRICT RULES:
+1. A real barcode has VERTICAL BLACK AND WHITE STRIPES with a number printed DIRECTLY BELOW OR ABOVE those stripes.
+2. The number you return MUST be exactly 8, 12, or 13 digits long (EAN-8=8, UPC-A=12, EAN-13=13). NEVER return 14 or more digits.
+3. If there are multiple numbers in the image, pick ONLY the one directly under/above the striped barcode pattern.
+4. IGNORE completely: lot numbers, reference codes, serial numbers, weight codes, price tags, QR codes, any number NOT directly attached to the stripe pattern, and any letter-digit combinations.
+5. IGNORE any number that is 14+ digits — those are NOT valid barcodes.
+6. Return ONLY the digits, nothing else (no spaces, no letters, no punctuation).
+7. If no clear striped barcode is visible, return exactly: NULL` },
+            { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b64 } }
+          ]}],
+          max_tokens: 50, temperature: 0
+        })
+      });
+      const d    = await r.json().catch(() => ({}));
+      if (!r.ok) { log('Groq HTTP ' + r.status + ': ' + (d?.error?.message||''), 'err'); return null; }
+      const text = (d.choices?.[0]?.message?.content || '').trim();
+      log('Groq respondió: "' + text + '"', 'dim');
+      const m = text.match(/\b(\d{13}|\d{12}|\d{8})\b/);
+      return m ? m[0] : null;
+    } catch(e) { log('Groq error: ' + e.message, 'err'); return null; }
+  }
+
+  function tryQuagga(file) {
+    return new Promise(resolve => {
+      if (typeof Quagga === 'undefined') { resolve(null); return; }
+      const url = URL.createObjectURL(file);
+      Quagga.decodeSingle({
+        src: url, numOfWorkers: 0,
+        inputStream: { size: 1920 },
+        decoder: { readers: ['ean_reader','upc_reader','ean_8_reader','upc_e_reader','code_128_reader'], multiple: false },
+        locator: { patchSize: 'medium', halfSample: false }, locate: true
+      }, result => { URL.revokeObjectURL(url); resolve(result?.codeResult?.code || null); });
+    });
+  }
+
+  function toBase64(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // Auto-inicio
+  window.addEventListener('load', checkEngines);
+  </script>
+</body>
+</html>

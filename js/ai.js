@@ -460,17 +460,14 @@ async function aiBulkDescribe() {
   try {
     // ── 1. Cargar TODOS los productos ──────────────────────────────────────────
     _bulkSetProgress(0, 0, null, 'Cargando productos…');
-    let all = [], page = 1;
-    while (true) {
-      _bulkSetProgress(0, 0, `📦 Cargando página ${page}…`, 'Cargando productos…');
-      const resp = await fetch(`tables/products?limit=500&page=${page}`);
-      if (!resp.ok) throw new Error(`Error al cargar productos (HTTP ${resp.status})`);
-      const json  = await resp.json();
-      const chunk = (json.data || []).filter(p => !p.deleted);
-      all = all.concat(chunk);
-      if (chunk.length < 500) break;
-      page++;
+    // DB.getProducts() resuelve solo el entorno y ya pagina internamente.
+    // NO usar 'tables/products': esa ruta es del editor y da 404 en producción.
+    _bulkSetProgress(0, 0, '📦 Cargando productos…', 'Cargando productos…');
+    if (typeof DB === 'undefined' || !DB.getProducts) {
+      throw new Error('La capa de datos (js/api.js) no está disponible');
     }
+    const all = (await DB.getProducts({ full: true })).filter(p => !p.deleted);
+    _bulkSetProgress(0, 0, `✅ ${all.length} productos cargados`, 'Cargando productos…');
 
     // Procesar TODOS (reescribe también los que ya tienen descripción)
     const todo = all;
@@ -697,19 +694,13 @@ async function _aiBulkDescribe_UNUSED_LEGACY() {
   try {
     // 1. Cargar TODOS los productos con paginación (por si hay más de 500)
     _bulkSetProgress(0, 0, null, 'Cargando productos…');
-    let all = [];
-    let page = 1;
-    while (true) {
-      _bulkSetProgress(0, 0, `📦 Cargando página ${page}…`, 'Cargando productos…');
-      const resp = await fetch(`tables/products?limit=500&page=${page}`);
-      if (!resp.ok) throw new Error(`Error al cargar productos (HTTP ${resp.status})`);
-      const json = await resp.json();
-      const chunk = (json.data || []).filter(p => !p.deleted);
-      all = all.concat(chunk);
-      _bulkSetProgress(0, 0, `✅ ${all.length} productos cargados`, 'Cargando productos…');
-      if (chunk.length < 500) break;
-      page++;
+    // Igual que arriba: la capa DB pagina sola y funciona en producción.
+    _bulkSetProgress(0, 0, '📦 Cargando productos…', 'Cargando productos…');
+    if (typeof DB === 'undefined' || !DB.getProducts) {
+      throw new Error('La capa de datos (js/api.js) no está disponible');
     }
+    const all = (await DB.getProducts({ full: true })).filter(p => !p.deleted);
+    _bulkSetProgress(0, 0, `✅ ${all.length} productos cargados`, 'Cargando productos…');
 
     if (all.length === 0) {
       _bulkClose();

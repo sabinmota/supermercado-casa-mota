@@ -2476,7 +2476,8 @@ function _adjustOrderLineStock(productId, delta) {
   const p = adminProducts.find(x => Number(x.id) === Number(productId));
   if (p) {
     p.stock = Math.max(0, (p.stock || 0) + delta);
-    _apiPatch('products', p.id, { stock: p.stock }).catch(() => {});
+    _apiPatch('products', p.id, { stock: p.stock })
+      .catch(logFail(`ajustar el stock de "${p.name}" desde el pedido`));
     DBCached.invalidateProducts();
   }
 }
@@ -2515,7 +2516,8 @@ function restoreStock(order) {
     const prod = adminProducts.find(p => Number(p.id) === Number(line.productId));
     if (prod) {
       prod.stock = (prod.stock || 0) + (line.cantidad || 0);
-      _apiPatch('products', prod.id, { stock: prod.stock }).catch(() => {});
+      _apiPatch('products', prod.id, { stock: prod.stock })
+        .catch(logFail(`reponer stock de "${prod.name}" al cancelar`));
       changed = true;
     }
   });
@@ -2567,7 +2569,8 @@ function saveOrderStatus() {
       const prod = adminProducts.find(p => Number(p.id) === Number(line.productId));
       if (prod) {
         prod.stock = Math.max(0, (prod.stock || 0) - (line.cantidad || 0));
-        _apiPatch('products', prod.id, { stock: prod.stock }).catch(() => {});
+        _apiPatch('products', prod.id, { stock: prod.stock })
+          .catch(logFail(`volver a descontar stock de "${prod.name}"`));
       }
     });
     DBCached.invalidateProducts();
@@ -3163,7 +3166,8 @@ async function saveNewOrder() {
     const p = adminProducts.find(x => Number(x.id) === Number(line.productId));
     if (p) {
       p.stock = Math.max(0, (p.stock || 0) - line.cantidad);
-      _apiPatch('products', p.id, { stock: p.stock }).catch(() => {});
+      _apiPatch('products', p.id, { stock: p.stock })
+        .catch(logFail(`descontar stock de "${p.name}" en el pedido nuevo`));
     }
   });
   DBCached.invalidateProducts();
@@ -3178,7 +3182,7 @@ async function saveNewOrder() {
       orders:    customers[cIdx].orders,
       spent:     customers[cIdx].spent,
       lastOrder: dateStr,
-    }).catch(() => {});
+    }).catch(logFail(`actualizar los contadores de "${customers[cIdx].name}"`));
     DBCached.invalidateCustomers();
   }
 
@@ -3332,7 +3336,8 @@ function adjustStock(id, delta) {
   const p = adminProducts.find(x => x.id === id);
   if (!p) return;
   p.stock = Math.max(0, (Number(p.stock) || 0) + delta);
-  _apiPatch('products', p.id, { stock: p.stock }).catch(() => {});
+  _apiPatch('products', p.id, { stock: p.stock })
+    .catch(logFail(`guardar el stock de "${p.name}"`));
   DBCached.invalidateProducts();
   renderInventory();
   renderProductsTable();
@@ -3394,7 +3399,7 @@ function getLoyaltyConfig() {
         levels: LOYALTY_DEFAULTS.levels,
       };
     }
-  }).catch(() => {});
+  }).catch(logFail('leer la configuración de fidelización'));
   return _loyaltyConfigCache;
 }
 
@@ -3677,7 +3682,7 @@ function addPointsToCustomer(customerId, pts, reason, orderId = null) {
   });
 
   DB.patchCustomer(customerId, { loyaltyPoints: customers[customers.findIndex(c => c.id === customerId)].loyaltyPoints, loyaltyTier: customers[customers.findIndex(c => c.id === customerId)].loyaltyTier, loyaltyHistory: customers[customers.findIndex(c => c.id === customerId)].loyaltyHistory })
-    .catch(() => {});
+    .catch(logFail(`guardar los puntos de "${customers[idx].name}"`));
   DBCached.invalidateCustomers();
 }
 

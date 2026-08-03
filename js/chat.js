@@ -776,7 +776,7 @@ function toggleChat() {
         _chatLoadStoreInfo(),
         _chatLoadGestion(),      // pedidos + clientes (solo admin)
         _chatGroqKey(),          // precalentar clave en cache
-      ]).catch(() => {});        // ignorar errores de precarga
+      ]).catch(logFail('la precarga del contexto de Maya'));
     }
     // Foco en input
     setTimeout(() => document.getElementById('chatMsgInput')?.focus(), 300);
@@ -1247,6 +1247,15 @@ INSTRUCCIONES IMPORTANTES:
         if (text) return text.trim();
       } else {
         console.warn('Groq error:', res.status, JSON.stringify(data));
+        // 429 = tope de uso alcanzado (nuestro proxy en functions/api/chat.js
+        // o el propio Groq). No reintentar: devolver el aviso a la persona.
+        if (res.status === 429) {
+          const espera = Number(data && data.esperar) || 0;
+          const base = (data && data.codigo === 'rate_limited' && data.error)
+            ? data.error
+            : 'El servicio de IA está saturado ahora mismo.';
+          return espera ? `${base}\n\n⏳ Vuelve a intentarlo en unos ${espera} segundos.` : base;
+        }
         // Si es error de payload muy grande, reintentar con prompt reducido
         if ((res.status === 413 || res.status === 400) && data) {
           const shortPrompt = systemPrompt.split('\n').slice(0, 8).join('\n');

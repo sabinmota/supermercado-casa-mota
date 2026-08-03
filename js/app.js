@@ -2655,7 +2655,7 @@ function toggleCart() {
         _checkoutSettingsCache = s;
         updateCartUI();
         renderCartItems();
-      }).catch(() => {});
+      }).catch(logFail('cargar la configuración de envío'));
     }
     renderCartItems();
     document.body.style.overflow = 'hidden';
@@ -2977,10 +2977,11 @@ async function confirmOrder() {
         const prod = stockActual.find(p => Number(p.id) === Number(item.id));
         if (prod) {
           const nuevoStock = Math.max(0, (prod.stock || 0) - item.qty);
-          _apiPatch('products', prod.id, { stock: nuevoStock }).catch(() => {});
+          _apiPatch('products', prod.id, { stock: nuevoStock })
+            .catch(logFail(`descontar stock de "${prod.name}"`));
         }
       }
-    }).catch(() => {});
+    }).catch(logFail('leer el stock para descontarlo'));
 
     // Actualizar estadísticas del cliente
     const updFields = {
@@ -2994,11 +2995,11 @@ async function confirmOrder() {
       const { password: _pw, ...safe } = updClient;
       setClientSession(safe);
       currentClient = safe;
-    }).catch(() => {});
+    }).catch(logFail('actualizar los contadores del cliente tras el pedido'));
 
     // Incrementar uso del cupón si se usó uno
     if (cuponId && typeof incrementCuponUso === 'function') {
-      incrementCuponUso(cuponId).catch(() => {});
+      incrementCuponUso(cuponId).catch(logFail('incrementar el uso del cupón'));
     }
     _activeCupon = null;
 
@@ -4044,20 +4045,22 @@ async function cancelClientOrder(orderId) {
     const restoreStock = async () => {
       if (!order.productLines || order.productLines.length === 0) return;
       // Obtener todos los productos de una sola llamada (en vez de una por artículo)
-      const allProds = await DB.getProducts().catch(() => []);
+      const allProds = await DB.getProducts()
+      .catch(e => { logFail('leer productos para reponer stock')(e); return []; });
       await Promise.all(order.productLines.map(line => {
         const prod = allProds.find(p => String(p.id) === String(line.productId));
         if (!prod) return Promise.resolve();
         return _apiPatch('products', prod.id, {
           stock: Math.max(0, (prod.stock || 0) + (line.cantidad || 0))
-        }).catch(() => {});
+        }).catch(logFail(`reponer stock de "${prod.name}" al cancelar`));
       }));
     };
 
     const updateStats = async () => {
       const newOrders = Math.max(0, (currentClient.orders || 0) - 1);
       const newSpent  = Math.max(0, (currentClient.spent  || 0) - (order.total || 0));
-      await DB.patchCustomer(currentClient.id, { orders: newOrders, spent: newSpent }).catch(() => {});
+      await DB.patchCustomer(currentClient.id, { orders: newOrders, spent: newSpent })
+        .catch(logFail('restar los contadores del cliente al cancelar'));
       const updClient = { ...currentClient, orders: newOrders, spent: newSpent };
       const { password: _pw, ...safe } = updClient;
       setClientSession(safe);
@@ -4065,7 +4068,8 @@ async function cancelClientOrder(orderId) {
     };
 
     // Ejecutar en paralelo, sin await — el usuario ya recibió su feedback
-    Promise.all([restoreStock(), updateStats()]).catch(() => {});
+    Promise.all([restoreStock(), updateStats()])
+      .catch(logFail('las tareas de fondo de la cancelación'));
 
   } catch(e) {
     console.error('[cancelClientOrder]', e);
@@ -4152,7 +4156,9 @@ async function clearCancelledOrders() {
     }
 
     // Eliminar todos en paralelo
-    await Promise.all(cancelled.map(o => DB.deleteOrder(o.id).catch(() => {})));
+    await Promise.all(cancelled.map(o =>
+      DB.deleteOrder(o.id).catch(logFail(`eliminar el pedido #${o.order_number || o.id}`))
+    ));
 
     showToast(`<i class="fas fa-trash-can"></i> ${cancelled.length} pedido${cancelled.length !== 1 ? 's' : ''} cancelado${cancelled.length !== 1 ? 's' : ''} eliminado${cancelled.length !== 1 ? 's' : ''} del historial`, 'success');
     renderMyOrders();
@@ -4288,7 +4294,8 @@ async function clearAllCouponHistory() {
 
     // Limpiar campos de cupón en todos los pedidos afectados (en paralelo)
     await Promise.all(withCoupon.map(o =>
-      DB.patchOrder(o.id, { cuponUsado: '', cuponId: '', descuento: 0 }).catch(() => {})
+      DB.patchOrder(o.id, { cuponUsado: '', cuponId: '', descuento: 0 })
+        .catch(logFail(`limpiar el cupón del pedido #${o.order_number || o.id}`))
     ));
 
     showToast(`<i class="fas fa-trash-can"></i> ${withCoupon.length} entrada${withCoupon.length !== 1 ? 's' : ''} eliminada${withCoupon.length !== 1 ? 's' : ''} del historial`, 'success');
@@ -4502,7 +4509,8 @@ function deleteMyLocation() {
 function _saveClientMapLink(link) {
   if (!currentClient) return;
   // Actualizar en la API
-  DB.patchCustomer(currentClient.id, { mapLink: link }).catch(() => {});
+  DB.patchCustomer(currentClient.id, { mapLink: link })
+    .catch(logFail('guardar el enlace de Google Maps del cliente'));
   // Actualizar sesión
   const updClient = { ...currentClient, mapLink: link };
   const { password: _pw, ...safe } = updClient;
