@@ -317,6 +317,12 @@
       borrados (<code>deleted</code>), para que sea fiel a la base de datos y no una
       vista filtrada de la tienda.
     </p>
+    <p style="margin-top:8px;font-size:.84rem;color:#6b7280">
+      <strong>¿Por qué pesa tanto?</strong> Las imágenes de los productos se guardan
+      dentro de la propia base de datos (base64), así que van incluidas en el JSON.
+      Un respaldo completo ronda los <strong>20 MB</strong>: es lo esperado, y significa
+      que también recuperarías las fotos.
+    </p>
   </div>
 
 </div><!-- /card -->
@@ -333,8 +339,14 @@ const TABLES = [
   { name: 'cupones',        label: 'Cupones',        icon: '🎟️', limit: 200 },
   { name: 'notificaciones', label: 'Notificaciones', icon: '🔔', limit: 500 },
   { name: 'settings',       label: 'Configuración',  icon: '⚙️', limit: 50  },
-  { name: 'productos',      label: 'Productos (v1)', icon: '🗄️', limit: 500 },
 ];
+
+// NOTA: aquí había una décima entrada, `productos` («Productos v1»), resto del
+// esquema anterior a la migración a Supabase. Esa tabla NO EXISTE en la base de
+// datos actual, así que cada respaldo terminaba con un 404 y el marcador
+// "9/10 tablas", dando la impresión de que algo había fallado.
+// Los productos reales están en `products` (1.913 registros). Entrada retirada
+// en el build 377: no se pierde nada porque nunca hubo nada que exportar.
 
 let selected   = new Set(TABLES.map(t => t.name));
 let exportData = {};
@@ -458,16 +470,38 @@ async function startExport() {
       results.push({ name: t.name, label: t.label, count: rows.length, size, status: 'ok' });
       addLog(`✅ "${t.name}" — ${rows.length} registros (${size})`, 'ok');
     } catch (err) {
-      results.push({ name: t.name, label: t.label, count: 0, size: '—', status: 'error', err: err.message });
-      addLog(`❌ Error en "${t.name}": ${err.message}`, 'err');
+      const msg = String(err.message || err);
+      // Distinguir "la tabla no existe" de un error de verdad.
+      // PGRST205 = PostgREST no encuentra la tabla en el esquema. Eso NO pone en
+      // riesgo el respaldo: no hay datos que perder. Un timeout o un 500, sí.
+      const noExiste = msg.includes('PGRST205')
+                    || msg.includes('Could not find the table')
+                    || /HTTP 404/.test(msg);
+      if (noExiste) {
+        results.push({ name: t.name, label: t.label, count: 0, size: '—', status: 'ausente' });
+        addLog(`⏭️ "${t.name}" no existe en la base de datos — se omite (no es un fallo).`, 'info');
+      } else {
+        results.push({ name: t.name, label: t.label, count: 0, size: '—', status: 'error', err: msg });
+        addLog(`❌ Error en "${t.name}": ${msg}`, 'err');
+      }
     }
   }
 
-  const okCount    = results.filter(r => r.status === 'ok').length;
-  const totalFilas = Object.values(exportData).reduce((s, arr) => s + arr.length, 0);
+  const okCount      = results.filter(r => r.status === 'ok').length;
+  const ausentes     = results.filter(r => r.status === 'ausente').length;
+  const conError     = results.filter(r => r.status === 'error').length;
+  const totalFilas   = Object.values(exportData).reduce((s, arr) => s + arr.length, 0);
+  // Las tablas ausentes no cuentan como fracaso: lo que importa es que ninguna
+  // tabla EXISTENTE haya fallado.
+  const esperadas    = total - ausentes;
 
-  setProgress(100, okCount === total ? '✅ Exportación completada' : '⚠️ Completada con errores');
-  addLog(`🏁 Backup finalizado. ${okCount}/${total} tablas — ${totalFilas} registros en total.`, 'info');
+  setProgress(100, conError === 0 ? '✅ Exportación completada' : '⚠️ Completada con errores');
+  addLog(
+    `🏁 Backup finalizado. ${okCount}/${esperadas} tablas — ${totalFilas} registros en total.`
+    + (ausentes  ? ` (${ausentes} tabla${ausentes === 1 ? '' : 's'} inexistente${ausentes === 1 ? '' : 's'}, omitida${ausentes === 1 ? '' : 's'})` : '')
+    + (conError  ? ` ⚠️ ${conError} con error` : ''),
+    conError ? 'err' : 'info'
+  );
 
   // ── AVISO CRÍTICO ──
   // Un respaldo vacío es peor que ninguno: da falsa sensación de seguridad.
@@ -493,9 +527,18 @@ async function startExport() {
 function showResults(results) {
   const tbody = document.getElementById('resultBody');
   tbody.innerHTML = results.map(r => {
-    const badge = r.status === 'ok'
-      ? (r.count > 0 ? `<span class="badge-ok">✅ ${r.count} registros</span>` : `<span class="badge-empty">⚠️ Vacía</span>`)
-      : `<span class="badge-err">❌ Error</span>`;
+    let badge;
+    if (r.status === 'ok') {
+      badge = r.count > 0
+        ? `<span class="badge-ok">✅ ${r.count} registros</span>`
+        : `<span class="badge-empty">⚠️ Vacía</span>`;
+    } else if (r.status === 'ausente') {
+      // La tabla no existe en la base de datos: se omite. No pone en riesgo el
+      // respaldo, así que no se pinta en rojo.
+      badge = `<span class="badge-empty">⏭️ No existe</span>`;
+    } else {
+      badge = `<span class="badge-err">❌ Error</span>`;
+    }
     return `
       <tr>
         <td><strong>${r.label}</strong><br><small style="color:#9ca3af">${r.name}</small></td>
