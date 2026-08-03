@@ -226,22 +226,39 @@
       _pvIdsVistos = idsAhora;
 
       // Mantener `orders` al día aunque estés en otra sección: así al entrar en
-      // Pedidos ya está fresco. Repintar solo si la sección visible lo muestra
-      // (puede haber cambios de estado hechos desde otro dispositivo, no solo
-      // pedidos nuevos).
-      if (typeof orders !== 'undefined') {
-        orders = lista;
+      // Pedidos ya está fresco.
+      if (typeof orders !== 'undefined') orders = lista;
+
+      // Repintar SOLO si hay algo que cambió y la sección visible lo muestra.
+      //
+      // ⚠️ CUIDADO CON EL PARPADEO — regresión corregida en v=4.
+      // La versión anterior llamaba a loadDashboard() en cada sondeo. Eso:
+      //   1) volvía a descargar los 1.913 productos (redundante: el sondeo ya
+      //      tiene los pedidos, y los productos no cambian solos), y
+      //   2) repintaba el gráfico DOS veces más. Como renderSalesChart()
+      //      destruye y recrea el chart (admin.v33.js:917-926) en vez de
+      //      actualizarlo, cada repintado es un parpadeo visible.
+      // El usuario lo notó como «recarga y recarga varias veces» al entrar.
+      //
+      // Ahora: si no hay pedidos nuevos, NO se toca la interfaz. Y cuando los
+      // hay, se llama a las funciones de dibujado concretas — nunca a
+      // loadDashboard(), que vuelve a bajar el catálogo completo.
+      const hayCambios = nuevos.length > 0;
+      if (hayCambios && !_pvHayModalAbierto()) {
         const seccion = _pvSeccionActiva();
-        if (!_pvHayModalAbierto()) {
-          if (seccion === 'orders' && typeof renderOrdersTable === 'function') {
-            renderOrdersTable();
-          }
-          if (seccion === 'dashboard' && typeof loadDashboard === 'function') {
-            loadDashboard();
-          }
+        if (seccion === 'orders' && typeof renderOrdersTable === 'function') {
+          try { renderOrdersTable(); } catch (e) {}
+        }
+        if (seccion === 'dashboard') {
+          // Solo lo que depende de los pedidos. El gráfico de categorías se
+          // alimenta de productos, así que no hace falta redibujarlo.
+          try { if (typeof renderDashboardKpis === 'function') renderDashboardKpis(); } catch (e) {}
+          try { if (typeof renderRecentOrders  === 'function') renderRecentOrders();  } catch (e) {}
         }
       }
-      if (typeof DBCached !== 'undefined' && DBCached.invalidateOrders) {
+      // Invalidar la caché solo si algo cambió. Hacerlo en cada sondeo forzaría
+      // a otras pantallas a volver a consultar sin motivo.
+      if (hayCambios && typeof DBCached !== 'undefined' && DBCached.invalidateOrders) {
         DBCached.invalidateOrders();
       }
 
@@ -313,15 +330,27 @@
       setTimeout(_pvIniciar, 3000);
       return;
     }
-    _pvSondear();   // primera pasada: solo memoriza, no avisa
+
+    // Sembrar los ids con lo que initAdminData() ya descargó, SIN volver a
+    // consultar. Antes se lanzaba un _pvSondear() aquí, que repetía una
+    // petición recién hecha y (en el dashboard) provocaba otro repintado justo
+    // cuando la carga inicial acababa de terminar.
+    if (typeof orders !== 'undefined' && Array.isArray(orders) && orders.length > 0) {
+      _pvIdsVistos = new Set(orders.map(o => String(o.id)));
+    }
+    // Si `orders` está vacío no se siembra nada: _pvIdsVistos sigue en null y el
+    // primer tick de los 30 s hará de primera pasada (memoriza, no avisa).
+
     _pvArrancar();
     console.log('[pedidos] vigilancia activa — sondeo cada 30 s en todo el panel.');
   }
 
+  // 4 s de margen para que initAdminData() (fase 1a + fase 1b, 1.913 productos)
+  // haya terminado. Así el arranque no se solapa con la carga inicial.
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(_pvIniciar, 1500));
+    document.addEventListener('DOMContentLoaded', () => setTimeout(_pvIniciar, 4000));
   } else {
-    setTimeout(_pvIniciar, 1500);
+    setTimeout(_pvIniciar, 4000);
   }
 
   // ─── API pública ────────────────────────────────────────────────────────────

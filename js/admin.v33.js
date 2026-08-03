@@ -881,6 +881,18 @@ function renderRecentOrders() {
     </tr>`).join('');
 }
 
+/** Retira el placeholder animado del gráfico. Idempotente: si ya se quitó, no
+ *  hace nada. Se extrajo de la animación del chart porque ahora también hay que
+ *  llamarlo en la ruta de actualización sin animación (update('none')), donde
+ *  Chart.js NO dispara onComplete. */
+function _ocultarSkeletonGrafico() {
+  const sk = document.getElementById('salesChartSkeleton');
+  if (!sk || !sk.parentNode) return;
+  sk.style.transition = 'opacity .35s';
+  sk.style.opacity = '0';
+  setTimeout(() => { if (sk && sk.parentNode) sk.remove(); }, 380);
+}
+
 function renderSalesChart() {
   // ── Canvas ───────────────────────────────────────────────────────────────────
   const canvasEl = document.getElementById('salesChart');
@@ -906,15 +918,56 @@ function renderSalesChart() {
     // Solo incluir productos cuya categoría exista actualmente en la BD
     if (!validSlugs.has(p.category)) return;
     const label = catLabel(p.category);
-    catTotals[label] = (catTotals[label] || 0) + (Number(p.price) || 0) * (Math.floor(Math.random() * 20) + 5);
+    // ⚠️ ATENCIÓN: este gráfico NO son ventas reales. Es una ESTIMACIÓN a partir
+    // del precio de catálogo (no hay datos de ventas por categoría todavía).
+    //
+    // Antes el multiplicador era Math.random(), así que las cifras CAMBIABAN en
+    // cada repintado — el mismo gráfico mostraba números distintos un segundo
+    // después. Sustituido por un peso derivado del propio producto: sigue siendo
+    // una estimación, pero al menos es ESTABLE entre repintados.
+    const semilla = String(p.id || p.name || '')
+      .split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const peso = (semilla % 20) + 5;   // 5-24, igual rango que antes
+    catTotals[label] = (catTotals[label] || 0) + (Number(p.price) || 0) * peso;
   });
   const labels = Object.keys(catTotals);
   const data   = Object.values(catTotals);
   const colors = ['#1a7c3e','#27a35a','#1565c0','#f57c00','#e53935','#6a1b9a','#00838f','#f9a825'];
 
-  // El canvas ya es visible en el DOM (el skeleton lo tapa con z-index).
-  // Solo necesitamos destruir chart anterior y crear uno nuevo.
+  // ── ANTIPARPADEO 1: no dibujar un gráfico vacío ─────────────────────────────
+  // initAdminData() llama aquí dos veces: primero al llegar los pedidos (fase
+  // 1a, cuando adminProducts aún está vacío → gráfico en blanco) y otra vez al
+  // llegar los 1.913 productos (fase 1b → gráfico real). Pintar el vacío no
+  // aporta nada y añade una reconstrucción visible. Mejor dejar el skeleton
+  // puesto hasta que haya datos de verdad.
+  //
+  // OJO: solo se aplaza mientras los productos NO han llegado. Si ya llegaron y
+  // aun así no hay categorías válidas, hay que seguir y retirar el skeleton — si
+  // no, se quedaría girando indefinidamente cuando la fase 1b falla.
+  const productosCargados = Array.isArray(adminProducts) && adminProducts.length > 0;
+  if (labels.length === 0) {
+    if (!productosCargados) return;          // aún cargando: esperar
+    _ocultarSkeletonGrafico();               // cargado pero sin datos: no dejar el placeholder colgado
+    if (salesChartInstance) { salesChartInstance.destroy(); salesChartInstance = null; }
+    return;
+  }
+
+  // ── ANTIPARPADEO 2: actualizar en vez de destruir y recrear ─────────────────
+  // Recrear el chart relanza la animación de 1,1 s desde cero, y eso es lo que
+  // se percibía como «recarga y recarga varias veces». Si las categorías son
+  // las mismas, basta con sustituir los datos y actualizar sin animación.
   if (salesChartInstance) {
+    const mismasEtiquetas =
+      salesChartInstance.data.labels.length === labels.length &&
+      salesChartInstance.data.labels.every((l, i) => l === labels[i]);
+
+    if (mismasEtiquetas) {
+      salesChartInstance.data.datasets[0].data = data;
+      salesChartInstance.update('none');   // 'none' = sin animación, sin parpadeo
+      _ocultarSkeletonGrafico();
+      return;
+    }
+    // Si cambiaron las categorías, sí hay que reconstruirlo.
     salesChartInstance.destroy();
     salesChartInstance = null;
   }
@@ -942,14 +995,7 @@ function renderSalesChart() {
         easing: 'easeInOutQuart',
         animateRotate: true,   // gira desde 0° hasta el valor real
         animateScale: true,    // escala desde el centro
-        onComplete: () => {
-          const sk = document.getElementById('salesChartSkeleton');
-          if (sk) {
-            sk.style.transition = 'opacity .35s';
-            sk.style.opacity = '0';
-            setTimeout(() => { if (sk && sk.parentNode) sk.remove(); }, 380);
-          }
-        }
+        onComplete: () => _ocultarSkeletonGrafico()
       },
       plugins: {
         legend: {
