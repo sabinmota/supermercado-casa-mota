@@ -199,7 +199,18 @@ function _orderToSupa(o) {
   // El «retiro en tienda» se guarda en deliveryType, que SÍ es texto libre.
   // Así no se pierde la información: sigue siendo consultable y ya no intenta
   // colarse por una columna con clave ajena.
-  if (String(o.driverId || '') === '_retiro') { r.deliveryType = 'retiro'; }
+  if (String(o.driverId || '') === '_retiro') {
+    r.deliveryType = 'retiro';
+  } else if (_uuidOk(o.driverId) && String(o.deliveryType || '') === 'retiro') {
+    // BUILD 379b — LIMPIAR LA MARCA AL CAMBIAR DE OPINIÓN.
+    // Sin esto quedaba una contradicción en la base de datos: un pedido con
+    // repartidor real asignado y deliveryType='retiro' a la vez. Ocurría al
+    // marcar «Retiro en tienda», guardar, y luego asignar un repartidor: la
+    // marca vieja se quedaba pegada porque nadie la borraba.
+    // En pantalla no se notaba (driverId manda), y por eso era peligroso:
+    // el dato crudo mentía en exportaciones, informes y consultas SQL.
+    r.deliveryType = 'delivery';
+  }
 
   return r;
 }
