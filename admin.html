@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '380';
+      const VER = '382';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -35,7 +35,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png" />
-  <link rel="stylesheet" href="css/admin.v33.css?v=257" />
+  <link rel="stylesheet" href="css/admin.v33.css?v=258" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -1288,8 +1288,12 @@
             <input type="text" class="form-input" id="pName" placeholder="Ej: Mangó Banilejo" />
           </div>
           <div class="form-group">
-            <label>Categoría <span class="req">*</span></label>
-            <select class="form-input" id="pCategory">
+            <label for="pCategory">Categoría <span class="req">*</span></label>
+            <!-- BUILD 382: required + aria-required. La validación de verdad está
+                 en saveProduct() (js/admin.v33.js), porque este <select> no vive
+                 dentro de un <form> y el navegador no lo valida solo. Se marca
+                 igualmente para lectores de pantalla y por coherencia semántica. -->
+            <select class="form-input" id="pCategory" required aria-required="true">
               <option value="">⏳ Cargando categorías…</option>
             </select>
           </div>
@@ -2897,7 +2901,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=364"></script>
+  <script src="js/admin.v33.js?v=366"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=4"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
@@ -3208,8 +3212,17 @@
         </p>
         <div class="del-modal-warning">
           <i class="fas fa-circle-exclamation"></i>
-          <span>Esta acción es <b>irreversible</b>. Los productos asignados a esta categoría quedarán sin categoría.</span>
+          <span>Esta acción es <b>irreversible</b>.</span>
         </div>
+
+        <!--
+          BUILD 381 — Aviso con el recuento real de productos afectados.
+          Lo rellena openCatDeleteModal() en js/admin.v33.js tras contarlos.
+          Antes había aquí un texto fijo que decía «los productos quedarán sin
+          categoría»: ERA FALSO. No quedan sin categoría, conservan el slug
+          borrado, y el efecto real es que DESAPARECEN DE LA TIENDA sin avisar.
+        -->
+        <aside id="catDeleteAviso" class="cat-del-aviso" style="display:none" aria-live="polite"></aside>
       </div>
 
       <!-- Botones -->

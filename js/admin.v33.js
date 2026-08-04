@@ -1138,7 +1138,6 @@ function openProductModal(id = null) {
     const p = adminProducts.find(x => String(x.id) === String(id));
     if (!p) return;
     document.getElementById('pName').value          = p.name;
-    document.getElementById('pCategory').value      = p.category;
     document.getElementById('pPrice').value         = p.price;
     document.getElementById('pOriginalPrice').value = p.originalPrice || '';
     document.getElementById('pUnit').value          = p.unit;
@@ -1149,6 +1148,37 @@ function openProductModal(id = null) {
     document.getElementById('pImage').value         = p.image;
     document.getElementById('pBarcode').value       = p.barcode || '';
     _checkBarcodeUnique(p.barcode || '', p.id);
+
+    /* ─── BUILD 382 · Categoría al abrir para editar ──────────────────────────
+     * Antes se hacía `pCategory.value = p.category` a secas. Si la categoría del
+     * producto ya no existe entre las <option>, el navegador NO da error: deja
+     * el <select> en la primera opción («— Selecciona una categoría —») EN
+     * SILENCIO. El formulario aparentaba estar bien y, al guardar, el producto
+     * se llevaba otra categoría distinta sin que nadie lo hubiera decidido.
+     * Peor aún: se perdía el rastro de cuál era la categoría original.
+     *
+     * Ahora, si el slug guardado no está en la lista, se añade una <option>
+     * temporal marcada para que se VEA el problema y haya que resolverlo a mano.
+     */
+    const _catSel = document.getElementById('pCategory');
+    const _catVal = String(p.category || '');
+    _catSel.value = _catVal;
+
+    // .value queda vacío cuando el slug no existe entre las opciones.
+    if (_catVal && _catSel.value !== _catVal) {
+      const opt = document.createElement('option');
+      opt.value       = _catVal;
+      opt.textContent = `⚠️ ${_catVal} — categoría eliminada, elige otra`;
+      opt.dataset.huerfana = '1';
+      _catSel.prepend(opt);
+      _catSel.value = _catVal;
+      showAdminToast(
+        `⚠️ Este producto usa la categoría "${_catVal}", que ya no existe. `
+        + 'Por eso no aparece en la tienda. Elige una categoría válida antes de guardar.',
+        'error'
+      );
+    }
+
     // Mostrar preview de la imagen existente
     resetImgUpload();
     if (p.image) setImgPreview(p.image, '✅ Imagen actual del producto');
@@ -1157,6 +1187,10 @@ function openProductModal(id = null) {
   } else {
     ['pName','pPrice','pOriginalPrice','pUnit','pStock','pRating','pDescription','pImage','pBarcode']
       .forEach(id => document.getElementById(id).value = '');
+    // BUILD 382: retirar la <option> huérfana que pudiera haber dejado una
+    // edición anterior, para que no se ofrezca al crear un producto nuevo.
+    document.getElementById('pCategory')
+      .querySelectorAll('option[data-huerfana]').forEach(o => o.remove());
     document.getElementById('pCategory').value = '';
     document.getElementById('pBadge').value    = '';
     _loadExtraImages([]);
@@ -1830,7 +1864,61 @@ function saveProduct() {
   const unit     = document.getElementById('pUnit').value.trim();
   const stock    = parseInt(document.getElementById('pStock').value);
   if (!name)     { showAdminToast('⚠️ El nombre es obligatorio', 'error'); document.getElementById('pName')?.focus(); _unlock(); return; }
-  if (!category) { showAdminToast('⚠️ Debes seleccionar una categoría', 'error'); document.getElementById('pCategory')?.focus(); _unlock(); return; }
+
+  /* ─── BUILD 382 · CATEGORÍA OBLIGATORIA, AL CREAR Y AL EDITAR ───────────────
+   * Esta función es la ÚNICA vía por la que el panel crea o edita un producto
+   * (comprobado: los demás `_apiPatch('products', …)` solo tocan `stock`), así
+   * que validar aquí cubre los dos casos que pedía el usuario.
+   *
+   * Tres agujeros que tenía la versión anterior:
+   *
+   * 1. NO COMPROBABA QUE LA CATEGORÍA EXISTA. Bastaba que el <select> tuviera
+   *    algo. Si se editaba un producto cuya categoría fue borrada, el <select>
+   *    conservaba el slug viejo y `!category` daba false → se guardaba con una
+   *    categoría inexistente y el producto seguía invisible en la tienda. Era
+   *    posible re-guardar la «Canada Dry» sin arreglarla.
+   *
+   * 2. SE PODÍA GUARDAR MIENTRAS EL <select> DECÍA «⏳ Cargando categorías…»
+   *    (admin.html:1293). Ese option tiene value="", así que el aviso salía,
+   *    pero decía «selecciona una categoría» cuando no había ninguna que
+   *    seleccionar: mensaje engañoso.
+   *
+   * 3. NO MARCABA EL CAMPO EN ROJO, al contrario que el código de barras. El
+   *    toast desaparece; en un formulario largo no se veía dónde estaba el fallo.
+   */
+  const catField = document.getElementById('pCategory');
+
+  const _catError = (msg) => {
+    showAdminToast(msg, 'error');
+    catField?.focus();
+    if (catField) {
+      catField.style.borderColor = '#e53935';
+      catField.style.boxShadow   = '0 0 0 3px rgba(229,57,53,.18)';
+      setTimeout(() => { catField.style.borderColor = ''; catField.style.boxShadow = ''; }, 3000);
+    }
+  };
+
+  // Agujero 2: las categorías aún no han cargado.
+  const _catsListas = (adminCategories && adminCategories.length > 0);
+  if (!_catsListas) {
+    _catError('⏳ Las categorías aún no han cargado. Espera un momento y vuelve a guardar.');
+    _unlock(); return;
+  }
+
+  if (!category) { _catError('⚠️ Debes seleccionar una categoría'); _unlock(); return; }
+
+  // Agujero 1: la categoría debe EXISTIR de verdad. Mismo criterio que
+  // validSlugs (L919) y que catLabel(): slug, o id como respaldo.
+  const _slugsValidos = new Set(
+    adminCategories.map(c => c.slug || c.id).filter(Boolean)
+  );
+  if (!_slugsValidos.has(category)) {
+    _catError(
+      `⚠️ La categoría "${category}" ya no existe. Elige una de la lista: `
+      + 'si guardas con una categoría inexistente, el producto desaparece de la tienda.'
+    );
+    _unlock(); return;
+  }
   if (isNaN(price) || price <= 0) { showAdminToast('⚠️ El precio debe ser mayor a 0', 'error'); document.getElementById('pPrice')?.focus(); _unlock(); return; }
   if (!unit)     { showAdminToast('⚠️ La unidad es obligatoria (ej: lb, unidad, litro…)', 'warn'); document.getElementById('pUnit')?.focus(); _unlock(); return; }
   if (isNaN(stock) || stock <= 0) { showAdminToast('⚠️ El stock debe ser mayor a 0', 'warn'); document.getElementById('pStock')?.focus(); _unlock(); return; }
@@ -5511,6 +5599,9 @@ let editingCategoryOldSlug = null;
 
 /** UUID de la categoría pendiente de eliminar */
 let deletingCategoryUuid = null;
+// BUILD 381: slug de la categoría que se va a borrar. Necesario para contar los
+// productos que la usan (products.category guarda el slug, no el UUID).
+let deletingCategorySlug = '';
 
 // ─── Mapa de íconos FA Pro → FA Free (sanitización automática) ────────────────
 const _FA_PRO_TO_FREE = {
@@ -5596,6 +5687,10 @@ function renderCategoriesTable() {
     const isActive = c.active === true || c.active === 'true';
     const apiUuid  = c.id; // UUID real de la API
     const safeName = (c.name || '').replace(/'/g, "\\'");
+    // BUILD 381: el slug es la clave con la que los productos apuntan a la
+    // categoría (products.category). Se pasa al modal de borrado para poder
+    // contar cuántos productos quedarían huérfanos.
+    const safeSlug = (c.slug || c.id || '').replace(/'/g, "\\'");
     const iconHtml = c.icon
       ? `<i class="${c.icon}" style="color:${c.color||'#1a7c3e'};font-size:1.3rem" title="${c.name}"></i>`
       : `<span style="font-size:1.4rem">${c.emoji || '🏷️'}</span>`;
@@ -5621,7 +5716,7 @@ function renderCategoriesTable() {
             <i class="fas fa-pen"></i>
           </button>
           <button class="action-btn action-btn-delete" title="Eliminar"
-                  onclick="openCatDeleteModal('${apiUuid}','${safeName}')">
+                  onclick="openCatDeleteModal('${apiUuid}','${safeName}','${safeSlug}')">
             <i class="fas fa-trash"></i>
           </button>
         </div>
@@ -5840,13 +5935,22 @@ async function saveCategory() {
  */
 async function _migrateProductsCategory(oldSlug, newSlug) {
   try {
-    // 1. Cargar todos los productos (máx 2000)
-    const res = await fetch('tables/products?limit=2000');
-    const data = await res.json();
-    const allProducts = data.data || [];
+    // ── BUILD 381 · ESTA FUNCIÓN ESTABA ROTA EN PRODUCCIÓN ───────────────────
+    // Usaba fetch('tables/products?limit=2000') y fetch('tables/products/ID').
+    // 'tables/' es la API del entorno de DESARROLLO; en producción manda a
+    // Supabase y devuelve 404. Resultado: al cambiar el slug de una categoría,
+    // los productos NO se migraban y quedaban apuntando al slug viejo, es decir
+    // INVISIBLES EN LA TIENDA — el mismo síntoma que «Canada Dry Club Soda».
+    // El .catch() de abajo mostraba un toast de error genérico, así que parecía
+    // un fallo puntual de red y no una función que nunca funcionó.
+    // Es la novena ocurrencia del bug 'tables/' encontrada en el proyecto.
+    // 1. Cargar todos los productos por la capa de datos única
+    const allProducts = (typeof DB !== 'undefined' && DB.getProducts)
+      ? await DB.getProducts({ full: true })
+      : (adminProducts || []);
 
     // 2. Filtrar los que usan el slug viejo
-    const toUpdate = allProducts.filter(p => p.category === oldSlug);
+    const toUpdate = allProducts.filter(p => p.category === oldSlug && !p.deleted);
 
     if (toUpdate.length === 0) {
       showAdminToast(`No había productos con categoría "${oldSlug}"`, 'info');
@@ -5855,23 +5959,36 @@ async function _migrateProductsCategory(oldSlug, newSlug) {
 
     // 3. Actualizar en paralelo (máx 10 simultáneos para no saturar)
     let updated = 0;
+    let fallidos = 0;
     const BATCH = 10;
     for (let i = 0; i < toUpdate.length; i += BATCH) {
       const batch = toUpdate.slice(i, i + BATCH);
-      await Promise.all(batch.map(p =>
-        fetch(`tables/products/${p.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category: newSlug })
-        })
+      const res = await Promise.allSettled(batch.map(p =>
+        DB.saveProduct({ id: p.id }, { category: newSlug })
       ));
-      updated += batch.length;
+      // Promise.allSettled en lugar de Promise.all: si un producto falla, los
+      // demás se migran igual. Con Promise.all, un solo fallo abortaba el resto
+      // y dejaba la migración a medias sin decir cuántos habían quedado atrás.
+      updated  += res.filter(r => r.status === 'fulfilled').length;
+      fallidos += res.filter(r => r.status === 'rejected').length;
     }
 
-    showAdminToast(
-      `✔ ${updated} producto${updated !== 1 ? 's' : ''} movido${updated !== 1 ? 's' : ''} a "${newSlug}"`,
-      'success'
-    );
+    if (typeof DBCached !== 'undefined' && DBCached.invalidateProducts) {
+      DBCached.invalidateProducts();
+    }
+
+    if (fallidos > 0) {
+      showAdminToast(
+        `⚠️ ${updated} movido${updated !== 1 ? 's' : ''} a "${newSlug}", pero ${fallidos} falló${fallidos !== 1 ? 'aron' : ''}. `
+        + `Revisa en Productos: los que fallaron siguen en "${oldSlug}" y no se ven en la tienda.`,
+        'error'
+      );
+    } else {
+      showAdminToast(
+        `✔ ${updated} producto${updated !== 1 ? 's' : ''} movido${updated !== 1 ? 's' : ''} a "${newSlug}"`,
+        'success'
+      );
+    }
 
     // 4. Recargar la lista de productos en pantalla
     if (typeof loadProducts === 'function') await loadProducts();
@@ -5884,16 +6001,110 @@ async function _migrateProductsCategory(oldSlug, newSlug) {
 
 // ─── Eliminar ─────────────────────────────────────────────────────────────────
 
-function openCatDeleteModal(uuid, name) {
+/* ─── BUILD 381 · Aviso al borrar una categoría que tiene productos ──────────
+ *
+ * EL PROBLEMA QUE RESUELVE
+ * El vínculo producto→categoría es texto libre: products.category guarda el
+ * slug ("bebidas") y se compara contra categories.slug. Postgres NO lo vigila,
+ * porque no hay clave ajena entre ambas tablas (decisión deliberada: ver
+ * casamota-estado.md · "deuda 15"). Al borrar una categoría, sus productos
+ * quedan apuntando a un slug que ya no existe, y entonces:
+ *
+ *   · js/app.js       → el producto DESAPARECE del catálogo. No se puede comprar
+ *   · admin>Productos → sigue apareciendo, con la categoría en crudo
+ *   · gráfico de categorías (L919) → se ignora EN SILENCIO
+ *
+ * Es exactamente lo que le pasó a «Canada Dry Club Soda»: activa, 1000 unidades
+ * en stock, invisible para los clientes. Nadie se enteró hasta que un SQL de
+ * diagnóstico la encontró.
+ *
+ * POR QUÉ UN AVISO Y NO UNA CLAVE AJENA
+ * Una FK obliga a elegir, y las dos opciones son peores que esto:
+ *   ON DELETE SET NULL  → los 141 productos de "bebidas" a NULL de golpe:
+ *                         141 productos invisibles y sin avisar
+ *   ON DELETE RESTRICT  → Postgres impide el borrado con un error técnico en
+ *                         inglés, sin explicar qué hacer
+ * El aviso informa del número exacto y deja la decisión en manos de quien sabe
+ * lo que quiere: el usuario.
+ */
+async function _contarProductosDeCategoria(slug) {
+  if (!slug) return 0;
+  try {
+    // Se usa DB.getProducts (capa de datos única) en lugar de fetch('tables/…'),
+    // que en producción devuelve 404: 'tables/' es la API del entorno de
+    // desarrollo, no Supabase.
+    const productos = (typeof DB !== 'undefined' && DB.getProducts)
+      ? await DB.getProducts({ full: true })
+      : (adminProducts || []);
+    return productos.filter(p =>
+      String(p.category || '') === String(slug) && !p.deleted
+    ).length;
+  } catch (e) {
+    console.error('[_contarProductosDeCategoria]', e);
+    return -1;   // -1 = no se pudo contar; el modal lo dirá en vez de mentir
+  }
+}
+
+async function openCatDeleteModal(uuid, name, slug) {
   deletingCategoryUuid = uuid;
+  deletingCategorySlug = slug || '';
+
   const nameEl = document.getElementById('catDeleteName');
   if (nameEl) nameEl.textContent = name || uuid;
+
+  const avisoEl = document.getElementById('catDeleteAviso');
+  const btn     = document.getElementById('catDeleteConfirmBtn');
+
+  // Se muestra el modal ya, y el recuento se rellena cuando llegue: contar
+  // puede tardar y no debe retrasar la apertura.
+  if (avisoEl) {
+    avisoEl.style.display = 'block';
+    avisoEl.className     = 'cat-del-aviso cat-del-aviso-cargando';
+    avisoEl.innerHTML     = '<i class="fas fa-spinner fa-spin"></i> Comprobando si hay productos en esta categoría…';
+  }
+  // Botón bloqueado mientras se cuenta: evita borrar a ciegas si el usuario
+  // es más rápido que la consulta.
+  if (btn) btn.disabled = true;
+
   document.getElementById('catDeleteModalBackdrop').style.display = 'flex';
+
+  const n = await _contarProductosDeCategoria(deletingCategorySlug);
+
+  // Si el usuario cerró el modal mientras se contaba, no pintar nada.
+  if (deletingCategoryUuid !== uuid) return;
+
+  if (btn) btn.disabled = false;
+  if (!avisoEl) return;
+
+  if (n === -1) {
+    avisoEl.className = 'cat-del-aviso cat-del-aviso-error';
+    avisoEl.innerHTML =
+      '<strong><i class="fas fa-triangle-exclamation"></i> No se pudo comprobar cuántos productos usan esta categoría.</strong>'
+      + '<br>Revisa antes en <em>Productos</em> filtrando por esta categoría.';
+  } else if (n === 0) {
+    avisoEl.className = 'cat-del-aviso cat-del-aviso-ok';
+    avisoEl.innerHTML =
+      '<i class="fas fa-circle-check"></i> Ningún producto usa esta categoría. Se puede borrar sin efectos.';
+  } else {
+    avisoEl.className = 'cat-del-aviso cat-del-aviso-peligro';
+    avisoEl.innerHTML =
+      `<strong><i class="fas fa-triangle-exclamation"></i> ${n} producto${n !== 1 ? 's' : ''} `
+      + `us${n !== 1 ? 'an' : 'a'} esta categoría.</strong>`
+      + `<br>Si la borras, es${n !== 1 ? 'os' : 'e'} producto${n !== 1 ? 's' : ''} `
+      + `<strong>desaparecerá${n !== 1 ? 'n' : ''} de la tienda</strong>: seguirá${n !== 1 ? 'n' : ''} `
+      + `en el almacén con su stock, pero ningún cliente podrá encontrar${n !== 1 ? 'los' : 'lo'}.`
+      + `<br><br>Antes de borrar, cámbia${n !== 1 ? 'les' : 'le'} la categoría en `
+      + `<strong>Productos</strong>, o edita esta categoría y cámbiale el slug `
+      + `(entonces los productos se migran automáticamente).`;
+  }
 }
 
 function closeCatDeleteModal() {
   document.getElementById('catDeleteModalBackdrop').style.display = 'none';
   deletingCategoryUuid = null;
+  deletingCategorySlug = '';
+  const avisoEl = document.getElementById('catDeleteAviso');
+  if (avisoEl) { avisoEl.style.display = 'none'; avisoEl.innerHTML = ''; }
 }
 
 async function confirmDeleteCategory() {

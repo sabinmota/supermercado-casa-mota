@@ -2800,6 +2800,44 @@ input, select, textarea { font-family: var(--font); }
   flex-shrink: 0;
 }
 
+/* ─── BUILD 381 · Aviso con el recuento de productos al borrar categoría ─────
+   Cuatro estados: cargando, ok (0 productos), peligro (N productos), error.
+   El color es la señal principal, pero NO la única: cada estado lleva su icono
+   y su texto, para que se entienda también sin distinguir bien los colores. */
+.cat-del-aviso {
+  margin-top: 10px;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: .82rem;
+  text-align: left;
+  line-height: 1.55;
+  border: 1px solid transparent;
+}
+.cat-del-aviso i { margin-right: 6px; }
+
+.cat-del-aviso-cargando {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+.cat-del-aviso-ok {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+/* Rojo, no ámbar: el modal ya tiene un aviso ámbar («es irreversible») y este
+   mensaje es más grave — significa productos invisibles para los clientes. */
+.cat-del-aviso-peligro {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+.cat-del-aviso-error {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
 /* Botones de acción */
 .del-modal-actions {
   display: flex;
