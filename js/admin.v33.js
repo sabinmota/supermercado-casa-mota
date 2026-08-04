@@ -2666,6 +2666,9 @@ function saveOrderStatus() {
   orders[idx].status = newStatus;
   orders[idx].notes  = notes;
   // Guardar el repartidor. Cadena vacía → null, para no ensuciar la columna.
+  // El valor '_retiro' se envía tal cual: _orderToSupa() (js/api.js) lo traduce
+  // a deliveryType='retiro' y pone driverId=null, porque desde el build 378 la
+  // columna es UUID con clave ajena y no acepta valores inventados.
   if (driverSel) orders[idx].driverId = driverVal || null;
 
   DB.updateOrder(orders[idx].id, orders[idx])
@@ -5126,10 +5129,17 @@ function renderDrivers() {
 }
 
 // ── Helpers de pedidos por repartidor ─────────────────────────────────────────
-// Comparación por String(): driverId llega de Supabase como TEXT y d.id puede ser
-// número o UUID. Con === estricto los contadores daban 0 aunque hubiera asignación.
+// Comparación por String(): driverId es UUID en la base de datos (build 378) y
+// d.id puede ser número o UUID según de dónde venga. Con === estricto los
+// contadores daban 0 aunque hubiera asignación.
+//
+// BUILD 379: se excluye explícitamente el centinela '_retiro'. No es el id de
+// ningún repartidor: significa "retiro en tienda, sin reparto". Si un día
+// existiera un repartidor cuyo id fuese la cadena '_retiro' se le atribuirían
+// todos los pedidos retirados en tienda.
 const _mismoDriver = (o, drvId) =>
-  o.driverId != null && o.driverId !== '' && String(o.driverId) === String(drvId);
+  o.driverId != null && o.driverId !== '' && o.driverId !== '_retiro'
+  && String(o.driverId) === String(drvId);
 
 function _driverAssigned(drvId, allOrders) {
   return allOrders.filter(o => _mismoDriver(o, drvId)).length;
@@ -6072,18 +6082,29 @@ const BK_TABLES = [
   { name:'settings',       label:'Configuración',   icon:'⚙️', statId:null               },
 ];
 
-// ─── Mapa tabla → función DB para usar Supabase directamente ─────────────────
-const BK_DB_MAP = {
-  products:       () => DB.getProducts({full:true}),
-  categories:     () => DB.getCategories(),
-  orders:         () => DB.getOrders(),
-  customers:      () => DB.getCustomers(),
-  drivers:        () => DB.getDrivers(),
-  staff:          () => DB.getStaff(),
-  cupones:        () => _supaFetch('cupones?select=*&limit=500&order=created_at.asc'),
-  notificaciones: () => _supaFetch('notificaciones?select=*&limit=1000&order=created_at.asc'),
-  settings:       () => _supaFetch('settings?select=*&limit=50&order=created_at.desc'),
-};
+// ─── BUILD 378 · Se eliminó BK_DB_MAP ────────────────────────────────────────
+// Antes había un mapa tabla → función DB (DB.getProducts({full:true}),
+// DB.getOrders(), _supaFetch('cupones?...limit=500')…). Se retiró porque tenía
+// tres defectos que hacían el respaldo POCO FIABLE:
+//
+//   1. LÍMITES FIJOS. `cupones?limit=500`, `notificaciones?limit=1000`,
+//      `settings?limit=50`. Hoy tienes 4 cupones, así que funciona. El día que
+//      tengas 501 el respaldo SE CORTA EN SILENCIO y nada avisa. Es el mismo
+//      error de clase que el `?page=` que ya corregimos.
+//
+//   2. DATOS TRANSFORMADOS. DB.getOrders() aplica _orderFromSupa() a cada
+//      fila. Un respaldo debe ser FIEL A LA BASE DE DATOS, no a lo que la
+//      aplicación muestra. Si la transformación cambia, el respaldo viejo deja
+//      de corresponderse con nada.
+//
+//   3. FILAS BORRADAS FUERA. Algunas funciones DB filtran `deleted`. Un
+//      respaldo debe incluirlas: si borras algo por error, el respaldo es
+//      justo donde quieres encontrarlo.
+//
+// Ahora todo pasa por DB.exportTable(), que lee `select=*` crudo y pagina con
+// la cabecera Range hasta agotar la tabla (js/api.js). Es la misma ruta ya
+// verificada en producción: 1.969 registros, 20,28 MB.
+// ─────────────────────────────────────────────────────────────────────────────
 
 let _bkSelected    = new Set(BK_TABLES.map(t => t.name));
 let _bkExportData  = {};
@@ -6093,10 +6114,24 @@ let _bkImportFile  = null;
 
 // ─── Init sección ─────────────────────────────────────────────────────────────
 function initRespaldo() {
+  // Guard: sin DB.exportTable no hay respaldo posible. Mejor decirlo que
+  // dejar al usuario pulsando un botón que produce un fichero vacío.
+  if (typeof DB === 'undefined' || typeof DB.exportTable !== 'function') {
+    const list = document.getElementById('bkTableList');
+    if (list) {
+      list.innerHTML = '<div style="background:#fef2f2;border:1.5px solid #fecaca;'
+        + 'border-radius:10px;padding:14px 16px;color:#991b1b;font-size:.85rem">'
+        + '<strong>No se puede exportar.</strong> No se cargó <code>js/api.js</code> '
+        + 'o es una versión antigua sin <code>DB.exportTable()</code>. '
+        + 'Recarga la página; si persiste, avisa al desarrollador.</div>';
+    }
+    const btn = document.getElementById('bkBtnExport');
+    if (btn) btn.disabled = true;
+    return;
+  }
   _bkRenderTableList();
   _bkLoadStats();
   _bkRenderHistory();
-  _bkInitChecklist();
   // Listener para mode replace/append
   document.querySelectorAll('input[name="bkMode"]').forEach(r =>
     r.addEventListener('change', () => {
@@ -6106,20 +6141,38 @@ function initRespaldo() {
   );
 }
 
-// ─── Cargar contadores de stats — usa Supabase directamente ──────────────────
-async function _bkLoadStats() {
+// ─── Contadores ──────────────────────────────────────────────────────────────
+// Un solo recorrido rellena las tarjetas de arriba Y los contadores de la
+// lista, usando DB.countTable().
+//
+// BUILD 378 — esto era un problema de rendimiento grave: antes _bkLoadStats()
+// y _bkRenderTableList() llamaban cada una a las 9 funciones DB, es decir
+// DESCARGABAN LAS TABLAS ENTERAS (los 1.913 productos con sus imágenes base64,
+// ~19 MB) DOS VECES, solo para mostrar un número. Ahora se pide únicamente el
+// conteo con la cabecera Range '0-0' + Prefer count=exact: 9 peticiones
+// minúsculas en lugar de ~38 MB de descarga.
+async function _bkLoadCounts() {
   for (const t of BK_TABLES) {
-    if (!t.statId) continue;
+    let n = null;
     try {
-      const fn = BK_DB_MAP[t.name];
-      if (!fn) continue;
-      const rows = await fn();
-      const n = Array.isArray(rows) ? rows.length : 0;
-      const el = document.getElementById(t.statId);
-      if (el) el.textContent = n.toLocaleString();
-    } catch { /* silencioso */ }
+      n = await DB.countTable(t.name);
+    } catch { n = null; }
+
+    const texto = (n === null) ? 'No disponible' : n.toLocaleString();
+
+    // Tarjeta de stats (solo algunas tablas tienen)
+    if (t.statId) {
+      const card = document.getElementById(t.statId);
+      if (card) card.textContent = texto;
+    }
+    // Contador en la lista de selección
+    const fila = document.getElementById(`bkRowCount-${t.name}`);
+    if (fila) fila.textContent = (n === null) ? '—' : `${n.toLocaleString()} reg.`;
   }
 }
+
+// Se mantiene el nombre _bkLoadStats por compatibilidad con initRespaldo().
+async function _bkLoadStats() { return _bkLoadCounts(); }
 
 // ─── Render lista de tablas exportar ─────────────────────────────────────────
 function _bkRenderTableList() {
@@ -6133,16 +6186,7 @@ function _bkRenderTableList() {
       <i class="fas fa-check bk-tr-check"></i>
     </div>
   `).join('');
-  // Cargar conteos en la lista — usa Supabase directamente
-  BK_TABLES.forEach(async t => {
-    try {
-      const fn = BK_DB_MAP[t.name];
-      if (!fn) return;
-      const rows = await fn();
-      const el = document.getElementById(`bkRowCount-${t.name}`);
-      if (el) el.textContent = `${Array.isArray(rows) ? rows.length : 0} reg.`;
-    } catch { /* silencioso */ }
-  });
+  // Los conteos los rellena _bkLoadCounts(), que corre justo después.
 }
 
 function bkToggleTable(name) {
@@ -6215,15 +6259,49 @@ async function bkStartExport() {
       _bkExportData[t.name] = rows;
       const size = _bkFormatBytes(JSON.stringify(rows).length);
       results.push({ name:t.name, label:t.label, icon:t.icon, count:rows.length, size, status:'ok' });
-      _bkLog(`✅ "${t.label}" — ${rows.length} registros (${size})`, 'ok');
+      _bkLog(`✅ "${t.label}" — ${rows.length.toLocaleString()} registros (${size})`, 'ok');
     } catch(e) {
-      results.push({ name:t.name, label:t.label, icon:t.icon, count:0, size:'—', status:'error', err:e.message });
-      _bkLog(`❌ Error en "${t.label}": ${e.message}`, 'err');
+      // Una tabla que NO EXISTE no es un fallo del respaldo: es información.
+      // Si todo se marca en rojo por igual, uno aprende a ignorar el rojo y
+      // entonces un fallo de verdad pasa desapercibido.
+      const msg = String(e.message || e);
+      const noExiste = msg.includes('PGRST205')
+                    || msg.includes('Could not find the table')
+                    || /HTTP 404/.test(msg);
+      if (noExiste) {
+        results.push({ name:t.name, label:t.label, icon:t.icon, count:0, size:'—', status:'ausente' });
+        _bkLog(`⏭️ "${t.label}" no existe en la base de datos — se omite (no es un fallo).`, 'info');
+      } else {
+        results.push({ name:t.name, label:t.label, icon:t.icon, count:0, size:'—', status:'error', err:msg });
+        _bkLog(`❌ Error en "${t.label}": ${msg}`, 'err');
+      }
     }
   }
 
-  _bkSetProgress(100, '✅ Exportación completada');
-  _bkLog(`🏁 Finalizado. ${results.filter(r=>r.status==='ok').length}/${tables.length} tablas exportadas.`, 'info');
+  const okCount   = results.filter(r => r.status === 'ok').length;
+  const ausentes  = results.filter(r => r.status === 'ausente').length;
+  const conError  = results.filter(r => r.status === 'error').length;
+  const totalFilas = results.reduce((s, r) => s + r.count, 0);
+  const esperadas = tables.length - ausentes;   // las ausentes no cuentan como fracaso
+
+  _bkSetProgress(100, conError === 0 ? '✅ Exportación completada' : '⚠️ Completada con errores');
+  _bkLog(`🏁 Finalizado. ${okCount}/${esperadas} tablas — ${totalFilas.toLocaleString()} registros en total.`
+    + (ausentes ? ` (${ausentes} inexistente${ausentes === 1 ? '' : 's'}, omitida${ausentes === 1 ? '' : 's'})` : ''),
+    conError ? 'err' : 'info');
+
+  // ── Barrera contra el respaldo vacío ──────────────────────────────────────
+  // Un fichero de 0 registros que se descarga sin protestar es lo peor que
+  // puede pasar: crees que tienes respaldo y no lo tienes. Aquí se dice claro
+  // y se bloquea la descarga.
+  const btnFinal = document.querySelector('#bkResult button');
+  if (totalFilas === 0) {
+    _bkLog('⛔ EL RESPALDO ESTÁ VACÍO — 0 registros en total. NO sirve como copia de seguridad.', 'err');
+    _bkLog('   Revisa la conexión con Supabase y vuelve a intentarlo.', 'err');
+    if (btnFinal) btnFinal.disabled = true;
+    showAdminToast('⛔ El respaldo salió vacío — no sirve como copia', 'error');
+  } else if (btnFinal) {
+    btnFinal.disabled = false;
+  }
 
   _bkShowResult(results);
   _bkSaveHistory(results);
@@ -6231,14 +6309,22 @@ async function bkStartExport() {
   if (btnExport) { btnExport.disabled = false; btnExport.innerHTML = '<i class="fas fa-download"></i> Exportar y Descargar JSON'; }
 }
 
-// ─── _bkFetchAll — usa DB.*/Supabase en lugar de tables/ de Genspark ─────────
+// ─── _bkFetchAll — DB.exportTable(): select=* crudo, paginado por Range ──────
+// Una sola ruta de código para todas las tablas. Sin límites fijos, sin
+// transformaciones, incluyendo filas con deleted=true.
 async function _bkFetchAll(tableCfg) {
-  const fn = BK_DB_MAP[tableCfg.name];
-  if (!fn) throw new Error(`No hay función DB para la tabla "${tableCfg.name}"`);
   _bkLog(`   · Descargando "${tableCfg.label}" desde Supabase…`, 'ok');
-  const rows = await fn();
+  const rows = await DB.exportTable(tableCfg.name, {
+    pageSize: 1000,
+    onProgress: (acumulado, total) => {
+      // Solo se informa en tablas grandes, para no llenar el log de ruido.
+      if (total && total > 1000) {
+        _bkLog(`   · ${acumulado.toLocaleString()} de ${total.toLocaleString()}…`, 'ok');
+      }
+    },
+  });
   if (!Array.isArray(rows)) throw new Error('La respuesta no es un array');
-  _bkLog(`   · ${rows.length} registros obtenidos`, 'ok');
+  _bkLog(`   · ${rows.length.toLocaleString()} registros obtenidos`, 'ok');
   return rows;
 }
 
@@ -6257,6 +6343,7 @@ function _bkShowResult(results) {
 
   const total = results.reduce((s,r) => s + r.count, 0);
   if (sumEl) sumEl.textContent = `${results.filter(r=>r.status==='ok').length} tablas · ${total.toLocaleString()} registros`;
+  // El tamaño real del fichero importa: son ~20 MB por las imágenes base64.
 
   tbody.innerHTML = `
     <tr style="background:#dcfce7">
@@ -6273,7 +6360,9 @@ function _bkShowResult(results) {
         <td style="padding:6px 10px;border-bottom:1px solid #d1fae5">
           ${r.status==='ok'
             ? (r.count>0 ? `<span class="bk-badge-ok">✅ OK</span>` : `<span class="bk-badge-empty">⚠️ Vacía</span>`)
-            : `<span class="bk-badge-err">❌ Error</span>`}
+            : r.status==='ausente'
+              ? `<span class="bk-badge-empty">⏭️ No existe</span>`
+              : `<span class="bk-badge-err">❌ Error</span>`}
         </td>
       </tr>`).join('')}
   `;
@@ -6520,43 +6609,24 @@ function _bkDownloadJSON(json, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ─── Checklist archivos proyecto ─────────────────────────────────────────────
-function _bkInitChecklist() {
-  const ids = ['chkBD','chkHTML','chkJS','chkCSS','chkIMG','chkPWA'];
-  const KEY = 'casamota_bk_checklist';
-
-  // Restaurar estado guardado
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && saved[id]) el.checked = true;
-    });
-  } catch { /* silencioso */ }
-
-  // Actualizar contador y guardar al cambiar
-  function update() {
-    const checked = ids.filter(id => document.getElementById(id)?.checked).length;
-    const status  = document.getElementById('bkChecklistStatus');
-    if (status) {
-      const all = checked === ids.length;
-      status.innerHTML = all
-        ? `<span style="color:#1a7c3e;font-weight:700">🎉 ¡Backup 100% completo! Todos los archivos respaldados.</span>`
-        : `<span style="color:#6b7280">${checked} de ${ids.length} completados${checked > 0 ? ' — ¡vas bien!' : ''}</span>`;
-    }
-    // Guardar estado
-    const state = {};
-    ids.forEach(id => { state[id] = document.getElementById(id)?.checked || false; });
-    localStorage.setItem(KEY, JSON.stringify(state));
-  }
-
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', update);
-  });
-
-  update(); // Calcular estado inicial
-}
+// ─── BUILD 378 · Se eliminó el Checklist de ficheros del proyecto ────────────
+// Aquí vivían _bkInitChecklist() y _bkUpdateChecklist(), que gestionaban una
+// lista de casillas con enlaces para descargar a mano cada .html/.js/.css.
+// Se retiraron por dos razones:
+//
+//   1. ESTABA INCOMPLETO Y MENTÍA. Decía «Backup 100% Completo» pero le
+//      faltaban js/location.js (23 KB) y js/pedidos-vigilancia.js. Un
+//      indicador que afirma completitud y no la tiene es peor que ninguno.
+//      Además exigía actualizarlo a mano cada vez que se crea un fichero:
+//      deuda garantizada, y ya se había quedado atrás dos veces.
+//
+//   2. RESOLVÍA UN PROBLEMA QUE YA NO EXISTE. El código está en GitHub
+//      (sabinmota/supermercado-casa-mota). Git ya es el respaldo del código,
+//      con historial completo. Lo que NO está en Git es la base de datos, y de
+//      eso se encarga la exportación JSON de esta misma sección.
+//
+// Se eliminó también su clave de localStorage 'casamota_bk_checklist'.
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ─── MIGRACIÓN DE IMÁGENES ────────────────────────────────────────────────
@@ -6596,19 +6666,6 @@ function _migSetProgress(pct, label) {
   if (bar)   bar.style.width = pct + '%';
   if (pctEl) pctEl.textContent = pct + '%';
   if (lblEl) lblEl.textContent = label || '';
-}
-
-// ── Función pública: llamada al exponer el checklist ─────────────────────
-function _bkUpdateChecklist() {
-  const ids = ['chkBD','chkHTML','chkJS','chkCSS','chkIMG','chkPWA'];
-  const checked = ids.filter(id => document.getElementById(id)?.checked).length;
-  const status  = document.getElementById('bkChecklistStatus');
-  if (status) {
-    const all = checked === ids.length;
-    status.innerHTML = all
-      ? `<span style="color:#1a7c3e;font-weight:700">🎉 ¡Backup 100% completo! Todos los archivos respaldados.</span>`
-      : `<span style="color:#6b7280">${checked} de ${ids.length} completados${checked > 0 ? ' — ¡vas bien!' : ''}</span>`;
-  }
 }
 
 // ── PASO 1: Escanear imágenes ─────────────────────────────────────────────
@@ -6813,9 +6870,10 @@ async function migDownloadZip() {
     _migLog(`🎉 ZIP generado: ${fname} | ✅ ${ok} imágenes | ⚠️ ${fail} errores`, 'ok');
     showAdminToast(`ZIP descargado: ${ok} imágenes (${fail} con error)`, ok > 0 ? 'success' : 'error');
 
-    // Marcar checkbox de imágenes en checklist
-    const chk = document.getElementById('chkIMG');
-    if (chk && ok > 0) { chk.checked = true; _bkUpdateChecklist(); }
+    // BUILD 378: aquí se marcaba la casilla #chkIMG del Checklist. El Checklist
+    // se eliminó, así que estas dos líneas ya no tienen destino. Se retiran
+    // porque _bkUpdateChecklist() ya no existe y lanzaría un ReferenceError
+    // justo DESPUÉS de generar el ZIP correctamente — el peor momento posible.
 
   } catch(err) {
     _migLog('❌ Error generando ZIP: ' + err.message, 'error');

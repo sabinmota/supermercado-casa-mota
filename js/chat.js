@@ -577,10 +577,14 @@ const _ESTADOS_EN_CURSO = ['pendiente', 'procesando', 'enviado'];
 const _VEHICULO_LABEL = { moto: 'moto', bicicleta: 'bicicleta', carro: 'carro', a_pie: 'a pie' };
 const _ESTADO_DRIVER  = { activo: 'activo', en_ruta: 'en ruta', descanso: 'en descanso', inactivo: 'inactivo' };
 
-/** Comparación por String(): driverId llega de Supabase como TEXT y d.id puede
- *  ser número o UUID. Con === estricto los contadores darían siempre 0. */
+/** Comparación por String(): driverId es UUID en la base de datos (build 378) y
+ *  d.id puede ser número o UUID. Con === estricto los contadores darían 0.
+ *  BUILD 379: se excluye '_retiro', que no es un id sino la marca de "retiro en
+ *  tienda". Debe coincidir con _mismoDriver de js/admin.v33.js o Maya dará
+ *  cifras distintas a las de la pantalla. */
 const _mismoDriverChat = (o, drvId) =>
-  o.driverId != null && o.driverId !== '' && String(o.driverId) === String(drvId);
+  o.driverId != null && o.driverId !== '' && o.driverId !== _DRIVER_RETIRO
+  && String(o.driverId) === String(drvId);
 
 function _pedidosDeRepartidor(drvId) {
   return _chatPedidos.filter(o => _mismoDriverChat(o, drvId));

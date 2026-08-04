@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '377';
+      const VER = '379';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -2629,83 +2629,31 @@
 
       </div><!-- /bk-two-col -->
 
-      <!-- Resumen checklist -->
-      <div class="bk-history-card">
+      <!-- Nota informativa: qué respalda esta sección y qué no -->
+      <aside class="bk-history-card" id="bkInfoRespaldo">
         <div style="padding:16px 20px">
-          <div style="background:#f0faf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:16px 20px;">
-            <div style="font-weight:700;color:#1a7c3e;margin-bottom:14px;font-size:.9rem"><i class="fas fa-clipboard-check"></i> Checklist Backup 100% Completo</div>
-            <div style="display:flex;flex-direction:column;gap:10px;font-size:.82rem">
-
-              <!-- Fila 1: BD -->
-              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 12px">
-                <input type="checkbox" id="chkBD" style="accent-color:#1a7c3e;width:16px;height:16px;flex-shrink:0">
-                <span style="flex:1">✅ Datos BD exportados (JSON)</span>
-                <span style="font-size:.75rem;color:#6b7280;font-style:italic">Usar botón "Exportar BD" de arriba</span>
-              </div>
-
-              <!-- Fila 2: HTML -->
-              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 12px">
-                <input type="checkbox" id="chkHTML" style="accent-color:#1a7c3e;width:16px;height:16px;flex-shrink:0">
-                <span style="flex:1">📄 Páginas HTML</span>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <a href="https://supermercadocasamota.com/index.html" download="index.html" title="Descargar index.html" style="text-decoration:none;font-size:1.1rem;cursor:pointer" onclick="setTimeout(()=>{document.getElementById('chkHTML').checked=true;_bkUpdateChecklist()},800)">📥<span style="font-size:.7rem;color:#1565c0;margin-left:2px">index.html</span></a>
-                  <a href="https://supermercadocasamota.com/admin.html" download="admin.html" title="Descargar admin.html" style="text-decoration:none;font-size:1.1rem;cursor:pointer" onclick="setTimeout(()=>{document.getElementById('chkHTML').checked=true;_bkUpdateChecklist()},800)">📥<span style="font-size:.7rem;color:#1565c0;margin-left:2px">admin.html</span></a>
-                  <a href="https://supermercadocasamota.com/login.html" download="login.html" title="Descargar login.html" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#1565c0;margin-left:2px">login.html</span></a>
-                  <a href="https://supermercadocasamota.com/login-cliente.html" download="login-cliente.html" title="Descargar login-cliente.html" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#1565c0;margin-left:2px">login-cliente.html</span></a>
-                </div>
-              </div>
-
-              <!-- Fila 3: JS -->
-              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 12px">
-                <input type="checkbox" id="chkJS" style="accent-color:#1a7c3e;width:16px;height:16px;flex-shrink:0">
-                <span style="flex:1">📜 Archivos JavaScript</span>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <a href="https://supermercadocasamota.com/js/app.js" download="app.js" title="Descargar app.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer" onclick="setTimeout(()=>{document.getElementById('chkJS').checked=true;_bkUpdateChecklist()},800)">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">app.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/admin.v33.js" download="admin.v33.js" title="Descargar admin.v33.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">admin.v33.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/auth.v33.js" download="auth.v33.js" title="Descargar auth.v33.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">auth.v33.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/extras.v33.js" download="extras.v33.js" title="Descargar extras.v33.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">extras.v33.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/ai.js" download="ai.js" title="Descargar ai.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">ai.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/api.js" download="api.js" title="Descargar api.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">api.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/chat.js" download="chat.js" title="Descargar chat.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">chat.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/favorites.js" download="favorites.js" title="Descargar favorites.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">favorites.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/products.js" download="products.js" title="Descargar products.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">products.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/cupones.js" download="cupones.js" title="Descargar cupones.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">cupones.js</span></a>
-                  <a href="https://supermercadocasamota.com/js/auth.js" download="auth.js" title="Descargar auth.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#f9a825;margin-left:2px">auth.js</span></a>
-                </div>
-              </div>
-
-              <!-- Fila 4: CSS -->
-              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 12px">
-                <input type="checkbox" id="chkCSS" style="accent-color:#1a7c3e;width:16px;height:16px;flex-shrink:0">
-                <span style="flex:1">🎨 Archivos CSS</span>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <a href="https://supermercadocasamota.com/css/style.css" download="style.css" title="Descargar style.css" style="text-decoration:none;font-size:1.1rem;cursor:pointer" onclick="setTimeout(()=>{document.getElementById('chkCSS').checked=true;_bkUpdateChecklist()},800)">📥<span style="font-size:.7rem;color:#1565c0;margin-left:2px">style.css</span></a>
-                  <a href="https://supermercadocasamota.com/css/admin.v33.css" download="admin.v33.css" title="Descargar admin.v33.css" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#1565c0;margin-left:2px">admin.v33.css</span></a>
-                </div>
-              </div>
-
-              <!-- Fila 5: Imágenes -->
-              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 12px">
-                <input type="checkbox" id="chkIMG" style="accent-color:#1a7c3e;width:16px;height:16px;flex-shrink:0">
-                <span style="flex:1">🖼️ Carpeta images/</span>
-                <span style="font-size:.75rem;color:#6b7280;font-style:italic">Descargar manualmente desde el panel del proyecto</span>
-              </div>
-
-              <!-- Fila 6: PWA -->
-              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 12px">
-                <input type="checkbox" id="chkPWA" style="accent-color:#1a7c3e;width:16px;height:16px;flex-shrink:0">
-                <span style="flex:1">📱 PWA Files</span>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <a href="https://supermercadocasamota.com/sw.js" download="sw.js" title="Descargar sw.js" style="text-decoration:none;font-size:1.1rem;cursor:pointer" onclick="setTimeout(()=>{document.getElementById('chkPWA').checked=true;_bkUpdateChecklist()},800)">📥<span style="font-size:.7rem;color:#37474f;margin-left:2px">sw.js</span></a>
-                  <a href="https://supermercadocasamota.com/manifest.json" download="manifest.json" title="Descargar manifest.json" style="text-decoration:none;font-size:1.1rem;cursor:pointer">📥<span style="font-size:.7rem;color:#37474f;margin-left:2px">manifest.json</span></a>
-                </div>
-              </div>
-
-            </div>
-            <div id="bkChecklistStatus" style="margin-top:14px;font-size:.82rem;color:#6b7280;text-align:center">0 de 6 completados</div>
+          <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:16px 20px;font-size:.84rem;color:#1e40af;line-height:1.6">
+            <div style="font-weight:700;margin-bottom:8px"><i class="fas fa-circle-info"></i> Qué respalda esta sección</div>
+            <p style="margin:0 0 8px">
+              El JSON contiene <strong>todos los datos de la base de datos</strong>: productos,
+              pedidos, clientes, categorías, repartidores, personal, cupones, notificaciones y
+              configuración. Incluye también las filas marcadas como borradas, para que un
+              borrado por error se pueda recuperar.
+            </p>
+            <p style="margin:0 0 8px">
+              <strong>¿Por qué pesa tanto?</strong> Las fotos de los productos se guardan dentro
+              de la propia base de datos (base64), así que viajan en el JSON. Un respaldo
+              completo ronda los <strong>20&nbsp;MB</strong>. Es normal: al restaurarlo recuperas
+              el catálogo <em>con imágenes</em>, no solo textos y precios.
+            </p>
+            <p style="margin:0">
+              <strong>El código no hace falta respaldarlo aquí.</strong> Está en GitHub
+              (<code>sabinmota/supermercado-casa-mota</code>) con todo su historial. Lo que no
+              está en Git es la base de datos — y de eso se encarga esta sección.
+            </p>
           </div>
         </div>
-      </div>
+      </aside>
 
       <!-- ── MIGRACIÓN DE IMÁGENES ── -->
       <div class="bk-history-card" id="bkMigCard">
@@ -2944,12 +2892,12 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=323"></script>
+  <script src="js/api.js?v=324"></script>
   <script src="js/auth.v33.js?v=295"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=362"></script>
+  <script src="js/admin.v33.js?v=364"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=4"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
@@ -2959,7 +2907,7 @@
 <!-- v222: asterisco obligatorio en campo Stock restaurado -->
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=233"></script>
+  <script src="js/chat.js?v=234"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 

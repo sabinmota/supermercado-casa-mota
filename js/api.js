@@ -167,6 +167,40 @@ function _orderToSupa(o) {
   if ('payMethodLabel' in r) { delete r.payMethodLabel; }
   if ('mapLink'        in r) { delete r.mapLink; }
   if ('source'         in r) { delete r.source; }
+
+  // ─── BUILD 379 · clientId / driverId son UUID en la base de datos ──────────
+  // Desde limpieza/10-claves-ajenas.sql estas dos columnas son UUID con clave
+  // ajena. Postgres RECHAZA con error 400 cualquier valor que no sea un UUID
+  // válido o NULL — antes eran TEXT y se tragaban cualquier cadena.
+  //
+  // Dos valores que el panel envía y que ahora romperían:
+  //   · ''        → cadena vacía cuando no se eligió repartidor/cliente.
+  //   · '_retiro' → valor centinela del selector «🏬 Retiro en tienda» del
+  //                 modal de pedidos (js/admin.v33.js). NO es un id: es una
+  //                 marca de "no hubo reparto". Guardarla en una columna con
+  //                 clave ajena es imposible, porque no existe ese repartidor.
+  //
+  // Se sanean aquí, en la capa de datos, y no en cada pantalla: es el único
+  // sitio por el que pasan TODOS los guardados de pedidos, así que ninguna
+  // pantalla futura puede saltárselo por olvido.
+  const _uuidOk = v => typeof v === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+  for (const col of ['clientId', 'driverId']) {
+    if (!(col in r)) continue;
+    const v = r[col];
+    if (v === null || v === undefined) { r[col] = null; continue; }
+    if (_uuidOk(v)) { r[col] = String(v).trim(); continue; }
+    // Cualquier otra cosa ('' , '_retiro', un número legacy…) → NULL.
+    // El caso «retiro en tienda» se preserva aparte, justo debajo.
+    r[col] = null;
+  }
+
+  // El «retiro en tienda» se guarda en deliveryType, que SÍ es texto libre.
+  // Así no se pierde la información: sigue siendo consultable y ya no intenta
+  // colarse por una columna con clave ajena.
+  if (String(o.driverId || '') === '_retiro') { r.deliveryType = 'retiro'; }
+
   return r;
 }
 
@@ -178,6 +212,16 @@ function _orderFromSupa(o) {
   r.email = r.customer_email ?? r.email ?? '';
   r.phone = r.customer_phone ?? r.phone ?? '';
   if ('envio' in r) { r.shipping = r.envio; }
+
+  // ─── BUILD 379 · Reconstruir el centinela '_retiro' ───────────────────────
+  // En la base de datos el retiro en tienda vive en deliveryType='retiro',
+  // porque driverId es UUID con clave ajena y no admite valores inventados.
+  // El panel (js/admin.v33.js) y Maya (js/chat.js) siguen razonando con
+  // o.driverId === '_retiro', así que se les devuelve tal cual esperan.
+  // Traducir aquí evita tocar los dos consumidores y que se desincronicen.
+  if (r.driverId == null && String(r.deliveryType || '') === 'retiro') {
+    r.driverId = '_retiro';
+  }
   // NO se rellena order_number con el id.
   //
   // Antes había aquí `if (!r.order_number && r.id) r.order_number = r.id;`, que
@@ -916,14 +960,16 @@ const DB = {
   //
   // POR QUÉ EXISTE ESTA FUNCIÓN
   // ───────────────────────────
-  // `backup-tool.html` llamaba directamente a `fetch('tables/<tabla>')`, que es
-  // la API interna de Genspark. En producción esa ruta NO existe → cada tabla
-  // fallaba y el backup salía VACÍO. Lo peor: la herramienta no daba error
-  // claro, así que daba una falsa sensación de seguridad.
+  // La antigua herramienta suelta `backup-tool.html` llamaba directamente a
+  // `fetch('tables/<tabla>')`, que es la API interna de Genspark. En producción
+  // esa ruta NO existe → cada tabla fallaba y el backup salía VACÍO, sin error
+  // claro: una falsa sensación de seguridad. (Ese fichero se eliminó en el
+  // build 378; la única herramienta de respaldo es admin.html → Respaldo.)
   //
-  // Se resuelve aquí, en la capa de datos, y no en el HTML: así la herramienta
-  // de respaldo hereda automáticamente la detección de entorno, las cabeceras,
-  // los timeouts y los reintentos que ya usa todo lo demás.
+  // Se resuelve aquí, en la capa de datos, y no en el HTML: así la sección de
+  // respaldo hereda automáticamente la detección de entorno, las cabeceras,
+  // los timeouts y los reintentos que ya usa todo lo demás. Y hay UNA SOLA
+  // ruta de código para respaldar, en lugar de dos que pueden divergir.
   //
   // Devuelve TODAS las filas, incluidas las marcadas `deleted` — un respaldo
   // debe ser fiel a la base de datos, no una vista filtrada de la tienda.
