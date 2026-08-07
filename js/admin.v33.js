@@ -1652,7 +1652,17 @@ function addExtraImageSlot() {
       if (!file) return;
       try {
         const b64 = await _compressImage(file, 400);
-        _extraImages.push(b64);
+        // Igual que la imagen principal: a R2, y si falla se queda el base64.
+        // Aquí importa más aún, porque `images` alimenta el carrusel y antes
+        // llegó a pesar 7 MB entre 120 productos.
+        let valor = b64;
+        try {
+          valor = await _uploadToR2(b64);
+        } catch (e) {
+          console.warn('⚠️ [Casa Mota] Imagen extra: falló R2, se guarda base64:', e && e.message);
+          showAdminToast('R2 no disponible: la imagen se guarda en la base de datos', 'error');
+        }
+        _extraImages.push(valor);
         _renderExtraImagesGrid();
       } catch { showAdminToast('Error al cargar la imagen', 'error'); }
     };
@@ -1690,6 +1700,62 @@ function setImgPreview(src, label) {
   if (preview)     { preview.src = src; preview.style.display = 'block'; }
   if (status)      status.textContent = label || '';
   if (clearBtn)    { clearBtn.style.display = 'flex'; }
+}
+
+// ─── SUBIDA A R2 ─────────────────────────────────────────────────────────────
+// Hasta la build 384 el panel guardaba las fotos como base64 dentro de la
+// columna `image`. Eso hacía crecer la carga de la tienda con cada producto
+// nuevo: 277 productos acumulaban ~11 MB. Ahora la foto se sube a R2 y en la
+// base de datos solo queda la URL (~60 bytes), igual que los 1639 productos
+// que ya se migraron en junio.
+const _R2_WORKER = 'https://r2-proxy-casamota.supermercadocasamota.workers.dev';
+const _R2_CDN    = 'https://img.supermercadocasamota.com';
+
+// Convierte el dataURL que produce _compressImage() en binario para el PUT.
+// Subir el base64 tal cual desperdiciaría el 33 % del ancho de banda.
+function _dataUrlToBlob(dataUrl) {
+  const [cabecera, datos] = dataUrl.split(',');
+  const mime  = (cabecera.match(/:(.*?);/) || [null, 'image/jpeg'])[1];
+  const bytes = atob(datos);
+  const buf   = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+
+/**
+ * Sube una imagen a R2 y devuelve su URL pública del CDN.
+ * Lanza excepción si falla, para que quien llama pueda caer en base64.
+ */
+async function _uploadToR2(dataUrl) {
+  const blob = _dataUrlToBlob(dataUrl);
+  const uuid = (crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const key  = `productos/${uuid}.jpg`;
+
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  let res;
+  try {
+    res = await fetch(`${_R2_WORKER}/put/${key}`, {
+      method:  'PUT',
+      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      body:    blob,
+      signal:  ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) throw new Error(`R2 respondió ${res.status}`);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'R2 rechazó la subida');
+
+  // Comprobar que el objeto se guardó de verdad. El Worker ha devuelto
+  // ok:true con size:0 en pruebas, así que no basta con confiar en la respuesta.
+  if (!json.size) throw new Error('R2 guardó un objeto vacío');
+
+  return `${_R2_CDN}/${key}`;
 }
 
 /**
@@ -1746,10 +1812,25 @@ function handleImgFile(input) {
   if (status) status.textContent = '⏳ Comprimiendo imagen…';
 
   _compressImage(file, 180)
-    .then(base64 => {
-      document.getElementById('pImage').value = base64;
+    .then(async base64 => {
       const sizeKB = Math.round(base64.length * 0.75 / 1024);
-      setImgPreview(base64, `✅ ${file.name} · ${sizeKB} KB (comprimida)`);
+      // Preview inmediato con el base64 local: el usuario ve la foto ya,
+      // sin esperar a que termine la subida.
+      setImgPreview(base64, `⏳ ${file.name} · ${sizeKB} KB · subiendo a R2…`);
+      if (status) status.textContent = `⏳ Subiendo a R2…`;
+
+      try {
+        const url = await _uploadToR2(base64);
+        // En la BD va la URL (~60 bytes), no el base64 (~180 KB)
+        document.getElementById('pImage').value = url;
+        setImgPreview(base64, `✅ ${file.name} · ${sizeKB} KB · en R2 (CDN)`);
+      } catch (e) {
+        // R2 no disponible: guardar base64 como antes. El producto se guarda
+        // igual; solo pierde la ventaja del CDN. Preferible a bloquear al usuario.
+        console.warn('⚠️ [Casa Mota] Falló la subida a R2, se guarda base64:', e && e.message);
+        document.getElementById('pImage').value = base64;
+        setImgPreview(base64, `⚠️ ${file.name} · ${sizeKB} KB · guardada en la BD (R2 no disponible)`);
+      }
     })
     .catch(() => {
       // Fallback: leer sin comprimir si canvas falla
