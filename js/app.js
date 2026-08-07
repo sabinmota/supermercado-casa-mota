@@ -3043,6 +3043,15 @@ async function confirmOrder() {
 
 // ─── MODAL PRODUCTO ───────────────────────────────────────────────────────────
 
+// Caché de imágenes extra (carrusel) por id de producto.
+// `images` se saca de la carga inicial y se pide al abrir el modal; guardamos el
+// resultado para que reabrir el mismo producto no repita la petición.
+const _extraImgsCache = new Map();
+
+// Token de apertura: si el usuario cierra el modal o abre otro producto mientras
+// la petición de imágenes está en vuelo, la respuesta que llegue tarde se descarta.
+let _modalToken = 0;
+
 function openModal(productId) {
   const p = getLiveProducts().find(pr => pr.id === productId || String(pr.id) === String(productId));
   if (!p) return;
@@ -3066,15 +3075,22 @@ function openModal(productId) {
     }
     return [];
   };
-  const _allImgs = [p.image, ..._parseImages(p.images)].filter(Boolean).filter((v,i,a) => a.indexOf(v) === i);
+  // `images` ya NO viaja en la fase 1 (ver _SELECT_FIELDS en js/api.js): pesaba 7 MB
+  // para todos los visitantes y solo se usa aquí. Se pide bajo demanda más abajo.
+  // En el entorno Genspark sí llega en p.images, y en producción llega tras el fetch:
+  // en ambos casos _extraImgsCache es la fuente una vez resuelto.
+  const _cachedExtras = _extraImgsCache.get(String(p.id));
+  const _extrasNow    = _cachedExtras || _parseImages(p.images);
+  let   _allImgs = [p.image, ..._extrasNow].filter(Boolean).filter((v,i,a) => a.indexOf(v) === i);
 
   // Genera el HTML del bloque de imagen (único o carrusel)
   function _carouselHTML() {
     if (_allImgs.length <= 1) {
       // Sin carrusel — imagen simple
       return `<div class="modal-img" id="modalImgBlock">
-        <img src="${_allImgs[0] || p.image}" alt="${p.name}"
+        <img src="${_allImgs[0] || p.image || 'images/placeholder-product.png'}" alt="${p.name}"
              onclick="openLightbox(this.src, this.alt)"
+             onerror="this.onerror=null;this.src='images/placeholder-product.png'"
              style="cursor:zoom-in;" title="Toca para ampliar" />
       </div>`;
     }
@@ -3086,6 +3102,7 @@ function openModal(productId) {
       `<div class="car-slide" data-i="${i}">
          <img src="${src}" alt="${p.name} imagen ${i+1}"
               draggable="false"
+              onerror="this.onerror=null;this.src='images/placeholder-product.png'"
               style="cursor:zoom-in; user-select:none; -webkit-user-drag:none;"
               title="Toca para ampliar" />
        </div>`
@@ -3147,6 +3164,28 @@ function openModal(productId) {
   _carState.total = _allImgs.length;
   if (_allImgs.length > 1) {
     requestAnimationFrame(() => _carInit());
+  }
+
+  // ── Traer el carrusel bajo demanda ────────────────────────────────────
+  // El modal ya está visible y usable con la imagen principal. Si este producto
+  // tiene imágenes extra, llegan en un segundo y el bloque se repinta solo.
+  const _myToken = ++_modalToken;
+  if (!_cachedExtras && typeof DB !== 'undefined' && DB.getProductExtraImages) {
+    DB.getProductExtraImages(p.id).then(extras => {
+      _extraImgsCache.set(String(p.id), extras);
+      // ¿Sigue abierto ESTE producto? Si no, no toques el DOM.
+      if (_myToken !== _modalToken) return;
+      if (!extras.length) return;
+      const nuevas = [p.image, ...extras].filter(Boolean).filter((v,i,a) => a.indexOf(v) === i);
+      if (nuevas.length <= _allImgs.length) return; // nada nuevo que mostrar
+      _allImgs = nuevas;
+      const bloque = document.getElementById('modalImgBlock');
+      if (!bloque) return;
+      bloque.outerHTML = _carouselHTML();
+      _carState.idx   = 0;
+      _carState.total = _allImgs.length;
+      if (_allImgs.length > 1) requestAnimationFrame(() => _carInit());
+    });
   }
 }
 
@@ -3335,6 +3374,9 @@ function _carInit() {
 function closeModal() {
   document.getElementById('modalOverlay').classList.add('hidden');
   document.body.style.overflow = '';
+  // Invalida cualquier carga de carrusel en vuelo: si llega tarde, no repinta
+  // un modal que ya está cerrado.
+  _modalToken++;
 }
 
 // ── LIGHTBOX — visor de imagen con pinch-to-zoom + doble toque ───────────

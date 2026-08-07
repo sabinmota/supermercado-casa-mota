@@ -84,9 +84,15 @@ async function _apiFetch(url, options = {}) {
 
 // ─── Campos mínimos por tabla (evita traer columnas pesadas innecesarias) ──────
 const _SELECT_FIELDS = {
-  // Tienda fase 1 — sin image (campo base64 pesado), CON description (solo texto)
+  // Tienda fase 1 — sin image NI images (los dos campos pesados)
   // Carga rápida: título + descripción visibles al instante con placeholder de imagen
-  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,images,barcode,isNew,deleted,description',
+  //
+  // ¡OJO! `images` (JSONB del carrusel) NO va aquí a propósito. Medido en la serie 15:
+  // pesa 7 MB repartidos en solo 120 de 1917 productos, y se consume ÚNICAMENTE al
+  // abrir el modal de producto (js/app.js, openModal). Tenerlo en la fase 1 obligaba
+  // a TODOS los visitantes a esperar 7 MB por un carrusel que la mayoría nunca abre.
+  // Ahora se pide bajo demanda con DB.getProductExtraImages(id).
+  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,barcode,isNew,deleted,description',
   // Tienda fase 2 — solo image para actualizar imágenes
   products_imgs:  'id,image',
   orders:    '*',
@@ -523,6 +529,32 @@ const DB = {
       return _apiPatch('products', product.id, payload);
     } else {
       return _apiCreate('products', product);
+    }
+  },
+
+  // Carga el carrusel (`images`) de UN producto, bajo demanda al abrir el modal.
+  // Contrapartida de haber sacado `images` de _SELECT_FIELDS.products (fase 1).
+  // Devuelve siempre un array: [] si no hay extras, si falla la red o si el id no existe.
+  async getProductExtraImages(id) {
+    if (!id) return [];
+    try {
+      const res = await fetch(
+        `${_SB_URL}/products?select=images&id=eq.${encodeURIComponent(id)}`,
+        { headers: _SB_HEADERS }
+      );
+      if (!res.ok) return [];
+      const rows = await res.json();
+      const raw  = (Array.isArray(rows) && rows[0]) ? rows[0].images : null;
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw.filter(Boolean);
+      if (typeof raw === 'string') {
+        try { const p = JSON.parse(raw); return Array.isArray(p) ? p.filter(Boolean) : []; }
+        catch (e) { return []; }
+      }
+      return [];
+    } catch (e) {
+      console.warn('⚠️ [Casa Mota] No se pudo cargar el carrusel del producto:', e && e.message);
+      return [];
     }
   },
 
