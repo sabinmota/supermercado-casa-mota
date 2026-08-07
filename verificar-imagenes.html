@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verificar imágenes del catálogo — Casa Mota</title>
+<link rel="icon" type="image/png" href="../images/logo-casamota.png" />
+<style>
+  :root { --verde:#1e7d32; --rojo:#c62828; --ambar:#f57c00; --gris:#f5f5f5; --borde:#ddd; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin:0; padding:24px; background:#fafafa; color:#222; line-height:1.5;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  header { text-align:center; margin-bottom:24px; }
+  h1 { font-size:1.5rem; margin:0 0 6px; color:var(--verde); }
+  .sub { color:#666; font-size:.92rem; }
+  section {
+    background:#fff; border:1px solid var(--borde); border-radius:10px;
+    padding:18px; margin-bottom:16px;
+  }
+  h2 { font-size:1.05rem; margin:0 0 12px; }
+  .aviso {
+    background:#ffebee; border-left:4px solid var(--rojo);
+    padding:12px 14px; border-radius:6px; margin-bottom:14px; font-size:.9rem;
+  }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; }
+  .stat { background:var(--gris); border-radius:8px; padding:12px; text-align:center; }
+  .stat-num { font-size:1.5rem; font-weight:700; color:var(--verde); }
+  .stat-num.mal { color:var(--rojo); }
+  .stat-lbl { font-size:.78rem; color:#666; text-transform:uppercase; letter-spacing:.4px; }
+  button {
+    font-family:inherit; font-size:.95rem; font-weight:600; padding:11px 20px;
+    border-radius:8px; border:none; cursor:pointer; background:var(--verde); color:#fff;
+  }
+  button:hover:not(:disabled) { opacity:.88; }
+  button:disabled { background:#bbb; cursor:not-allowed; }
+  button.sec { background:#546e7a; }
+  .botones { display:flex; gap:10px; flex-wrap:wrap; }
+  .barra-ext { height:22px; background:var(--gris); border-radius:11px; overflow:hidden; margin:14px 0 6px; }
+  .barra-int {
+    height:100%; width:0; background:linear-gradient(90deg,#2e7d32,#66bb6a);
+    transition:width .2s; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:.75rem; font-weight:700;
+  }
+  #log {
+    background:#1e1e1e; color:#d4d4d4; font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:.8rem; padding:14px; border-radius:8px; height:300px;
+    overflow-y:auto; white-space:pre-wrap; word-break:break-word;
+  }
+  .l-ok{color:#6ec96e;} .l-err{color:#ff7b72;} .l-warn{color:#ffcb6b;} .l-hd{color:#82aaff;font-weight:700;}
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--borde); }
+  th { background:var(--gris); }
+  code { background:var(--gris); padding:2px 6px; border-radius:4px; font-size:.85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Verificar imágenes del catálogo</h1>
+    <p class="sub">Comprueba que las 1917 URLs del CDN responden de verdad</p>
+  </header>
+
+  <section>
+    <h2>Por qué esta comprobación</h2>
+    <div class="aviso">
+      <strong>Ya no hay copia de seguridad en la base de datos.</strong> Al migrar, el base64 se
+      sustituyó por la URL. Si alguna imagen no llegó bien a R2, esa foto se ha perdido y hay
+      que volver a subirla. Esta herramienta encuentra esos casos.
+    </div>
+    <p>Pide cada imagen al CDN y comprueba que responde y que no está vacía. Es
+    <strong>solo lectura</strong>: no modifica nada, ni en R2 ni en la base de datos.</p>
+    <table>
+      <tr><th>Comprueba</th><td>Que la URL responde 200 y el fichero pesa más de 0 bytes</td></tr>
+      <tr><th>No comprueba</th><td>Que la foto corresponda al producto correcto</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Comprobación</h2>
+    <div class="botones">
+      <button id="btn-ir">Verificar todas</button>
+      <button id="btn-parar" class="sec" disabled>Parar</button>
+    </div>
+    <div class="stats" style="margin-top:16px;">
+      <div class="stat"><div class="stat-num" id="s-tot">—</div><div class="stat-lbl">revisadas</div></div>
+      <div class="stat"><div class="stat-num" id="s-ok">—</div><div class="stat-lbl">correctas</div></div>
+      <div class="stat"><div class="stat-num mal" id="s-mal">—</div><div class="stat-lbl">rotas</div></div>
+      <div class="stat"><div class="stat-num" id="s-otras">—</div><div class="stat-lbl">no CDN</div></div>
+    </div>
+    <div class="barra-ext"><div class="barra-int" id="barra">0%</div></div>
+    <p class="sub" id="progreso">Sin empezar.</p>
+  </section>
+
+  <section>
+    <h2>Registro</h2>
+    <div id="log"></div>
+  </section>
+
+</div>
+<script src="verificar-imagenes.js"></script>
+</body>
+</html>
