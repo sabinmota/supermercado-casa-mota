@@ -4862,18 +4862,72 @@ function toggleFiscalForm() {
 
 let _clientNotiBadge = 0;
 
+/* ─── BUILD 391 · `_notiFetch`: el fallo de raíz ──────────────────────────────
+ * Este bloque llamaba a `_supaFetch(...)`, que NO EXISTE en la tienda: solo
+ * está definido en `js/extras.v33.js:10`, y ese fichero lo carga únicamente
+ * `admin.html`. En `index.html` (línea 1274-1280) no aparece.
+ *
+ * Consecuencia: `loadClientNotificaciones()` lanzaba ReferenceError en su
+ * primera línea útil. El `try/catch` que la envuelve se lo tragaba y devolvía
+ * `[]`, así que la pantalla del cliente mostraba siempre «Todo al día» —
+ * sin error visible, sin nada en rojo en la consola. Por eso el cliente no
+ * veía NADA: ni los cambios de estado ni ninguna otra notificación.
+ *
+ * O sea: el fallo del build 390 (`cliente_email` ausente) era real, pero
+ * había un segundo fallo DEBAJO que lo hacía irrelevante. Aunque el 390
+ * hubiera estado perfecto, el cliente habría seguido sin ver nada.
+ *
+ * Se define aquí un helper propio en vez de cargar `extras.v33.js` en la
+ * tienda: ese fichero son ~1.700 líneas de panel de administración (reportes,
+ * cupones, PDF) que el cliente no necesita descargar. Y usa `_SB_HEADERS` de
+ * `js/api.js`, que la tienda SÍ carga.
+ */
+async function _notiFetch(endpoint, options = {}) {
+  const method  = (options.method || 'GET').toUpperCase();
+  const headers = { ..._SB_HEADERS, ...(options.headers || {}) };
+  if (['POST', 'PATCH', 'PUT'].includes(method)) headers['Prefer'] = 'return=representation';
+
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(`${_SB_URL}/${endpoint}`, {
+      method, headers, body: options.body || undefined, signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 204) return null;
+  if (!res.ok) throw new Error(`_notiFetch ${res.status}: ${await res.text()}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 async function loadClientNotificaciones() {
-  if (!currentClient?.email) return;
+  if (!currentClient?.email) return [];
+  let json;
   try {
     const emailEnc = encodeURIComponent(currentClient.email);
-    const json = await _supaFetch(
+    json = await _notiFetch(
       `notificaciones?select=*&limit=50&order=created_at.desc&or=(cliente_email.eq.${emailEnc},cliente_email.eq.todos)`
-    ).catch(() => []);
+    );
+  } catch (e) {
+    // Un fallo aquí ya NO se traga en silencio: antes, cualquier problema se
+    // veía igual que «no tienes notificaciones», que es lo que ocultó este bug
+    // durante builds enteros.
+    console.warn('[noti] no se pudieron cargar las notificaciones:', e && e.message);
+    return [];
+  }
+
+  try {
     const all  = (Array.isArray(json) ? json : []).filter(n =>
-      n.cliente_email === currentClient.email || n.cliente_email === 'todos'
+      !n.deleted && (n.cliente_email === currentClient.email || n.cliente_email === 'todos')
     );
 
-    const unread = all.filter(n => !n.leida).length;
+    // La tabla arrastra DOS columnas para lo mismo: `leida` (tienda) y `leido`
+    // (panel). Se considera no leída solo si ambas lo dicen, para que un aviso
+    // creado desde el panel no nazca marcado como ya leído en la tienda.
+    const unread = all.filter(n => n.leida !== true && n.leido !== true).length;
     _clientNotiBadge = unread;
 
     // Mostrar badge en el botón "Mi cuenta"
@@ -4968,7 +5022,7 @@ async function renderClientNotificaciones() {
     cancelado:  { color:'#e53935', bg:'#fce8e8', label:'Cancelado',  icon:'fa-ban' },
   };
 
-  const unread = list.filter(n => !n.leida).length;
+  const unread = list.filter(n => n.leida !== true && n.leido !== true).length;
 
   notiContainer.innerHTML = `
     <!-- Cabecera del panel -->
@@ -5004,7 +5058,7 @@ async function renderClientNotificaciones() {
         const est    = n.estado_pedido ? (estadoConfig[n.estado_pedido] || null) : null;
         const recId  = n.id;
         const fecha  = n.fecha || '-';
-        const isNew  = !n.leida;
+        const isNew  = n.leida !== true && n.leido !== true;
 
         return `
         <div style="
@@ -5133,13 +5187,17 @@ async function renderClientNotificaciones() {
 
 async function markClientNotiRead(id) {
   try {
-    await _supaFetch(`notificaciones?id=eq.${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ leida: true })
+    // Se marcan AMBAS columnas: `leida` (la que lee la tienda) y `leido` (la que
+    // lee el panel). Si solo se pusiera una, el aviso seguiria contando como no
+    // leido en el otro lado y el contador nunca bajaria a cero.
+    await _notiFetch(`notificaciones?id=eq.${id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ leida: true, leido: true })
     });
     renderClientNotificaciones();
-  } catch(e) {}
+  } catch (e) {
+    console.warn('[noti] no se pudo marcar como leida:', e && e.message);
+  }
 }
 
 // Llamar al cargar la sesión del cliente
