@@ -4924,10 +4924,19 @@ async function loadClientNotificaciones() {
       !n.deleted && (n.cliente_email === currentClient.email || n.cliente_email === 'todos')
     );
 
-    // La tabla arrastra DOS columnas para lo mismo: `leida` (tienda) y `leido`
-    // (panel). Se considera no leída solo si ambas lo dicen, para que un aviso
-    // creado desde el panel no nazca marcado como ya leído en la tienda.
-    const unread = all.filter(n => n.leida !== true && n.leido !== true).length;
+    // ⚠️ SOLO `leida`. NO mirar `leido` — error corregido en el build 392.
+    //
+    // Las dos columnas NO son lo mismo con distinto nombre: representan a DOS
+    // LECTORES DISTINTOS.
+    //    · `leido` → lo leyó EL ADMINISTRADOR (campana del panel)
+    //    · `leida` → lo leyó EL CLIENTE (esta pantalla)
+    //
+    // En el build 391 escribí `n.leida !== true && n.leido !== true`, creyendo
+    // que "unificaba" columnas duplicadas. Consecuencia real: en cuanto el
+    // administrador abría la campana, `leido` pasaba a true y el aviso se le
+    // mostraba al CLIENTE como ya leído, con el contador a 0. Que el dueño de
+    // la tienda lea un aviso no significa que el cliente lo haya leído.
+    const unread = all.filter(n => n.leida !== true).length;
     _clientNotiBadge = unread;
 
     // Mostrar badge en el botón "Mi cuenta"
@@ -5022,7 +5031,8 @@ async function renderClientNotificaciones() {
     cancelado:  { color:'#e53935', bg:'#fce8e8', label:'Cancelado',  icon:'fa-ban' },
   };
 
-  const unread = list.filter(n => n.leida !== true && n.leido !== true).length;
+  // Solo `leida`: es la columna del cliente. Ver la nota en loadClientNotificaciones().
+  const unread = list.filter(n => n.leida !== true).length;
 
   notiContainer.innerHTML = `
     <!-- Cabecera del panel -->
@@ -5058,7 +5068,7 @@ async function renderClientNotificaciones() {
         const est    = n.estado_pedido ? (estadoConfig[n.estado_pedido] || null) : null;
         const recId  = n.id;
         const fecha  = n.fecha || '-';
-        const isNew  = n.leida !== true && n.leido !== true;
+        const isNew  = n.leida !== true;   // solo la columna del cliente
 
         return `
         <div style="
@@ -5187,12 +5197,11 @@ async function renderClientNotificaciones() {
 
 async function markClientNotiRead(id) {
   try {
-    // Se marcan AMBAS columnas: `leida` (la que lee la tienda) y `leido` (la que
-    // lee el panel). Si solo se pusiera una, el aviso seguiria contando como no
-    // leido en el otro lado y el contador nunca bajaria a cero.
+    // Solo `leida`. NO tocar `leido`: esa es la marca del administrador, y que
+    // el cliente lea su aviso no debe borrarlo de la campana del panel.
     await _notiFetch(`notificaciones?id=eq.${id}`, {
       method: 'PATCH',
-      body:   JSON.stringify({ leida: true, leido: true })
+      body:   JSON.stringify({ leida: true })
     });
     renderClientNotificaciones();
   } catch (e) {

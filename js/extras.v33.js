@@ -1361,10 +1361,17 @@ async function _recargarNotificaciones() {
  * │ (`cliente_email: order.email`); se perdio en una reescritura posterior.   │
  * └───────────────────────────────────────────────────────────────────────────┘
  *
- * OJO con los nombres de campo: la tabla arrastra `leido` (lo usa el panel) y
- * `leida` (lo usa la tienda, js/app.js:4876 y 5139). Son columnas DISTINTAS y
- * ambas existen (supabase_alter.sql:126-127). Hay que escribir las dos, o el
- * aviso nace "ya leido" para uno de los dos lados y no destaca.
+ * OJO con los nombres de campo: la tabla tiene `leido` Y `leida`, y NO son la
+ * misma cosa con distinto nombre (supabase_alter.sql:126-127). Representan a
+ * DOS LECTORES DISTINTOS:
+ *
+ *    · `leido` → lo leyó EL ADMINISTRADOR (campana del panel)
+ *    · `leida` → lo leyó EL CLIENTE       (su pantalla en la tienda)
+ *
+ * Por eso al crear el aviso hay que poner AMBAS a false: es nuevo para los dos.
+ * Pero al marcar como leído, cada lado toca SOLO la suya. Confundirlas hace que
+ * el aviso desaparezca del cliente en cuanto el dueño de la tienda lo lee —
+ * error real del build 391, corregido en el 392.
  */
 async function sendOrderStatusNotification(order, nuevoEstado) {
   if (!order?.id) return;
