@@ -4920,8 +4920,17 @@ async function loadClientNotificaciones() {
   }
 
   try {
+    // `deleted`      → la borró EL ADMINISTRADOR (columna compartida)
+    // `borrada_cliente` → la borró EL CLIENTE desde esta pantalla (build 393)
+    //
+    // Son dos columnas separadas por el MISMO motivo que `leido`/`leida`: si el
+    // cliente escribiera en `deleted`, el aviso desaparecería también de la
+    // campana del panel, porque `js/extras.v33.js:933` carga TODAS las
+    // notificaciones (sin filtrar por correo) y descarta las que tengan
+    // `deleted`. El cliente borraría el historial del dueño de la tienda.
     const all  = (Array.isArray(json) ? json : []).filter(n =>
-      !n.deleted && (n.cliente_email === currentClient.email || n.cliente_email === 'todos')
+      !n.deleted && !n.borrada_cliente &&
+      (n.cliente_email === currentClient.email || n.cliente_email === 'todos')
     );
 
     // ⚠️ SOLO `leida`. NO mirar `leido` — error corregido en el build 392.
@@ -5050,15 +5059,27 @@ async function renderClientNotificaciones() {
           box-shadow:0 2px 6px rgba(229,57,53,.35);
         ">${unread} nueva${unread>1?'s':''}</span>` : ''}
       </div>
-      <button onclick="renderClientNotificaciones()" style="
-        background:none;border:none;cursor:pointer;
-        color:#1a7c3e;font-size:.78rem;font-weight:600;
-        display:flex;align-items:center;gap:4px;
-        padding:4px 8px;border-radius:8px;
-        transition:background .2s;
-      " onmouseover="this.style.background='#e8f5ee'" onmouseout="this.style.background='none'">
-        <i class="fas fa-rotate-right"></i> Actualizar
-      </button>
+      <div style="display:flex;align-items:center;gap:2px">
+        <button onclick="renderClientNotificaciones()" style="
+          background:none;border:none;cursor:pointer;
+          color:#1a7c3e;font-size:.78rem;font-weight:600;
+          display:flex;align-items:center;gap:4px;
+          padding:4px 8px;border-radius:8px;
+          transition:background .2s;
+        " onmouseover="this.style.background='#e8f5ee'" onmouseout="this.style.background='none'">
+          <i class="fas fa-rotate-right"></i> Actualizar
+        </button>
+        <button onclick="deleteAllClientNotis()" style="
+          background:none;border:none;cursor:pointer;
+          color:#e53935;font-size:.78rem;font-weight:600;
+          display:flex;align-items:center;gap:4px;
+          padding:4px 8px;border-radius:8px;
+          transition:background .2s;
+        " title="Eliminar todas mis notificaciones"
+           onmouseover="this.style.background='#fce8e8'" onmouseout="this.style.background='none'">
+          <i class="fas fa-trash-can"></i> Borrar
+        </button>
+      </div>
     </div>
 
     <!-- Lista de notificaciones -->
@@ -5158,30 +5179,45 @@ async function renderClientNotificaciones() {
               </div>
             </div>
 
-            <!-- Botón marcar leída -->
-            ${isNew ? `
-            <button onclick="markClientNotiRead('${recId}')" style="
-              flex-shrink:0;
-              width:30px;height:30px;
-              border-radius:50%;
-              border:1.5px solid #1a7c3e;
-              background:#fff;color:#1a7c3e;
-              cursor:pointer;font-size:.8rem;
-              display:flex;align-items:center;justify-content:center;
-              transition:all .2s;
-            " title="Marcar como leída"
-               onmouseover="this.style.background='#1a7c3e';this.style.color='#fff'"
-               onmouseout="this.style.background='#fff';this.style.color='#1a7c3e'">
-              <i class="fas fa-check"></i>
-            </button>` : `
-            <div style="
-              width:30px;height:30px;border-radius:50%;
-              background:#e8f5ee;color:#1a7c3e;
-              display:flex;align-items:center;justify-content:center;
-              font-size:.75rem;flex-shrink:0;
-            " title="Leída">
-              <i class="fas fa-check-double"></i>
-            </div>`}
+            <!-- Acciones: marcar leída + eliminar (build 393) -->
+            <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;align-items:center">
+              ${isNew ? `
+              <button onclick="markClientNotiRead('${recId}')" style="
+                width:30px;height:30px;
+                border-radius:50%;
+                border:1.5px solid #1a7c3e;
+                background:#fff;color:#1a7c3e;
+                cursor:pointer;font-size:.8rem;
+                display:flex;align-items:center;justify-content:center;
+                transition:all .2s;
+              " title="Marcar como leída" aria-label="Marcar como leída"
+                 onmouseover="this.style.background='#1a7c3e';this.style.color='#fff'"
+                 onmouseout="this.style.background='#fff';this.style.color='#1a7c3e'">
+                <i class="fas fa-check"></i>
+              </button>` : `
+              <div style="
+                width:30px;height:30px;border-radius:50%;
+                background:#e8f5ee;color:#1a7c3e;
+                display:flex;align-items:center;justify-content:center;
+                font-size:.75rem;
+              " title="Leída">
+                <i class="fas fa-check-double"></i>
+              </div>`}
+
+              <button onclick="deleteClientNoti('${recId}')" style="
+                width:30px;height:30px;
+                border-radius:50%;
+                border:1.5px solid #f3c9c9;
+                background:#fff;color:#e53935;
+                cursor:pointer;font-size:.78rem;
+                display:flex;align-items:center;justify-content:center;
+                transition:all .2s;
+              " title="Eliminar esta notificación" aria-label="Eliminar esta notificación"
+                 onmouseover="this.style.background='#e53935';this.style.color='#fff';this.style.borderColor='#e53935'"
+                 onmouseout="this.style.background='#fff';this.style.color='#e53935';this.style.borderColor='#f3c9c9'">
+                <i class="fas fa-trash-can"></i>
+              </button>
+            </div>
           </div>
         </div>`;
       }).join('')}
@@ -5208,6 +5244,76 @@ async function markClientNotiRead(id) {
     console.warn('[noti] no se pudo marcar como leida:', e && e.message);
   }
 }
+
+/* ─── BUILD 393 · Borrado de notificaciones por el CLIENTE ────────────────────
+ *
+ * Escribe en `borrada_cliente`, NUNCA en `deleted`.
+ *
+ * `deleted` es la columna del administrador y el panel la lee sobre TODAS las
+ * notificaciones, sin filtrar por correo (`js/extras.v33.js:933`). Si el cliente
+ * tocara `deleted`, borraría el aviso también de la campana del panel: el dueño
+ * de la tienda perdería su registro porque un cliente limpió su pantalla.
+ *
+ * Es el mismo patrón de `leido`/`leida`, que ya me costó un fallo en el build
+ * 391: dos actores distintos sobre la misma fila necesitan cada uno su columna.
+ *
+ * REQUIERE ejecutar antes `limpieza/29-borrado-cliente.sql`. Sin esa columna,
+ * PostgREST responde 400 y el borrado no funciona (el aviso vuelve al recargar).
+ * ─────────────────────────────────────────────────────────────────────────── */
+async function deleteClientNoti(id) {
+  if (!id) return;
+  if (!confirm('¿Eliminar esta notificación? Solo se quita de tu pantalla.')) return;
+  try {
+    await _notiFetch(`notificaciones?id=eq.${id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ borrada_cliente: true })
+    });
+    await renderClientNotificaciones();
+    if (typeof showToast === 'function') showToast('Notificación eliminada', 'success');
+  } catch (e) {
+    console.warn('[noti] no se pudo eliminar:', e && e.message);
+    if (typeof showToast === 'function') {
+      showToast('No se pudo eliminar la notificación', 'error');
+    }
+  }
+}
+
+async function deleteAllClientNotis() {
+  // Se borra lo que el cliente TIENE DELANTE, no "todo lo suyo que exista en la
+  // base": si llega un aviso nuevo entre que abre el diálogo y confirma, no se
+  // borra sin que lo haya visto.
+  const list = await loadClientNotificaciones();
+  if (!list || !list.length) {
+    if (typeof showToast === 'function') showToast('No hay notificaciones que eliminar', 'info');
+    return;
+  }
+  if (!confirm(`¿Eliminar tus ${list.length} notificaciones? Solo se quitan de tu pantalla.`)) return;
+
+  const res = await Promise.allSettled(
+    list.map(n => _notiFetch(`notificaciones?id=eq.${n.id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ borrada_cliente: true })
+    }))
+  );
+  const fallos = res.filter(r => r.status === 'rejected').length;
+
+  await renderClientNotificaciones();
+
+  if (typeof showToast === 'function') {
+    if (fallos === 0) {
+      showToast('Notificaciones eliminadas', 'success');
+    } else if (fallos < list.length) {
+      // Ni silencio ni un "listo" falso: se dice exactamente qué quedó fuera.
+      showToast(`Se eliminaron ${list.length - fallos} de ${list.length}`, 'warning');
+    } else {
+      showToast('No se pudieron eliminar', 'error');
+    }
+  }
+  if (fallos) console.warn(`[noti] ${fallos} borrado(s) fallaron.`);
+}
+
+window.deleteClientNoti     = deleteClientNoti;
+window.deleteAllClientNotis = deleteAllClientNotis;
 
 // Llamar al cargar la sesión del cliente
 document.addEventListener('DOMContentLoaded', () => {
