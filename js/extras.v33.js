@@ -1026,17 +1026,23 @@ function renderNotificaciones() {
 function _renderNotificacionesLaterales() {
   const total     = notificaciones.length;
   const noLeidas  = notificaciones.filter(n => n.leido === false).length;
+  // `nuevo_pedido` cuenta en el KPI de pedidos junto con los cambios de estado:
+  // la tarjeta se llama "Pedidos" y un aviso de pedido nuevo es, precisamente,
+  // actividad de pedidos. Sin esto la tarjeta se quedaba en 0 mientras el
+  // historial de abajo si mostraba avisos: una incoherencia visible.
+  const nuevos    = notificaciones.filter(n => n.tipo === 'nuevo_pedido').length;
   const cambios   = notificaciones.filter(n => n.tipo === 'cambio_estado').length;
   const ofertas   = notificaciones.filter(n => ['nueva_oferta','sistema'].includes(n.tipo)).length;
 
   _setEl('notiKpiTotal',    total);
   _setEl('notiKpiNoLeidas', noLeidas);
-  _setEl('notiKpiPedidos',  cambios);
+  _setEl('notiKpiPedidos',  nuevos + cambios);
   _setEl('notiKpiOfertas',  ofertas);
 
   const distEl = document.getElementById('notiDistribucion');
   if (distEl) {
     const tipos = [
+      { key:'nuevo_pedido',  label:'Pedido nuevo',     color:'#1a7c3e', bg:'#e8f5ee', icon:'fa-cart-plus' },
       { key:'cambio_estado', label:'Cambio de estado', color:'#1565c0', bg:'#e3f2fd', icon:'fa-rotate' },
       { key:'nueva_oferta',  label:'Nueva oferta',     color:'#f57c00', bg:'#fff3e0', icon:'fa-tag' },
       { key:'sistema',       label:'Sistema',          color:'#7b1fa2', bg:'#f3e5f5', icon:'fa-gear' },
@@ -1066,8 +1072,8 @@ function _renderNotificacionesLaterales() {
     if (!ult5.length) {
       recEl.innerHTML = `<div style="color:#aab;font-size:.84rem;text-align:center;padding:16px 0">Sin notificaciones</div>`;
     } else {
-      const tipoColor = { cambio_estado:'#1565c0', nueva_oferta:'#f57c00', sistema:'#7b1fa2' };
-      const tipoIcon  = { cambio_estado:'fa-rotate', nueva_oferta:'fa-tag', sistema:'fa-gear' };
+      const tipoColor = { nuevo_pedido:'#1a7c3e',     cambio_estado:'#1565c0', nueva_oferta:'#f57c00', sistema:'#7b1fa2' };
+      const tipoIcon  = { nuevo_pedido:'fa-cart-plus', cambio_estado:'fa-rotate', nueva_oferta:'fa-tag', sistema:'fa-gear' };
       recEl.innerHTML = ult5.map(n => {
         const color = tipoColor[n.tipo] || '#1a7c3e';
         const icon  = tipoIcon[n.tipo]  || 'fa-bell';
@@ -1216,7 +1222,7 @@ async function sendNotificacion() {
  * un mensaje interno con el nombre y el importe de otra persona.
  */
 async function sendNewOrderNotification(order, recargar = true) {
-  if (!order || !order.id) return;
+  if (!order || !order.id) return false;
   const numero = (order.order_number != null && order.order_number !== '')
     ? order.order_number
     : String(order.id).slice(-6);
@@ -1238,25 +1244,90 @@ async function sendNewOrderNotification(order, recargar = true) {
       })
     });
     if (recargar) await _recargarNotificaciones();
+    return true;
   } catch (e) {
     // Un fallo aqui no debe romper el sondeo de pedidos: el pedido ya esta
     // guardado y sigue apareciendo en Gestion de Pedidos.
     console.warn('[noti] no se pudo registrar el pedido nuevo:', e && e.message);
+    return false;
   }
 }
 
 /**
- * Registra varios pedidos nuevos de una sola vez y repinta la campana UNA vez.
- * Llamar a sendNewOrderNotification() en bucle recargaria la tabla completa
- * tantas veces como pedidos hubiera; con 3 pedidos simultaneos eso son 3
- * lecturas de 300 filas y 3 repintados seguidos de la interfaz.
+ * Sincroniza la campana con los pedidos recientes. ESTA es la funcion que hace
+ * que un pedido aparezca; `sendNewOrderNotification` solo escribe una fila.
+ *
+ * POR QUE EXISTE (fallo de diseno del build 388, corregido en el 389)
+ * ──────────────────────────────────────────────────────────────────
+ * La primera version colgaba la creacion del aviso de `_pvAvisar()`, que solo
+ * se dispara cuando la vigilancia detecta un id que no tenia en memoria. El
+ * problema: al arrancar, la vigilancia siembra `_pvIdsVistos` con TODOS los
+ * pedidos que ya existen (pedidos-vigilancia.js:353). Consecuencia:
+ *
+ *   · pedido que entra con el panel cerrado  → al abrir, ya cuenta como "visto"
+ *     → nunca genera aviso;
+ *   · recargar la pagina                     → la memoria se reinicia.
+ *
+ * O sea: solo funcionaba si el panel estaba abierto en ese instante exacto. Un
+ * registro que debe ser permanente no puede depender de la memoria volatil de
+ * una sesion del navegador.
+ *
+ * AHORA el criterio es duradero y esta en la base de datos: "¿este pedido ya
+ * tiene su notificacion?". Se compara `orders.id` contra los `pedido_id` ya
+ * registrados. Es idempotente: se puede llamar en cada sondeo sin duplicar.
+ *
+ * Las notificaciones borradas (deleted = true) SI cuentan como registradas, a
+ * proposito: si borras un aviso no debe resucitar en el sondeo siguiente.
  */
-async function sendNewOrderNotifications(pedidos) {
-  if (!Array.isArray(pedidos) || !pedidos.length) return;
-  for (const p of pedidos) {
-    await sendNewOrderNotification(p, false);
+async function sincronizarNotificacionesPedidos(lista) {
+  if (!Array.isArray(lista) || !lista.length) return;
+
+  // Solo pedidos recientes. Sin este limite, la primera ejecucion crearia una
+  // notificacion por cada pedido historico de la tabla.
+  const LIMITE_HORAS = 24;
+  const MAXIMO_POR_PASADA = 15;
+  const desde = Date.now() - LIMITE_HORAS * 3600 * 1000;
+
+  const recientes = lista.filter(o => {
+    const t = new Date(o.created_at).getTime();
+    return !isNaN(t) && t >= desde;
+  });
+  if (!recientes.length) return;
+
+  let yaRegistrados;
+  try {
+    const filas = await _supaFetch(
+      'notificaciones?select=pedido_id&tipo=eq.nuevo_pedido&limit=1000', {}
+    );
+    yaRegistrados = new Set(
+      (Array.isArray(filas) ? filas : [])
+        .map(f => String(f.pedido_id || ''))
+        .filter(Boolean)
+    );
+  } catch (e) {
+    // Sin poder leer lo ya registrado, NO se escribe: crear a ciegas duplicaria
+    // avisos en cada sondeo, cada 30 segundos.
+    console.warn('[noti] no se pudo comprobar lo ya registrado:', e && e.message);
+    return;
   }
-  await _recargarNotificaciones();
+
+  const pendientes = recientes
+    .filter(o => !yaRegistrados.has(String(o.id)))
+    .slice(0, MAXIMO_POR_PASADA);
+  if (!pendientes.length) return;
+
+  // Los mas antiguos primero, para que la campana los liste en orden natural.
+  pendientes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  let creadas = 0;
+  for (const p of pendientes) {
+    const ok = await sendNewOrderNotification(p, false);
+    if (ok) creadas++;
+  }
+  if (creadas > 0) {
+    console.log(`[noti] ${creadas} pedido(s) registrado(s) en la campana.`);
+    await _recargarNotificaciones();
+  }
 }
 
 /** Relee las notificaciones y repinta campana, lista y panel lateral. */
@@ -1560,8 +1631,8 @@ window.openNotiModal                 = openNotiModal;
 window.closeNotiModal                = closeNotiModal;
 window.sendNotificacion              = sendNotificacion;
 window.sendOrderStatusNotification   = sendOrderStatusNotification;
-window.sendNewOrderNotification      = sendNewOrderNotification;
-window.sendNewOrderNotifications     = sendNewOrderNotifications;
+window.sendNewOrderNotification            = sendNewOrderNotification;
+window.sincronizarNotificacionesPedidos    = sincronizarNotificacionesPedidos;
 window.onNotiClientSearch            = onNotiClientSearch;
 window.selectNotiClient              = selectNotiClient;
 

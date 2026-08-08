@@ -265,6 +265,18 @@
       if (nuevos.length > 0 && !silencioso) {
         _pvAvisar(nuevos);
       }
+
+      // Registrar en la campana los pedidos recientes que aun no tengan aviso.
+      //
+      // Se llama en CADA sondeo, no solo cuando `nuevos` trae algo, y esa es la
+      // clave del arreglo: `nuevos` compara contra ids memorizados en esta
+      // sesion del navegador, asi que un pedido entrado con el panel cerrado
+      // (o antes de un F5) nunca aparecia ahi. La sincronizacion decide con un
+      // criterio duradero — si el pedido ya tiene su fila en `notificaciones` —
+      // y por eso es idempotente: repetirla no duplica nada.
+      if (typeof sincronizarNotificacionesPedidos === 'function') {
+        try { await sincronizarNotificacionesPedidos(lista); } catch (e) {}
+      }
     } catch (e) {
       // Un fallo de red no debe romper el ciclo: se reintenta al siguiente tick.
       console.warn('[pedidos] sondeo falló:', e && e.message);
@@ -286,11 +298,10 @@
     // cliente le permitiria crear avisos arbitrarios en el panel. Ademas la
     // deteccion de "que es nuevo" ya vive aqui, y duplicarla en otro sitio
     // llevaria a dos criterios que acabarian discrepando.
-    // Se pasa el lote completo a proposito: la version por-pedido recargaria
-    // la tabla de notificaciones una vez por cada pedido.
-    if (typeof sendNewOrderNotifications === 'function') {
-      try { sendNewOrderNotifications(nuevos); } catch (e) {}
-    }
+    // NOTA: el registro en la campana ya NO se hace aqui. Ver _pvSondear().
+    // Colgarlo de esta funcion era un error: solo se ejecuta cuando aparece un
+    // id que no estaba en memoria, asi que un pedido entrado con el panel
+    // cerrado no generaba nada (al arrancar se siembra como "ya visto").
 
     const n = nuevos.length;
     if (typeof showAdminToast === 'function') {
