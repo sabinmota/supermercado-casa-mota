@@ -1709,6 +1709,16 @@ function setImgPreview(src, label) {
 // base de datos solo queda la URL (~60 bytes), igual que los 1639 productos
 // que ya se migraron en junio.
 const _R2_WORKER = 'https://r2-proxy-casamota.supermercadocasamota.workers.dev';
+// Token compartido con el Worker (variable UPLOAD_TOKEN en Cloudflare).
+//
+// Sobre por qué está a la vista: este fichero lo sirve el navegador, así que no
+// es un secreto. No lo es tampoco la clave de administración que ya viaja en
+// x-admin-key. Lo que aporta es que subir al bucket deje de ser algo que
+// cualquiera pueda hacer sin más: hay que leer el panel para encontrarlo, y se
+// puede rotar en Cloudflare y aquí el día que haga falta.
+// La protección de verdad sería que el token lo emitiera un servidor tras
+// comprobar la sesión, y eso este sitio estático no lo puede hacer.
+const _R2_TOKEN  = 'CM-Upload-7Qw2ePastel';
 const _R2_CDN    = 'https://img.supermercadocasamota.com';
 
 // Convierte el dataURL que produce _compressImage() en binario para el PUT.
@@ -1739,7 +1749,10 @@ async function _uploadToR2(dataUrl) {
   try {
     res = await fetch(`${_R2_WORKER}/put/${key}`, {
       method:  'PUT',
-      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      headers: {
+        'Content-Type':   blob.type || 'image/jpeg',
+        'x-upload-token': _R2_TOKEN,
+      },
       body:    blob,
       signal:  ctrl.signal,
     });
@@ -1747,6 +1760,12 @@ async function _uploadToR2(dataUrl) {
     clearTimeout(timer);
   }
 
+  // 401 = el Worker no reconoce el token. Suele significar que se cambió en
+  // Cloudflare y no aquí, o al contrario. Merece un mensaje propio: si no, el
+  // panel cae en base64 sin decir por qué y el problema pasa desapercibido.
+  if (res.status === 401) {
+    throw new Error('R2 rechazó el token de subida (revisar UPLOAD_TOKEN en Cloudflare)');
+  }
   if (!res.ok) throw new Error(`R2 respondió ${res.status}`);
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'R2 rechazó la subida');

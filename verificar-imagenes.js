@@ -364,7 +364,11 @@ async function verificar() {
     if (resumen.otroHost)  logWarn('URLs fuera del CDN: ' + resumen.otroHost);
 
     // Lo cacheado se da por correcto y se refleja ya en las tarjetas.
-    baseRevisadas = resumen.cacheadas;
+    // Los problemas detectados al leer (sin imagen, base64, rutas relativas)
+    // cuentan como revisados aunque no se pidan al CDN: si no, las tarjetas no
+    // suman —salía «2065 revisadas, 2065 correctas, 2 rotas»— y en una
+    // herramienta de verificación los números deben sostenerse solos.
+    baseRevisadas = resumen.cacheadas + resumen.problemas.length;
     baseCorrectas = resumen.cacheadas;
     // El base64 y las rutas relativas son problemas reales: no se pueden
     // comprobar contra el CDN, pero deben aparecer en el informe igualmente.
