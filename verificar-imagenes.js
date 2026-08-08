@@ -16,8 +16,14 @@
  * que el navegador consiga descodificar el fichero. Un objeto de 0 bytes o un
  * JPEG truncado dispara `onerror`, que es justo el caso que buscamos.
  *
- * Se puede parar en cualquier momento. Las que ya salieron correctas se
- * recuerdan en localStorage, así que al volver a lanzarlo no se repiten.
+ * Se puede parar en cualquier momento. Si se para a mitad, la siguiente pasada
+ * continúa donde iba. Si la pasada TERMINA, la caché se borra para que la
+ * próxima vez se compruebe todo de nuevo desde cero.
+ *
+ * Ese matiz importa: la primera versión guardaba la caché siempre, así que al
+ * relanzar una comprobación ya completada no quedaba nada por revisar y la
+ * pantalla mostraba «0 de 0» con las tarjetas vacías. Parecía roto y, peor aún,
+ * ocultaba el resultado. La caché sirve para reanudar, no para saltarse trabajo.
  */
 
 // ─── Configuración (mismos valores que js/api.js) ────────────────────────────
@@ -35,7 +41,8 @@ var HDR_LEER = {
 var PAGINA      = 1000;   // filas por página al leer Supabase
 var SIMULTANEAS = 6;      // imágenes comprobadas a la vez
 var ESPERA_MS   = 20000;  // si no carga en 20 s, se da por rota
-var CLAVE_CACHE = 'cm_verificadas_ok';
+var CLAVE_CACHE  = 'cm_verificadas_ok';
+var CLAVE_ESTADO = 'cm_verificadas_estado';   // 'parcial' | 'completa'
 
 var parar   = false;
 var enCurso = false;
@@ -72,20 +79,35 @@ function normalizarArray(valor) {
 function esCDN(url)  { return typeof url === 'string' && url.indexOf(CDN) === 0; }
 function esHTTP(url) { return typeof url === 'string' && /^https?:\/\//.test(url); }
 
-/** Caché de URLs ya verificadas correctas, para no repetir trabajo. */
+/**
+ * Caché de URLs ya verificadas, SOLO para reanudar una pasada interrumpida.
+ * Si la última pasada llegó al final, se ignora y se borra: una comprobación
+ * nueva debe comprobar de verdad, no dar por bueno lo de ayer.
+ */
 function leerCache() {
   try {
+    if (localStorage.getItem(CLAVE_ESTADO) !== 'parcial') {
+      localStorage.removeItem(CLAVE_CACHE);
+      return new Set();
+    }
     var bruto = localStorage.getItem(CLAVE_CACHE);
     var arr = bruto ? JSON.parse(bruto) : [];
     return new Set(Array.isArray(arr) ? arr : []);
   } catch (e) { return new Set(); }
 }
-function guardarCache(conjunto) {
+function guardarCache(conjunto, estado) {
   try {
     localStorage.setItem(CLAVE_CACHE, JSON.stringify(Array.from(conjunto)));
+    localStorage.setItem(CLAVE_ESTADO, estado);
   } catch (e) {
-    // Si no hay hueco, seguimos sin caché: es una optimización, no un requisito.
+    // Si no hay hueco, seguimos sin caché: es una comodidad, no un requisito.
   }
+}
+function limpiarCache() {
+  try {
+    localStorage.removeItem(CLAVE_CACHE);
+    localStorage.removeItem(CLAVE_ESTADO);
+  } catch (e) { /* nada que hacer */ }
 }
 
 /**
@@ -156,7 +178,10 @@ async function traerProductos() {
 function construirTareas(productos, cacheOk) {
   var tareas = [];
   var vistas = new Set();
-  var resumen = { sinImagen: 0, base64: 0, relativas: 0, otroHost: 0, cacheadas: 0 };
+  var resumen = {
+    sinImagen: 0, base64: 0, relativas: 0, otroHost: 0, cacheadas: 0,
+    problemas: [],   // filas para el informe que NO se pueden pedir al CDN
+  };
 
   productos.forEach(function (p) {
     var lista = [{ url: p.image, tipo: 'principal' }];
@@ -168,16 +193,33 @@ function construirTareas(productos, cacheOk) {
       var u = item.url;
 
       if (!u) {
-        if (item.tipo === 'principal') resumen.sinImagen++;
+        if (item.tipo === 'principal') {
+          resumen.sinImagen++;
+          resumen.problemas.push({
+            nombre: p.name || '(sin nombre)', tipo: 'principal', url: '',
+            borrado: p.deleted === true,
+            motivo: 'el producto no tiene imagen asignada',
+          });
+        }
         return;
       }
       if (u.indexOf('data:') === 0) {
         resumen.base64++;
+        resumen.problemas.push({
+          nombre: p.name || '(sin nombre)', tipo: item.tipo, url: '(base64)',
+          borrado: p.deleted === true,
+          motivo: 'sigue en base64, no se migró a R2',
+        });
         logWarn('Todavía en base64: ' + p.name + ' (' + item.tipo + ')');
         return;
       }
       if (!esHTTP(u)) {
         resumen.relativas++;
+        resumen.problemas.push({
+          nombre: p.name || '(sin nombre)', tipo: item.tipo, url: u,
+          borrado: p.deleted === true,
+          motivo: 'ruta relativa: el fichero no existe (' + u + ')',
+        });
         logWarn('Ruta relativa (no es una URL): ' + p.name + ' → ' + u);
         return;
       }
@@ -224,7 +266,7 @@ function mostrarInforme(rotas) {
   sec.id = 'informe';
 
   var h = document.createElement('h2');
-  h.textContent = 'Imágenes que hay que volver a subir (' + rotas.length + ')';
+  h.textContent = 'Imágenes que hay que revisar (' + rotas.length + ')';
   sec.appendChild(h);
 
   var p = document.createElement('p');
@@ -289,11 +331,15 @@ async function verificar() {
   var rotas = [];
   var cacheOk = leerCache();
 
+  // Las que se omiten por estar ya verificadas siguen contando como revisadas y
+  // correctas: son parte del catálogo y el usuario espera verlas en el total.
+  var baseRevisadas = 0, baseCorrectas = 0, baseNoCDN = 0;
+
   function pintar() {
-    document.getElementById('s-tot').textContent   = revisadas;
-    document.getElementById('s-ok').textContent    = correctas;
+    document.getElementById('s-tot').textContent   = baseRevisadas + revisadas;
+    document.getElementById('s-ok').textContent    = baseCorrectas + correctas;
     document.getElementById('s-mal').textContent   = rotasN;
-    document.getElementById('s-otras').textContent = noCDN;
+    document.getElementById('s-otras').textContent = baseNoCDN + noCDN;
   }
 
   try {
@@ -317,11 +363,24 @@ async function verificar() {
     if (resumen.relativas) logErr('Rutas relativas (imágenes que no existen): ' + resumen.relativas);
     if (resumen.otroHost)  logWarn('URLs fuera del CDN: ' + resumen.otroHost);
 
+    // Lo cacheado se da por correcto y se refleja ya en las tarjetas.
+    baseRevisadas = resumen.cacheadas;
+    baseCorrectas = resumen.cacheadas;
+    // El base64 y las rutas relativas son problemas reales: no se pueden
+    // comprobar contra el CDN, pero deben aparecer en el informe igualmente.
+    resumen.problemas.forEach(function (pr) { rotas.push(pr); rotasN++; });
+    pintar();
+
     totalTareas = tareas.length;
     actualizarBarra(0);
 
     if (!totalTareas) {
-      logOk('No hay nada nuevo que comprobar.');
+      if (rotasN) {
+        logErr('No hay URLs nuevas que comprobar, pero hay ' + rotasN + ' problemas en la base de datos (ver abajo).');
+      } else {
+        logOk('No hay nada nuevo que comprobar.');
+      }
+      mostrarInforme(rotas);
       return;
     }
 
@@ -351,7 +410,8 @@ async function verificar() {
         pintar();
         actualizarBarra(revisadas);
         // Guardado periódico: si se cierra la pestaña, no se pierde la pasada.
-        if (revisadas % 50 === 0) guardarCache(cacheOk);
+        // Se marca 'parcial' porque aún no hemos llegado al final.
+        if (revisadas % 50 === 0) guardarCache(cacheOk, 'parcial');
       }
     }
 
@@ -359,10 +419,14 @@ async function verificar() {
     for (var k = 0; k < Math.min(SIMULTANEAS, tareas.length); k++) equipo.push(trabajador());
     await Promise.all(equipo);
 
-    guardarCache(cacheOk);
+    // Solo se guarda la caché si la pasada quedó a medias. Si terminó, se borra:
+    // así la próxima comprobación vuelve a mirarlo todo de verdad.
+    if (parar) guardarCache(cacheOk, 'parcial');
+    else       limpiarCache();
 
     logHd('=== FIN ===');
-    logOk('Revisadas: ' + revisadas + ' · Correctas: ' + correctas + ' · Rotas: ' + rotasN);
+    logOk('Revisadas: ' + (baseRevisadas + revisadas) + ' · Correctas: ' +
+          (baseCorrectas + correctas) + ' · Rotas: ' + rotasN);
     if (parar) logWarn('Parado antes de terminar: quedaban ' + (totalTareas - revisadas) + '.');
 
     if (rotasN) {
@@ -383,9 +447,33 @@ async function verificar() {
 
 // ─── Enganches ───────────────────────────────────────────────────────────────
 document.getElementById('btn-ir').addEventListener('click', verificar);
+
 document.getElementById('btn-parar').addEventListener('click', function () {
   parar = true;
   logWarn('Parando… se termina lo que ya está en vuelo.');
 });
 
+var btnCero = document.getElementById('btn-cero');
+if (btnCero) {
+  btnCero.addEventListener('click', function () {
+    limpiarCache();
+    logOk('Memoria borrada. La próxima comprobación revisará todo el catálogo.');
+  });
+}
+
 log('Herramienta lista. Es solo lectura: no cambia nada.');
+
+// Si quedó una pasada a medias, decirlo antes de que el usuario pulse.
+(function avisarPendiente() {
+  try {
+    if (localStorage.getItem(CLAVE_ESTADO) === 'parcial') {
+      var bruto = localStorage.getItem(CLAVE_CACHE);
+      var arr = bruto ? JSON.parse(bruto) : [];
+      if (arr && arr.length) {
+        logWarn('La última comprobación quedó a medias (' + arr.length +
+                ' ya verificadas). Al pulsar «Verificar todas» continuará donde iba. ' +
+                'Si prefieres revisarlo todo otra vez, pulsa «Empezar de cero».');
+      }
+    }
+  } catch (e) { /* sin aviso */ }
+})();
