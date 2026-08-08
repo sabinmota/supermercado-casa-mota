@@ -5148,3 +5148,44 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentClient) loadClientNotificaciones();
   }, 2000);
 });
+
+// ─── BUILD 390 · Refresco periódico del contador ────────────────────────────
+// Antes solo se consultaba UNA vez, 2 s después de cargar la página. Un cliente
+// que dejaba la tienda abierta esperando su pedido no veía el cambio de estado
+// hasta recargar — y nadie recarga una página para comprobar si hay novedades.
+//
+// 60 s (no 30 como el panel): al cliente le sobra, y son la mitad de consultas.
+// La pestaña oculta se salta el sondeo: no tiene sentido gastar cuota mientras
+// nadie mira. Al volver a la pestaña se consulta al instante.
+(function _clientNotiPolling() {
+  const INTERVALO_MS = 60_000;
+  let ocupado = false;
+
+  async function comprobar() {
+    if (ocupado) return;
+    if (!currentClient?.email) return;   // sin sesión no hay nada que mirar
+    if (document.hidden) return;
+    ocupado = true;
+    try {
+      const previo = _clientNotiBadge;
+      await loadClientNotificaciones();
+      // Si el panel de notificaciones está abierto y hay algo nuevo, repintarlo:
+      // el contador ya subió, pero la lista visible seguiría mostrando lo viejo.
+      if (_clientNotiBadge > previo) {
+        const vista = document.getElementById('clientNotiList');
+        if (vista && vista.offsetParent !== null) {
+          try { renderClientNotificaciones(); } catch (e) {}
+        }
+      }
+    } catch (e) {
+      // Un fallo de red no debe romper el ciclo: se reintenta al siguiente tick.
+    } finally {
+      ocupado = false;
+    }
+  }
+
+  setInterval(comprobar, INTERVALO_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) comprobar();
+  });
+})();

@@ -1347,6 +1347,25 @@ async function _recargarNotificaciones() {
 }
 
 /* ── Envío automático al cambiar estado de pedido ──────────────── */
+/**
+ * Avisa AL CLIENTE de que su pedido cambió de estado.
+ *
+ * ┌─ FALLO CORREGIDO EN EL BUILD 390 ─────────────────────────────────────────┐
+ * │ Esta funcion existia desde hace muchos builds y creaba la fila sin error, │
+ * │ pero el cliente NUNCA veia el aviso. Faltaba `cliente_email`, que es      │
+ * │ justo el campo por el que filtra la tienda (js/app.js:4870):              │
+ * │   or=(cliente_email.eq.{email},cliente_email.eq.todos)                    │
+ * │ Con el campo a NULL la notificacion no entra en ninguna de las dos ramas: │
+ * │ quedaba visible solo en el panel. Un aviso "al cliente" que el cliente no │
+ * │ podia leer. En el respaldo v10 (js/extras.js:840) SI se enviaba           │
+ * │ (`cliente_email: order.email`); se perdio en una reescritura posterior.   │
+ * └───────────────────────────────────────────────────────────────────────────┘
+ *
+ * OJO con los nombres de campo: la tabla arrastra `leido` (lo usa el panel) y
+ * `leida` (lo usa la tienda, js/app.js:4876 y 5139). Son columnas DISTINTAS y
+ * ambas existen (supabase_alter.sql:126-127). Hay que escribir las dos, o el
+ * aviso nace "ya leido" para uno de los dos lados y no destaca.
+ */
 async function sendOrderStatusNotification(order, nuevoEstado) {
   if (!order?.id) return;
   const labels = { pendiente:'Pendiente', procesando:'En proceso', enviado:'Enviado', entregado:'Entregado', cancelado:'Cancelado' };
@@ -1357,8 +1376,25 @@ async function sendOrderStatusNotification(order, nuevoEstado) {
   const numero  = (order.order_number != null && order.order_number !== '')
     ? order.order_number
     : order.id;
+  // Mensajes concretos por estado. "El estado es ahora: Enviado" es correcto
+  // pero seco; el cliente agradece saber que significa para el.
+  const mensajes = {
+    pendiente : `Recibimos tu pedido #${numero}. Te avisamos en cuanto empecemos a prepararlo.`,
+    procesando: `Ya estamos preparando tu pedido #${numero}. Te avisamos cuando salga.`,
+    enviado   : `Tu pedido #${numero} va en camino. Ten el telefono a mano por si el repartidor necesita ubicarte.`,
+    entregado : `Tu pedido #${numero} fue entregado. Gracias por comprar en Casa Mota.`,
+    cancelado : `Tu pedido #${numero} fue cancelado. Si no lo solicitaste, contactanos.`,
+  };
+
   const titulo  = `Tu pedido #${numero} fue actualizado`;
-  const mensaje = `El estado de tu pedido es ahora: ${labels[nuevoEstado] || nuevoEstado}`;
+  const mensaje = mensajes[nuevoEstado]
+    || `El estado de tu pedido es ahora: ${labels[nuevoEstado] || nuevoEstado}`;
+
+  // El correo con el que se registro el pedido. `_orderFromSupa` (js/api.js:229)
+  // normaliza customer_email -> email, pero se comprueban los tres por si la
+  // fila viene de otro camino.
+  const correo = order.email || order.customer_email || order.customerEmail || '';
+
   try {
     await _supaFetch('notificaciones', {
       method: 'POST',
@@ -1368,10 +1404,31 @@ async function sendOrderStatusNotification(order, nuevoEstado) {
         tipo                : 'cambio_estado',
         destinatario_id     : order.customerId || null,
         destinatario_nombre : order.customer   || 'Cliente',
-        leido               : false,
+        // ── Las claves del arreglo del build 390 ──
+        cliente_email       : correo || null,  // sin esto el cliente NO lo ve
+        leido               : false,           // no leido para el PANEL
+        leida               : false,           // no leido para la TIENDA (columna distinta)
+        // NO se envia `estado_pedido`: esa columna NO existe en la tabla
+        // (comprobado en supabase_new_project.sql y supabase_alter.sql).
+        // PostgREST responde 400 ante una columna desconocida, asi que enviarla
+        // haria fallar la notificacion COMPLETA — peor que el fallo original.
+        // js/app.js:5004 la lee para pintar un badge de estado; al no existir,
+        // simplemente no se pinta el badge. El titulo y el mensaje si explican
+        // el estado, que es lo que importa. Si algun dia se quiere el badge,
+        // primero hay que anadir la columna con ALTER TABLE.
         pedido_id           : order.id,
       })
     });
+
+    // Si el pedido no tiene correo, el aviso queda solo en el panel. Conviene
+    // saberlo: es la diferencia entre "el cliente fue avisado" y "creimos
+    // avisarle". Pasa con pedidos creados a mano desde el panel sin correo.
+    if (!correo) {
+      console.warn(`[noti] el pedido #${numero} no tiene correo: el aviso NO le llegara al cliente.`);
+      if (typeof showAdminToast === 'function') {
+        showAdminToast(`Pedido #${numero} sin correo: el cliente no recibira el aviso`, 'warning');
+      }
+    }
     const badge = document.getElementById('navBadgeNoti');
     if (badge) {
       const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
