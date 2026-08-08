@@ -277,6 +277,21 @@
     _pvSonar();
     _pvParpadearTitulo(nuevos.length);
 
+    // Dejar constancia en la campana. El sonido y el aviso flotante son
+    // efimeros: si nadie mira la pantalla en ese momento, el pedido pasaba sin
+    // rastro en el listado de notificaciones. Esto lo registra.
+    //
+    // Se hace desde aqui, y no desde la tienda al crear el pedido, porque la
+    // tienda usa la clave anon: escribir notificaciones desde el navegador del
+    // cliente le permitiria crear avisos arbitrarios en el panel. Ademas la
+    // deteccion de "que es nuevo" ya vive aqui, y duplicarla en otro sitio
+    // llevaria a dos criterios que acabarian discrepando.
+    // Se pasa el lote completo a proposito: la version por-pedido recargaria
+    // la tabla de notificaciones una vez por cada pedido.
+    if (typeof sendNewOrderNotifications === 'function') {
+      try { sendNewOrderNotifications(nuevos); } catch (e) {}
+    }
+
     const n = nuevos.length;
     if (typeof showAdminToast === 'function') {
       const detalle = n === 1

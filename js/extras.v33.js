@@ -984,10 +984,10 @@ function renderNotificaciones() {
     return;
   }
 
-  const tipoIcon  = { cambio_estado:'fa-rotate', nueva_oferta:'fa-tag', sistema:'fa-gear' };
-  const tipoColor = { cambio_estado:'#1565c0',   nueva_oferta:'#f57c00', sistema:'#7b1fa2' };
-  const tipoBg    = { cambio_estado:'#e3f2fd',   nueva_oferta:'#fff3e0', sistema:'#f3e5f5' };
-  const tipoLabel = { cambio_estado:'Cambio de estado', nueva_oferta:'Nueva oferta', sistema:'Sistema' };
+  const tipoIcon  = { nuevo_pedido:'fa-cart-plus', cambio_estado:'fa-rotate', nueva_oferta:'fa-tag', sistema:'fa-gear' };
+  const tipoColor = { nuevo_pedido:'#1a7c3e',      cambio_estado:'#1565c0',   nueva_oferta:'#f57c00', sistema:'#7b1fa2' };
+  const tipoBg    = { nuevo_pedido:'#e8f5ee',      cambio_estado:'#e3f2fd',   nueva_oferta:'#fff3e0', sistema:'#f3e5f5' };
+  const tipoLabel = { nuevo_pedido:'Pedido nuevo', cambio_estado:'Cambio de estado', nueva_oferta:'Nueva oferta', sistema:'Sistema' };
 
   el.innerHTML = lista.map(n => {
     const leido  = n.leido !== false;
@@ -995,7 +995,8 @@ function renderNotificaciones() {
     const color  = tipoColor[n.tipo] || '#1a7c3e';
     const bg     = tipoBg[n.tipo]    || '#e8f5ee';
     const label  = tipoLabel[n.tipo] || n.tipo || '-';
-    const fecha  = n.created_at ? new Date(Number(n.created_at)).toLocaleString('es-DO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-';
+    // Mismo fallo que en el desplegable: Number() de un texto ISO da NaN.
+    const fecha  = _fechaNoti(n.created_at) || '-';
 
     return `<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:${leido ? '#fafafa' : '#f0f7ff'};border:1px solid ${leido ? 'var(--border)' : '#bdd7f5'};cursor:pointer" onclick="markNotiRead('${n.id}')">
       <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">
@@ -1193,11 +1194,99 @@ async function sendNotificacion() {
   }
 }
 
+/* ── Aviso interno de pedido nuevo (solo panel) ─────────────────── */
+/**
+ * Deja constancia en la campana de que ha entrado un pedido.
+ *
+ * Quien la llama es `js/pedidos-vigilancia.js`, que ya detecta los pedidos
+ * nuevos cada 30 s. Se hizo asi, y no desde la tienda al crear el pedido, por
+ * dos razones:
+ *
+ *   1. La tienda usa la clave anon. Escribir en `notificaciones` desde el
+ *      navegador del cliente le daria capacidad de crear avisos arbitrarios en
+ *      el panel.
+ *   2. La vigilancia ya sabe distinguir lo que es nuevo, con su registro de ids
+ *      vistos. Duplicar esa deteccion en otro sitio significaria mantener dos
+ *      criterios que tarde o temprano discrepan.
+ *
+ * IMPORTANTE — `cliente_email` se deja a NULL a proposito. La tienda filtra con
+ * `or=(cliente_email.eq.{email},cliente_email.eq.todos)` (js/app.js:4870), asi
+ * que un valor NULL no entra en ninguna de las dos ramas y el aviso queda
+ * invisible para los clientes. Poner 'todos' aqui enviaria a TODOS los clientes
+ * un mensaje interno con el nombre y el importe de otra persona.
+ */
+async function sendNewOrderNotification(order, recargar = true) {
+  if (!order || !order.id) return;
+  const numero = (order.order_number != null && order.order_number !== '')
+    ? order.order_number
+    : String(order.id).slice(-6);
+  const cliente = order.customer || 'Cliente';
+  const total   = Number(order.total) || 0;
+
+  try {
+    await _supaFetch('notificaciones', {
+      method: 'POST',
+      body: JSON.stringify({
+        titulo              : `Pedido nuevo #${numero}`,
+        mensaje             : `${cliente} · RD$ ${total.toFixed(2)}`,
+        tipo                : 'nuevo_pedido',
+        destinatario_id     : null,
+        destinatario_nombre : cliente,
+        cliente_email       : null,   // ← interno: no visible para el cliente
+        leido               : false,
+        pedido_id           : order.id,
+      })
+    });
+    if (recargar) await _recargarNotificaciones();
+  } catch (e) {
+    // Un fallo aqui no debe romper el sondeo de pedidos: el pedido ya esta
+    // guardado y sigue apareciendo en Gestion de Pedidos.
+    console.warn('[noti] no se pudo registrar el pedido nuevo:', e && e.message);
+  }
+}
+
+/**
+ * Registra varios pedidos nuevos de una sola vez y repinta la campana UNA vez.
+ * Llamar a sendNewOrderNotification() en bucle recargaria la tabla completa
+ * tantas veces como pedidos hubiera; con 3 pedidos simultaneos eso son 3
+ * lecturas de 300 filas y 3 repintados seguidos de la interfaz.
+ */
+async function sendNewOrderNotifications(pedidos) {
+  if (!Array.isArray(pedidos) || !pedidos.length) return;
+  for (const p of pedidos) {
+    await sendNewOrderNotification(p, false);
+  }
+  await _recargarNotificaciones();
+}
+
+/** Relee las notificaciones y repinta campana, lista y panel lateral. */
+async function _recargarNotificaciones() {
+  try {
+    const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
+    if (typeof updateNavBadge === 'function') updateNavBadge();
+    if (typeof renderNotifDropdown === 'function') renderNotifDropdown();
+    if (document.getElementById('notiList') && typeof renderNotificaciones === 'function') {
+      renderNotificaciones();
+    }
+    if (typeof _renderNotificacionesLaterales === 'function') {
+      _renderNotificacionesLaterales();
+    }
+  } catch (e) {}
+}
+
 /* ── Envío automático al cambiar estado de pedido ──────────────── */
 async function sendOrderStatusNotification(order, nuevoEstado) {
   if (!order?.id) return;
   const labels = { pendiente:'Pendiente', procesando:'En proceso', enviado:'Enviado', entregado:'Entregado', cancelado:'Cancelado' };
-  const titulo  = `Tu pedido #${order.id} fue actualizado`;
+  // `order.id` es el UUID de Supabase. El numero corto que ve el cliente vive en
+  // `order_number` (secuencia de la base de datos). Este era el ultimo sitio del
+  // proyecto que seguia poniendo el UUID en un texto visible: el resto ya usaba
+  // `order_number || id` desde el build 376.
+  const numero  = (order.order_number != null && order.order_number !== '')
+    ? order.order_number
+    : order.id;
+  const titulo  = `Tu pedido #${numero} fue actualizado`;
   const mensaje = `El estado de tu pedido es ahora: ${labels[nuevoEstado] || nuevoEstado}`;
   try {
     await _supaFetch('notificaciones', {
@@ -1347,18 +1436,16 @@ function _renderNotifDd() {
     return;
   }
 
-  const tipoIcon  = { cambio_estado: 'fa-rotate', nueva_oferta: 'fa-tag', sistema: 'fa-gear' };
-  const tipoColor = { cambio_estado: '#1565c0',   nueva_oferta: '#f57c00', sistema: '#7b1fa2' };
-  const tipoBg    = { cambio_estado: '#e3f2fd',   nueva_oferta: '#fff3e0', sistema: '#f3e5f5' };
+  const tipoIcon  = { nuevo_pedido: 'fa-cart-plus', cambio_estado: 'fa-rotate', nueva_oferta: 'fa-tag', sistema: 'fa-gear' };
+  const tipoColor = { nuevo_pedido: '#1a7c3e',      cambio_estado: '#1565c0',   nueva_oferta: '#f57c00', sistema: '#7b1fa2' };
+  const tipoBg    = { nuevo_pedido: '#e8f5ee',      cambio_estado: '#e3f2fd',   nueva_oferta: '#fff3e0', sistema: '#f3e5f5' };
 
   list.innerHTML = items.map(n => {
     const leido = n.leido !== false;
     const icon  = tipoIcon[n.tipo]  || 'fa-bell';
     const color = tipoColor[n.tipo] || '#1a7c3e';
     const bg    = tipoBg[n.tipo]    || '#e8f5ee';
-    const fecha = n.created_at
-      ? new Date(Number(n.created_at)).toLocaleString('es-DO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-      : '';
+    const fecha = _fechaNoti(n.created_at);
     return `
       <div class="notif-dd-item ${leido ? '' : 'notif-dd-unread'}" onclick="notifDdMarkRead('${n.id}', this)">
         <div class="notif-dd-icon" style="background:${bg};color:${color}">
@@ -1372,6 +1459,35 @@ function _renderNotifDd() {
         ${!leido ? '<span class="notif-dd-unread-dot"></span>' : ''}
       </div>`;
   }).join('');
+}
+
+/**
+ * Formatea la fecha de una notificacion.
+ *
+ * Antes era `new Date(Number(n.created_at))`, y de ahi salia el "Invalid Date"
+ * del desplegable: `created_at` llega de Supabase como texto ISO
+ * ("2026-08-08T20:31:55.123Z"), y `Number()` de una cadena asi devuelve NaN.
+ * `new Date(NaN)` es una fecha invalida.
+ *
+ * Se aceptan los dos formatos porque en el proyecto conviven ambos: la columna
+ * de Supabase es ISO, pero la API de tablas devuelve milisegundos numericos.
+ * Si no se puede interpretar, se devuelve cadena vacia en lugar de ensuciar la
+ * pantalla con "Invalid Date".
+ */
+function _fechaNoti(valor) {
+  if (!valor) return '';
+  let d;
+  if (typeof valor === 'number') {
+    d = new Date(valor);
+  } else {
+    const txt = String(valor).trim();
+    // Solo digitos => son milisegundos. Cualquier otra cosa la interpreta Date().
+    d = /^\d+$/.test(txt) ? new Date(Number(txt)) : new Date(txt);
+  }
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('es-DO', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 async function notifDdMarkRead(id, el) {
@@ -1444,6 +1560,8 @@ window.openNotiModal                 = openNotiModal;
 window.closeNotiModal                = closeNotiModal;
 window.sendNotificacion              = sendNotificacion;
 window.sendOrderStatusNotification   = sendOrderStatusNotification;
+window.sendNewOrderNotification      = sendNewOrderNotification;
+window.sendNewOrderNotifications     = sendNewOrderNotifications;
 window.onNotiClientSearch            = onNotiClientSearch;
 window.selectNotiClient              = selectNotiClient;
 
