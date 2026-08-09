@@ -346,13 +346,27 @@ async function _apiGet(table, id) {
 // seguridad/31-contrasenas.sql `anon` no puede leer esa columna, así que
 // devolverla entera provoca un 403 y el guardado falla.
 //
-// `_devuelve(table)` pide de vuelta solo las columnas que sí podemos leer.
-// Para el resto de tablas no cambia nada: siguen devolviendo todo.
-function _devuelve(table) {
+// `_devuelveSel(table)` produce el trozo de URL que limita las columnas devueltas.
+//
+// 🔴 BUILD 396 · CORRIGE UN ERROR DEL BUILD 395.
+// La primera versión metía `select=` DENTRO de la cabecera `Prefer`:
+//     'Prefer': 'return=representation&select=id,email,...'   ← INVÁLIDO
+// En PostgREST `select` es un PARÁMETRO DE LA URL, no una preferencia. La
+// cabecera malformada se ignoraba, PostgREST devolvía la fila completa (con
+// `password`), y el guardado seguía fallando con 401 / 42501
+// «permission denied for table staff» — exactamente el fallo que se pretendía
+// arreglar. Se detectó al intentar crear un empleado nuevo en producción.
+function _devuelveSel(table) {
   const campos = _SELECT_FIELDS[table];
   return (table === 'staff' || table === 'customers') && campos && campos !== '*'
-    ? `return=representation&select=${encodeURIComponent(campos)}`
-    : 'return=representation';
+    ? `select=${encodeURIComponent(campos)}`
+    : '';
+}
+
+// Une un trozo de consulta a una URL que puede tener ya parámetros o no.
+function _conSel(url, sel) {
+  if (!sel) return url;
+  return url + (url.includes('?') ? '&' : '?') + sel;
 }
 
 async function _apiCreate(table, data) {
@@ -363,9 +377,9 @@ async function _apiCreate(table, data) {
   payload.created_at = _toIso(payload.created_at);
   payload.updated_at = _toIso(payload.updated_at);
 
-  return _apiFetch(`${_SB_URL}/${table}`, {
+  return _apiFetch(_conSel(`${_SB_URL}/${table}`, _devuelveSel(table)), {
     method:  'POST',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
@@ -378,9 +392,9 @@ async function _apiUpdate(table, id, data) {
   // PostgREST PUT requiere el id en el body para el upsert
   payload.id = id;
 
-  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
+  return _apiFetch(_conSel(`${_SB_URL}/${table}?id=eq.${id}`, _devuelveSel(table)), {
     method:  'PUT',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
@@ -391,9 +405,9 @@ async function _apiPatch(table, id, data) {
   if (payload.created_at) payload.created_at = _toIso(payload.created_at);
   payload.updated_at = new Date().toISOString();
 
-  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
+  return _apiFetch(_conSel(`${_SB_URL}/${table}?id=eq.${id}`, _devuelveSel(table)), {
     method:  'PATCH',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
@@ -410,9 +424,9 @@ async function _apiDelete(table, id) {
 //   _apiPatchWhere('orders', 'clientId=eq.abc', { clientId: null })
 async function _apiPatchWhere(table, filter, data) {
   const payload = { ...data, updated_at: new Date().toISOString() };
-  return _apiFetch(`${_SB_URL}/${table}?${filter}`, {
+  return _apiFetch(_conSel(`${_SB_URL}/${table}?${filter}`, _devuelveSel(table)), {
     method:  'PATCH',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
