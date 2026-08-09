@@ -591,7 +591,10 @@ async function initAdminData() {
       );
 
       customers  = custs;
-      staffList  = stf.length > 0 ? stf : DEFAULT_STAFF;
+      // BUILD 395 · Antes: `stf.length > 0 ? stf : DEFAULT_STAFF`. Esa lista de
+      // ejemplo ya no existe (llevaba contraseñas en claro). Si la consulta no
+      // devuelve personal, la lista se queda vacía: es la verdad.
+      staffList  = stf;
       drivers    = drvs;
 
       _cache.customers = customers;
@@ -4176,7 +4179,7 @@ function renderCustomers() {
     const _oauthLbl  = c.authProvider === 'apple' ? 'Apple' : 'Google';
     const accessIcon = _isOAuth
       ? `<span title="Accede vía ${_oauthLbl}" style="display:inline-flex;align-items:center;gap:3px;background:#e8f0ff;color:#1a56c4;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fab ${_oauthIcon}"></i> ${_oauthLbl}</span>`
-      : c.password
+      : (c.has_password ?? !!c.password)
         ? `<span title="Puede iniciar sesión en la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#e8f5ee;color:#1a7c3e;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-circle-check"></i> Acceso</span>`
         : `<span title="Sin contraseña — no puede entrar a la tienda" style="display:inline-flex;align-items:center;gap:3px;background:#fff3cd;color:#856404;border-radius:12px;padding:2px 8px;font-size:.72rem;font-weight:600"><i class="fas fa-lock"></i> Sin acceso</span>`;
     // Pedidos / gastado / último pedido: calculados en vivo, no leídos del cliente
@@ -4581,9 +4584,16 @@ function saveCustomer() {
     if (_btnC) { _btnC.disabled = false; _btnC.innerHTML = '<i class="fas fa-save"></i> Guardar cliente'; }
   };
 
+  // BUILD 395 · Igual que en saveStaff(): la contraseña va a Supabase, donde un
+  // disparador la cifra, pero no se copia al array local en claro.
+  const _localC = (() => {
+    const { password: _pw, ...resto } = data;
+    return password ? { ...resto, has_password: true } : resto;
+  })();
+
   if (editingCustomerId) {
     const idx = customers.findIndex(c => c.id === editingCustomerId);
-    if (idx > -1) customers[idx] = { ...customers[idx], ...data };
+    if (idx > -1) customers[idx] = { ...customers[idx], ..._localC };
     // ── PATCH: solo los campos del formulario (evita enviar campos JS que no existen en Supabase)
     DB.patchCustomer(editingCustomerId, data)
       .then(() => { _unlockC(); DBCached.invalidateCustomers(); renderCustomers(); closeCustomerModal(); showAdminToast('Cliente actualizado correctamente', 'success'); })
@@ -4614,7 +4624,9 @@ function saveCustomer() {
     DB.createCustomer(newC)
       .then(saved => {
         // Añadir al array local con el registro real devuelto por Supabase (tiene UUID real)
-        const record = saved || { ...newC, id: 'tmp_' + Date.now() };
+        // BUILD 395 · El respaldo local nunca lleva la contraseña en claro.
+        const { password: _pwC, ...newCSafe } = newC;
+        const record = saved || { ...newCSafe, has_password: !!newC.password, id: 'tmp_' + Date.now() };
         customers.push(record);
         _unlockC();
         DBCached.invalidateCustomers();
@@ -4691,7 +4703,12 @@ function viewCustomerDetail(id) {
 
   // Estado de acceso a la tienda — detectar clientes OAuth (Google/Apple)
   const isOAuth    = !!(c.authProvider && c.authProvider !== '');
-  const hasAccess  = !!c.password || isOAuth;
+  // BUILD 395 · `has_password` lo calcula la base de datos (true/false). El
+  // navegador ya no recibe la columna `password`, así que mirar `c.password`
+  // marcaría a TODOS los clientes como "Sin contraseña" — un dato falso, y sin
+  // ningún error que lo delate. El `?? !!c.password` es solo por si el panel se
+  // abre antes de ejecutar seguridad/31-contrasenas.sql.
+  const hasAccess  = (c.has_password ?? !!c.password) || isOAuth;
   const oauthLabel = c.authProvider === 'apple' ? 'Apple ID' : 'Google';
   const oauthIcon  = c.authProvider === 'apple' ? 'fa-apple' : 'fa-google';
   const accessBadge = isOAuth
@@ -4979,9 +4996,18 @@ function saveStaff() {
     if (_btnS) { _btnS.disabled = false; _btnS.innerHTML = '<i class="fas fa-save"></i> Guardar empleado'; }
   };
 
+  // BUILD 395 · La contraseña se manda a Supabase, pero NO se guarda en la copia
+  // local. En la base la cifra un disparador (ver seguridad/31-contrasenas.sql),
+  // así que la copia local guardaría la versión legible y quedaría desincronizada.
+  // `has_password` alimenta el sello "Acceso / Sin contraseña".
+  const _local = (() => {
+    const { password: _pw, ...resto } = data;
+    return password ? { ...resto, has_password: true } : resto;
+  })();
+
   if (editingStaffId) {
     const idx = staffList.findIndex(s => s.id === editingStaffId);
-    if (idx > -1) staffList[idx] = { ...staffList[idx], ...data };
+    if (idx > -1) staffList[idx] = { ...staffList[idx], ..._local };
     // Actualizar sesión si se edita la propia cuenta
     if (currentSession && currentSession.id === editingStaffId) {
       const { password: _pw, ...safe } = staffList[idx];
@@ -5012,7 +5038,9 @@ function saveStaff() {
 
     DB.createStaff(newS)
       .then(saved => {
-        const record = saved || { ...newS, id: 'tmp_' + Date.now() };
+        // BUILD 395 · El respaldo local nunca lleva la contraseña en claro.
+        const { password: _pwN, ...newSafe } = newS;
+        const record = saved || { ...newSafe, has_password: !!password, id: 'tmp_' + Date.now() };
         staffList.push(record);
         _unlockS();
         DBCached.invalidateStaff();
@@ -6357,25 +6385,18 @@ function generateDemoOrders() {
   return orders;
 }
 
-function generateDemoCustomers() {
-  // NOTA: Los primeros 5 tienen contraseña para poder iniciar sesión en la tienda.
-  // Contraseñas demo: Ana2024!, Carlos2024!, Maria2024!, Luis2024!, Carmen2024!
-  const data = [
-    { name:'Ana Garcia',        email:'ana.garcia@gmail.com',       password:'Ana2024!',     phone:'(809) 234-5678', city:'Santo Domingo', address:'Av. Churchill #35',       orders:8,  spent:34200, lastOrder:'28/03/2026', status:'vip' },
-    { name:'Carlos Mota',       email:'carlos.mota@gmail.com',      password:'Carlos2024!',  phone:'(809) 312-4567', city:'Santiago',      address:'Calle El Conde #12',      orders:5,  spent:18500, lastOrder:'25/03/2026', status:'activo' },
-    { name:'Maria Perez',       email:'maria.perez@gmail.com',       password:'Maria2024!',   phone:'(809) 456-7890', city:'Santo Domingo', address:'C/ Las Mercedes #88',     orders:12, spent:52000, lastOrder:'30/03/2026', status:'vip' },
-    { name:'Luis Rodriguez',    email:'luis.rodriguez@gmail.com',   password:'Luis2024!',    phone:'(809) 567-8901', city:'La Romana',     address:'Av. Independencia #210',  orders:3,  spent:9800,  lastOrder:'20/03/2026', status:'activo' },
-    { name:'Carmen Diaz',       email:'carmen.diaz@gmail.com',      password:'Carmen2024!',  phone:'(809) 678-9012', city:'Santo Domingo', address:'C/ Jose Reyes #5',        orders:7,  spent:27500, lastOrder:'27/03/2026', status:'activo' },
-    { name:'Jose Martinez',     email:'jose.martinez@gmail.com',    password:'',             phone:'(809) 789-0123', city:'San Pedro',     address:'Av. Mella #100',          orders:2,  spent:6200,  lastOrder:'15/03/2026', status:'inactivo' },
-    { name:'Rosa Jimenez',      email:'rosa.jimenez@gmail.com',     password:'',             phone:'(809) 890-1234', city:'Santiago',      address:'C/ Del Sol #44',          orders:6,  spent:21000, lastOrder:'29/03/2026', status:'activo' },
-    { name:'Pedro Alvarez',     email:'pedro.alvarez@gmail.com',    password:'',             phone:'(809) 901-2345', city:'Santo Domingo', address:'Los Prados #78',          orders:4,  spent:14300, lastOrder:'22/03/2026', status:'activo' },
-    { name:'Sandra Torres',     email:'sandra.torres@gmail.com',    password:'',             phone:'(809) 112-3456', city:'La Vega',       address:'Av. Colon #55',           orders:9,  spent:38900, lastOrder:'26/03/2026', status:'vip' },
-    { name:'Miguel Lopez',      email:'miguel.lopez@gmail.com',     password:'',             phone:'(809) 223-4567', city:'Santo Domingo', address:'Bella Vista #22',         orders:1,  spent:3100,  lastOrder:'10/03/2026', status:'inactivo' },
-    { name:'Beatriz Nunez',     email:'beatriz.nunez@gmail.com',    password:'',             phone:'(809) 334-5678', city:'Santiago',      address:'Av. Francia #17',         orders:11, spent:46700, lastOrder:'30/03/2026', status:'vip' },
-    { name:'Fernando Castillo', email:'fernando.castillo@gmail.com',password:'',             phone:'(809) 445-6789', city:'Santo Domingo', address:'C/ Hostos #33',           orders:3,  spent:10500, lastOrder:'18/03/2026', status:'activo' },
-  ];
-  return data.map((c,i) => ({ id: `demo_${i+1}`, ...c, cedula:'', notes:'', createdAt:'01/01/2026' }));
-}
+/* BUILD 395 · generateDemoCustomers() BORRADO.
+ *
+ * Generaba 12 clientes de ejemplo, y los 5 primeros llevaban la contraseña
+ * escrita en claro ('Ana2024!', 'Carlos2024!', 'Maria2024!', 'Luis2024!',
+ * 'Carmen2024!') dentro de un fichero que descarga cualquiera que abra el panel.
+ *
+ * Estaba definida y NO la llamaba nadie: ni un solo `.js` ni un solo `.html` del
+ * proyecto la usaba. Cinco contraseñas publicadas a cambio de nada.
+ *
+ * Se encontró al hacer un repaso final buscando contraseñas en claro, después de
+ * haber dado por limpios `auth.js` y `auth.v33.js`. Merece la pena recordarlo:
+ * limpiar los sitios evidentes no es lo mismo que haber limpiado todos. */
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SECCIÓN RESPALDO — bk* functions

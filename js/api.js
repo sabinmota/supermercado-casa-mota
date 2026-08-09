@@ -96,8 +96,17 @@ const _SELECT_FIELDS = {
   // Tienda fase 2 — solo image para actualizar imágenes
   products_imgs:  'id,image',
   orders:    '*',
-  customers: '*',
-  staff:     '*',
+  // BUILD 395 · `customers` y `staff` YA NO piden '*'.
+  //
+  // Pedir '*' incluye la columna `password`. Desde seguridad/31-contrasenas.sql
+  // `anon` no tiene permiso de lectura sobre esa columna, así que un '*' hace
+  // que PostgREST rechace la petición ENTERA con un 403: las secciones Clientes
+  // y Personal se quedarían vacías, sin explicación visible.
+  //
+  // `has_password` es una columna calculada por la base (true/false). Sirve para
+  // pintar el sello "Acceso / Sin contraseña" sin descargar la contraseña.
+  customers: 'id,created_at,updated_at,name,email,phone,address,city,cedula,status,access,deleted,notes,avatar,mapLink,loyaltyTier,loyaltyPoints,loyaltyHistory,loyaltyLastActivity,orders,spent,lastOrder,lastLogin,authProvider,ranking,has_password',
+  staff:     'id,created_at,updated_at,firstName,lastName,email,phone,cedula,role,cargo,status,avatar,notes,lastLogin,deleted,has_password',
   drivers:   '*',
   categories:'*',
   settings:  '*',
@@ -322,12 +331,28 @@ function _toIso(val) {
 }
 
 async function _apiGet(table, id) {
-  const res = await fetch(`${_SB_URL}/${table}?id=eq.${id}&select=*`, {
+  // BUILD 395 · '*' incluiría `password` en staff/customers → 403. Ver _devuelve().
+  const _sel = _SELECT_FIELDS[table] || '*';
+  const res = await fetch(`${_SB_URL}/${table}?id=eq.${id}&select=${encodeURIComponent(_sel)}`, {
     headers: _SB_HEADERS,
   });
   if (!res.ok) throw new Error(`API error ${res.status}`);
   const arr = await res.json();
   return arr[0] ?? null;
+}
+
+// BUILD 395 · `Prefer: return=representation` hace que PostgREST devuelva la
+// fila COMPLETA tras escribir — y "completa" incluye `password`. Desde
+// seguridad/31-contrasenas.sql `anon` no puede leer esa columna, así que
+// devolverla entera provoca un 403 y el guardado falla.
+//
+// `_devuelve(table)` pide de vuelta solo las columnas que sí podemos leer.
+// Para el resto de tablas no cambia nada: siguen devolviendo todo.
+function _devuelve(table) {
+  const campos = _SELECT_FIELDS[table];
+  return (table === 'staff' || table === 'customers') && campos && campos !== '*'
+    ? `return=representation&select=${encodeURIComponent(campos)}`
+    : 'return=representation';
 }
 
 async function _apiCreate(table, data) {
@@ -340,7 +365,7 @@ async function _apiCreate(table, data) {
 
   return _apiFetch(`${_SB_URL}/${table}`, {
     method:  'POST',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
     body:    JSON.stringify(payload),
   });
 }
@@ -355,7 +380,7 @@ async function _apiUpdate(table, id, data) {
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PUT',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
     body:    JSON.stringify(payload),
   });
 }
@@ -368,7 +393,7 @@ async function _apiPatch(table, id, data) {
 
   return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PATCH',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
     body:    JSON.stringify(payload),
   });
 }
@@ -387,7 +412,7 @@ async function _apiPatchWhere(table, filter, data) {
   const payload = { ...data, updated_at: new Date().toISOString() };
   return _apiFetch(`${_SB_URL}/${table}?${filter}`, {
     method:  'PATCH',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': _devuelve(table) },
     body:    JSON.stringify(payload),
   });
 }
@@ -682,7 +707,8 @@ const DB = {
   async getCustomerByEmail(email) {
     const encoded = encodeURIComponent(email.toLowerCase());
     const res = await fetch(
-      `${_SB_URL}/customers?email=ilike.${encoded}&select=*`,
+      // BUILD 395 · antes '*' → incluía `password` → 403 tras el SQL de seguridad.
+      `${_SB_URL}/customers?email=ilike.${encoded}&select=${encodeURIComponent(_SELECT_FIELDS.customers)}`,
       { headers: _SB_HEADERS }
     );
     if (!res.ok) return null;
@@ -749,7 +775,8 @@ const DB = {
   async getStaffByEmail(email) {
     const encoded = encodeURIComponent(email.toLowerCase());
     const res = await fetch(
-      `${_SB_URL}/staff?email=ilike.${encoded}&select=*`,
+      // BUILD 395 · antes '*' → incluía `password` → 403 tras el SQL de seguridad.
+      `${_SB_URL}/staff?email=ilike.${encoded}&select=${encodeURIComponent(_SELECT_FIELDS.staff)}`,
       { headers: _SB_HEADERS }
     );
     if (!res.ok) return null;
@@ -1051,8 +1078,13 @@ const DB = {
     let desde = 0;
     while (true) {
       const hasta = desde + pageSize - 1;
+      // BUILD 395 · '*' incluiría `password` en staff/customers → 403 y el
+      // respaldo de esas dos tablas fallaría entero. El respaldo NO debe
+      // llevarse las contraseñas: son un dato que no sirve de nada fuera de
+      // la base (van cifradas) y que no queremos en un fichero descargado.
+      const _selExp = _SELECT_FIELDS[tabla] || '*';
       const res = await fetch(
-        `${_SB_URL}/${tabla}?select=*&order=id.asc`,
+        `${_SB_URL}/${tabla}?select=${encodeURIComponent(_selExp)}&order=id.asc`,
         {
           headers: {
             ..._SB_HEADERS,

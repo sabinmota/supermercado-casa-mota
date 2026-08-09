@@ -324,8 +324,12 @@
     </div>
   </div>
 
-  <script src="js/api.js"></script>
-  <script src="js/auth.js"></script>
+  <!-- BUILD 395 · Estos dos iban SIN ?v=. Sin número de versión, Cloudflare
+       puede seguir sirviendo la copia vieja indefinidamente: la puerta real del
+       panel se quedaba con el código antiguo aunque el resto del sitio se
+       actualizara. -->
+  <script src="js/api.js?v=328"></script>
+  <script src="js/auth.js?v=202"></script>
   <script>
     // ─── Redirigir si ya hay sesión activa ───────────────────────────────────
     (function() {

@@ -40,73 +40,23 @@ const ROLES = {
   },
 };
 
-// ─── Personal demo inicial (Super Admin por defecto) ────────────────────────
-const DEFAULT_STAFF = [
-  {
-    id:        'staff_1',
-    firstName: 'Carlos',
-    lastName:  'Mota',
-    email:     'admin@casamota.com.do',
-    password:  'Admin2024!',
-    phone:     '(809) 555-0001',
-    cedula:    '001-0000001-1',
-    role:      'superadmin',
-    cargo:     'Gerente General',
-    status:    'activo',
-    avatar:    '',
-    createdAt: '01/01/2026',
-    lastLogin: null,
-    notes:     'Cuenta principal del sistema.',
-  },
-  {
-    id:        'staff_2',
-    firstName: 'Ana',
-    lastName:  'Ramirez',
-    email:     'ana.ramirez@casamota.com.do',
-    password:  'Ana2024!',
-    phone:     '(809) 555-0002',
-    cedula:    '001-0000002-2',
-    role:      'admin',
-    cargo:     'Administradora de Tienda',
-    status:    'activo',
-    avatar:    '',
-    createdAt: '15/01/2026',
-    lastLogin: null,
-    notes:     '',
-  },
-  {
-    id:        'staff_3',
-    firstName: 'Pedro',
-    lastName:  'Sanchez',
-    email:     'pedro.sanchez@casamota.com.do',
-    password:  'Pedro2024!',
-    phone:     '(809) 555-0003',
-    cedula:    '001-0000003-3',
-    role:      'operador',
-    cargo:     'Cajero',
-    status:    'activo',
-    avatar:    '',
-    createdAt: '20/01/2026',
-    lastLogin: null,
-    notes:     '',
-  },
-  {
-    id:        'staff_4',
-    firstName: 'Maria',
-    lastName:  'Fernandez',
-    email:     'maria.fernandez@casamota.com.do',
-    password:  'Maria2024!',
-    phone:     '(809) 555-0004',
-    cedula:    '001-0000004-4',
-    role:      'operador',
-    cargo:     'Encargada de Inventario',
-    status:    'activo',
-    avatar:    '',
-    createdAt: '01/02/2026',
-    lastLogin: null,
-    notes:     '',
-  },
-];
+/* ─── BUILD 395 · DEFAULT_STAFF BORRADO ────────────────────────────────────────
+ *
+ * Aquí había 4 empleados de ejemplo con la contraseña escrita en claro:
+ *   admin@casamota.com.do / Admin2024!   ← superadmin
+ *   ana.ramirez@…         / Ana2024!
+ *   pedro.sanchez@…       / Pedro2024!
+ *   maria.fernandez@…     / Maria2024!
+ *
+ * Este fichero lo descarga cualquiera que abra la web, así que esas cuatro
+ * contraseñas eran públicas.
+ *
+ * 🔴 Y eran una trampa activa: login() las usaba como respaldo cuando fallaba
+ * la consulta a `staff`. Al quitarle a `anon` el permiso de leer esa tabla,
+ * la consulta EMPEZARÍA a fallar siempre… y el panel habría pasado a aceptar
+ * 'Admin2024!' como contraseña de superadministrador. El propio arreglo de
+ * seguridad habría abierto una puerta peor que la que cerraba.
+ * ─────────────────────────────────────────────────────────────────────────── */
 
 // ─── Helpers de sesión ───────────────────────────────────────────────────────
 // Obtener staff desde la API (asíncrono)
@@ -114,8 +64,11 @@ async function getStaffList() {
   try {
     return await DB.getStaff();
   } catch(e) {
-    console.warn('getStaffList API error, usando defaults:', e);
-    return DEFAULT_STAFF;
+    // BUILD 395 · Antes devolvía DEFAULT_STAFF, una lista de empleados de
+    // ejemplo con contraseñas en claro. Ahora un fallo se propaga como fallo:
+    // es preferible una lista vacía a una lista inventada.
+    console.warn('[auth] no se pudo cargar el personal:', e && e.message);
+    return [];
   }
 }
 
@@ -143,24 +96,50 @@ function getRole(roleKey) {
   return ROLES[roleKey] || ROLES.operador;
 }
 
-// ─── Autenticación ───────────────────────────────────────────────────────────
+/* ─── Autenticación del personal ───────────────────────────────────────────────
+ * BUILD 395 · La contraseña YA NO se comprueba en el navegador.
+ *
+ * Antes esto hacía `DB.getStaff()` y comparaba `s.password === password`. Para
+ * poder comparar, el navegador tenía que DESCARGARSE la columna `password` de
+ * todo el personal. Y como `anon` tenía SELECT sobre la tabla, cualquier
+ * visitante de la tienda podía pedir esa misma lista y leer las contraseñas en
+ * claro — la del administrador incluida.
+ *
+ * Ahora se llama a `verify_staff_password(correo, clave)` en Supabase, que
+ * responde con la ficha del empleado si la clave es correcta, o con nada si no.
+ * La contraseña guardada nunca sale de la base de datos.
+ *
+ * La función SQL comprueba además `deleted = false` y `status <> inactivo`,
+ * así que esas dos reglas ya no dependen de que el navegador se acuerde.
+ *
+ * Ver seguridad/31-contrasenas.sql. Sin ese SQL ejecutado, esto NO funciona:
+ * es intencionado — antes había un respaldo que dejaba entrar igual, y eso
+ * convertía «la protección está rota» en «parece que funciona».
+ * ─────────────────────────────────────────────────────────────────────────── */
 async function login(email, password) {
-  let list;
+  const correo = (email || '').trim();
+  const clave  = (password || '').trim();
+  if (!correo || !clave) return { ok: false, msg: 'Correo o contraseña incorrectos.' };
+
+  let user = null;
   try {
-    list = await DB.getStaff();
-  } catch(e) {
-    list = DEFAULT_STAFF;
+    const res = await fetch(`${_SB_URL}/rpc/verify_staff_password`, {
+      method:  'POST',
+      headers: _SB_HEADERS,
+      body:    JSON.stringify({ p_email: correo, p_password: clave })
+    });
+    if (!res.ok) throw new Error(`RPC ${res.status}`);
+    const rows = await res.json();
+    user = Array.isArray(rows) ? rows[0] : rows;
+  } catch (e) {
+    // Un fallo de red NO puede dejar entrar a nadie. Antes se caía a
+    // DEFAULT_STAFF, una lista con 'Admin2024!' escrita en un fichero que
+    // cualquiera descarga desde la web.
+    console.warn('[auth] no se pudo verificar la contraseña:', e && e.message);
+    return { ok: false, msg: 'No se pudo conectar para verificar tu acceso. Revisa tu conexión e inténtalo de nuevo.' };
   }
 
-  const user = list.find(s =>
-    s.email.toLowerCase() === email.toLowerCase().trim() &&
-    s.password === password.trim()
-  );
-  if (!user) return { ok: false, msg: 'Correo o contraseña incorrectos.' };
-
-  // Permitir status null/undefined/vacío como activo (compatibilidad con Supabase)
-  const status = (user.status || 'activo').toLowerCase();
-  if (status === 'inactivo') return { ok: false, msg: 'Tu cuenta está inactiva. Contacta al administrador.' };
+  if (!user || !user.id) return { ok: false, msg: 'Correo o contraseña incorrectos.' };
 
   // Actualizar último login en la API
   const now = new Date();
@@ -222,71 +201,56 @@ function requireClientAuth() {
   return session;
 }
 
-// Login del cliente usando la API
+/* ─── Login del cliente ────────────────────────────────────────────────────────
+ * BUILD 395 · Reescrito por el mismo motivo que login(): la contraseña ya no
+ * se comprueba aquí, se pregunta a Supabase.
+ *
+ * Lo que había antes tenía TRES problemas encadenados:
+ *
+ *  1. `DB.getCustomers()` descargaba la lista de clientes CON sus contraseñas.
+ *  2. Llamaba a `verify_customer_password`… que NO EXISTÍA en la base. Nadie
+ *     la había creado nunca. Así que la llamada siempre fallaba.
+ *  3. Al fallar, un `Fallback: si RPC no existe aún, comparar directo (temporal)`
+ *     comparaba la clave tecleada contra el HASH guardado. Nunca coinciden:
+ *     cualquier cliente con la contraseña ya cifrada NO PODÍA ENTRAR, y el
+ *     mensaje que veía era «Contraseña incorrecta».
+ *
+ * Ese «temporal» llevaba ahí desde al menos la versión 28. Es el mismo patrón
+ * que el `catch { return [] }` que nos escondió un fallo durante builds enteros:
+ * un respaldo silencioso que disfraza «esto está roto» de «esto funciona».
+ *
+ * Ahora hay una sola vía y sin respaldo. La función SQL comprueba también
+ * `deleted = false` y `access = true` — antes NINGUNA de las dos se miraba, así
+ * que un cliente borrado o deshabilitado desde el panel seguía entrando.
+ * ─────────────────────────────────────────────────────────────────────────── */
 async function loginCliente(email, password) {
-  let list;
+  const correo = (email || '').trim();
+  const clave  = (password || '').trim();
+  if (!correo || !clave) {
+    return { ok: false, msg: 'Escribe tu correo y tu contraseña.' };
+  }
+
+  let client = null;
   try {
-    list = await DB.getCustomers();
-  } catch(e) {
-    list = _getDefaultClients();
+    const res = await fetch(`${_SB_URL}/rpc/verify_customer_password`, {
+      method:  'POST',
+      headers: _SB_HEADERS,
+      body:    JSON.stringify({ p_email: correo, p_password: clave })
+    });
+    if (!res.ok) throw new Error(`RPC ${res.status}`);
+    const rows = await res.json();
+    client = Array.isArray(rows) ? rows[0] : rows;
+  } catch (e) {
+    console.warn('[auth] no se pudo verificar la contraseña del cliente:', e && e.message);
+    return { ok: false, msg: 'No se pudo conectar para verificar tu acceso. Revisa tu conexión e inténtalo de nuevo.' };
   }
 
-  // Primero buscar por email para dar mensajes específicos
-  const byEmail = list.find(c => c.email.toLowerCase() === email.toLowerCase().trim());
-
-  if (!byEmail) {
-    return { ok: false, msg: 'No existe una cuenta con ese correo. Contacta al supermercado para crear tu acceso.' };
+  // Un solo mensaje para «no existe», «clave incorrecta», «borrado» y
+  // «deshabilitado»: decirle a un desconocido cuál de los cuatro es le confirma
+  // qué correos están registrados en la tienda.
+  if (!client || !client.id) {
+    return { ok: false, msg: 'Correo o contraseña incorrectos. Si no tienes acceso, contacta al supermercado.' };
   }
-  if (!byEmail.password) {
-    return { ok: false, msg: 'Tu cuenta no tiene contraseña asignada. Contacta al supermercado para activar tu acceso a la tienda.' };
-  }
-
-  // ── Verificación de contraseña con soporte bcrypt (pgcrypto) ──────────────
-  // Si el hash empieza con $2a$ o $2b$ → está hasheado con bcrypt → verificar via Supabase
-  // Si no → comparación directa (período de transición hasta que se hasheen todas)
-  const storedPass = byEmail.password;
-  const isBcrypt   = storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$');
-
-  if (isBcrypt) {
-    // Verificar contra Supabase usando pgcrypto crypt()
-    let passOk = false;
-    try {
-      const res = await fetch(
-        `${_SB_URL}/customers?select=id&id=eq.${byEmail.id}&password=eq.${encodeURIComponent('crypt(\'' + password.replace(/'/g,"''") + '\',' + storedPass + ')')}`,
-        { headers: _SB_HEADERS }
-      );
-      // Método alternativo más confiable: RPC
-      const rpcRes = await fetch(`${_SB_URL.replace('/rest/v1', '')}/rest/v1/rpc/verify_customer_password`, {
-        method: 'POST',
-        headers: { ..._SB_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p_id: byEmail.id, p_password: password })
-      });
-      if (rpcRes.ok) {
-        passOk = await rpcRes.json();
-      } else {
-        // Fallback: si RPC no existe aún, comparar directo (temporal)
-        passOk = (storedPass === password);
-      }
-    } catch(e) {
-      // Fallback seguro si falla la red
-      passOk = false;
-    }
-    if (!passOk) {
-      return { ok: false, msg: 'Contraseña incorrecta. Verifica e intenta de nuevo.' };
-    }
-  } else {
-    // Contraseña en texto plano (período de transición)
-    if (storedPass !== password) {
-      return { ok: false, msg: 'Contraseña incorrecta. Verifica e intenta de nuevo.' };
-    }
-  }
-  // Verificar que la cuenta esté habilitada (soporta valores legacy: inactivo, y nuevo: deshabilitado)
-  const st = (byEmail.status || 'habilitado').toLowerCase();
-  if (st === 'deshabilitado' || st === 'inactivo') {
-    return { ok: false, msg: 'Tu cuenta está deshabilitada. Contacta al supermercado para reactivar tu acceso.' };
-  }
-
-  const client = { ...byEmail };
 
   // Registrar último acceso en la API
   const now = new Date();
@@ -301,17 +265,15 @@ async function loginCliente(email, password) {
   return { ok: true, client: safeClient };
 }
 
-// Clientes demo con contraseña para pruebas
-// IMPORTANTE: estos IDs (demo_1..demo_5) deben coincidir con generateDemoCustomers() en admin.js
-function _getDefaultClients() {
-  return [
-    { id:'demo_1', name:'Ana Garcia',     email:'ana.garcia@gmail.com',      password:'Ana2024!',    phone:'(809) 234-5678', city:'Santo Domingo', address:'Av. Churchill #35',      status:'habilitado', ranking:'vip',    orders:8,  spent:34200, lastOrder:'28/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_2', name:'Carlos Mota',    email:'carlos.mota@gmail.com',     password:'Carlos2024!', phone:'(809) 312-4567', city:'Santiago',      address:'Calle El Conde #12',     status:'habilitado', ranking:'bronce', orders:5,  spent:18500, lastOrder:'25/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_3', name:'Maria Perez',    email:'maria.perez@gmail.com',     password:'Maria2024!',  phone:'(809) 456-7890', city:'Santo Domingo', address:'C/ Las Mercedes #88',    status:'habilitado', ranking:'vip',    orders:12, spent:52000, lastOrder:'30/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_4', name:'Luis Rodriguez', email:'luis.rodriguez@gmail.com',  password:'Luis2024!',   phone:'(809) 567-8901', city:'La Romana',     address:'Av. Independencia #210', status:'habilitado', ranking:'bronce', orders:3,  spent:9800,  lastOrder:'20/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-    { id:'demo_5', name:'Carmen Diaz',    email:'carmen.diaz@gmail.com',     password:'Carmen2024!', phone:'(809) 678-9012', city:'Santo Domingo', address:'C/ Jose Reyes #5',       status:'habilitado', ranking:'plata',  orders:7,  spent:27500, lastOrder:'27/03/2026', cedula:'', notes:'', createdAt:'01/01/2026' },
-  ];
-}
+/* BUILD 395 · _getDefaultClients() BORRADO.
+ *
+ * Eran 5 fichas de cliente con contraseñas escritas en claro
+ * ('Ana2024!', 'Carlos2024!'…) en un fichero que sirve la web a cualquiera.
+ * Solo se usaban como respaldo de loginCliente() cuando fallaba la red — es
+ * decir, justo cuando más peligroso era dejar entrar a alguien.
+ *
+ * Ahora no hay respaldo: si no se puede verificar contra la base de datos,
+ * no se entra. */
 
 // ─── Aplicar permisos en el DOM ──────────────────────────────────────────────
 function applyPermissions(session) {
