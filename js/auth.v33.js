@@ -141,20 +141,39 @@ async function login(email, password) {
 
   if (!user || !user.id) return { ok: false, msg: 'Correo o contraseña incorrectos.' };
 
-  // Actualizar último login en la API
+  // BUILD 397 · El `vale` es lo que permite escribir en `staff`. Sin él, crear,
+  // editar o borrar empleados falla: `anon` perdió esos permisos en
+  // seguridad/36-cerrar-escritura-staff.sql. Se guarda aparte de la sesión, en
+  // sessionStorage, y caduca a las 12 horas en la propia base.
+  _guardarValeAdmin(user.vale);
+
+  // BUILD 397 · Ya no se escribe `lastLogin` desde el navegador: lo hace la
+  // propia `verify_staff_password` por dentro. Antes esto era un DB.patchStaff,
+  // que ahora fallaría por falta de permisos.
   const now = new Date();
   const ts  = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  try {
-    await DB.patchStaff(user.id, { lastLogin: ts });
-  } catch(e) { /* no crítico */ }
 
-  // Guardar sesión (sin contraseña)
-  const { password: _pw, ...safeUser } = { ...user, lastLogin: ts };
+  // Guardar sesión (sin contraseña y sin el vale, que va en su propia clave)
+  const { password: _pw, vale: _vale, ...safeUser } = { ...user, lastLogin: ts };
   setSession(safeUser);
   return { ok: true, user: safeUser };
 }
 
 function logout() {
+  // BUILD 397 · Avisar a la base para que borre el vale. Si falla (sin red),
+  // da igual: caduca solo a las 12 horas y aquí se borra igualmente.
+  const vale = _valeAdmin();
+  if (vale) {
+    try {
+      fetch(`${_SB_URL}/rpc/admin_cerrar_sesion`, {
+        method:  'POST',
+        headers: _SB_HEADERS,
+        body:    JSON.stringify({ p_vale: vale }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch { /* ignorado */ }
+  }
+  _borrarValeAdmin();
   clearSession();
   window.location.href = 'login.html';
 }

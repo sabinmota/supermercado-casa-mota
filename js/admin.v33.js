@@ -5017,7 +5017,16 @@ function saveStaff() {
     }
     DB.patchStaff(editingStaffId, data)
       .then(() => { _unlockS(); DBCached.invalidateStaff(); renderStaff(); closeStaffModal(); showAdminToast('Empleado actualizado correctamente', 'success'); })
-      .catch(err => { _unlockS(); console.error('saveStaff PATCH error:', err); showAdminToast('Error al guardar empleado: ' + (err?.message || err), 'error'); });
+      // BUILD 397 · La copia local se actualizó antes de llamar a la base. Si la
+      // base rechaza el cambio, esa copia estaría mintiendo: hay que recargarla
+      // desde el servidor en vez de dejar en pantalla algo que no se guardó.
+      .catch(err => {
+        _unlockS();
+        console.error('saveStaff PATCH error:', err);
+        DBCached.invalidateStaff();
+        DB.getStaff().then(lista => { staffList = lista; renderStaff(); }).catch(() => {});
+        showAdminToast('Error al guardar empleado: ' + (err?.message || err), 'error');
+      });
   } else {
     // ── Nuevo empleado: solo campos que existen en la tabla staff de Supabase ──
     // NO incluir id (Supabase lo genera como UUID), ni campos JS internos
@@ -5080,7 +5089,13 @@ function confirmDeleteStaff() {
       closeStaffDeleteModal();
       showAdminToast('Empleado eliminado', 'info');
     })
-    .catch(() => showAdminToast('Error al eliminar empleado', 'error'));
+    // BUILD 397 · Mostrar el motivo real. La base ahora rechaza casos concretos
+    // («no puedes dejar el sistema sin ningún Super Admin», «tu sesión caducó»)
+    // y tragarse ese texto dejaba al usuario sin saber qué hacer.
+    .catch(err => {
+      console.error('deleteStaff error:', err);
+      showAdminToast('Error al eliminar empleado: ' + (err?.message || err), 'error');
+    });
 }
 
 // ─── Helpers del modal Personal ──────────────────────────────────────────────

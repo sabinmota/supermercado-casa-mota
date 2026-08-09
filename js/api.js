@@ -419,6 +419,90 @@ async function _apiDelete(table, id) {
   });
 }
 
+// ─── ESCRITURA EN `staff` VÍA FUNCIÓN DE BASE DE DATOS (build 397) ───────────
+//
+// Ver el comentario largo en DB.createStaff. Resumen: `anon` ya no puede
+// escribir en `staff`; el permiso lo concede el `vale` que la base entrega al
+// validar la contraseña en el login.
+
+// Dónde vive el vale. Mismo sitio que la sesión del panel (`cm_session`), para
+// que caduquen juntos: al cerrar la pestaña desaparecen los dos.
+const _VALE_KEY = 'cm_admin_vale';
+
+function _valeAdmin() {
+  try { return sessionStorage.getItem(_VALE_KEY) || ''; }
+  catch { return ''; }
+}
+
+function _guardarValeAdmin(vale) {
+  try {
+    if (vale) sessionStorage.setItem(_VALE_KEY, vale);
+    else      sessionStorage.removeItem(_VALE_KEY);
+  } catch { /* modo privado sin almacenamiento: se pedirá entrar de nuevo */ }
+}
+
+function _borrarValeAdmin() {
+  try { sessionStorage.removeItem(_VALE_KEY); } catch { /* ignorado */ }
+}
+
+// Campos que la función `admin_guardar_empleado` sabe leer del JSON. Mandar
+// otros (id, created_at, has_password…) no rompe nada porque los ignora, pero
+// filtrar aquí evita enviar basura y deja claro qué se está guardando.
+const _CAMPOS_STAFF = [
+  'firstName', 'lastName', 'email', 'phone', 'cedula',
+  'role', 'cargo', 'status', 'avatar', 'notes', 'password',
+];
+
+function _soloCamposStaff(datos) {
+  const limpio = {};
+  for (const campo of _CAMPOS_STAFF) {
+    if (datos && datos[campo] !== undefined && datos[campo] !== null) {
+      limpio[campo] = datos[campo];
+    }
+  }
+  return limpio;
+}
+
+// Traduce los errores de la base a algo que se pueda leer en un aviso.
+const _ERRORES_STAFF = {
+  SESION_INVALIDA:      'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:      'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA:   'Tu cuenta ya no está activa.',
+  SIN_PERMISO_PERSONAL: 'Solo un Super Admin puede gestionar el personal.',
+  CORREO_DUPLICADO:     'Ya existe un empleado con ese correo.',
+  CORREO_OBLIGATORIO:   'El correo es obligatorio.',
+  ROL_DESCONOCIDO:      'Ese rol no existe.',
+  EMPLEADO_NO_EXISTE:   'Ese empleado ya no existe.',
+  NO_TE_PUEDES_BORRAR:  'No puedes eliminar tu propia cuenta.',
+  ULTIMO_SUPERADMIN:    'No puedes dejar el sistema sin ningún Super Admin.',
+  FALTA_ID:             'Falta indicar el empleado.',
+};
+
+async function _rpcStaff(funcion, params) {
+  if (!params.p_vale) {
+    throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
+  }
+
+  const res = await fetch(`${_SB_URL}/rpc/${funcion}`, {
+    method:  'POST',
+    headers: _SB_HEADERS,
+    body:    JSON.stringify(params),
+  });
+
+  if (!res.ok) {
+    const texto = await res.text();
+    for (const clave in _ERRORES_STAFF) {
+      if (texto.includes(clave)) throw new Error(_ERRORES_STAFF[clave]);
+    }
+    throw new Error(`No se pudo guardar (${res.status}).`);
+  }
+
+  const texto = await res.text();
+  if (!texto || texto === 'null') return null;
+  const datos = JSON.parse(texto);
+  return Array.isArray(datos) ? (datos[0] ?? null) : datos;
+}
+
 // PATCH masivo por filtro en vez de por id. Sirve para desvincular de golpe
 // todos los pedidos de un cliente con UNA sola petición.
 //   _apiPatchWhere('orders', 'clientId=eq.abc', { clientId: null })
@@ -798,20 +882,52 @@ const DB = {
     return arr.find(s => s.email.toLowerCase() === email.toLowerCase()) || null;
   },
 
+  // ── ESCRITURA EN `staff` — BUILD 397 ───────────────────────────────────────
+  //
+  // Estas cuatro ya NO escriben en la tabla: llaman a funciones de la base.
+  // Desde seguridad/36-cerrar-escritura-staff.sql, `anon` no tiene INSERT,
+  // UPDATE ni DELETE sobre `staff`. Un INSERT directo desde aquí falla, y eso
+  // es exactamente lo que se buscaba: antes cualquiera con la consola del
+  // navegador abierta podía crearse un superadministrador.
+  //
+  // El permiso viaja en el `vale`: una cadena aleatoria que la base entrega al
+  // validar la contraseña en el login, guardada en `admin_sesiones` (tabla que
+  // `anon` no puede ni leer) y caducada a las 12 horas. La función comprueba
+  // que el vale existe, que no ha caducado, que la cuenta sigue activa y que
+  // el rol es `superadmin` — el único con `canManageStaff` en ROLES.
+  //
+  // ⚠️ Si el vale falta o caducó, la base responde con SESION_CADUCADA y hay
+  // que volver a entrar. No hay respaldo local a propósito: un fallo aquí debe
+  // notarse, no disimularse.
   async createStaff(member) {
-    return _apiCreate('staff', member);
+    return _rpcStaff('admin_guardar_empleado', {
+      p_vale:  _valeAdmin(),
+      p_id:    null,
+      p_datos: _soloCamposStaff(member),
+    });
   },
 
   async updateStaff(id, member) {
-    return _apiUpdate('staff', id, member);
+    return _rpcStaff('admin_guardar_empleado', {
+      p_vale:  _valeAdmin(),
+      p_id:    id,
+      p_datos: _soloCamposStaff(member),
+    });
   },
 
   async patchStaff(id, fields) {
-    return _apiPatch('staff', id, fields);
+    return _rpcStaff('admin_guardar_empleado', {
+      p_vale:  _valeAdmin(),
+      p_id:    id,
+      p_datos: _soloCamposStaff(fields),
+    });
   },
 
   async deleteStaff(id) {
-    return _apiDelete('staff', id);
+    return _rpcStaff('admin_borrar_empleado', {
+      p_vale: _valeAdmin(),
+      p_id:   id,
+    });
   },
 
   // ── Repartidores ───────────────────────────────────────────────────────────
