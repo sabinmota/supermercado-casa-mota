@@ -175,7 +175,7 @@ function _orderToSupa(o) {
   if ('source'         in r) { delete r.source; }
 
   // ─── BUILD 379 · clientId / driverId son UUID en la base de datos ──────────
-  // Desde limpieza/10-claves-ajenas.sql estas dos columnas son UUID con clave
+  // Desde supabase_alter.sql bloque 12.2/12.3 estas dos columnas son UUID con clave
   // ajena. Postgres RECHAZA con error 400 cualquier valor que no sea un UUID
   // válido o NULL — antes eran TEXT y se tragaban cualquier cadena.
   //
@@ -606,7 +606,7 @@ const DB = {
   // 5 cifras (`Date.now() % 100000`).
   //
   // Ahora la columna tiene DEFAULT nextval(orders_order_number_seq) — ver
-  // `limpieza/8-secuencia-order-number.sql`. Basta con NO enviar el campo para
+  // `supabase_alter.sql` bloque 12.1. Basta con NO enviar el campo para
   // que Postgres ponga el siguiente número de forma atómica.
   //
   // Devuelve la fila creada, que ya incluye el `order_number` real: quien llama
@@ -626,7 +626,7 @@ const DB = {
     if (creado && (creado.order_number === null || creado.order_number === undefined)) {
       console.warn(
         '[DB.createOrder] La base de datos no asignó order_number. '
-      + '¿Falta ejecutar limpieza/8-secuencia-order-number.sql? '
+      + '¿Falta ejecutar el bloque 12.1 de supabase_alter.sql? '
       + 'Asignando número de reserva.'
       );
       try {

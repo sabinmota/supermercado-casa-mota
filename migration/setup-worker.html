@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>R2 Worker Setup — Casa Mota</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #e2e8f0; padding: 24px; }
+h1 { color: #fff; font-size: 18px; margin-bottom: 4px; }
+.sub { color: #555; font-size: 12px; margin-bottom: 24px; }
+.card { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+.card h2 { color: #00aaff; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 14px; }
+pre {
+  background: #000; border: 1px solid #222; border-radius: 6px;
+  padding: 16px; font-size: 11px; color: #00ff88; overflow-x: auto;
+  white-space: pre-wrap; word-break: break-all; line-height: 1.6;
+  margin: 10px 0;
+}
+.step { display: flex; gap: 12px; margin-bottom: 20px; }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #00aaff; color: #000; font-size: 12px; font-weight: bold;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.step-body { flex: 1; }
+.step-body p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 8px; }
+.step-body strong { color: #fff; }
+button {
+  padding: 8px 16px; border-radius: 4px; border: none;
+  font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold;
+  cursor: pointer; background: #00aaff; color: #000; margin: 4px 4px 4px 0;
+}
+button:hover { background: #0088cc; }
+.btn-copy { background: #333; color: #00ff88; border: 1px solid #444; }
+.url-box { background: #000; border: 1px solid #00aaff; border-radius: 4px; padding: 10px 14px; font-size: 12px; color: #00aaff; margin: 8px 0; }
+.alert { background: #0c1a2e; border: 1px solid #1e40af; border-radius: 6px; padding: 14px; font-size: 12px; color: #93c5fd; line-height: 1.6; margin: 10px 0; }
+.alert.warn { background: #1a0c00; border-color: #92400e; color: #fcd34d; }
+</style>
+</head>
+<body>
+
+<h1>🔧 Configurar Cloudflare Worker como proxy R2</h1>
+<p class="sub">Solución al problema CORS: api.cloudflare.com no acepta llamadas desde el browser</p>
+
+<div class="alert">
+  <strong>¿Por qué un Worker?</strong><br>
+  La API REST de Cloudflare (<code>api.cloudflare.com</code>) bloquea llamadas CORS desde browsers.
+  Un Cloudflare Worker actúa como proxy: recibe las peticiones desde el browser,
+  las reenvía a R2 internamente (sin CORS), y devuelve el resultado.
+  Es gratis, tarda 2 minutos en configurar, y queda disponible para siempre.
+</div>
+
+<!-- PASO 1 -->
+<div class="card">
+  <h2>Paso 1 — Crear el Worker</h2>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <p>Ve a <strong>dash.cloudflare.com → Workers & Pages → Create</strong></p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <p>Selecciona <strong>"Create Worker"</strong>, nómbralo <strong><code>r2-proxy-casamota</code></strong></p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <p>Haz clic en <strong>"Edit code"</strong> y reemplaza TODO el contenido con este código:</p>
+      <button class="btn-copy" onclick="copiarWorker()">📋 Copiar código Worker</button>
+      <pre id="workerCode">// Dominios desde los que se admite subir. La tienda responde con y sin "www",
+// asi que las dos formas son legitimas y las dos tienen que estar aqui.
+const ORIGENES = [
+  'https://supermercadocasamota.com',
+  'https://www.supermercadocasamota.com',
+];
+
+export default {
+  async fetch(request, env) {
+    // Access-Control-Allow-Origin admite UN solo valor, nunca una lista. Con
+    // varios dominios validos hay que mirar de donde viene la peticion y, si
+    // esta en la lista, devolver ese mismo origen.
+    const origen = elegirOrigen(request);
+
+    // CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders(origen) });
+    }
+
+    const url = new URL(request.url);
+    // Esperamos rutas: /put/{key}  (body = imagen binaria)
+    const path = url.pathname; // e.g. /put/productos/abc123.jpg
+
+    if (!path.startsWith('/put/')) {
+      return new Response('{"error":"invalid path"}', {
+        status: 400,
+        headers: corsHeaders(origen)
+      });
+    }
+
+    const key = path.slice(5); // quitar "/put/"
+
+    if (request.method !== 'PUT') {
+      return new Response('{"error":"method not allowed"}', {
+        status: 405,
+        headers: corsHeaders(origen)
+      });
+    }
+
+    // 1. Token compartido. Se configura en Cloudflare como variable de entorno
+    //    (UPLOAD_TOKEN), no va escrito aqui. Sin token no se sube nada.
+    if (!env.UPLOAD_TOKEN || request.headers.get('x-upload-token') !== env.UPLOAD_TOKEN) {
+      return new Response('{"error":"unauthorized"}', {
+        status: 401,
+        headers: corsHeaders(origen, 'application/json')
+      });
+    }
+
+    // 2. Solo se admite escribir dentro de productos/. Sin esto el bucket puede
+    //    usarse para alojar cualquier fichero bajo el dominio propio.
+    //    Se rechaza tambien ".." para que nadie salga de la carpeta.
+    if (!key.startsWith('productos/') || key.includes('..')) {
+      return new Response('{"error":"key not allowed"}', {
+        status: 403,
+        headers: corsHeaders(origen, 'application/json')
+      });
+    }
+
+    // 3. Solo imagenes.
+    const ct = request.headers.get('Content-Type') || '';
+    if (!ct.startsWith('image/')) {
+      return new Response('{"error":"content-type must be image/*"}', {
+        status: 415,
+        headers: corsHeaders(origen, 'application/json')
+      });
+    }
+
+    try {
+      const body = await request.arrayBuffer();
+
+      // 4. Nada vacio. Antes se guardaba un objeto de 0 bytes y se respondia
+      //    ok:true, dejando en la base de datos una URL que no muestra nada.
+      if (!body.byteLength) {
+        return new Response('{"error":"empty body"}', {
+          status: 400,
+          headers: corsHeaders(origen, 'application/json')
+        });
+      }
+
+      // 5. Tope de tamano: 6 MB. Evita que un fallo o un abuso llene el bucket.
+      if (body.byteLength > 6 * 1024 * 1024) {
+        return new Response('{"error":"file too large (max 6 MB)"}', {
+          status: 413,
+          headers: corsHeaders(origen, 'application/json')
+        });
+      }
+
+      await env.R2_BUCKET.put(key, body, {
+        httpMetadata: { contentType: ct }
+      });
+
+      return new Response(
+        JSON.stringify({ ok: true, key, size: body.byteLength }),
+        { status: 200, headers: corsHeaders(origen, 'application/json') }
+      );
+    } catch(e) {
+      return new Response(
+        JSON.stringify({ ok: false, error: e.message }),
+        { status: 500, headers: corsHeaders(origen, 'application/json') }
+      );
+    }
+  }
+};
+
+// Devuelve el origen de la peticion si esta autorizado. Si no lo esta, devuelve
+// el dominio principal: asi el navegador bloquea la respuesta, que es lo que se
+// busca, en lugar de abrirla a cualquiera con un comodin.
+function elegirOrigen(request) {
+  const o = request.headers.get('Origin');
+  return ORIGENES.includes(o) ? o : ORIGENES[0];
+}
+
+function corsHeaders(origen, ct) {
+  const h = {
+    'Access-Control-Allow-Origin': origen,
+    'Access-Control-Allow-Methods': 'PUT,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,x-upload-token',
+    'Access-Control-Max-Age': '86400',
+    // La respuesta cambia segun el Origin. Sin esto una cache intermedia podria
+    // servir a un dominio la cabecera calculada para el otro.
+    'Vary': 'Origin',
+  };
+  if (ct) h['Content-Type'] = ct;
+  return h;
+}</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <p>Clic en <strong>"Deploy"</strong></p>
+    </div>
+  </div>
+</div>
+
+<!-- PASO 2 -->
+<div class="card">
+  <h2>Paso 2 — Vincular bucket R2 al Worker</h2>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <p>En el Worker creado → pestaña <strong>"Settings"</strong> → <strong>"Bindings"</strong></p>
+      <p>Clic en <strong>"+ Add"</strong> → selecciona <strong>"R2 bucket"</strong></p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">6</div>
+    <div class="step-body">
+      <p>Configura el binding:</p>
+      <ul style="color:#94a3b8;font-size:12px;margin-left:16px;line-height:2;">
+        <li><strong>Variable name:</strong> <code>R2_BUCKET</code></li>
+        <li><strong>R2 bucket:</strong> <code>casamota-imagenes</code></li>
+      </ul>
+      <p>Clic <strong>"Save"</strong> → luego <strong>"Deploy"</strong> de nuevo</p>
+    </div>
+  </div>
+</div>
+
+<!-- PASO 3 -->
+<div class="card">
+  <h2>Paso 3 — URL del Worker</h2>
+  <p style="color:#94a3b8;font-size:13px;margin-bottom:10px;">
+    Tu Worker quedará en una URL como:
+  </p>
+  <div class="url-box">https://r2-proxy-casamota.<strong>[tu-subdomain]</strong>.workers.dev</div>
+  <p style="color:#94a3b8;font-size:13px;margin-top:10px;">
+    La encuentras en <strong>Workers & Pages → r2-proxy-casamota → Overview</strong>.
+    Cópiala y pégala abajo:
+  </p>
+  <div style="margin-top:12px;">
+    <label style="color:#555;font-size:11px;display:block;margin-bottom:4px;">URL DEL WORKER</label>
+    <input id="workerUrl" type="text" placeholder="https://r2-proxy-casamota.xxxxx.workers.dev"
+      style="width:100%;background:#000;border:1px solid #333;border-radius:4px;padding:8px 12px;color:#00ff88;font-family:inherit;font-size:12px;">
+  </div>
+  <button onclick="testWorker()" style="margin-top:10px;">🔌 Probar Worker</button>
+  <pre id="testOut" style="display:none;"></pre>
+</div>
+
+<!-- PASO 4 -->
+<div class="card">
+  <h2>Paso 4 — Migración: ya completada</h2>
+  <p style="color:#94a3b8;font-size:13px;margin-bottom:10px;">
+    La migración de imágenes a R2 <strong>terminó en agosto de 2026</strong> y se comprobó con
+    un script de medición: unos 87 bytes por imagen, es decir, todo son URLs de R2
+    y no queda base64 en la tabla.
+  </p>
+  <p style="color:#94a3b8;font-size:13px;margin-bottom:10px;">
+    Las herramientas de migración (<code>r2-migrate-*.html</code>, <code>pasar-277-a-r2.*</code>)
+    <strong>se borraron</strong> el 2026-08-08: estaban gastadas y dos de ellas llevaban un token
+    de Cloudflare escrito dentro, en un repositorio público.
+  </p>
+  <p style="color:#94a3b8;font-size:13px;">
+    Esta página se conserva solo como <strong>referencia del código del Worker</strong> (Paso 2),
+    por si hay que volver a crearlo o revisarlo. Para comprobar el estado de las imágenes usa
+    <code>migration/verificar-imagenes.html</code>.
+  </p>
+</div>
+
+<script>
+function copiarWorker() {
+  const code = document.getElementById('workerCode').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    alert('✓ Código copiado al portapapeles');
+  });
+}
+
+async function testWorker() {
+  const url = document.getElementById('workerUrl').value.trim().replace(/\/$/,'');
+  const out = document.getElementById('testOut');
+  out.style.display = 'block';
+  out.textContent = 'Probando...';
+
+  if (!url) { out.textContent = '✗ Introduce la URL del Worker'; return; }
+
+  try {
+    // Test: subir un archivo de texto pequeño
+    const testData = new TextEncoder().encode('casamota-r2-test-' + Date.now());
+    const res = await fetch(`${url}/put/test/ping.txt`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/plain' },
+      body: testData,
+    });
+    const data = await res.json();
+    if (data.ok) {
+      out.textContent = `✓ Worker funcionando!\n${JSON.stringify(data, null, 2)}\n\nURL Worker: ${url}`;
+      out.style.color = '#00ff88';
+      // Se conserva la URL en localStorage: la reutiliza esta misma pagina al recargar.
+      localStorage.setItem('cm_worker_url', url);
+    } else {
+      out.textContent = `✗ Worker respondió pero con error:\n${JSON.stringify(data, null, 2)}`;
+      out.style.color = '#ff4444';
+    }
+  } catch(e) {
+    out.textContent = `✗ Error: ${e.message}`;
+    out.style.color = '#ff4444';
+  }
+}
+
+// Cargar URL guardada
+const saved = localStorage.getItem('cm_worker_url');
+if (saved) document.getElementById('workerUrl').value = saved;
+</script>
+</body>
+</html>

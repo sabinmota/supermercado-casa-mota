@@ -3373,7 +3373,7 @@ async function saveNewOrder() {
   // El número de pedido lo asigna la base de datos (secuencia de Postgres).
   // Antes se calculaba aquí como max()+1 sobre la lista en memoria, que además
   // podía estar desactualizada respecto a los pedidos entrados desde la tienda.
-  // Ver limpieza/8-secuencia-order-number.sql.
+  // Ver supabase_alter.sql, bloque 12.1.
 
   const now     = new Date();
   const dateStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;

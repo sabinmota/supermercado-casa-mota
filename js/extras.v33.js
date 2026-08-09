@@ -1362,7 +1362,8 @@ async function _recargarNotificaciones() {
  * └───────────────────────────────────────────────────────────────────────────┘
  *
  * OJO con los nombres de campo: la tabla tiene `leido` Y `leida`, y NO son la
- * misma cosa con distinto nombre (supabase_alter.sql:126-127). Representan a
+ * misma cosa con distinto nombre (ver las dos columnas en supabase_alter.sql,
+ * seccion «notificaciones»). Representan a
  * DOS LECTORES DISTINTOS:
  *
  *    · `leido` → lo leyó EL ADMINISTRADOR (campana del panel)

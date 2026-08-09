@@ -2921,7 +2921,7 @@ async function confirmOrder() {
     }));
 
     // El número de pedido lo asigna la BASE DE DATOS (secuencia de Postgres),
-    // no este navegador. Ver limpieza/8-secuencia-order-number.sql.
+    // no este navegador. Ver supabase_alter.sql, bloque 12.1.
     //
     // El código anterior leía todos los pedidos y hacía max()+1, con tres
     // problemas: reutilizaba el número al borrar el pedido más alto, dos
@@ -5257,7 +5257,7 @@ async function markClientNotiRead(id) {
  * Es el mismo patrón de `leido`/`leida`, que ya me costó un fallo en el build
  * 391: dos actores distintos sobre la misma fila necesitan cada uno su columna.
  *
- * REQUIERE ejecutar antes `limpieza/29-borrado-cliente.sql`. Sin esa columna,
+ * REQUIERE la columna `borrada_cliente` (supabase_alter.sql, bloque 12.5). Sin ella,
  * PostgREST responde 400 y el borrado no funciona (el aviso vuelve al recargar).
  * ─────────────────────────────────────────────────────────────────────────── */
 async function deleteClientNoti(id) {
