@@ -1655,8 +1655,26 @@ function _stopLiveCamera() {
   if (area) area.innerHTML = '';
 }
 
+/** Sustituye _liveProducts por una lista fresca SIN perder las imágenes.
+ *
+ *  ⚠️ DB.getProducts() es la FASE 1: por diseño NO trae el campo `image`
+ *  (ver _SELECT_FIELDS.products en js/api.js — son 7 MB). Si se asigna tal cual
+ *  con `_liveProducts = fresco`, se borran de memoria TODAS las imágenes que la
+ *  fase 2 ya había cargado. Las tarjetas del grid no se notan (su <img> ya tiene
+ *  el src pintado en el DOM), pero el modal lee p.image de memoria → se queda
+ *  vacío y cae en el placeholder de la moto. Este helper hace el merge, igual
+ *  que _refreshProductsSilent().
+ */
+function _setLiveProductsKeepImages(fresh) {
+  if (!Array.isArray(fresh) || !fresh.length) return;
+  const imgMap = {};
+  (_liveProducts || []).forEach(p => { if (p.image) imgMap[p.id] = p.image; });
+  fresh.forEach(p => { if (!p.image && imgMap[p.id]) p.image = imgMap[p.id]; });
+  _liveProducts = fresh;
+}
+
 async function _refreshBarcodeProducts() {
-  try { const f = await DB.getProducts(); if (f && f.length) _liveProducts = f; } catch(e) {}
+  try { const f = await DB.getProducts(); if (f && f.length) _setLiveProductsKeepImages(f); } catch(e) {}
 }
 
 // ── MODO FOTO (iOS + fallback sin cámara) ─────────────────────────────────────
@@ -2450,7 +2468,8 @@ async function _onBarcodeDetected(code) {
     try {
       const freshProds = await DB.getProducts();
       if (freshProds && freshProds.length > 0) {
-        _liveProducts = freshProds;
+        // Merge, no reemplazo: la fase 1 no trae `image` (ver helper arriba).
+        _setLiveProductsKeepImages(freshProds);
         product = findByBarcode(freshProds);
       }
     } catch(e) { /* ignorar error de red */ }
@@ -3257,6 +3276,26 @@ function openModal(productId) {
       _carState.total = _allImgs.length;
       if (_allImgs.length > 1) requestAnimationFrame(() => _carInit());
     });
+  }
+
+  // ── Red de seguridad: imagen principal ausente en memoria ─────────────────
+  // Si la fase 2 aún no ha terminado (o algo reemplazó el catálogo sin hacer
+  // merge), p.image viene vacío y arriba se pintó el placeholder de la moto.
+  // Se pide solo esta imagen y se repinta. Es una fila de una columna: barato.
+  if (!p.image && typeof DB !== 'undefined' && DB.getProductImages) {
+    DB.getProductImages([p.id]).then(rows => {
+      const img = rows && rows[0] && rows[0].image;
+      if (!img) return;
+      p.image = img;                       // repuesto en memoria para la próxima
+      if (_myToken !== _modalToken) return; // el usuario ya cerró o cambió
+      _allImgs = [img, ..._allImgs].filter(Boolean).filter((v,i,a) => a.indexOf(v) === i);
+      const bloque = document.getElementById('modalImgBlock');
+      if (!bloque) return;
+      bloque.outerHTML = _carouselHTML();
+      _carState.idx   = 0;
+      _carState.total = _allImgs.length;
+      if (_allImgs.length > 1) requestAnimationFrame(() => _carInit());
+    }).catch(() => {});
   }
 }
 
