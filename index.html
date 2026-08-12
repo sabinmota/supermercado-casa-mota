@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '400', KEY = 'cm_app_ver';
+        var VER = '401', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -122,7 +122,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=315" />
+  <link rel="stylesheet" href="css/style.css?v=316" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -354,13 +354,19 @@
         <!-- Quagga2 inyecta el video aquí -->
         <div id="barcodeQuaggaArea"></div>
 
-        <!-- Overlay con marco de escaneo animado -->
+        <!-- Marco de puntería: guía al cliente a encuadrar el código -->
         <div class="barcode-scanner-frame">
-          <div class="bsf-corner bsf-tl"></div>
-          <div class="bsf-corner bsf-tr"></div>
-          <div class="bsf-corner bsf-bl"></div>
-          <div class="bsf-corner bsf-br"></div>
-          <div class="bsf-laser"></div>
+          <div class="bsf-window">
+            <div class="bsf-corner bsf-tl"></div>
+            <div class="bsf-corner bsf-tr"></div>
+            <div class="bsf-corner bsf-bl"></div>
+            <div class="bsf-corner bsf-br"></div>
+            <div class="bsf-laser"></div>
+          </div>
+          <p class="bsf-hint">
+            <i class="fas fa-barcode"></i>
+            Coloca el código de barras dentro del cuadro
+          </p>
         </div>
 
         <!-- Estado del escáner -->
@@ -372,6 +378,35 @@
 
       <!-- ② FOTO: modo principal en iOS, fallback en Android -->
       <div class="barcode-photo-fallback hidden" id="barcodePhotoFallback">
+
+        <!-- Guía de encuadre para iPhone.
+             En iOS se abre la cámara NATIVA de Apple y no se le puede dibujar
+             ningún marco encima (es una app del sistema, no nuestra página).
+             Así que enseñamos el encuadre correcto ANTES y DESPUÉS de la foto. -->
+        <div class="bsf-photoguide" id="barcodePhotoGuide">
+          <div class="bpg-diagram">
+            <div class="bpg-window">
+              <div class="bpg-corner bpg-tl"></div>
+              <div class="bpg-corner bpg-tr"></div>
+              <div class="bpg-corner bpg-bl"></div>
+              <div class="bpg-corner bpg-br"></div>
+              <div class="bpg-bars" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+          <p class="bpg-title">
+            <i class="fas fa-barcode"></i> Encuadra así el código de barras
+          </p>
+          <ul class="bpg-tips">
+            <li>Que llene el ancho de la pantalla</li>
+            <li>Sostén firme y espera a que enfoque</li>
+            <li>Evita brillos: usa la linterna si hay poca luz</li>
+          </ul>
+        </div>
+
         <!-- Estado: abriendo cámara automáticamente -->
         <p class="barcode-photo-hint" id="barcodePhotoHint" style="display:none"></p>
         <!-- capture="environment" abre directamente la cámara trasera -->
@@ -1296,9 +1331,13 @@
       const errEl = document.getElementById('barcodeError');
       const hint  = document.getElementById('barcodePhotoHint');
       const stEl  = document.getElementById('barcodeStatus');
+      const guide = document.getElementById('barcodePhotoGuide');
       // Siempre ocultar hint y barcodeStatus — NUNCA deben mostrarse en modo foto
       if (hint)  { hint.style.display = 'none'; hint.textContent = ''; }
       if (stEl)  { stEl.style.display = 'none'; stEl.className = 'barcode-status'; }
+      // La guía de encuadre estorba mientras se lee la foto: ocultarla entonces
+      // y volver a mostrarla cuando el cliente deba reintentar.
+      if (guide) guide.classList.toggle('hidden', !!msg);
       // Actualizar el processing
       if (proc) {
         if (msg) {

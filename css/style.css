@@ -442,51 +442,158 @@ input, select { font-family: var(--font); }
   pointer-events: none;
 }
 
-/* ── Marco animado sobre el visor ───────────────────────────────────────────── */
+/* ── Marco de puntería sobre el visor ───────────────────────────────────────── */
 .barcode-scanner-frame {
   position: absolute; inset: 0;
   pointer-events: none;
 }
 
-/* Sombra oscura alrededor de la zona de escaneo */
-.barcode-scanner-frame::before {
-  content: '';
-  position: absolute; inset: 0;
-  background:
-    linear-gradient(to bottom, rgba(0,0,0,.55) 18%, transparent 18%, transparent 62%, rgba(0,0,0,.55) 62%),
-    linear-gradient(to right,  rgba(0,0,0,.55)  8%, transparent  8%, transparent 92%, rgba(0,0,0,.55) 92%);
+/* Ventana de escaneo — UN solo elemento define el hueco.
+   La zona oscura de alrededor se dibuja con un box-shadow gigante, de modo que
+   el marco y la sombra no pueden desalinearse nunca (antes eran dos gradientes
+   con porcentajes que había que mantener a mano en 6 sitios distintos).
+   Proporción ancha y baja: es la forma de un código de barras real. */
+.bsf-window {
+  position: absolute;
+  left: 7%; right: 7%;
+  top: 46%;
+  transform: translateY(-50%);
+  height: 50%;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .58);
+  outline: 2px solid rgba(255, 255, 255, .3);
+  outline-offset: -1px;
 }
 
-/* Esquinas del marco */
+/* Esquinas verdes, ancladas a las esquinas de la ventana */
 .bsf-corner {
   position: absolute;
-  width: 28px; height: 28px;
+  width: 30px; height: 30px;
   border-color: #00e676;
   border-style: solid;
   border-width: 0;
 }
-.bsf-tl { top: 18%;  left: 8%;  border-top-width: 4px; border-left-width: 4px;  border-radius: 6px 0 0 0; }
-.bsf-tr { top: 18%;  right: 8%; border-top-width: 4px; border-right-width: 4px; border-radius: 0 6px 0 0; }
-.bsf-bl { bottom: 38%; left: 8%;  border-bottom-width: 4px; border-left-width: 4px;  border-radius: 0 0 0 6px; }
-.bsf-br { bottom: 38%; right: 8%; border-bottom-width: 4px; border-right-width: 4px; border-radius: 0 0 6px 0; }
+.bsf-tl { top: -3px;    left: -3px;  border-top-width: 5px;    border-left-width: 5px;  border-radius: 14px 0 0 0; }
+.bsf-tr { top: -3px;    right: -3px; border-top-width: 5px;    border-right-width: 5px; border-radius: 0 14px 0 0; }
+.bsf-bl { bottom: -3px; left: -3px;  border-bottom-width: 5px; border-left-width: 5px;  border-radius: 0 0 0 14px; }
+.bsf-br { bottom: -3px; right: -3px; border-bottom-width: 5px; border-right-width: 5px; border-radius: 0 0 14px 0; }
 
-/* Línea láser animada dentro del área de escaneo */
+/* Línea láser animada — se mueve DENTRO de la ventana */
 .bsf-laser {
   position: absolute;
-  left: 10%; right: 10%;
-  top: 18%;
+  left: 6px; right: 6px;
   height: 3px;
   background: linear-gradient(to right, transparent, #00e676, transparent);
-  box-shadow: 0 0 12px 3px rgba(0,230,118,.6);
+  box-shadow: 0 0 12px 3px rgba(0, 230, 118, .6);
   border-radius: 2px;
-  animation: laserScan 2s ease-in-out infinite;
+  animation: laserScan 2.1s ease-in-out infinite;
 }
 @keyframes laserScan {
-  0%   { top: 19%; opacity: .9; }
+  0%   { top: 8%;  opacity: .85; }
   48%  { opacity: 1; }
-  50%  { top: 60%; opacity: .9; }
+  50%  { top: 88%; opacity: .85; }
   98%  { opacity: 1; }
-  100% { top: 19%; opacity: .9; }
+  100% { top: 8%;  opacity: .85; }
+}
+
+/* Instrucción para el cliente, debajo del marco */
+.bsf-hint {
+  position: absolute;
+  left: 8px; right: 8px;
+  bottom: 8px;
+  margin: 0;
+  text-align: center;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .9);
+}
+.bsf-hint i { color: #00e676; }
+
+/* ── Guía de encuadre del modo FOTO (iPhone) ─────────────────────────────────
+   En iOS la cámara la abre el sistema: no podemos superponerle un marco.
+   Este diagrama enseña el encuadre correcto antes de disparar la cámara. */
+.bsf-photoguide {
+  margin: 0 16px 12px;
+  padding: 14px 12px 12px;
+  border-radius: 18px;
+  background: #101418;
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+.bsf-photoguide.hidden { display: none; }
+
+.bpg-diagram {
+  position: relative;
+  height: 116px;
+  border-radius: 12px;
+  background: repeating-linear-gradient(45deg, #1c2228 0 10px, #191f24 10px 20px);
+  overflow: hidden;
+}
+
+/* Ventana de ejemplo, misma proporción ancha que el marco real */
+.bpg-window {
+  position: absolute;
+  left: 8%; right: 8%;
+  top: 50%; transform: translateY(-50%);
+  height: 66%;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55);
+  outline: 2px dashed rgba(255, 255, 255, .35);
+  outline-offset: -2px;
+}
+.bpg-corner {
+  position: absolute;
+  width: 22px; height: 22px;
+  border-color: #00e676; border-style: solid; border-width: 0;
+}
+.bpg-tl { top: -2px;    left: -2px;  border-top-width: 4px;    border-left-width: 4px;  border-radius: 10px 0 0 0; }
+.bpg-tr { top: -2px;    right: -2px; border-top-width: 4px;    border-right-width: 4px; border-radius: 0 10px 0 0; }
+.bpg-bl { bottom: -2px; left: -2px;  border-bottom-width: 4px; border-left-width: 4px;  border-radius: 0 0 0 10px; }
+.bpg-br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-radius: 0 0 10px 0; }
+
+/* Barras simuladas: ilustran un código llenando la ventana */
+.bpg-bars {
+  position: absolute; inset: 18% 10%;
+  display: flex; align-items: stretch; justify-content: space-between;
+  gap: 2px;
+}
+.bpg-bars span {
+  flex: 1 1 auto;
+  background: #f2f2f2;
+  border-radius: 1px;
+}
+.bpg-bars span:nth-child(2n)  { flex-grow: .5; opacity: .95; }
+.bpg-bars span:nth-child(3n)  { flex-grow: 1.7; }
+.bpg-bars span:nth-child(5n)  { flex-grow: .35; }
+
+.bpg-title {
+  margin: 11px 0 6px;
+  text-align: center;
+  font-size: .86rem; font-weight: 800;
+  color: #fff;
+}
+.bpg-title i { color: #00e676; }
+
+.bpg-tips {
+  margin: 0; padding: 0;
+  list-style: none;
+  display: grid; gap: 4px;
+}
+.bpg-tips li {
+  position: relative;
+  padding-left: 18px;
+  font-size: .76rem;
+  line-height: 1.35;
+  color: #b9c2ca;
+}
+.bpg-tips li::before {
+  content: '\f00c';                 /* check de Font Awesome */
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  position: absolute; left: 0; top: 1px;
+  font-size: .68rem;
+  color: #00e676;
 }
 
 /* ── Barra de estado del escáner ────────────────────────────────────────────── */
