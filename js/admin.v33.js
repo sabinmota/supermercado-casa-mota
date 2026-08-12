@@ -4680,13 +4680,26 @@ function saveCustomer() {
   });
 
   // ── Validar campos obligatorios ───────────────────────────────────────────────
+  //
+  // BUILD 403 · Los clientes que se registran con Google/Apple llegan SOLO con
+  // nombre y email: el proveedor no entrega teléfono, cédula, dirección ni
+  // ciudad. Exigirlos al EDITAR hacía imposible corregirles nada — el botón
+  // «Guardar» no hacía aparentemente nada porque la función salía por aquí.
+  //
+  // Regla: al CREAR se exige todo (el empleado tiene los datos delante). Al
+  // EDITAR solo se exige lo que identifica al cliente (nombre y email); lo
+  // demás se puede ir completando poco a poco, que es justo para lo que se
+  // entra a editar. Nunca se bloquea por un dato que el cliente no dio.
   const missing = [];
-  if (!name)    { missing.push('Nombre completo'); _markError('cName'); }
-  if (!email)   { missing.push('Email');           _markError('cEmail'); }
-  if (!phone)   { missing.push('Teléfono');        _markError('cPhone'); }
-  if (!cedula)  { missing.push('Cédula / RNC');    _markError('cCedula'); }
-  if (!address) { missing.push('Dirección');       _markError('cAddress'); }
-  if (!city)    { missing.push('Ciudad');          _markError('cCity'); }
+  if (!name)  { missing.push('Nombre completo'); _markError('cName'); }
+  if (!email) { missing.push('Email');           _markError('cEmail'); }
+
+  if (!editingCustomerId) {
+    if (!phone)   { missing.push('Teléfono');     _markError('cPhone'); }
+    if (!cedula)  { missing.push('Cédula / RNC'); _markError('cCedula'); }
+    if (!address) { missing.push('Dirección');    _markError('cAddress'); }
+    if (!city)    { missing.push('Ciudad');       _markError('cCity'); }
+  }
 
   if (missing.length > 0) {
     showAdminToast(
