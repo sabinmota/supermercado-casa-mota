@@ -661,13 +661,14 @@ function getFilteredProducts() {
     list = list.filter(p => (p.category || '').toLowerCase() === catLower);
   }
 
-  // Filtro búsqueda (nombre · descripción · categoría · código de barras)
+  // Filtro búsqueda (nombre · descripción · categoría · marca · código de barras)
+  // BUILD 398: por palabras sueltas en cualquier orden, no frase literal.
   if (currentSearch.trim()) {
-    const q   = currentSearch.trim();
-    const qLo = q.toLowerCase();
+    const q = currentSearch.trim();
 
     // Si la query es 100% numérica (4+ dígitos) → buscar PRIMERO por barcode exacto/parcial
     const isNumericQuery = /^\d{4,}$/.test(q);
+    const tokens = isNumericQuery ? [] : _tokensBusqueda(q);
 
     list = list.filter(p => {
       // Búsqueda por código de barras (exacta o parcial)
@@ -679,13 +680,23 @@ function getFilteredProducts() {
       // mostrar un producto cuyo nombre contenga "12345" en texto libre)
       if (isNumericQuery) return false;
 
-      // Búsqueda textual: nombre · descripción · categoría
-      return (
-        (p.name        || '').toLowerCase().includes(qLo) ||
-        (p.description || '').toLowerCase().includes(qLo) ||
-        (p.category    || '').toLowerCase().includes(qLo)
-      );
+      // Búsqueda textual: TODAS las palabras deben aparecer, en cualquier
+      // orden y posición. "aceite crisol" → "Aceite de Soya Crisol" ✅
+      return _coincidenTokens(_textoBuscable(p), tokens);
     });
+
+    // Ordenar por relevancia: primero los que empiezan por la 1ª palabra,
+    // luego los que la tienen en el nombre, y al final el resto.
+    if (tokens.length && currentSort === 'default') {
+      const primera = tokens[0];
+      const puntos = p => {
+        const nom = _normalizeText(p.name);
+        if (nom.startsWith(primera)) return 0;
+        if (nom.includes(primera))   return 1;
+        return 2;
+      };
+      list.sort((a, b) => puntos(a) - puntos(b));
+    }
   }
 
   // Ordenar
@@ -787,6 +798,13 @@ function renderProducts(scroll = false) {
     grid.innerHTML = '';
     noResults.classList.remove('hidden');
     paginationEl.innerHTML = '';
+    // BUILD 398: antes se salía aquí sin hacer scroll, así que el cliente se
+    // quedaba arriba pensando que la búsqueda no había hecho nada. Ahora
+    // también baja a la sección para que VEA el "No se encontraron productos".
+    if (scroll) {
+      const sec = document.getElementById('productsSection');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     return;
   }
 
@@ -1440,6 +1458,43 @@ let _torchActive      = false;   // estado actual de la linterna
 /** Normaliza texto para búsqueda (quita acentos, minúsculas) */
 function _normalizeText(str) {
   return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+// ─── BÚSQUEDA POR PALABRAS (BUILD 398) ───────────────────────────────────────
+// Antes se buscaba la frase COMPLETA y literal: "aceite crisol" no encontraba
+// "Aceite de Soya Crisol" porque en medio está "de Soya".
+// Ahora la búsqueda se parte en palabras y se exige que TODAS aparezcan en el
+// texto del producto, en CUALQUIER orden y en CUALQUIER posición.
+
+// Palabras de relleno que se ignoran: el cliente puede escribirlas o no.
+const _PALABRAS_VACIAS = new Set([
+  'de','del','la','el','los','las','y','con','para','en','al','un','una','por','sin'
+]);
+
+// Convierte "Aceite de Crisol" → ['aceite','crisol']
+function _tokensBusqueda(q) {
+  const todos = _normalizeText(q)
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')   // quita puntos, comas, guiones, etc.
+    .split(/\s+/)
+    .filter(t => t.length > 0);
+  if (!todos.length) return [];
+  // Quitar relleno, pero nunca dejar la lista vacía (ej: si busca solo "de")
+  const utiles = todos.filter(t => !_PALABRAS_VACIAS.has(t));
+  return utiles.length ? utiles : todos;
+}
+
+// ¿Aparecen TODAS las palabras buscadas dentro de este texto?
+function _coincidenTokens(texto, tokens) {
+  if (!tokens.length) return true;
+  const limpio = _normalizeText(texto).replace(/[^\p{L}\p{N}\s]+/gu, ' ');
+  return tokens.every(tok => limpio.includes(tok));
+}
+
+// Todo el texto buscable de un producto, en un solo bloque
+function _textoBuscable(p) {
+  return [
+    p.name, p.description, p.category, p.brand, p.marca, p.unit
+  ].filter(Boolean).join(' ');
 }
 
 // ── Actualizar estado del visor ─────────────────────────────────────────────
@@ -2108,13 +2163,24 @@ function barcodeLiveSearch(query) {
       });
       results = [...startsWith, ...contains].slice(0, 10);
     } else {
-      // ── Modo texto: buscar en nombre + descripción + barcode ──
-      results = prods.filter(p => {
-        const inName = _normalizeText(p.name).includes(norm);
-        const inDesc = _normalizeText(p.description || '').includes(norm);
-        const inCode = p.barcode && String(p.barcode).trim().includes(q);
-        return inName || inDesc || inCode;
-      }).slice(0, 8);
+      // ── Modo texto (BUILD 398): por palabras sueltas en cualquier orden ──
+      const tokens = _tokensBusqueda(q);
+      const hallados = prods.filter(p => {
+        if (p.barcode && String(p.barcode).trim().includes(q)) return true;
+        return _coincidenTokens(_textoBuscable(p), tokens);
+      });
+      // Relevancia: nombre que empieza por la 1ª palabra va primero
+      if (tokens.length) {
+        const primera = tokens[0];
+        const puntos = p => {
+          const nom = _normalizeText(p.name);
+          if (nom.startsWith(primera)) return 0;
+          if (nom.includes(primera))   return 1;
+          return 2;
+        };
+        hallados.sort((a, b) => puntos(a) - puntos(b));
+      }
+      results = hallados.slice(0, 8);
     }
 
     _renderLiveResults(results, q, isNumericQuery);
