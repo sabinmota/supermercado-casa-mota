@@ -169,6 +169,29 @@ let editingProductId  = null;
 let editingOrderId    = null;
 let editingCustomerId = null;
 let deleteCustomerId  = null;
+
+// ─── BUILD 404 · LA CAUSA REAL DE «GUARDAR NO HACE NADA» EN CLIENTES ─────────
+//
+// `_savingCustomer` es el cerrojo anti-doble-clic del modal de clientes. Se
+// USABA en cuatro sitios pero NUNCA se declaraba en ningún archivo (su gemelo
+// `_savingStaff` sí está declarado con `let`, ver más abajo en saveStaff — ahí
+// se ve el descuido).
+//
+// La PRIMERA línea de saveCustomer() es `if (_savingCustomer) return;`. LEER una
+// variable no declarada lanza `ReferenceError`, así que la función moría en su
+// primera instrucción: no validaba, no armaba el cuerpo, no llamaba a Supabase y
+// no mostraba ningún aviso. Desde fuera, el botón «Guardar cliente» simplemente
+// no hacía nada — sin error visible, sin toast, sin pista.
+//
+// Por qué desconcertaba: `closeCustomerModal()` hace `_savingCustomer = false`,
+// y una ASIGNACIÓN en modo no estricto CREA la global. Es decir, si el usuario
+// abría y cerraba el modal antes, el guardado empezaba a funcionar. De ahí la
+// intermitencia y el que pareciera un problema de permisos de la base.
+//
+// Medido en producción: el PATCH a `customers` con el cuerpo exacto del panel
+// devuelve 200 OK y los datos persisten. La base ya estaba bien; el freno era
+// esta línea.
+let _savingCustomer = false;
 let editingStaffId    = null;
 let deleteStaffId     = null;
 let sidebarCollapsed  = false;
@@ -4694,9 +4717,13 @@ function saveCustomer() {
   if (!name)  { missing.push('Nombre completo'); _markError('cName'); }
   if (!email) { missing.push('Email');           _markError('cEmail'); }
 
+  // BUILD 405 · La cédula/RNC ya NO es obligatoria en ningún caso (ni al crear).
+  // Muchos clientes de mostrador no la dan y no hay razón de negocio para
+  // frenar el registro por eso. El asterisco rojo también se quitó de su
+  // etiqueta en admin.html para que el formulario no prometa lo que no exige.
+  // Nota: `cedula` se sigue leyendo y guardando cuando el empleado la escribe.
   if (!editingCustomerId) {
     if (!phone)   { missing.push('Teléfono');     _markError('cPhone'); }
-    if (!cedula)  { missing.push('Cédula / RNC'); _markError('cCedula'); }
     if (!address) { missing.push('Dirección');    _markError('cAddress'); }
     if (!city)    { missing.push('Ciudad');       _markError('cCity'); }
   }
