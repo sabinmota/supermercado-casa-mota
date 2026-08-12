@@ -333,14 +333,21 @@ input, select { font-family: var(--font); }
 .search-btn { background: var(--green-primary); color: white; padding: 0 16px; font-size: .95rem; transition: background var(--transition); }
 .search-btn:hover { background: var(--green-dark); }
 
-/* Botón escáner de código de barras */
+/* Botón escáner de código de barras.
+   Era 1.1rem sin área táctil propia: costaba verlo y acertarle con el dedo.
+   Ahora icono más grande, verde de marca (indica que se puede pulsar) y
+   44 px de alto mínimo, que es la guía táctil de accesibilidad. */
 .barcode-scan-btn {
-  background: none; border: none; padding: 0 10px;
-  color: var(--text-medium); font-size: 1.1rem;
-  cursor: pointer; transition: color var(--transition);
-  display: flex; align-items: center;
+  background: none; border: none; padding: 0 12px;
+  color: var(--green-primary);
+  font-size: 1.5rem;
+  line-height: 1;
+  min-width: 46px; min-height: 44px;
+  cursor: pointer; transition: color var(--transition), transform .1s ease;
+  display: flex; align-items: center; justify-content: center;
 }
-.barcode-scan-btn:hover { color: var(--green-primary); }
+.barcode-scan-btn:hover  { color: var(--green-dark); }
+.barcode-scan-btn:active { transform: scale(.92); }
 
 /* ============================================================
    ESCÁNER DE CÓDIGO DE BARRAS — v119
@@ -595,6 +602,41 @@ input, select { font-family: var(--font); }
   font-size: .68rem;
   color: #00e676;
 }
+
+/* Botón principal: abrir la cámara ya, sin esperar la cuenta atrás */
+.bpg-go {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: none;
+  border-radius: 12px;
+  background: #1e8e3e;
+  color: #fff;
+  font-size: .92rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .2s ease, transform .1s ease;
+}
+.bpg-go:hover  { background: #1a7a35; }
+.bpg-go:active { transform: scale(.98); }
+.bpg-count { font-weight: 700; opacity: .85; font-variant-numeric: tabular-nums; }
+
+/* Botón secundario: pedir más tiempo para leer las indicaciones */
+.bpg-wait {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 12px;
+  background: transparent;
+  color: #cfd6dc;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s ease;
+}
+.bpg-wait:hover { background: rgba(255, 255, 255, .06); }
 
 /* ── Barra de estado del escáner ────────────────────────────────────────────── */
 .barcode-status {

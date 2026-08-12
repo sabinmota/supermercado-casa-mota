@@ -1642,6 +1642,9 @@ function closeBarcodeScanner() {
   _barcodeScanning = false;
   _torchOff();          // apagar linterna al cerrar
   _stopLiveCamera();
+  // Detener la cuenta atrás de la guía de encuadre (definida en index.html);
+  // si no, seguiría corriendo y abriría la cámara con el escáner ya cerrado.
+  if (typeof _pararCuentaAtras === 'function') _pararCuentaAtras();
   const overlay = document.getElementById('barcodeOverlay');
   if (overlay) overlay.classList.add('hidden');
   document.body.style.overflow = '';

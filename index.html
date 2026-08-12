@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '401', KEY = 'cm_app_ver';
+        var VER = '402', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -122,7 +122,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=316" />
+  <link rel="stylesheet" href="css/style.css?v=317" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -405,6 +405,15 @@
             <li>Sostén firme y espera a que enfoque</li>
             <li>Evita brillos: usa la linterna si hay poca luz</li>
           </ul>
+
+          <!-- El cliente manda: puede abrir ya o tomarse su tiempo leyendo. -->
+          <button type="button" class="bpg-go" id="barcodeGuideGo" onclick="_dispararCamaraFoto()">
+            <i class="fas fa-camera"></i> Abrir cámara
+            <span class="bpg-count" id="barcodeGuideCount"></span>
+          </button>
+          <button type="button" class="bpg-wait" id="barcodeGuideWait" onclick="_pausarGuiaEscaner()">
+            Necesito más tiempo para leer
+          </button>
         </div>
 
         <!-- Estado: abriendo cámara automáticamente -->
@@ -1315,7 +1324,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=351"></script>
+  <script src="js/app.js?v=352"></script>
   <script src="js/location.js?v=121"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
 
@@ -1357,6 +1366,41 @@
       if (!showBtn && errEl) errEl.classList.add('hidden');
     }
 
+    // ── Cuenta atrás antes de abrir la cámara (modo foto / iPhone) ───────────
+    // ANTES: la cámara se abría a los 350 ms y tapaba las instrucciones antes de
+    // que el cliente pudiera leerlas. Ahora hay una espera visible y cancelable.
+    // Solo la PRIMERA vez espera; después el cliente ya conoce el encuadre.
+    const _GUIA_SEGUNDOS = 5;
+    let _guiaTimer   = null;   // intervalo de la cuenta atrás
+    let _guiaPausada = false;  // el cliente pidió leer con calma
+    let _guiaYaVista = false;  // ya se mostró en esta visita
+
+    function _pararCuentaAtras() {
+      if (_guiaTimer) { clearInterval(_guiaTimer); _guiaTimer = null; }
+      const c = document.getElementById('barcodeGuideCount');
+      if (c) c.textContent = '';
+    }
+
+    /** El cliente pide más tiempo: se cancela la apertura automática. */
+    function _pausarGuiaEscaner() {
+      _guiaPausada = true;
+      _pararCuentaAtras();
+      const w = document.getElementById('barcodeGuideWait');
+      if (w) w.style.display = 'none';
+      const g = document.getElementById('barcodeGuideGo');
+      if (g) g.classList.add('bpg-go--solo');
+    }
+
+    /** Abre la cámara nativa. Debe ejecutarse por acción del usuario o timer. */
+    function _dispararCamaraFoto() {
+      _pararCuentaAtras();
+      const input = document.getElementById('barcodePhotoInput');
+      if (!input) return;
+      _guiaYaVista = true;
+      _scannerCameraOpen = true;
+      input.click();
+    }
+
     // Auto-dispara la cámara cuando el modo foto se activa
     function _autoBarcodeCamera() {
       const input = document.getElementById('barcodePhotoInput');
@@ -1365,10 +1409,32 @@
       _setScanState(null, false);
       const errEl = document.getElementById('barcodeError');
       if (errEl) errEl.classList.add('hidden');
-      setTimeout(() => {
-        _scannerCameraOpen = true;
-        input.click();
-      }, 350);
+
+      const btnWait = document.getElementById('barcodeGuideWait');
+      const btnGo   = document.getElementById('barcodeGuideGo');
+      const cuenta  = document.getElementById('barcodeGuideCount');
+
+      // Si el cliente ya pidió calma, o ya vio la guía antes en esta visita,
+      // no se vuelve a hacer esperar: abrimos enseguida.
+      if (_guiaPausada || _guiaYaVista) {
+        if (btnWait) btnWait.style.display = 'none';
+        setTimeout(() => _dispararCamaraFoto(), 250);
+        return;
+      }
+
+      if (btnWait) btnWait.style.display = '';
+      if (btnGo)   btnGo.classList.remove('bpg-go--solo');
+
+      // Cuenta atrás visible: el cliente ve cuánto le queda y puede adelantarla
+      // con "Abrir cámara" o detenerla con "Necesito más tiempo para leer".
+      let restan = _GUIA_SEGUNDOS;
+      if (cuenta) cuenta.textContent = '(' + restan + ')';
+      _pararCuentaAtras();
+      _guiaTimer = setInterval(() => {
+        restan--;
+        if (cuenta) cuenta.textContent = restan > 0 ? '(' + restan + ')' : '';
+        if (restan <= 0) _dispararCamaraFoto();
+      }, 1000);
     }
 
     // Usuario cancela la cámara sin tomar foto
