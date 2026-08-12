@@ -2050,19 +2050,24 @@ async function _startLiveCamera() {
                  || window.ZXing?.BrowserMultiFormatReader;
   if (ZXingCtor) {
     try {
-      // Hints: TRY_HARDER (3) + POSSIBLE_FORMATS (2) solo para formatos de códigos de barras comunes
-      // Esto reduce falsos positivos y acelera la detección
+      // BUILD 398 · Los números de formato estaban MAL. Se pedían 14,13,17,18
+      // creyendo que eran EAN_13/EAN_8/UPC_A/UPC_E, pero en @zxing/library los
+      // valores reales son EAN_13=7, EAN_8=6, UPC_A=14, UPC_E=15, CODE_128=4,
+      // CODE_39=2. Es decir: se pedía RSS_EXPANDED (13) y dos formatos que NO
+      // EXISTEN (17 y 18), y jamás se pedía EAN_13 — el formato de casi todos
+      // los productos de supermercado. Ahora se leen los enums de la propia
+      // librería en vez de escribir números a mano.
+      const _Z = window.ZXing || window.ZXingBrowser;
       const hints = new Map();
-      hints.set(3, true);   // TRY_HARDER
-      hints.set(2, [        // POSSIBLE_FORMATS
-        1,   // AZTEC
-        8,   // CODE_128
-        4,   // CODE_39
-        14,  // EAN_13
-        13,  // EAN_8
-        17,  // UPC_A
-        18,  // UPC_E
-      ]);
+      const HINT_TRY_HARDER = _Z?.DecodeHintType?.TRY_HARDER ?? 3;
+      const HINT_FORMATS    = _Z?.DecodeHintType?.POSSIBLE_FORMATS ?? 2;
+      hints.set(HINT_TRY_HARDER, true);
+      const BF = _Z?.BarcodeFormat;
+      if (BF) {
+        hints.set(HINT_FORMATS, [
+          BF.EAN_13, BF.EAN_8, BF.UPC_A, BF.UPC_E, BF.CODE_128, BF.CODE_39,
+        ]);
+      }
       _zxingReader = new ZXingCtor(hints);
       // Aumentar el tiempo de escaneo entre frames (menos CPU)
       _zxingReader.timeBetweenDecodingAttempts = 100;
