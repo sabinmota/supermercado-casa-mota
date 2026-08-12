@@ -621,12 +621,14 @@ async function loadCupones() {
 
 /* ── Tabla principal ───────────────────────────────────────────── */
 function renderCupones() {
-  const q      = (document.getElementById('cuponSearch')?.value || '').toLowerCase().trim();
+  const q      = document.getElementById('cuponSearch')?.value || '';
   const filtro = document.getElementById('cuponFilterEstado')?.value || '';
   const now    = new Date();
 
   const lista = cupones.filter(c => {
-    const match = !q || c.codigo?.toLowerCase().includes(q) || c.descripcion?.toLowerCase().includes(q);
+    // BUILD 399: búsqueda por palabras sueltas en cualquier orden
+    // (_admBuscar vive en admin.v33.js, que se carga antes que este fichero).
+    const match = _admBuscar(q, c.codigo, c.descripcion);
     if (!match) return false;
     const vencido  = c.fecha_fin  && new Date(c.fecha_fin)  < now;
     const noInicia = c.fecha_inicio && new Date(c.fecha_inicio) > now;
@@ -961,11 +963,12 @@ function _poblarDestinatarios() {
 
 /* ── Lista principal ───────────────────────────────────────────── */
 function renderNotificaciones() {
-  const q     = (document.getElementById('notiSearch')?.value || '').toLowerCase().trim();
+  const q     = document.getElementById('notiSearch')?.value || '';
   const tipo  = document.getElementById('notiFilterTipo')?.value || '';
 
   const lista = notificaciones.filter(n => {
-    const matchQ   = !q || (n.titulo||'').toLowerCase().includes(q) || (n.mensaje||'').toLowerCase().includes(q) || (n.destinatario_nombre||'').toLowerCase().includes(q);
+    // BUILD 399: búsqueda por palabras sueltas en cualquier orden.
+    const matchQ   = _admBuscar(q, n.titulo, n.mensaje, n.destinatario_nombre);
     const matchT   = !tipo || n.tipo === tipo;
     return matchQ && matchT;
   });
@@ -1451,10 +1454,10 @@ function onNotiClientSearch(val) {
   const drop = document.getElementById('notiClientDropdown');
   if (!drop) return;
   if (!val || val.length < 2) { drop.style.display = 'none'; return; }
-  const q = val.toLowerCase();
+  // BUILD 399: por palabras sueltas, así "perez maria" encuentra a
+  // "María Pérez" sin exigir el orden exacto.
   const matches = _notiClientes.filter(c =>
-    (c.nombre||c.name||'').toLowerCase().includes(q) ||
-    (c.telefono||c.phone||'').includes(q)
+    _admBuscar(val, c.nombre || c.name, c.telefono || c.phone, c.email)
   ).slice(0, 8);
 
   if (!matches.length) { drop.style.display = 'none'; return; }

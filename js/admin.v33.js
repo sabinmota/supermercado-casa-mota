@@ -36,6 +36,128 @@ function renderStars(rating) {
   return html;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   BÚSQUEDA POR PALABRAS SUELTAS — BUILD 399
+   ═══════════════════════════════════════════════════════════════════════════
+   PROBLEMA QUE RESUELVE (el mismo que ya se arregló en la tienda en build 398):
+   antes todos los buscadores del panel hacían `texto.includes(q)`, o sea que
+   exigían la FRASE COMPLETA Y LITERAL. Escribir "aceite crisol" no encontraba
+   "Aceite de Soya Crisol" porque entre las dos palabras está "de Soya".
+   Con una sola palabra funcionaba (una palabra siempre es contigua); al añadir
+   la segunda se rompía. Eso obligaba al empleado a recordar el nombre exacto
+   con sus puntos y señales, lo cual es imposible con miles de artículos.
+
+   AHORA: la consulta se parte en palabras y se exige que TODAS aparezcan en
+   el texto del registro, en CUALQUIER orden y en CUALQUIER posición.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Quita acentos, pasa a minúsculas y recorta. */
+function _admNorm(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/* Palabras de relleno: el empleado puede escribirlas o no. */
+const _ADM_PALABRAS_VACIAS = new Set([
+  'de','del','la','el','los','las','y','con','para','en','al','un','una','por','sin'
+]);
+
+/**
+ * "Aceite de Crisol" → ['aceite','crisol']
+ * OJO: si al quitar el relleno la lista quedara vacía (ej. buscar solo "de"),
+ * se devuelven las palabras originales. Nunca puede devolver [] con texto,
+ * porque [] significa "coincide con todo" en _admCoincide().
+ */
+function _admTokens(q) {
+  const todos = _admNorm(q)
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')   // fuera puntos, comas, guiones, etc.
+    .split(/\s+/)
+    .filter(t => t.length > 0);
+  if (!todos.length) return [];
+  const utiles = todos.filter(t => !_ADM_PALABRAS_VACIAS.has(t));
+  return utiles.length ? utiles : todos;
+}
+
+/** ¿Están TODAS las palabras buscadas dentro de este texto? */
+function _admCoincide(texto, tokens) {
+  if (!tokens || !tokens.length) return true;
+  const limpio = _admNorm(texto).replace(/[^\p{L}\p{N}\s]+/gu, ' ');
+  return tokens.every(tok => limpio.includes(tok));
+}
+
+/**
+ * Atajo para los filtros: une varios campos en un solo texto y comprueba.
+ * Uso:  _admBuscar(q, p.name, p.description, p.barcode)
+ * Devuelve true cuando q está vacío (no filtra).
+ *
+ * Los códigos de barras y los teléfonos se comprueban además de forma
+ * literal, porque ahí sí importa la cadena seguida de dígitos.
+ */
+function _admBuscar(q, ...campos) {
+  const texto = campos.filter(v => v !== null && v !== undefined && v !== '').join(' ');
+  if (!q || !String(q).trim()) return true;
+  const bruto = _admNorm(q);
+  // 1) Coincidencia literal directa: cubre códigos de barras y teléfonos
+  //    escritos igual que están guardados.
+  if (bruto && _admNorm(texto).includes(bruto)) return true;
+
+  // 2) Solo dígitos → comparar también ignorando guiones, espacios y
+  //    paréntesis. Así "5551234" encuentra "809-555-1234", y un código de
+  //    barras se localiza aunque esté guardado con separadores.
+  const soloDig = bruto.replace(/\D+/g, '');
+  if (soloDig.length >= 4 && texto.replace(/\D+/g, '').includes(soloDig)) return true;
+
+  // 3) Por palabras sueltas, en cualquier orden.
+  return _admCoincide(texto, _admTokens(q));
+}
+
+/**
+ * BUILD 399 — AVISO VISIBLE DE «SIN RESULTADOS» EN LAS TABLAS.
+ * Antes, cuando un filtro no devolvía nada, el <tbody> se quedaba
+ * COMPLETAMENTE EN BLANCO. El único aviso era el contador pequeño de arriba
+ * ("Sin resultados"), que pasa desapercibido: parecía que el panel se había
+ * quedado colgado o que se habían borrado los datos.
+ *
+ * Devuelve true si pintó el aviso (o sea: no hay filas que renderizar).
+ */
+function _admSinResultados(tbodyId, hayBusqueda, texto = 'No se encontraron resultados') {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return false;
+  const cols = tbody.closest('table')?.querySelectorAll('thead th')?.length || 8;
+  const sugerencia = hayBusqueda
+    ? 'Revisa lo que escribiste o borra el texto de búsqueda para ver todo de nuevo.'
+    : 'Prueba a cambiar los filtros.';
+  tbody.innerHTML =
+    '<tr><td colspan="' + cols + '" style="text-align:center;padding:34px 16px;color:#8a8a8a">' +
+      '<i class="fas fa-magnifying-glass" style="font-size:1.8rem;opacity:.28;display:block;margin-bottom:10px"></i>' +
+      '<div style="font-weight:700;font-size:.95rem;color:#555;margin-bottom:4px">' + texto + '</div>' +
+      '<div style="font-size:.82rem">' + sugerencia + '</div>' +
+    '</td></tr>';
+  return true;
+}
+
+/**
+ * Ordena por relevancia según la primera palabra buscada:
+ * empieza por ella > la contiene > el resto.
+ * Se aplica solo cuando no hay una ordenación explícita elegida por el
+ * usuario, para no pisarle su decisión de ordenar por precio o por stock.
+ */
+function _admOrdenarRelevancia(lista, q, campoNombre = 'name') {
+  const tokens = _admTokens(q);
+  if (!tokens.length) return lista;
+  const primera = tokens[0];
+  const puntos = item => {
+    const nom = _admNorm(item?.[campoNombre]);
+    if (nom.startsWith(primera)) return 0;
+    if (nom.includes(primera))   return 1;
+    return 2;
+  };
+  return lista.sort((a, b) => puntos(a) - puntos(b));
+}
+
 // ─── Estado ──────────────────────────────────────────────────────────────────
 // Los datos ahora vienen de la API RESTful. Se inicializan vacíos y se
 // cargan de forma asíncrona en DOMContentLoaded (ver initAdminData()).
@@ -119,46 +241,48 @@ function _renderPaginator(paginatorId, currentPage, totalItems, section, scrollT
 /** Navega a una página de cualquier sección y re-renderiza */
 function _goPage(section, scrollToId, page) {
   const totals = {
+    // BUILD 399: estos contadores DEBEN usar exactamente el mismo criterio de
+    // búsqueda que los render*(), o la paginación mostraría un número de
+    // páginas distinto al de las filas realmente listadas.
     products: (() => {
-      const q = (document.getElementById('prodSearch')?.value || '').toLowerCase();
+      const q = document.getElementById('prodSearch')?.value || '';
       const cat = document.getElementById('prodCatFilter')?.value || '';
       const badge = document.getElementById('prodBadgeFilter')?.value || '';
       return adminProducts.filter(p =>
-        (!q || p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q) || (p.barcode||'').toLowerCase().includes(q)) &&
+        _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category) &&
         (!cat || p.category === cat) && (!badge || p.badge === badge)
       ).length;
     })(),
     orders: (() => {
-      const q = (document.getElementById('orderSearch')?.value || '').toLowerCase();
+      const q = document.getElementById('orderSearch')?.value || '';
       const status = document.getElementById('orderStatusFilter')?.value || '';
       return orders.filter(o =>
-        (!q || o.customer.toLowerCase().includes(q) || String(o.id).includes(q) || o.email.toLowerCase().includes(q)) &&
+        _admBuscar(q, o.customer, o.id, o.email, o.phone) &&
         (!status || o.status === status)
       ).length;
     })(),
     inventory: (() => {
-      const q = (document.getElementById('invSearch')?.value || '').toLowerCase();
+      const q = document.getElementById('invSearch')?.value || '';
       const filter = document.getElementById('invStockFilter')?.value || '';
       return adminProducts.filter(p =>
-        (!q || p.name.toLowerCase().includes(q) || (p.barcode||'').toLowerCase().includes(q)) &&
+        _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category) &&
         (!filter || (filter === 'low' ? p.stock < 20 : p.stock >= 20))
       ).length;
     })(),
     customers: (() => {
-      const q = (document.getElementById('custSearch')?.value || '').toLowerCase();
+      const q = document.getElementById('custSearch')?.value || '';
       return customers.filter(c =>
-        !q || c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || (c.phone||'').includes(q)
+        _admBuscar(q, c.name, c.email, c.phone)
       ).length;
     })(),
     staff: (() => {
-      const q = (document.getElementById('staffSearch')?.value || '').toLowerCase();
+      const q = document.getElementById('staffSearch')?.value || '';
       const role = document.getElementById('staffRoleFilter')?.value || '';
       const status = document.getElementById('staffStatusFilter')?.value || '';
-      return staffList.filter(s => {
-        const name = (s.firstName + ' ' + s.lastName).toLowerCase();
-        return (!q || name.includes(q) || s.email.toLowerCase().includes(q)) &&
-               (!role || s.role === role) && (!status || s.status === status);
-      }).length;
+      return staffList.filter(s =>
+        _admBuscar(q, s.firstName, s.lastName, s.email, s.cargo) &&
+        (!role || s.role === role) && (!status || s.status === status)
+      ).length;
     })(),
   };
   const totalPages = Math.max(1, Math.ceil((totals[section] || 1) / PAGE_SIZE));
@@ -1049,16 +1173,15 @@ function sortProductsBy(field) {
 }
 
 function renderProductsTable() {
-  const q       = (document.getElementById('prodSearch')?.value || '').toLowerCase();
+  const q       = document.getElementById('prodSearch')?.value || '';
   const cat     = document.getElementById('prodCatFilter')?.value || '';
   const badge   = document.getElementById('prodBadgeFilter')?.value || '';
 
   const filtered = adminProducts
     .filter(p => {
       if (!p || !p.name) return false;
-      const matchQ = !q || (p.name || '').toLowerCase().includes(q)
-                        || (p.description || '').toLowerCase().includes(q)
-                        || (p.barcode || '').toString().toLowerCase().includes(q);
+      // BUILD 399: búsqueda por palabras sueltas en cualquier orden.
+      const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category);
       const matchC = !cat   || p.category === cat;
       const matchB = !badge || p.badge    === badge;
       return matchQ && matchC && matchB;
@@ -1080,6 +1203,10 @@ function renderProductsTable() {
       return (Number(b.created_at) || 0) - (Number(a.created_at) || 0);
     });
 
+  // BUILD 399: al buscar y sin columna de orden elegida, lo más parecido
+  // primero. Si el usuario clicó una columna, se respeta SU orden.
+  if (q.trim() && !_prodSortField) _admOrdenarRelevancia(filtered, q, 'name');
+
   const total = filtered.length;
   const pg    = _pages.products;
   const start = (pg - 1) * PAGE_SIZE;
@@ -1096,6 +1223,13 @@ function renderProductsTable() {
 
   // ── Limpiar y renderizar solo la página actual ──────────────────────────
   tbody.innerHTML = '';
+
+  // BUILD 399: aviso visible en lugar de una tabla en blanco.
+  if (total === 0) {
+    _admSinResultados('productsTbody', !!q.trim(), 'No se encontraron productos');
+    _renderPaginator('prodPaginator', 1, 0, 'products', 'productsTable');
+    return;
+  }
 
   // 2) Insertar cada fila de la página
   list.forEach(p => {
@@ -2232,11 +2366,13 @@ function _patchOrderRow(orderId) {
 }
 
 function renderOrdersTable() {
-  const q      = (document.getElementById('orderSearch')?.value || '').toLowerCase();
+  const q      = document.getElementById('orderSearch')?.value || '';
   const status = document.getElementById('orderStatusFilter')?.value || '';
 
   let list = orders.filter(o => {
-    const matchQ = !q || o.customer.toLowerCase().includes(q) || String(o.id).includes(q) || o.email.toLowerCase().includes(q);
+    // BUILD 399: por palabras sueltas. Se añaden id y teléfono al texto
+    // buscable para poder localizar un pedido por cualquiera de los dos.
+    const matchQ = _admBuscar(q, o.customer, o.id, o.email, o.phone);
     const matchS = !status || o.status === status;
     return matchQ && matchS;
   });
@@ -2264,6 +2400,13 @@ function renderOrdersTable() {
 
   document.getElementById('orderCount').textContent =
     total === 0 ? 'Sin resultados' : `${from}–${to} de ${total} pedido${total !== 1 ? 's' : ''}`;
+
+  // BUILD 399: aviso visible en lugar de una tabla en blanco.
+  if (total === 0) {
+    _admSinResultados('ordersTbody', !!q.trim(), 'No se encontraron pedidos');
+    _renderPaginator('ordersPaginator', 1, 0, 'orders', 'ordersTable');
+    return;
+  }
 
   document.getElementById('ordersTbody').innerHTML = page.map(o => {
     const sourceBadge = o.source === 'tienda'
@@ -3493,13 +3636,12 @@ function sortInventoryBy(field) {
 }
 
 function renderInventory() {
-  const q      = (document.getElementById('invSearch')?.value || '').toLowerCase();
+  const q      = document.getElementById('invSearch')?.value || '';
   const filter = document.getElementById('invStockFilter')?.value || '';
 
   const list = adminProducts.filter(p => {
-    const matchQ = !q || p.name.toLowerCase().includes(q)
-                       || (p.barcode || '').toLowerCase().includes(q)
-                       || (p.description || '').toLowerCase().includes(q);
+    // BUILD 399: por palabras sueltas en cualquier orden.
+    const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category);
     const matchF = !filter || (filter === 'low' ? Number(p.stock) < 20 : Number(p.stock) >= 20);
     return matchQ && matchF;
   }).sort((a, b) => {
@@ -3535,6 +3677,13 @@ function renderInventory() {
 
   const tbody = document.getElementById('inventoryTbody');
   tbody.innerHTML = '';
+
+  // BUILD 399: aviso visible en lugar de una tabla en blanco.
+  if (filtTotal === 0) {
+    _admSinResultados('inventoryTbody', !!q.trim(), 'No se encontraron productos');
+    _renderPaginator('invPaginator', 1, 0, 'inventory', 'inventoryTable');
+    return;
+  }
 
   page.forEach(p => {
     const _stock   = Number(p.stock) || 0;
@@ -3800,10 +3949,12 @@ function renderLoyaltyKpis() {
 }
 
 function renderLoyaltyRanking() {
-  const q   = (document.getElementById('lSearch')?.value || '').toLowerCase();
+  const q   = document.getElementById('lSearch')?.value || '';
   const all = customers;
   const list = all
-    .filter(c => !q || c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q))
+    // BUILD 399: por palabras sueltas ("maria perez" encuentra "María de los
+    // Santos Pérez").
+    .filter(c => _admBuscar(q, c.name, c.email, c.phone))
     .sort((a, b) => (b.loyaltyPoints || 0) - (a.loyaltyPoints || 0));
 
   const wrap = document.getElementById('loyaltyRankingList');
@@ -4136,14 +4287,12 @@ function _customerStats(c) {
 const _telAdmin = v => (typeof fmtPhoneDO === 'function' ? fmtPhoneDO(v) : (v || ''));
 
 function renderCustomers() {
-  const q    = (document.getElementById('custSearch')?.value || '').toLowerCase();
+  const q    = document.getElementById('custSearch')?.value || '';
   const sort = document.getElementById('custSortFilter')?.value || '';
 
-  let list = customers.filter(c =>
-    !q || c.name.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          (c.phone || '').includes(q)
-  );
+  // BUILD 399: por palabras sueltas. El teléfono sigue encontrándose por
+  // coincidencia literal dentro de _admBuscar().
+  let list = customers.filter(c => _admBuscar(q, c.name, c.email, c.phone));
 
   if (sort === 'name')   list = list.sort((a,b) => a.name.localeCompare(b.name));
   // Ordenar por los mismos números que se muestran (calculados), no por los
@@ -4160,6 +4309,13 @@ function renderCustomers() {
 
   document.getElementById('custCount').textContent =
     total === 0 ? 'Sin resultados' : `${from}–${to} de ${total} cliente${total !== 1 ? 's' : ''}`;
+
+  // BUILD 399: aviso visible en lugar de una tabla en blanco.
+  if (total === 0) {
+    _admSinResultados('customersTbody', !!q.trim(), 'No se encontraron clientes');
+    _renderPaginator('custPaginator', 1, 0, 'customers', 'customersTable');
+    return;
+  }
 
   document.getElementById('customersTbody').innerHTML = page.map((c,i) => {
     // Estado: habilitado / deshabilitado (controla acceso a la tienda)
@@ -4794,13 +4950,14 @@ function saveCustomers() {
 // ─── PERSONAL (CRUD completo) ─────────────────────────────────────────────────
 function renderStaff() {
   // staffList ya está en memoria (cargado desde API en initAdminData)
-  const q      = (document.getElementById('staffSearch')?.value || '').toLowerCase();
+  const q      = document.getElementById('staffSearch')?.value || '';
   const role   = document.getElementById('staffRoleFilter')?.value  || '';
   const status = document.getElementById('staffStatusFilter')?.value || '';
 
   let list = staffList.filter(s => {
-    const fullName = (s.firstName + ' ' + s.lastName).toLowerCase();
-    const matchQ = !q || fullName.includes(q) || s.email.toLowerCase().includes(q) || (s.cargo||'').toLowerCase().includes(q);
+    // BUILD 399: por palabras sueltas, así "perez juan" también encuentra a
+    // "Juan Pérez" (antes había que escribir el nombre en el orden exacto).
+    const matchQ = _admBuscar(q, s.firstName, s.lastName, s.email, s.cargo);
     const matchR = !role   || s.role   === role;
     const matchS = !status || s.status === status;
     return matchQ && matchR && matchS;
@@ -4830,6 +4987,13 @@ function renderStaff() {
   const canManage = currentSession && getRole(currentSession.role).canManageStaff;
   // No permitir eliminar la propia cuenta
   const myId = currentSession ? currentSession.id : null;
+
+  // BUILD 399: aviso visible en lugar de una tabla en blanco.
+  if (total === 0) {
+    _admSinResultados('staffTbody', !!q.trim(), 'No se encontró personal');
+    _renderPaginator('staffPaginator', 1, 0, 'staff', 'staffTable');
+    return;
+  }
 
   document.getElementById('staffTbody').innerHTML = page.map((s,i) => {
     const initials = (s.firstName[0] + s.lastName[0]).toUpperCase();
@@ -5287,12 +5451,13 @@ function saveDriversLS(){ /* Deprecated: usar DB.createDriver / DB.updateDriver 
 
 // ── Render tabla ──────────────────────────────────────────────────────────────
 function renderDrivers() {
-  const q       = (document.getElementById('drvSearch')?.value       || '').toLowerCase();
+  const q       = document.getElementById('drvSearch')?.value       || '';
   const stFilt  = document.getElementById('drvStatusFilter')?.value  || '';
   const vhFilt  = document.getElementById('drvVehicleFilter')?.value || '';
 
   const list = drivers.filter(d => {
-    const matchQ  = !q      || d.name.toLowerCase().includes(q) || (d.phone||'').includes(q) || (d.zone||'').toLowerCase().includes(q);
+    // BUILD 399: por palabras sueltas.
+    const matchQ  = _admBuscar(q, d.name, d.phone, d.zone, d.address);
     const matchSt = !stFilt || d.status  === stFilt;
     const matchVh = !vhFilt || d.vehicle === vhFilt;
     return matchQ && matchSt && matchVh;
@@ -5788,7 +5953,7 @@ async function loadCategories() {
 // ─── Render tabla ─────────────────────────────────────────────────────────────
 
 function renderCategoriesTable() {
-  const search = (document.getElementById('catSearch')?.value || '').toLowerCase();
+  const search = document.getElementById('catSearch')?.value || '';
   const status = document.getElementById('catStatusFilter')?.value || '';
 
   // Ordenar siempre alfabéticamente por nombre
@@ -5797,11 +5962,8 @@ function renderCategoriesTable() {
   );
 
   if (search) {
-    list = list.filter(c =>
-      (c.name  || '').toLowerCase().includes(search) ||
-      (c.id    || '').toLowerCase().includes(search) ||
-      (c.description || '').toLowerCase().includes(search)
-    );
+    // BUILD 399: por palabras sueltas en cualquier orden.
+    list = list.filter(c => _admBuscar(search, c.name, c.id, c.slug, c.description));
   }
   if (status === 'active')   list = list.filter(c => c.active === true  || c.active === 'true');
   if (status === 'inactive') list = list.filter(c => c.active === false || c.active === 'false');
