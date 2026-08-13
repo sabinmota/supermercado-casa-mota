@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '405';
+      const VER = '406';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -345,7 +345,15 @@
     <section class="section-content" id="sec-products">
       <div class="page-header">
         <h1>Gestión de Productos</h1>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <!-- BUILD 406 · Recarga los precios/stock desde Supabase sin recargar
+               la página. Necesario porque el script de sincronización escribe
+               directo en la base y el panel guarda los productos en memoria. -->
+          <button class="btn-secondary" id="btnRefreshProds" onclick="refrescarProductos(true)"
+                  title="Vuelve a leer precios y existencias desde la base de datos (úsalo después de sincronizar precios)">
+            <i class="fas fa-sync-alt"></i> Actualizar
+          </button>
+          <small id="prodRefreshStamp" style="color:var(--text-medium);font-size:.78rem"></small>
           <button class="btn-secondary" onclick="aiBulkDescribe()" id="btnBulkDesc" title="Genera descripciones con IA para todos los productos que no tienen una o tienen menos de una línea">
             <i class="fas fa-wand-magic-sparkles"></i> Describir todos con IA
           </button>
@@ -2902,7 +2910,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=375"></script>
+  <script src="js/admin.v33.js?v=376"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=6"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

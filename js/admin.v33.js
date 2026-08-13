@@ -1195,6 +1195,131 @@ function sortProductsBy(field) {
   renderProductsTable();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  BUILD 406 · REFRESCO DE PRODUCTOS (botón 🔄 + al volver a la pestaña)
+//
+//  El problema que resuelve: el script de sincronización de precios (sync/) escribe
+//  DIRECTO en Supabase. El panel, en cambio, guarda los productos en memoria
+//  (`adminProducts`) al entrar a la sección y no los vuelve a pedir. Resultado: si
+//  dejas el panel abierto, sincronizas precios y miras la lista, sigues viendo los
+//  precios VIEJOS y parece que la sincronización no funcionó. Caso real: la Azúcar
+//  Refina (barcode 72912348) ya estaba a $70 en la base y el panel mostraba $75.
+//
+//  Se implementan las dos vías, por decisión del usuario:
+//   (A) botón 🔄 manual — control total, nunca sorprende.
+//   (B) automático al VOLVER a la pestaña — cubre el flujo real: sincronizas en la
+//       otra pestaña y regresas.
+//
+//  ⚠️ REGLA DE ORO: JAMÁS refrescar si hay un modal abierto. Recargar
+//  `adminProducts` mientras el usuario escribe en el formulario de un producto le
+//  borraría lo que lleva escrito. Por eso `_hayModalAbierto()` se consulta SIEMPRE
+//  en la vía automática. El botón manual también la respeta y avisa.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** ¿Hay algún modal abierto ahora mismo? (cualquiera del panel) */
+function _hayModalAbierto() {
+  return !!document.querySelector('.modal-backdrop:not(.hidden)');
+}
+
+let _refrescandoProds = false;
+
+/**
+ * Recarga los productos desde Supabase y repinta la tabla.
+ * @param {boolean} manual  true = lo pidió el usuario con el botón (muestra avisos).
+ */
+async function refrescarProductos(manual = false) {
+  if (_refrescandoProds) return;
+
+  // Nunca pisar un formulario abierto.
+  if (_hayModalAbierto()) {
+    if (manual) showAdminToast('Cierra la ventana abierta antes de actualizar', 'error');
+    return;
+  }
+
+  _refrescandoProds = true;
+  const btn = document.getElementById('btnRefreshProds');
+  const ico = btn ? btn.querySelector('i') : null;
+  if (ico) ico.classList.add('fa-spin');
+  if (btn) btn.disabled = true;
+
+  try {
+    const lista = await DB.getProducts({ full: true });
+    if (lista && lista.length) {
+      // Detectar qué cambió, para poder informar de verdad y no mentir con un
+      // «actualizado» genérico cuando no cambió nada.
+      const antes = {};
+      (adminProducts || []).forEach(p => { antes[p.id] = p; });
+      let cambiados = 0, nuevos = 0;
+      lista.forEach(p => {
+        const v = antes[p.id];
+        if (!v) { nuevos++; return; }
+        if (Number(v.price) !== Number(p.price) ||
+            Number(v.stock) !== Number(p.stock) ||
+            (v.name || '') !== (p.name || '')) cambiados++;
+      });
+
+      adminProducts = lista;
+      DBCached.invalidateProducts();
+      renderProductsTable();
+
+      if (manual) {
+        const partes = [];
+        if (cambiados) partes.push(`${cambiados} con cambios`);
+        if (nuevos)    partes.push(`${nuevos} nuevo(s)`);
+        showAdminToast(
+          partes.length
+            ? `Productos actualizados — ${partes.join(', ')}`
+            : 'Ya estaba al día — ningún cambio',
+          'success'
+        );
+      } else if (cambiados || nuevos) {
+        // Automático: solo molestar si REALMENTE cambió algo.
+        showAdminToast(`Lista actualizada — ${cambiados + nuevos} producto(s) con cambios`, 'success');
+      }
+
+      // Sello de última actualización, para que se vea de cuándo son los datos.
+      const sello = document.getElementById('prodRefreshStamp');
+      if (sello) {
+        const h = new Date();
+        sello.textContent = 'Datos de ' +
+          String(h.getHours()).padStart(2, '0') + ':' +
+          String(h.getMinutes()).padStart(2, '0');
+      }
+    } else if (manual) {
+      showAdminToast('No se pudo leer la lista de productos', 'error');
+    }
+  } catch (e) {
+    console.error('refrescarProductos:', e);
+    if (manual) showAdminToast('Error al actualizar: ' + (e?.message || e), 'error');
+  } finally {
+    _refrescandoProds = false;
+    if (ico) ico.classList.remove('fa-spin');
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── (B) Refresco al VOLVER a la pestaña ──────────────────────────────────────
+//
+// Solo actúa si: la pestaña se vuelve visible + estás en la sección Productos +
+// no hay modal abierto + han pasado al menos 10 s desde el último refresco (para
+// no recargar 1.900 productos por cada alt-tab).
+let _ultimoRefrescoProds = 0;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+
+  const sec = document.getElementById('sec-products');
+  const enProductos = sec && sec.classList.contains('active');
+  if (!enProductos) return;
+  if (_hayModalAbierto()) return;
+
+  const ahora = Date.now();
+  if (ahora - _ultimoRefrescoProds < 10000) return;
+  _ultimoRefrescoProds = ahora;
+
+  refrescarProductos(false);
+});
+
 function renderProductsTable() {
   const q       = document.getElementById('prodSearch')?.value || '';
   const cat     = document.getElementById('prodCatFilter')?.value || '';
