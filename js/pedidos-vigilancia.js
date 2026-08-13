@@ -188,11 +188,39 @@
   //
   // En este panel los modales se ocultan con la clase `.hidden` (no con
   // `.show`/`.active`) y algunos con `style.display`. En vez de adivinar la
-  // convención, se comprueba la visibilidad real con offsetParent.
+  // convención, se comprueba la visibilidad real.
+  //
+  // 🔴 BUILD 408 · ESTA FUNCIÓN NO PROTEGÍA NADA.
+  //
+  // Hasta ahora hacía `m.offsetParent !== null`. Suena razonable, pero está
+  // MEDIDO que no funciona con estos elementos:
+  //
+  //   elemento                      offsetParent   getClientRects()
+  //   .modal-backdrop VISIBLE       null  🔴       1
+  //   .modal-backdrop oculto        null           0
+  //
+  // Por especificación `offsetParent` devuelve `null` para TODO elemento con
+  // `position: fixed`, esté visible o no. Y `css/admin.v33.css` línea 1042
+  // define `.modal-backdrop { position: fixed; … }`. Resultado: la condición
+  // `!_pvHayModalAbierto()` de la línea ~247 SIEMPRE se cumplía, así que la
+  // vigilancia repintaba la tabla de pedidos aunque hubiera un formulario
+  // abierto encima — justo lo que este guardián existía para impedir.
+  //
+  // Se descubrió al arreglar el mismo defecto en `_hayModalAbierto()` de
+  // `js/admin.v33.js` (build 407), que había copiado este método de aquí.
+  //
+  // `getClientRects().length` cuenta las cajas que el navegador REALMENTE
+  // pinta: da 0 si el elemento está oculto por `.hidden`, por su propio
+  // `style.display:none` o por cualquier ancestro oculto — y funciona con
+  // `position: fixed`. Se añaden también los `.cat-modal-backdrop`, que son
+  // modales de pleno derecho y antes ni se miraban.
+  //
+  // (`checkVisibility()` daría lo mismo, pero no existe en Safari antiguo y
+  // este panel se usa desde iPhone.)
   function _pvHayModalAbierto() {
-    const modales = document.querySelectorAll('.modal-backdrop');
+    const modales = document.querySelectorAll('.modal-backdrop, .cat-modal-backdrop');
     for (const m of modales) {
-      if (m.offsetParent !== null) return true;
+      if (m.getClientRects().length > 0) return true;
     }
     return false;
   }

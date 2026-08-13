@@ -11,6 +11,9 @@
   --orange:      #f57c00;
   --blue:        #1565c0;
   --yellow:      #f9a825;
+  /* BUILD 409 · morado para todo lo que sea inteligencia artificial */
+  --purple:      #7c3aed;
+  --purple-dark: #6425ca;
   --sidebar-bg:  #0f1923;
   --sidebar-w:   240px;
   --sidebar-w-collapsed: 68px;
@@ -631,6 +634,42 @@ input, select, textarea { font-family: var(--font); }
   transition: all var(--trans);
 }
 .btn-secondary:hover { border-color: var(--green); color: var(--green); }
+
+/* ─── BUILD 409 · BOTONES DE ACCIÓN CON COLOR PROPIO ───────────
+   En la cabecera de Productos había tres botones y solo el verde
+   («Nuevo producto») tenía color; los otros dos eran grises e
+   iguales entre sí, así que no se distinguían de un vistazo.
+   Se les da un color a cada uno siguiendo el mismo patrón visual
+   del verde: relleno sólido, texto blanco y sombra del propio tono.
+
+   Criterio del color (no es decorativo):
+     · AZUL    = traer datos / sincronizar → «Actualizar»
+     · MORADO  = inteligencia artificial   → «Describir todos con IA»
+     · VERDE   = crear algo nuevo          → «Nuevo producto» (ya existía)
+   Así el verde sigue siendo el único que significa «añadir», que es
+   la acción principal de la pantalla.                              */
+
+.btn-refresh {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--blue); color: white;
+  padding: 9px 20px; border-radius: var(--radius);
+  font-size: .88rem; font-weight: 600; border: none;
+  transition: background var(--trans); box-shadow: 0 2px 8px rgba(21,101,192,.28);
+}
+.btn-refresh:hover { background: #0d47a1; }
+
+.btn-ai {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--purple); color: white;
+  padding: 9px 20px; border-radius: var(--radius);
+  font-size: .88rem; font-weight: 600; border: none;
+  transition: background var(--trans); box-shadow: 0 2px 8px rgba(124,58,237,.28);
+}
+.btn-ai:hover { background: var(--purple-dark); }
+
+/* Mientras trabajan (el 🔄 girando o la IA describiendo) se atenúan
+   para que se vea que están ocupados y no se pulsen dos veces. */
+.btn-refresh:disabled, .btn-ai:disabled { opacity: .6; cursor: not-allowed; }
 
 /* ─── FORMS ────────────────────────────────────────────────── */
 .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }

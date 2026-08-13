@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '407';
+      const VER = '409';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -35,7 +35,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png" />
-  <link rel="stylesheet" href="css/admin.v33.css?v=258" />
+  <link rel="stylesheet" href="css/admin.v33.css?v=259" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -349,12 +349,16 @@
           <!-- BUILD 406 · Recarga los precios/stock desde Supabase sin recargar
                la página. Necesario porque el script de sincronización escribe
                directo en la base y el panel guarda los productos en memoria. -->
-          <button class="btn-secondary" id="btnRefreshProds" onclick="refrescarProductos(true)"
+          <!-- BUILD 409 · azul = traer datos de la base -->
+          <button class="btn-refresh" id="btnRefreshProds" onclick="refrescarProductos(true)"
                   title="Vuelve a leer precios y existencias desde la base de datos (úsalo después de sincronizar precios)">
             <i class="fas fa-sync-alt"></i> Actualizar
           </button>
-          <small id="prodRefreshStamp" style="color:var(--text-medium);font-size:.78rem"></small>
-          <button class="btn-secondary" onclick="aiBulkDescribe()" id="btnBulkDesc" title="Genera descripciones con IA para todos los productos que no tienen una o tienen menos de una línea">
+          <!-- BUILD 409 · la variable era --text-medium, que NO existe en admin.v33.css
+               (la real es --text-mid), así que la hora se veía en negro. -->
+          <small id="prodRefreshStamp" style="color:var(--text-mid);font-size:.78rem"></small>
+          <!-- BUILD 409 · morado = inteligencia artificial -->
+          <button class="btn-ai" onclick="aiBulkDescribe()" id="btnBulkDesc" title="Genera descripciones con IA para todos los productos que no tienen una o tienen menos de una línea">
             <i class="fas fa-wand-magic-sparkles"></i> Describir todos con IA
           </button>
           <button class="btn-primary" onclick="openProductModal()">
@@ -2912,7 +2916,7 @@
   <!-- Lógica del admin -->
   <script src="js/admin.v33.js?v=377"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
-  <script src="js/pedidos-vigilancia.js?v=6"></script>
+  <script src="js/pedidos-vigilancia.js?v=7"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=312"></script>
   <!-- IA: Groq integration -->
