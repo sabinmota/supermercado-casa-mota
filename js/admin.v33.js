@@ -1216,9 +1216,55 @@ function sortProductsBy(field) {
 //  en la vía automática. El botón manual también la respeta y avisa.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** ¿Hay algún modal abierto ahora mismo? (cualquiera del panel) */
+/**
+ * ¿Hay algún modal REALMENTE visible ahora mismo?
+ *
+ * 🔴 BUILD 407 · CORRIGE EL FALSO POSITIVO DEL BUILD 406.
+ *
+ * PROBLEMA 1 (el que vio el usuario). El build 406 hacía:
+ *     document.querySelector('.modal-backdrop:not(.hidden)')
+ * y avisaba «Cierra la ventana abierta antes de actualizar» aunque NO hubiera
+ * ninguna ventana abierta, dejando el botón 🔄 inservible.
+ * Causa: en este panel los modales no se cierran todos igual. La mayoría usa la
+ * clase `.hidden`, pero `catDeleteModalBackdrop` se abre y cierra con
+ * `style.display = 'flex'/'none'` (líneas ~6560/6594) y NUNCA lleva `.hidden`,
+ * así que `:not(.hidden)` lo contaba como abierto para siempre.
+ *
+ * PROBLEMA 2 (descubierto al probar el arreglo). El primer intento de arreglo
+ * copió el `offsetParent !== null` de `js/pedidos-vigilancia.js`. NO FUNCIONA
+ * AQUÍ, y está medido:
+ *
+ *   elemento             offsetParent   getClientRects()   display
+ *   fixed VISIBLE        null  🔴       1                  flex
+ *   fixed OCULTO         null           0                  none
+ *   absolute VISIBLE     objeto ✅      1                  flex
+ *
+ * Por especificación, `offsetParent` devuelve `null` para todo elemento con
+ * `position: fixed`, ESTÉ VISIBLE O NO. Y `css/admin.v33.css` línea 1042 define
+ * `.modal-backdrop { position: fixed; ... }`. Es decir: con offsetParent, TODOS
+ * los modales de este panel parecen cerrados siempre → la protección no
+ * protegería nada y un refresco automático podría borrar lo que el usuario está
+ * escribiendo en un formulario abierto.
+ *
+ * SOLUCIÓN. `getClientRects().length` sí distingue: cuenta las cajas que el
+ * navegador realmente pinta. Da 0 si el elemento está oculto por su propio
+ * `display:none`, por la clase `.hidden`, o por cualquier ancestro oculto — los
+ * tres casos medidos. Funciona igual con `position: fixed`.
+ *
+ * (`checkVisibility()` daría lo mismo pero no existe en Safari antiguo, y este
+ * panel se usa también desde iPhone.)
+ *
+ * ⚠️ NOTA PARA EL FUTURO: `_pvHayModalAbierto()` en `js/pedidos-vigilancia.js`
+ * (línea ~192) usa `offsetParent` sobre estos mismos `.modal-backdrop`, así que
+ * arrastra este mismo defecto. Se deja constancia aquí; se corregirá aparte para
+ * no mezclar dos cambios en un solo build.
+ */
 function _hayModalAbierto() {
-  return !!document.querySelector('.modal-backdrop:not(.hidden)');
+  const modales = document.querySelectorAll('.modal-backdrop, .cat-modal-backdrop');
+  for (const m of modales) {
+    if (m.getClientRects().length > 0) return true;
+  }
+  return false;
 }
 
 let _refrescandoProds = false;
