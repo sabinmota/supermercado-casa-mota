@@ -4298,8 +4298,12 @@ async function deleteClientOrder(orderId) {
       return;
     }
 
-    // Eliminar el pedido de la API
-    await DB.deleteOrder(orderId);
+    // Eliminar el pedido de la API.
+    // BUILD 410 · se pasa el correo: la BASE comprueba que el pedido es de este
+    // cliente y que está cancelado antes de borrar nada. Las comprobaciones de
+    // arriba siguen ahí para dar buenos mensajes, pero ya no son la única
+    // defensa: antes vivían solo en el navegador, o sea en nada.
+    await DB.deleteOrder(orderId, currentClient.email, currentClient.id);
 
     // Animación de salida en la tarjeta antes de re-renderizar
     const card = document.getElementById(`order-card-${orderId}`);
@@ -4338,7 +4342,9 @@ async function clearCancelledOrders() {
 
     // Eliminar todos en paralelo
     await Promise.all(cancelled.map(o =>
-      DB.deleteOrder(o.id).catch(logFail(`eliminar el pedido #${o.order_number || o.id}`))
+      // BUILD 410 · el correo va como segundo argumento (ver DB.deleteOrder).
+      DB.deleteOrder(o.id, currentClient.email, currentClient.id)
+        .catch(logFail(`eliminar el pedido #${o.order_number || o.id}`))
     ));
 
     showToast(`<i class="fas fa-trash-can"></i> ${cancelled.length} pedido${cancelled.length !== 1 ? 's' : ''} cancelado${cancelled.length !== 1 ? 's' : ''} eliminado${cancelled.length !== 1 ? 's' : ''} del historial`, 'success');

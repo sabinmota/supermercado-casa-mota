@@ -478,6 +478,61 @@ const _ERRORES_STAFF = {
   FALTA_ID:             'Falta indicar el empleado.',
 };
 
+// ─── BUILD 410 · ESCRITURA EN `orders` VÍA FUNCIÓN DE BASE DE DATOS ─────────
+//
+// EL AGUJERO QUE ESTO CIERRA (auditoría del 14/08/2026, SQL 39)
+// ────────────────────────────────────────────────────────────
+// Con SOLO la clave pública (la que va escrita en este mismo archivo, o sea la
+// que cualquiera puede leer con «ver código fuente») estaba MEDIDO que se podía:
+//   · Cambiar el importe de un pedido:  RD$275 → RD$0.01  ← CONFIRMADO
+//   · Borrar un pedido para siempre                        ← CONFIRMADO
+// No era una sospecha: se hizo contra la base real y hubo que reparar los datos.
+//
+// POR QUÉ NO BASTABA CON QUITAR EL PERMISO
+// ────────────────────────────────────────
+// La tienda y el panel usan LA MISMA clave `anon`. La base de datos no puede
+// distinguir «empleado» de «visitante» mirando solo los permisos de la tabla.
+// Si se revoca UPDATE sobre `orders`, se rompe el panel; si no se revoca, el
+// agujero sigue abierto. La salida es que el permiso deje de venir de la clave
+// y pase a venir de la SESIÓN: el `vale` que la base entrega al validar la
+// contraseña en el login (mismo mecanismo del build 397 para `staff`).
+//
+// EL OTRO MOTIVO, MÁS SUTIL, POR EL QUE HABÍA QUE CAMBIAR ESTE CÓDIGO
+// ───────────────────────────────────────────────────────────────────
+// El panel guardaba pedidos con `_apiUpdate` → un PUT con LAS 71 COLUMNAS.
+// Mandar 71 columnas para cambiar el estado significa que el navegador dicta
+// también `total`, `subtotal` y `order_number`. Ahora el importe lo RECALCULA
+// LA BASE a partir de las líneas (ver `admin_guardar_pedido` en el SQL 39):
+// el navegador ya no puede decidir cuánto cuesta un pedido, ni por error ni
+// a propósito.
+
+// Campos que `admin_guardar_pedido` sabe leer. Los demás se ignoran: mandar
+// `total` desde aquí ya no serviría de nada, porque la base lo recalcula.
+const _CAMPOS_ORDER = [
+  'status', 'notes', 'driverId', 'clientId', 'deliveryType',
+  'productLines', 'cancelledAt', 'cancelledBy', 'cancelReason',
+  'notaRepartidor', 'autorizaSustitucion',
+];
+
+function _soloCamposOrder(datos) {
+  const limpio = {};
+  for (const campo of _CAMPOS_ORDER) {
+    if (datos && datos[campo] !== undefined) limpio[campo] = datos[campo];
+  }
+  return limpio;
+}
+
+const _ERRORES_ORDER = {
+  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA: 'Tu cuenta ya no está activa.',
+  PEDIDO_NO_EXISTE:   'Ese pedido ya no existe.',
+  PEDIDO_AJENO:       'Ese pedido no es tuyo.',
+  SOLO_CANCELADOS:    'Solo puedes eliminar pedidos cancelados.',
+  CAMPO_NO_PERMITIDO: 'Ese campo no se puede desvincular.',
+  FALTA_ID:           'Falta indicar el pedido.',
+};
+
 async function _rpcStaff(funcion, params) {
   if (!params.p_vale) {
     throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
@@ -503,9 +558,44 @@ async function _rpcStaff(funcion, params) {
   return Array.isArray(datos) ? (datos[0] ?? null) : datos;
 }
 
+// BUILD 410 · Igual que `_rpcStaff` pero con los mensajes de pedidos, y sin
+// exigir vale: `cliente_borrar_pedido` la llama un comprador, que no tiene.
+async function _rpcOrder(funcion, params, exigeVale = true) {
+  if (exigeVale && !params.p_vale) {
+    throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
+  }
+
+  const res = await fetch(`${_SB_URL}/rpc/${funcion}`, {
+    method:  'POST',
+    headers: _SB_HEADERS,
+    body:    JSON.stringify(params),
+  });
+
+  if (!res.ok) {
+    const texto = await res.text();
+    for (const clave in _ERRORES_ORDER) {
+      if (texto.includes(clave)) throw new Error(_ERRORES_ORDER[clave]);
+    }
+    throw new Error(`No se pudo guardar el pedido (${res.status}).`);
+  }
+
+  const texto = await res.text();
+  if (!texto || texto === 'null') return null;
+  const datos = JSON.parse(texto);
+  return Array.isArray(datos) ? (datos[0] ?? null) : datos;
+}
+
 // PATCH masivo por filtro en vez de por id. Sirve para desvincular de golpe
 // todos los pedidos de un cliente con UNA sola petición.
 //   _apiPatchWhere('orders', 'clientId=eq.abc', { clientId: null })
+//
+// BUILD 410 · SIN USAR AHORA MISMO, A PROPÓSITO.
+// Sus dos llamadas (desvincular pedidos al borrar un cliente o un repartidor)
+// pasaron a `admin_desvincular_pedidos`, porque `anon` ya no puede escribir
+// `clientId` ni `driverId`. Se conserva porque el paso 2 (cerrar `drivers`)
+// la va a necesitar para tablas que aún no han migrado. Si al terminar el
+// paso 2 sigue sin usarse, bórrala: código muerto que parece vivo es peor
+// que no tenerlo.
 async function _apiPatchWhere(table, filter, data) {
   const payload = { ...data, updated_at: new Date().toISOString() };
   return _apiFetch(_conSel(`${_SB_URL}/${table}?${filter}`, _devuelveSel(table)), {
@@ -567,23 +657,22 @@ async function _desvincularPedidosDeCliente(customerId) {
     console.warn('[deleteCustomer] no se pudo leer la ficha para estampar identidad:', e?.message || e);
   }
 
-  if (ficha) {
-    for (const p of pedidos) {
-      const parche = {};
-      if (!p.customer && !p.client && ficha.name)             parche.customer       = ficha.name;
-      if (!p.customer_email && !p.email && ficha.email)       parche.customer_email = ficha.email;
-      if (!p.customer_phone && !p.phone && ficha.phone)       parche.customer_phone = ficha.phone;
-      if (Object.keys(parche).length === 0) continue;
-      // Si esto falla no abortamos: lo importante es el paso 3.
-      try { await _apiPatch('orders', p.id, parche); }
-      catch (e) { console.warn(`[deleteCustomer] pedido ${p.id}: identidad no estampada —`, e?.message || e); }
-    }
-  }
+  // BUILD 410 · Los pasos 2 y 3 los hace ahora LA BASE DE DATOS en una sola
+  // llamada. Motivo: `anon` ya no puede escribir `clientId`, `customer`,
+  // `customer_email` ni `customer_phone` (SQL 39), así que ni el estampado de
+  // identidad ni el PATCH masivo funcionarían desde el navegador.
+  // Ventaja añadida: al ser una sola operación en el servidor, ya no puede
+  // quedarse a medias (identidad estampada pero vínculo sin cortar).
+  const n = await _rpcOrder('admin_desvincular_pedidos', {
+    p_vale:      _valeAdmin(),
+    p_campo:     'clientId',
+    p_id:        customerId,
+    p_identidad: ficha
+      ? { name: ficha.name || null, email: ficha.email || null, phone: ficha.phone || null }
+      : null,
+  });
 
-  // 3) Cortar el vínculo de todos de una vez. Este paso SÍ debe funcionar:
-  //    si falla, el error sube y el cliente NO se borra.
-  await _apiPatchWhere('orders', `clientId=eq.${encodeURIComponent(customerId)}`, { clientId: null });
-  return pedidos.length;
+  return Number(n) || pedidos.length;
 }
 
 // ─── PRODUCTOS ────────────────────────────────────────────────────────────────
@@ -767,16 +856,66 @@ const DB = {
     return creado;
   },
 
+  /**
+   * BUILD 410 · Guardar un pedido desde el PANEL.
+   *
+   * Antes: PUT con las 71 columnas (`_apiUpdate`). Ahora: función de base de
+   * datos que exige el `vale` de la sesión del empleado y que RECALCULA ella
+   * misma `subtotal`, `total` e `items` a partir de las líneas. El navegador
+   * ya no dicta importes. Ver el comentario largo junto a `_CAMPOS_ORDER`.
+   *
+   * Solo lo usa el panel. La tienda no llama aquí nunca.
+   */
   async updateOrder(id, order) {
-    return _apiUpdate('orders', id, _orderToSupa(order));
+    const datos = _soloCamposOrder(_orderToSupa(order));
+    const fila  = await _rpcOrder('admin_guardar_pedido', {
+      p_vale:  _valeAdmin(),
+      p_id:    id,
+      p_datos: datos,
+    });
+    return fila ? _orderFromSupa(fila) : null;
   },
 
+  // Sigue siendo un PATCH normal: las columnas que toca la TIENDA (status,
+  // cancelledAt, cancelledBy, cuponUsado, cuponId, descuento) son las únicas
+  // que el SQL 39 deja abiertas a `anon`. Un comprador no tiene vale, así que
+  // esta ruta no puede pasar por la función de administración.
   async patchOrder(id, fields) {
     return _apiPatch('orders', id, _orderToSupa(fields));
   },
 
-  async deleteOrder(id) {
-    return _apiDelete('orders', id);
+  /**
+   * BUILD 410 · Borrar un pedido.
+   *
+   * `anon` ya no tiene DELETE sobre `orders`, así que hay dos caminos:
+   *   · Con vale (panel)  → `admin_borrar_pedido`, borra cualquier pedido.
+   *   · Sin vale (tienda) → `cliente_borrar_pedido`, que la BASE comprueba:
+   *     solo borra si el pedido está CANCELADO y el correo coincide con el del
+   *     pedido. Antes, cualquiera con la clave pública podía borrar el pedido
+   *     de otra persona, en cualquier estado.
+   *
+   * Se mandan LOS DOS identificadores del comprador (correo y ficha) porque hay
+   * pedidos antiguos con `customer_email` vacío que solo se reconocen por
+   * `clientId`; la base acepta el borrado si coincide CUALQUIERA de los dos,
+   * igual que el filtro de «Mis pedidos» en la tienda.
+   *
+   * @param {string} id
+   * @param {string} [emailCliente]  correo del comprador (vía tienda).
+   * @param {string} [clienteId]     id de su ficha (vía tienda).
+   */
+  async deleteOrder(id, emailCliente, clienteId) {
+    const vale = _valeAdmin();
+    if (vale) {
+      return _rpcOrder('admin_borrar_pedido', { p_vale: vale, p_id: id });
+    }
+    if (!emailCliente && !clienteId) {
+      throw new Error('No se puede eliminar el pedido sin identificar al cliente.');
+    }
+    return _rpcOrder(
+      'cliente_borrar_pedido',
+      { p_id: id, p_email: emailCliente || null, p_cliente_id: clienteId || null },
+      false
+    );
   },
 
   // ── Clientes ───────────────────────────────────────────────────────────────
@@ -980,8 +1119,13 @@ const DB = {
       if (r.ok) {
         const arr = await r.json();
         if (Array.isArray(arr) && arr.length > 0) {
-          await _apiPatchWhere('orders', `driverId=eq.${encodeURIComponent(id)}`, { driverId: null });
-          pedidosDesvinculados = arr.length;
+          // BUILD 410 · por la base de datos: `anon` ya no puede escribir driverId.
+          const n = await _rpcOrder('admin_desvincular_pedidos', {
+            p_vale:  _valeAdmin(),
+            p_campo: 'driverId',
+            p_id:    id,
+          });
+          pedidosDesvinculados = Number(n) || arr.length;
         }
       }
     } catch (e) {
