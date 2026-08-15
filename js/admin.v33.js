@@ -2917,8 +2917,35 @@ function _toggleDriverRequired() {
 }
 
 // ── Helper: stock actual de un producto en adminProducts (en memoria) ─────────
+//
+// 🔴 BUILD 411 · AQUÍ ESTABA EL «SIN STOCK DISPONIBLE» CON 1000 UNIDADES.
+//
+// Antes: `adminProducts.find(x => Number(x.id) === Number(productId))`.
+//
+// LOS ids DE PRODUCTO SON UUID, o sea TEXTO:
+//     "9cee8fdd-7ece-4014-8c13-0b4dde509dd3"
+// Y `Number("9cee8fdd-…")` no da un número: da **NaN**.
+//
+// El detalle que lo hacía invisible: en JavaScript **`NaN === NaN` es `false`**.
+// Así que la comparación fallaba SIEMPRE, para CUALQUIER producto — no era un
+// caso raro de un artículo concreto. `.find()` no encontraba nunca nada y esta
+// función devolvía `0` a secas, con lo que el panel creía que TODO el catálogo
+// estaba agotado.
+//
+// Por qué el modal mostraba «Stock disp.: 1» en vez de 0: la plantilla pinta
+// `stockAvail + l.cantidad` (línea ~2671), o sea `0 + 1`. Ese «1» venía de la
+// cantidad del pedido, no del inventario. El inventario real era 1000.
+//
+// MEDIDO contra la base real antes de tocar nada:
+//     id = "9cee8fdd-…"  ·  typeof "string"  ·  Number(id) = NaN
+//     Number(id) === Number(id)  →  false   🔴
+//     String(id) === String(id)  →  true    ✅
+//     «Maní Salado Clásico Planters» · stock real en la base: 1000
+//
+// Se compara con `String()` porque abarca los dos mundos: los UUID actuales y
+// los ids numéricos de los pedidos antiguos (`String(7) === String("7")`).
 function _getProductStock(productId) {
-  const p = adminProducts.find(x => Number(x.id) === Number(productId));
+  const p = adminProducts.find(x => String(x.id) === String(productId));
   return p ? (p.stock || 0) : 0;
 }
 
@@ -3052,7 +3079,8 @@ function orderLineRemove(lineIdx) {
 // ── Ajustar stock de un producto en la API (delta positivo = reponer) ────────
 function _adjustOrderLineStock(productId, delta) {
   if (delta === 0) return;
-  const p = adminProducts.find(x => Number(x.id) === Number(productId));
+  // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
+  const p = adminProducts.find(x => String(x.id) === String(productId));
   if (p) {
     p.stock = Math.max(0, (p.stock || 0) + delta);
     _apiPatch('products', p.id, { stock: p.stock })
@@ -3092,7 +3120,11 @@ function restoreStock(order) {
   if (!order || !order.productLines || order.productLines.length === 0) return;
   let changed = false;
   order.productLines.forEach(line => {
-    const prod = adminProducts.find(p => Number(p.id) === Number(line.productId));
+    // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
+    // Con Number() esta reposición NO devolvía NADA al inventario: el `.find()`
+    // fallaba siempre, así que al cancelar un pedido el stock se quedaba
+    // descontado para siempre.
+    const prod = adminProducts.find(p => String(p.id) === String(line.productId));
     if (prod) {
       prod.stock = (prod.stock || 0) + (line.cantidad || 0);
       _apiPatch('products', prod.id, { stock: prod.stock })
@@ -3145,7 +3177,8 @@ function saveOrderStatus() {
   // Caso 2: se reactiva un pedido que estaba cancelado → descontar stock de nuevo
   if (prevStatus === 'cancelado' && newStatus !== 'cancelado') {
     (order.productLines || []).forEach(line => {
-      const prod = adminProducts.find(p => Number(p.id) === Number(line.productId));
+      // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
+      const prod = adminProducts.find(p => String(p.id) === String(line.productId));
       if (prod) {
         prod.stock = Math.max(0, (prod.stock || 0) - (line.cantidad || 0));
         _apiPatch('products', prod.id, { stock: prod.stock })
@@ -3745,7 +3778,9 @@ async function saveNewOrder() {
 
   // Descontar stock en API y en memoria
   productLines.forEach(line => {
-    const p = adminProducts.find(x => Number(x.id) === Number(line.productId));
+    // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
+    // Con Number() un pedido creado desde el panel NO descontaba inventario.
+    const p = adminProducts.find(x => String(x.id) === String(line.productId));
     if (p) {
       p.stock = Math.max(0, (p.stock || 0) - line.cantidad);
       _apiPatch('products', p.id, { stock: p.stock })

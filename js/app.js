@@ -3065,7 +3065,11 @@ async function confirmOrder() {
     // Descontar stock (fire-and-forget, no bloquea el flujo)
     DB.getProducts().then(stockActual => {
       for (const item of cart) {
-        const prod = stockActual.find(p => Number(p.id) === Number(item.id));
+        // 🔴 BUILD 411 · String, no Number. Los ids de producto son UUID
+        // ("9cee8fdd-…"), y `Number(uuid)` = NaN. Como `NaN === NaN` es false,
+        // este `.find()` NO encontraba nunca nada: comprar en la tienda NO
+        // descontaba inventario. Medido contra la base real.
+        const prod = stockActual.find(p => String(p.id) === String(item.id));
         if (prod) {
           const nuevoStock = Math.max(0, (prod.stock || 0) - item.qty);
           _apiPatch('products', prod.id, { stock: nuevoStock })
