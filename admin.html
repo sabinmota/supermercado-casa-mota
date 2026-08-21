@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '413';
+      const VER = '414';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -2919,12 +2919,14 @@
   <script src="js/pedidos-vigilancia.js?v=7"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=312"></script>
+  <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
+       de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
+  <script src="js/ia-modelos.js?v=1"></script>
   <!-- IA: Groq integration -->
-  <script src="js/ai.js?v=254"></script>
-<!-- v222: asterisco obligatorio en campo Stock restaurado -->
+  <script src="js/ai.js?v=255"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=234"></script>
+  <script src="js/chat.js?v=235"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 
@@ -2986,24 +2988,24 @@
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Probar conexión'; }
         return;
       }
+      /* BUILD 414 · Esta prueba usaba 'llama-3.3-70b-versatile' a mano, un
+       * modelo DISTINTO del que usaba la aplicación. Podía decir «conectado»
+       * con la IA rota, que es lo peor que puede hacer un botón de prueba.
+       * Ahora recorre exactamente los mismos modelos que el resto del sistema
+       * (js/ia-modelos.js) y dice cuál contestó. */
       try {
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [{ role: 'user', content: 'Di "OK" en una palabra.' }],
-            max_tokens: 5
-          })
-        });
-        const data = await res.json();
-        if (res.ok && data.choices?.[0]?.message?.content) {
-          showAdminToast('✅ Groq conectado correctamente — Maya está lista', 'success');
+        const { datos, modelo } = await iaLlamarGroq(
+          'https://api.groq.com/openai/v1/chat/completions',
+          { messages: [{ role: 'user', content: 'Di "OK" en una palabra.' }], max_tokens: 5 },
+          { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key }
+        );
+        if (datos.choices?.[0]?.message?.content) {
+          showAdminToast('✅ Groq conectado — Maya está lista (modelo: ' + modelo + ')', 'success');
         } else {
-          showAdminToast('❌ Groq respondió con error: ' + (data?.error?.message || res.status), 'error');
+          showAdminToast('⚠️ Groq respondió pero sin texto. Modelo: ' + modelo, 'warning');
         }
       } catch(e) {
-        showAdminToast('❌ Error de conexión: ' + e.message, 'error');
+        showAdminToast('❌ ' + e.message, 'error');
       }
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Probar conexión'; }
     }

@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '413', KEY = 'cm_app_ver';
+        var VER = '414', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1327,6 +1327,9 @@
   <script src="js/app.js?v=355"></script>
   <script src="js/location.js?v=121"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
+  <!-- IA: qué modelo usa el escáner de códigos. DEBE ir antes del script
+       del escáner, que llama a iaModeloVision() / iaModeloMuerto(). -->
+  <script src="js/ia-modelos.js?v=1"></script>
 
   <!-- ═══ Escáner: auto-abrir cámara al mostrar modo foto ════════════════ -->
   <script>
@@ -1717,8 +1720,24 @@
       // siempre que este navegador tenga clave guardada.
       const key = await _getScanGroqKey();
 
+      /* BUILD 414 · El modelo ya no se escribe aquí.
+       *
+       * AVISO HONESTO: `meta-llama/llama-4-scout-17b-16e-instruct`, que era el
+       * que leía las fotos, fue retirado por Groq y NO está entre los dos
+       * modelos autorizados en la cuenta. Se usa `iaModeloVision()`, que hoy
+       * devuelve `groq/compound` — un sistema agéntico que PUEDE derivar a
+       * visión, pero NO ESTÁ COMPROBADO con una foto real.
+       *
+       * Si no funciona, EL ESCÁNER NO SE ROMPE: esto es el paso 4 de 4. Los
+       * tres anteriores (BarcodeDetector nativo, Quagga2 y ZXing) leen las
+       * barras de verdad y validan el dígito de control, cosa que la IA nunca
+       * hizo — podía alucinar el número, y por eso está la última. */
+      const _modeloVision = (typeof iaModeloVision === 'function')
+        ? iaModeloVision()
+        : 'groq/compound';
+
       // Construye la petición: por proxy va sin Authorization
-      const _enviar = (usarProxy) => fetch(
+      const _enviar = (usarProxy, modelo) => fetch(
         usarProxy ? '/api/chat' : 'https://api.groq.com/openai/v1/chat/completions',
         {
           method: 'POST',
@@ -1726,7 +1745,7 @@
             ? { 'Content-Type': 'application/json' }
             : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
           body: JSON.stringify({
-            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            model: modelo || _modeloVision,
             messages: [{
               role: 'user',
               content: [
@@ -1772,16 +1791,32 @@ If you cannot clearly see a stripe barcode, return: NULL`
 
       try {
         // 1) Proxy propio; 2) si no está desplegado, llamada directa con clave
-        let res = await _enviar(true);
+        let res = await _enviar(true, _modeloVision);
         if (res.status === 404 || res.status === 501) {
           if (!key) { console.warn('[GroqVision] Sin proxy ni clave'); return null; }
-          res = await _enviar(false);
+          res = await _enviar(false, _modeloVision);
         }
 
         if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.warn('[GroqVision] Error HTTP', res.status, errData?.error?.message || '');
-          return null;
+          const errTexto = await res.text().catch(() => '');
+          /* Si el modelo de visión no existe o no está autorizado, se prueba
+           * el siguiente de la lista antes de rendirse. Con un 401 o un 429
+           * no se reintenta: cambiar de modelo no arregla ninguno de los dos
+           * y solo gastaría cuota (250 peticiones al día). */
+          if (typeof iaModeloMuerto === 'function' && iaModeloMuerto(res.status, errTexto)) {
+            const alterno = (typeof iaListaVision === 'function' ? iaListaVision() : [])
+              .find(m => m !== _modeloVision);
+            if (alterno) {
+              console.warn(`[GroqVision] «${_modeloVision}» no disponible — probando «${alterno}»`);
+              res = await _enviar(true, alterno);
+              if ((res.status === 404 || res.status === 501) && key) res = await _enviar(false, alterno);
+              if (res.ok && typeof iaRecordarVision === 'function') iaRecordarVision(alterno);
+            }
+          }
+          if (!res.ok) {
+            console.warn('[GroqVision] Error HTTP', res.status, errTexto.slice(0, 200));
+            return null;
+          }
         }
         const data = await res.json();
         const text = (data.choices?.[0]?.message?.content || '').trim();

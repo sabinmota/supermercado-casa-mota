@@ -35,11 +35,22 @@
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// Modelos permitidos — evita que un tercero use tu cuota con modelos caros
+/* Modelos permitidos — evita que un tercero use tu cuota con modelos caros.
+ *
+ * 🔴 BUILD 414 · ESTA LISTA HAY QUE MANTENERLA A MANO, EN PAREJA CON
+ * js/ia-modelos.js. Es la única duplicación que queda del nombre del modelo y
+ * es inevitable: este fichero es una Cloudflare Pages Function que corre en el
+ * servidor y no puede importar un script pensado para el navegador (ia-modelos
+ * .js no exporta nada y toca `localStorage`). Si algún día se añade un modelo,
+ * hay que tocar LOS DOS SITIOS o el proxy devolverá «Modelo no permitido: …».
+ *
+ * Los tres anteriores (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`,
+ * `meta-llama/llama-4-scout-17b-16e-instruct`) fueron retirados por Groq y
+ * además NO están autorizados en Organization Limits → Allowed Models, donde
+ * el dueño dejó solo estos dos. */
 const MODELOS_PERMITIDOS = new Set([
-  'llama-3.1-8b-instant',                      // chat Maya
-  'llama-3.3-70b-versatile',                   // reserva
-  'meta-llama/llama-4-scout-17b-16e-instruct', // visión: escáner de códigos
+  'groq/compound-mini', // chat Maya y descripciones de producto
+  'groq/compound',      // respaldo y, si lo admite, visión del escáner
 ]);
 
 // El escáner envía fotos en base64, por eso el límite es amplio.
@@ -211,8 +222,21 @@ export async function onRequestPost(context) {
   // Techo de tokens (el cliente puede pedir menos, nunca más)
   body.max_tokens = Math.min(Number(body.max_tokens) || 200, MAX_TOKENS_TOPE);
 
-  // 4) Límite de uso — protege la CUOTA, no solo la clave
-  const esVision = body.model === 'meta-llama/llama-4-scout-17b-16e-instruct';
+  /* 4) Límite de uso — protege la CUOTA, no solo la clave
+   *
+   * 🔴 BUILD 414 · Antes esto era `body.model === 'meta-llama/llama-4-scout…'`.
+   * Ese truco ya no sirve: el escáner y el chat usan AHORA LOS MISMOS DOS
+   * modelos, así que por el nombre son indistinguibles y toda foto habría
+   * pasado por el límite laxo del chat (15/min en vez de 5/min), que es
+   * justamente el que protege contra el gasto de subir imágenes.
+   *
+   * Se mira lo que de verdad distingue una petición de visión: que algún
+   * mensaje lleve una imagen. En el formato OpenAI/Groq eso es un `content`
+   * que en vez de texto es un array con un elemento `type: 'image_url'`. */
+  const esVision = body.messages.some(m =>
+    Array.isArray(m && m.content) &&
+    m.content.some(p => p && (p.type === 'image_url' || p.type === 'input_image'))
+  );
   const veredicto = comprobarLimite(ipDe(request), esVision);
   if (!veredicto.ok) {
     const mensajes = {

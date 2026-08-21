@@ -1,14 +1,25 @@
 /**
  * SUPERMERCADO CASA MOTA — AI.JS  v2
- * Integración dual: Groq (LLaMA 3.1) como principal + Google Gemini como respaldo
- * Failover automático: si Groq falla → Gemini entra de inmediato
+ *
+ * 🔴 BUILD 414 · CORRECCIÓN DE UNA CABECERA QUE MENTÍA.
+ * Aquí ponía «Integración dual: Groq + Gemini como respaldo. Failover
+ * automático». NO ES CIERTO NI LO ERA: `_getGeminiKey()` devuelve cadena
+ * vacía, así que Gemini está desactivado y NO HAY RESPALDO DE NINGÚN TIPO.
+ * Si Groq falla, la IA no responde. Se deja dicho porque un comentario falso
+ * hace perder horas buscando un failover que no existe.
+ *
+ * Proveedor real y único: Groq. El modelo se elige en js/ia-modelos.js.
  */
 
 // ─── CONFIGURACIÓN ───────────────────────────────────────────────────────────
 
 const GROQ_API_URL    = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL      = 'llama-3.1-8b-instant';
 const GROQ_KEY_BACKUP = '';
+
+/* BUILD 414 · El nombre del modelo YA NO SE ESCRIBE AQUÍ.
+ * Groq retiró `llama-3.1-8b-instant` y toda la IA murió a la vez porque el
+ * nombre estaba repetido a mano en 5 ficheros. Ahora vive solo en
+ * js/ia-modelos.js, que además prueba varios en orden si uno desaparece. */
 
 // System prompt compartido para ambos modelos
 const AI_SYSTEM_PROMPT = `Eres el asistente de IA del Supermercado Casa Mota en República Dominicana.
@@ -29,7 +40,10 @@ function _setAiProvider(provider) {
   const el = document.getElementById('aiProviderBadge');
   if (!el) return;
   if (provider === 'groq') {
-    el.innerHTML = '<i class="fas fa-bolt" style="color:#f59e0b"></i> Groq (LLaMA 3.1)';
+    // BUILD 414 · Decía «LLaMA 3.1», modelo retirado por Groq. Se muestra el
+    // que de verdad se está usando en vez de un nombre fijo desactualizado.
+    const m = (typeof iaModeloTexto === 'function') ? iaModeloTexto() : 'Groq';
+    el.innerHTML = `<i class="fas fa-bolt" style="color:#f59e0b"></i> Groq (${m})`;
     el.style.color = '#d97706';
   } else if (provider === 'gemini') {
     el.innerHTML = '<i class="fas fa-gem" style="color:#4285f4"></i> Gemini 1.5 Flash';
@@ -45,27 +59,23 @@ async function _groqRequest(prompt, maxTokens = 300) {
   const key = _getGroqKey();
   if (!key) throw new Error('NO_KEY_GROQ');
 
-  const res = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
+  // BUILD 414 · `iaLlamarGroq` recorre la lista de modelos hasta dar con uno
+  // vivo y recuerda cuál fue. Si el modelo está retirado lo salta; si el fallo
+  // es otro (clave inválida, límite de uso) lo propaga sin reintentar.
+  const { datos } = await iaLlamarGroq(
+    GROQ_API_URL,
+    {
       messages: [
         { role: 'system', content: AI_SYSTEM_PROMPT },
         { role: 'user',   content: prompt }
       ],
       max_tokens: maxTokens,
       temperature: 0.7
-    })
-  });
+    },
+    { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }
+  );
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Groq Error ${res.status}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  return datos.choices?.[0]?.message?.content || '';
 }
 
 // ─── LLAMADA A GEMINI ─────────────────────────────────────────────────────────
@@ -111,6 +121,10 @@ async function _geminiRequest(prompt) {
  * @returns {{ text: string, provider: 'groq'|'gemini' }}
  */
 async function _aiRequest(prompt, maxTokens = 300) {
+  /* Se guarda el motivo real del fallo para no taparlo con un genérico «no se
+   * pudo conectar», que manda a revisar la clave cuando el problema puede ser
+   * que el modelo no esté autorizado en la organización. */
+  let _ultimoErrorGroq = '';
   // 1️⃣ Intentar Groq
   const groqKey = _getGroqKey();
   if (groqKey) {
@@ -121,13 +135,19 @@ async function _aiRequest(prompt, maxTokens = 300) {
         return { text, provider: 'groq' };
       }
     } catch (e) {
-      console.warn('[AI] Groq falló, cambiando a Gemini…', e.message);
-      // Si Groq falla con rate limit, esperar un poco antes del failover
-      if (e.message && e.message.includes('429')) await new Promise(r => setTimeout(r, 2000));
+      /* BUILD 414 · Antes decía «cambiando a Gemini…». Era falso: Gemini está
+       * desactivado, no hay a dónde cambiar y la línea de abajo lanza el
+       * error. Ese mensaje mandaba a buscar un respaldo que no existe. */
+      console.warn('[AI] Groq falló y NO hay proveedor de respaldo:', e.message);
+      _ultimoErrorGroq = e.message || '';
     }
   }
 
-  throw new Error('No se pudo conectar con Groq. Verifica la clave en Configuración → IA.');
+  throw new Error(
+    _ultimoErrorGroq
+      ? `La IA no respondió: ${_ultimoErrorGroq}`
+      : 'No se pudo conectar con Groq. Verifica la clave en Configuración → IA.'
+  );
 }
 
 // ─── GUARDAR / CARGAR KEYS ───────────────────────────────────────────────────
@@ -335,8 +355,14 @@ function onProductDescInput() {
 let _bulkCancelled = false;
 let _bulkAbortCtrl  = null;   // AbortController activo para cancelar fetch inmediatamente
 
-// Modelo rápido para bulk
-const GROQ_BULK_MODEL = 'llama-3.1-8b-instant';
+/* BUILD 414 · El modelo del bulk sale de js/ia-modelos.js, igual que el resto.
+ *
+ * 🔴 AVISO DE CUOTA: los modelos autorizados hoy (groq/compound y su versión
+ * mini) dan 250 PETICIONES AL DÍA, no las 14.400 del modelo anterior. Con
+ * ~1.900 productos en el catálogo, describirlos todos de una sentada YA NO ES
+ * POSIBLE: se agota la cuota diaria en el producto 250. Se avisa al usuario
+ * antes de empezar en vez de dejar que falle a mitad. */
+const BULK_TOPE_DIARIO = 250;
 // Pausa entre cada producto (ms) — respeta rate limit de Groq (~30 req/min)
 const BULK_DELAY_MS   = 2200;
 
@@ -404,32 +430,34 @@ async function _bulkGenerateOne(product) {
   const unitLabel = product.unit     ? `, presentación: ${product.unit}` : '';
   const prompt    = `Escribe 1 sola oración de descripción para el producto de supermercado: "${product.name}"${catLabel}${unitLabel}. Máximo 25 palabras. Sin comillas, sin precio, sin punto aparte. Español dominicano, tono amigable.`;
 
-  const res = await fetch(GROQ_API_URL, {
-    method : 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-    body   : JSON.stringify({
-      model      : GROQ_BULK_MODEL,
+  // BUILD 414 · Se mantiene el `signal` (botón cancelar) y el reintento del
+  // 429, pero el modelo lo elige ia-modelos.js. `onEstado` devuelve el símbolo
+  // REINTENTAR para que el 429 no se convierta en excepción: ese caso se
+  // resuelve esperando, no cambiando de modelo.
+  const REINTENTAR = Symbol('reintentar');
+
+  const salida = await iaLlamarGroq(
+    GROQ_API_URL,
+    {
       messages   : [{ role: 'user', content: prompt }],
       max_tokens : 60,
       temperature: 0.7
-    }),
-    signal
-  });
+    },
+    { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    {
+      signal,
+      onEstado: (status) => (status === 429 ? REINTENTAR : undefined)
+    }
+  );
 
-  if (res.status === 429) {
+  if (salida === REINTENTAR) {
     // Rate limit — esperar 8 segundos y reintentar una vez
     await _sleep(8000);
     if (_bulkCancelled) throw new Error('AbortError');
     return _bulkGenerateOne(product);
   }
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `HTTP ${res.status}`);
-  }
-
-  const data = await res.json();
-  const text = (data.choices?.[0]?.message?.content || '').trim();
+  const text = (salida.datos.choices?.[0]?.message?.content || '').trim();
   _bulkAbortCtrl = null;
   return text;
 }
@@ -476,6 +504,26 @@ async function aiBulkDescribe() {
       _bulkSetProgress(0, 0, null, '⚠️ No hay productos en la base de datos');
       if (cancelBtn) { _bulkStyleBtn(cancelBtn, 'close-ok'); cancelBtn.onclick = () => _bulkClose(); }
       return;
+    }
+
+    /* BUILD 414 · AVISO DE CUOTA ANTES DE EMPEZAR.
+     * Los modelos autorizados hoy permiten 250 peticiones AL DÍA. Antes eran
+     * 14.400, así que este proceso se lanzaba sin pensar. Con ~1.900 productos
+     * ahora se agotaría la cuota en el nº 250 y el resto fallaría uno a uno,
+     * dejando el catálogo a medias sin explicación. Mejor decirlo antes. */
+    if (todo.length > BULK_TOPE_DIARIO) {
+      const seguir = confirm(
+        `Vas a generar ${todo.length} descripciones, pero la cuenta de Groq ` +
+        `permite unas ${BULK_TOPE_DIARIO} al día.\n\n` +
+        `Se describirán las primeras ~${BULK_TOPE_DIARIO} y el resto dará error ` +
+        `por cuota agotada. Puedes continuar mañana donde se quedó.\n\n` +
+        `¿Quieres empezar de todas formas?`
+      );
+      if (!seguir) {
+        _bulkSetProgress(0, 0, null, 'Cancelado antes de empezar');
+        if (cancelBtn) { _bulkStyleBtn(cancelBtn, 'close-ok'); cancelBtn.onclick = () => _bulkClose(); }
+        return;
+      }
     }
 
     const minEst = Math.ceil(todo.length * BULK_DELAY_MS / 60000);
@@ -639,7 +687,11 @@ async function _bulkAiRequest(prompt) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify({
-          model: GROQ_BULK_MODEL,
+          // BUILD 414 · Esta función solo la usa `_aiBulkDescribe_UNUSED_LEGACY`
+          // (código muerto), pero seguía nombrando `GROQ_BULK_MODEL`, que ya no
+          // existe. Si alguien reactivara esa ruta reventaría con un
+          // ReferenceError, no con un error de IA, y costaría encontrarlo.
+          model: iaModeloTexto(),
           messages: [
             { role: 'system', content: 'Eres experto en marketing de supermercado dominicano. REGLA ESTRICTA: escribe EXACTAMENTE 1 sola oración por producto, máximo 25 palabras, sin punto aparte, sin segunda oración, sin saltos de línea. Ejemplo: "Las Galletas Sandwich de Fresa Dino son delicadas galletas con relleno de fresa dulce, ideales para un aperitivo saludable y delicioso." Tono amigable, español dominicano. Nunca mencionas precios.' },
             { role: 'user',   content: prompt }

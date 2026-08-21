@@ -13,7 +13,9 @@ const _CHAT_GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 // que este navegador tenga clave en localStorage (caso del admin).
 const _CHAT_PROXY_URL  = '/api/chat';
 const _CHAT_USE_PROXY  = true;
-const _CHAT_GROQ_MODEL = 'llama-3.1-8b-instant'; // Modelo ligero: 20K tokens/min vs 6K del 70b
+/* BUILD 414 · El modelo ya no se escribe aquí: `iaModeloTexto()` lo saca de
+ * js/ia-modelos.js, el único sitio donde se configura. Antes estaba a mano en
+ * 5 ficheros y cuando Groq retiró `llama-3.1-8b-instant` murió todo a la vez. */
 const _CHAT_FETCH_TIMEOUT_MS = 8000; // 8 s máximo para fetches internos del chat
 
 /** fetch con timeout automático — evita colgar el chat indefinidamente */
@@ -1231,48 +1233,81 @@ INSTRUCCIONES IMPORTANTES:
   // 1️⃣ Intentar Groq primero
   const groqKey = await _chatGroqKey();
   if (groqKey || _CHAT_USE_PROXY) {
-    try {
-      const groqBody = {
-        model: _CHAT_GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...safeHistory,
-          { role: 'user', content: userMsg }
-        ],
-        max_tokens: 200,
-        temperature: 0.7
-      };
-      const res = await _chatLLMFetch(groqBody, groqKey);
-      if (!res) throw new Error('Sin proxy ni clave disponible');
-      // Leer el body UNA SOLA VEZ (no se puede leer dos veces)
-      const data = await res.json().catch(() => null);
-      if (res.ok && data) {
-        const text = data.choices?.[0]?.message?.content;
-        if (text) return text.trim();
-      } else {
-        console.warn('Groq error:', res.status, JSON.stringify(data));
-        // 429 = tope de uso alcanzado (nuestro proxy en functions/api/chat.js
-        // o el propio Groq). No reintentar: devolver el aviso a la persona.
-        if (res.status === 429) {
-          const espera = Number(data && data.esperar) || 0;
-          const base = (data && data.codigo === 'rate_limited' && data.error)
-            ? data.error
-            : 'El servicio de IA está saturado ahora mismo.';
-          return espera ? `${base}\n\n⏳ Vuelve a intentarlo en unos ${espera} segundos.` : base;
-        }
-        // Si es error de payload muy grande, reintentar con prompt reducido
-        if ((res.status === 413 || res.status === 400) && data) {
-          const shortPrompt = systemPrompt.split('\n').slice(0, 8).join('\n');
-          const shortBody = { ...groqBody, messages: [{ role: 'system', content: shortPrompt }, { role: 'user', content: userMsg }] };
-          const res2 = await _chatLLMFetch(shortBody, groqKey);
-          const d2 = res2 ? await res2.json().catch(() => null) : null;
-          if (res2 && res2.ok && d2) {
-            const t2 = d2.choices?.[0]?.message?.content;
-            if (t2) return t2.trim();
+    /* BUILD 414 · Se recorren los modelos autorizados en vez de fijar uno.
+     * Este bucle está aquí y no en `iaLlamarGroq` porque el chat NO llama a
+     * Groq directamente: pasa antes por el proxy /api/chat (con timeout y
+     * caída a llamada directa) y esa lógica no se puede meter en el módulo
+     * sin duplicarla. Lo que sí se comparte es la DECISIÓN de cuándo un
+     * fallo se arregla cambiando de modelo: `iaModeloMuerto()`.
+     *
+     * Solo se pasa al siguiente si el modelo está retirado o no autorizado.
+     * Un 401 o un 429 no mejoran cambiando de modelo: reintentar solo
+     * gastaría cuota (recuerda: 250 peticiones al DÍA) y retrasaría el
+     * mensaje real para el cliente. */
+    const modelos = (typeof iaListaTexto === 'function')
+      ? iaListaTexto()
+      : ['groq/compound-mini', 'groq/compound'];
+
+    for (const modelo of modelos) {
+      try {
+        const groqBody = {
+          model: modelo,   // BUILD 414 · ver js/ia-modelos.js
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...safeHistory,
+            { role: 'user', content: userMsg }
+          ],
+          max_tokens: 200,
+          temperature: 0.7
+        };
+        const res = await _chatLLMFetch(groqBody, groqKey);
+        if (!res) throw new Error('Sin proxy ni clave disponible');
+        // Leer el body UNA SOLA VEZ (no se puede leer dos veces)
+        const data = await res.json().catch(() => null);
+        if (res.ok && data) {
+          const text = data.choices?.[0]?.message?.content;
+          if (text) {
+            if (typeof iaRecordarTexto === 'function') iaRecordarTexto(modelo);
+            return text.trim();
+          }
+        } else {
+          console.warn('Groq error:', res.status, JSON.stringify(data));
+
+          // ¿El modelo ya no existe o la organización no lo permite?
+          // Entonces sí merece la pena probar el siguiente de la lista.
+          const crudo = data ? JSON.stringify(data) : '';
+          if (typeof iaModeloMuerto === 'function' && iaModeloMuerto(res.status, crudo)) {
+            console.warn(`[Chat] «${modelo}» no disponible — probando el siguiente…`);
+            continue;
+          }
+
+          // 429 = tope de uso alcanzado (nuestro proxy en functions/api/chat.js
+          // o el propio Groq). No reintentar: devolver el aviso a la persona.
+          if (res.status === 429) {
+            const espera = Number(data && data.esperar) || 0;
+            const base = (data && data.codigo === 'rate_limited' && data.error)
+              ? data.error
+              : 'El servicio de IA está saturado ahora mismo.';
+            return espera ? `${base}\n\n⏳ Vuelve a intentarlo en unos ${espera} segundos.` : base;
+          }
+          // Si es error de payload muy grande, reintentar con prompt reducido
+          if ((res.status === 413 || res.status === 400) && data) {
+            const shortPrompt = systemPrompt.split('\n').slice(0, 8).join('\n');
+            const shortBody = { ...groqBody, messages: [{ role: 'system', content: shortPrompt }, { role: 'user', content: userMsg }] };
+            const res2 = await _chatLLMFetch(shortBody, groqKey);
+            const d2 = res2 ? await res2.json().catch(() => null) : null;
+            if (res2 && res2.ok && d2) {
+              const t2 = d2.choices?.[0]?.message?.content;
+              if (t2) {
+                if (typeof iaRecordarTexto === 'function') iaRecordarTexto(modelo);
+                return t2.trim();
+              }
+            }
           }
         }
-      }
-    } catch (e) { console.error('🔴 Groq exception:', e.message, e); }
+      } catch (e) { console.error('🔴 Groq exception:', e.message, e); }
+      break; // el fallo no era de modelo: no tiene sentido seguir probando
+    }
   }
 
   throw new Error('Sin conexión a la IA');

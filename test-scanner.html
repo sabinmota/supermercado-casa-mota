@@ -318,7 +318,10 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          // BUILD 414 · el modelo de visión anterior ya no existe en la cuenta.
+          // `groq/compound` es el único autorizado que PODRÍA leer imágenes;
+          // no está comprobado. Ver js/ia-modelos.js.
+          model: 'groq/compound',
           messages: [{ role: 'user', content: [
             { type: 'text', text: `You are a professional barcode reader. Your ONLY job is to read the NUMBER that belongs to the MAIN STRIPED BARCODE in the image.
 
