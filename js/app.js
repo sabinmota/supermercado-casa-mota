@@ -3972,7 +3972,17 @@ async function renderMyOrders() {
   let myOrders = [];
   try {
     const allOrders = await DB.getOrders();
-    myOrders = allOrders.filter(o => o.clientId === currentClient.id || o.email === currentClient.email);
+    /* BUILD 413 · se descartan los que el cliente ocultó de SU historial.
+     * `oculto_cliente` no borra nada: el pedido sigue entero en la base y en
+     * el panel de administración, con sus ventas, puntos y estadísticas. Aquí
+     * solo se deja de mostrar a quien pidió no verlo.
+     *
+     * `!== true` en vez de `=== false` a propósito: los pedidos creados antes
+     * de añadir la columna llegan con `undefined` y deben seguir viéndose. */
+    myOrders = allOrders.filter(o =>
+      (o.clientId === currentClient.id || o.email === currentClient.email) &&
+      o.oculto_cliente !== true
+    );
   } catch(e) {
     container.innerHTML = `<div class="account-empty"><i class="fas fa-exclamation-circle"></i><span>Error al cargar pedidos</span></div>`;
     return;
@@ -4026,6 +4036,25 @@ async function renderMyOrders() {
          </button>`
       : '';
 
+    /* ─── BUILD 413 · LA PAPELERA TAMBIÉN EN LOS ENTREGADOS ───────────────────
+     * El usuario echaba en falta la papelera en los pedidos entregados. No
+     * había desaparecido: revisado el historial completo del proyecto (desde
+     * backup/v11.0), NUNCA salió ahí — la condición siempre fue
+     * `isCancelled`. Lo que sí es nuevo es «Repetir pedido», y al aparecer
+     * donde antes no había nada, parecía haber sustituido a la papelera.
+     *
+     * Ahora sale en los dos, pero NO hacen lo mismo, y es deliberado:
+     *   · cancelado → BORRA de verdad (`deleteClientOrder`). No es una venta.
+     *   · entregado → OCULTA (`hideClientOrder`). Sí es una venta: borrarla
+     *     destruiría el registro contable, los puntos de fidelidad ya dados,
+     *     el contador de entregas del repartidor y el histórico del panel.
+     *     Además la base lo rechazaría: `cliente_borrar_pedido` solo acepta
+     *     cancelados (`SOLO_CANCELADOS`), así que el botón habría dado error.
+     *
+     * El `title` distinto es lo único que separa las dos acciones a ojos del
+     * cliente; el diálogo de confirmación explica el resto. */
+    const isDelivered = o.status === 'entregado';
+
     const actionBtn = canCancel
       ? `<button class="btn-cancel-order" onclick="cancelClientOrder('${o.id}')" title="Cancelar pedido">
            <i class="fas fa-xmark"></i> Cancelar
@@ -4034,7 +4063,11 @@ async function renderMyOrders() {
         ? `<button class="btn-delete-order" onclick="deleteClientOrder('${o.id}')" title="Eliminar del historial">
              <i class="fas fa-trash-can"></i>
            </button>`
-        : '';
+        : isDelivered
+          ? `<button class="btn-delete-order" onclick="hideClientOrder('${o.id}')" title="Ocultar de mi historial (no se borra la compra)">
+               <i class="fas fa-trash-can"></i>
+             </button>`
+          : '';
 
     return `
       <div class="my-order-card" id="order-card-${o.id}">
@@ -4261,6 +4294,57 @@ async function cancelClientOrder(orderId) {
     // Restaurar la tarjeta si algo falló antes del éxito
     if (card) { card.style.opacity = ''; card.style.pointerEvents = ''; }
     showToast('Error al cancelar el pedido. Intenta de nuevo.', 'error');
+  }
+}
+
+/* ─── BUILD 413 · Ocultar un pedido ENTREGADO del historial del cliente ───────
+ *
+ * Hermana de `deleteClientOrder`, pero NO borra: marca `oculto_cliente` y el
+ * pedido desaparece solo de la vista de este comprador. En el panel de
+ * administración sigue estando entero, con su venta, sus puntos de fidelidad y
+ * su entrega contabilizada al repartidor.
+ *
+ * Se hizo así en vez de borrar porque un pedido entregado ES una venta: si el
+ * cliente pudiera eliminarlo, borraría la prueba de una compra que quizá aún
+ * tiene que pagar o reclamar. La base tampoco lo permitiría —
+ * `cliente_borrar_pedido` solo acepta cancelados.
+ *
+ * Es reversible en la base (`p_ocultar = false`), pero la tienda todavía no
+ * ofrece un botón de «mostrar de nuevo»; por eso el texto de confirmación no
+ * promete que el cliente pueda recuperarlo por su cuenta: le dice la verdad,
+ * que la compra se conserva y que en la tienda pueden devolvérsela a la vista.
+ */
+async function hideClientOrder(orderId) {
+  if (!currentClient) return;
+
+  if (!confirm(
+    '¿Ocultar este pedido de tu historial?\n\n' +
+    'La compra NO se borra: seguirá registrada en la tienda y tus puntos se ' +
+    'mantienen. Solo dejarás de verla en esta lista.'
+  )) return;
+
+  const card = document.getElementById(`order-card-${orderId}`);
+
+  try {
+    await DB.hideOrderForClient(orderId, currentClient.email, currentClient.id, true);
+
+    // Misma animación de salida que al eliminar, para que el gesto se sienta igual.
+    if (card) {
+      card.style.transition = 'opacity .3s, transform .3s';
+      card.style.opacity   = '0';
+      card.style.transform = 'translateX(40px)';
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    showToast('<i class="fas fa-eye-slash"></i> Pedido oculto de tu historial', 'success');
+    renderMyOrders();
+
+  } catch(e) {
+    console.error('[hideClientOrder]', e);
+    if (card) { card.style.opacity = ''; card.style.transform = ''; }
+    // `DB.hideOrderForClient` ya traduce los errores de la base
+    // (PEDIDO_AJENO, SOLO_FINALIZADOS…) a un mensaje entendible.
+    showToast(e.message || 'No se pudo ocultar el pedido. Intenta de nuevo.', 'error');
   }
 }
 

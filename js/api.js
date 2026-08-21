@@ -529,6 +529,8 @@ const _ERRORES_ORDER = {
   PEDIDO_NO_EXISTE:   'Ese pedido ya no existe.',
   PEDIDO_AJENO:       'Ese pedido no es tuyo.',
   SOLO_CANCELADOS:    'Solo puedes eliminar pedidos cancelados.',
+  // BUILD 413 · ocultar del historial: solo pedidos ya finalizados.
+  SOLO_FINALIZADOS:   'Solo puedes ocultar pedidos entregados o cancelados.',
   CAMPO_NO_PERMITIDO: 'Ese campo no se puede desvincular.',
   FALTA_ID:           'Falta indicar el pedido.',
 };
@@ -914,6 +916,49 @@ const DB = {
     return _rpcOrder(
       'cliente_borrar_pedido',
       { p_id: id, p_email: emailCliente || null, p_cliente_id: clienteId || null },
+      false
+    );
+  },
+
+  /**
+   * BUILD 413 · Ocultar un pedido del historial DEL CLIENTE — sin borrarlo.
+   *
+   * Por qué existe y por qué NO es `deleteOrder`:
+   * Un pedido entregado es una VENTA. Si el comprador lo borrase de verdad
+   * desaparecerían con él el registro contable, los puntos de fidelidad ya
+   * otorgados (admin.v33.js:3227), el contador de entregas del repartidor
+   * (admin.v33.js:5823) y el histórico del panel. Por eso la base solo permite
+   * borrar de verdad los CANCELADOS (`SOLO_CANCELADOS` en 39-*.sql), y esa
+   * regla se queda como está.
+   *
+   * Aquí solo se marca `oculto_cliente = true`: el pedido deja de verse en
+   * «Mis pedidos» y sigue entero en la base y en el panel. Es lo que hacen
+   * Amazon o Uber Eats con «Archivar pedido».
+   *
+   * Va por RPC y no por PATCH directo a propósito: `anon` NO tiene permiso de
+   * UPDATE sobre la columna `oculto_cliente` (el GRANT de 39-*.sql enumera las
+   * columnas escribibles y esta no está). Así nadie puede ocultarle pedidos a
+   * otra persona: la BASE comprueba que el pedido es suyo y que está
+   * finalizado. Las comprobaciones del navegador solo sirven para dar buenos
+   * mensajes; la defensa real está en el servidor.
+   *
+   * @param {string}  id
+   * @param {string}  [emailCliente] correo del comprador.
+   * @param {string}  [clienteId]    id de su ficha.
+   * @param {boolean} [ocultar=true] false para volver a mostrarlo.
+   */
+  async hideOrderForClient(id, emailCliente, clienteId, ocultar = true) {
+    if (!emailCliente && !clienteId) {
+      throw new Error('No se puede ocultar el pedido sin identificar al cliente.');
+    }
+    return _rpcOrder(
+      'cliente_ocultar_pedido',
+      {
+        p_id:         id,
+        p_email:      emailCliente || null,
+        p_cliente_id: clienteId || null,
+        p_ocultar:    ocultar !== false,
+      },
       false
     );
   },

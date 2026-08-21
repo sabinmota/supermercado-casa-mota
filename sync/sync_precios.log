@@ -3823,3 +3823,48 @@
 2026-08-18 20:47:47  INFO      📊 3,569 productos con costo mayor que 0 (0 sin costo registrado).
 2026-08-18 20:47:47  INFO      💵 Columna de costo usada: CostoUltimo
 2026-08-18 20:47:47  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-21 12:43:03  INFO      ═══════════════════════════════════════════════════════
+2026-08-21 12:43:03  INFO      🚀 Iniciando sincronización — 2026-08-21 12:43:03
+2026-08-21 12:43:03  INFO         Campos a sincronizar: price
+2026-08-21 12:43:03  INFO      ═══════════════════════════════════════════════════════
+2026-08-21 12:43:03  INFO      🔌 Conectando a SQL Server…
+2026-08-21 12:43:04  WARN      ⚠️ La vista dbo.vInvArticulos no tiene la columna «CostoUltimo». Se sincroniza filtrando solo por descripción, sin filtro de costo.
+2026-08-21 12:43:05  INFO      📦 Leídos 13,458 artículos de SQL Server (omitidos: sin descripción).
+2026-08-21 12:43:05  INFO      📦 Productos leídos de SQL Server: 13,458
+2026-08-21 12:43:05  INFO      ☁️  Leyendo productos de Supabase…
+2026-08-21 12:43:06  INFO      🗄️  Productos en Supabase (con barcode): 1,938
+2026-08-21 12:43:06  INFO      ───────────────────────────────────────────────────────
+2026-08-21 12:43:06  INFO        ✏️  [001120]  QUESO CHEDDAR YOKESSO                  price=280.0
+2026-08-21 12:43:06  INFO        ✏️  [035406030009]  CORN FLAKES COUNTRY BARN 18z           price=200.0
+2026-08-21 12:43:07  INFO        ✏️  [038000269752]  CORN FLAKES KELLOGGS 272g              price=240.0
+2026-08-21 12:43:07  INFO        ✏️  [038000270758]  FROSTED FLAKES KELLOGGS 309g           price=240.0
+2026-08-21 12:43:07  INFO        ✏️  [52654985]  HUEVOS CRIOLLOS 15UDS.                 price=110.0
+2026-08-21 12:43:08  INFO        ✏️  [52654992]  HUEVOS CRIOLLOS 30UDS.                 price=220.0
+2026-08-21 12:43:08  INFO        ✏️  [7441008166917]  KOTEX NOCTURNA PROMO 10/1              price=105.0
+2026-08-21 12:43:08  INFO        ✏️  [7460193700270]  MARGARINA MANICERA 16z                 price=90.0
+2026-08-21 12:43:09  INFO        ✏️  [7460193740801]  AVENA AMERICANA INSTANTANEA 590g       price=70.0
+2026-08-21 12:43:09  INFO        ✏️  [7460199599236]  SALAMI SUPER ESPECIAL INDUVECA 3.47    price=505.0
+2026-08-21 12:43:09  INFO        ✏️  [7460548000130]  GATORADE COOL BLUE 600ml               price=50.0
+2026-08-21 12:43:09  INFO        ✏️  [7460548000154]  GATORADE FRUIT PUNCH 600ml             price=50.0
+2026-08-21 12:43:10  INFO        ✏️  [7465464559052]  CLORO TEN BLANQUEADOR 128z             price=110.0
+2026-08-21 12:43:10  INFO        ✏️  [7467810080067]  JABON SUNAMI SPORT FRESH 5/1           price=130.0
+2026-08-21 12:43:10  INFO        ✏️  [7468612648028]  JABON SUNAMI ALOE VERA 5/1             price=130.0
+2026-08-21 12:43:10  INFO        ✏️  [7468612648042]  JABON SUNAMI ROPA DELICADA 5/1         price=130.0
+2026-08-21 12:43:11  INFO        ✏️  [7468612648059]  JABON SUNAMI FLORAL 5/1                price=130.0
+2026-08-21 12:43:11  INFO        ✏️  [7509546017143]  LAVAPLATOS LIQUIDO AXION LIMON 400m    price=95.0
+2026-08-21 12:43:11  INFO        ✏️  [7509546071428]  SUAVITEL VAINILLA 850ml                price=200.0
+2026-08-21 12:43:11  INFO        ✏️  [7509546663357]  LAVAPLATOS AXION LIQUIDO LIMON 640m    price=200.0
+2026-08-21 12:43:12  INFO        ✏️  [751685000464]  SALSA PARA PIZZA LINDA 15z             price=60.0
+2026-08-21 12:43:12  INFO        ✏️  [751685000471]  SALSA PARA PIZZA LINDA 8z              price=45.0
+2026-08-21 12:43:13  INFO        ✏️  [7702174083362]  PIN POP XXXL FRESA 48/1                price=210.0
+2026-08-21 12:43:13  INFO        ✏️  [7702425805187]  TOALLAS HUMEDAS HUGGIES DISNEY BABY    price=90.0
+2026-08-21 12:43:13  INFO        ✏️  [98741151]  PLATANOS VERDES                        price=15.0
+2026-08-21 12:43:13  INFO      ═══════════════════════════════════════════════════════
+2026-08-21 12:43:13  INFO      📊 RESUMEN FINAL
+2026-08-21 12:43:13  INFO         ✏️  Actualizados   : 25
+2026-08-21 12:43:13  INFO         ✅ Sin cambios     : 1,642
+2026-08-21 12:43:13  INFO         🔍 No encontrados  : 11,791  (barcode no existe en Supabase)
+2026-08-21 12:43:13  INFO         ❌ Errores         : 0
+2026-08-21 12:43:13  INFO         ⏱️  Duración        : 10.2 segundos
+2026-08-21 12:43:13  INFO      ═══════════════════════════════════════════════════════
+2026-08-21 12:43:13  SUCCESS   🎉 Sincronización completada sin errores
