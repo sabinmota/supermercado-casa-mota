@@ -15,8 +15,14 @@ import requests as req
 import json
 import os
 import logging
+import re
 import threading
 import time
+
+# Costo mínimo para que un artículo se sincronice. Los que tienen 1 o menos se
+# consideran «costo no cargado» y quedan fuera. Debe coincidir con
+# COSTO_MINIMO de respaldo.py y sync_precios.py.
+COSTO_MINIMO_SYNC = 1.0
 from datetime import datetime
 
 try:
@@ -236,21 +242,57 @@ def _leer_sql(cfg):
     )
     conn   = pyodbc.connect(conn_str)
     cursor = conn.cursor()
+
+    # ¿Existe la columna de costo en ESTA vista? Se comprueba antes de pedirla:
+    # vInvArticulos es una vista y no tiene por qué exponer las mismas columnas
+    # que la tabla TinvArticulos. Pedir a ciegas una columna inexistente
+    # rompería el sync completo con «Invalid column name».
+    col_costo = (cfg.get('export_costo_col') or 'CostoPromedio').strip()
+    if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', col_costo):
+        col_costo = 'CostoPromedio'          # evita inyección por config
     cursor.execute("""
+        SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'vInvArticulos'
+          AND COLUMN_NAME = ?
+    """, col_costo)
+    hay_costo = (cursor.fetchone()[0] or 0) > 0
+
+    if hay_costo:
+        sel_costo   = f"ISNULL([{col_costo}], 0) AS Costo"
+        filtro_cost = f"AND ISNULL([{col_costo}], 0) > {COSTO_MINIMO_SYNC}"
+    else:
+        sel_costo   = "CAST(NULL AS decimal(18,2)) AS Costo"
+        filtro_cost = ""
+        _log(f'⚠️ La vista dbo.vInvArticulos no tiene la columna «{col_costo}». '
+             f'Se sincroniza filtrando solo por descripción, sin filtro de '
+             f'costo.', 'WARN')
+
+    # PATINDEX exige DOS letras seguidas: descarta '.', '..', ',', '---' y
+    # '123', pero deja pasar 'Pan', 'Té' y 'A-1 Salsa'.
+    cursor.execute(f"""
         SELECT
             ArticuloID,
             LTRIM(RTRIM(Nombre))       AS Nombre,
             LTRIM(RTRIM(NoReferencia)) AS NoReferencia,
             ISNULL(PrecioP,    0)      AS PrecioP,
-            ISNULL(ExistGlobal,0)      AS ExistGlobal
+            ISNULL(ExistGlobal,0)      AS ExistGlobal,
+            {sel_costo}
         FROM dbo.vInvArticulos
         WHERE NoReferencia IS NOT NULL
           AND LTRIM(RTRIM(NoReferencia)) <> ''
+          AND Nombre IS NOT NULL
+          AND PATINDEX('%[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]%',
+                       LTRIM(RTRIM(Nombre))) > 0
+          {filtro_cost}
         ORDER BY NoReferencia
     """)
     rows = cursor.fetchall()
     cols = [c[0] for c in cursor.description]
     conn.close()
+    _log(f'📦 Leídos {len(rows):,} artículos de SQL Server '
+         f'(omitidos: sin descripción'
+         + (f', costo <= {COSTO_MINIMO_SYNC:g}' if hay_costo else '') + ').',
+         'INFO')
     return [dict(zip(cols, r)) for r in rows]
 
 

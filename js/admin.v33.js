@@ -1472,7 +1472,10 @@ function openProductModal(id = null) {
     document.getElementById('pPrice').value         = p.price;
     document.getElementById('pOriginalPrice').value = p.originalPrice || '';
     document.getElementById('pUnit').value          = p.unit;
-    document.getElementById('pStock').value         = p.stock;
+    // BUILD 412: `?? 0` para que un producto con stock nulo en la base no
+    // escriba el texto "undefined" en un <input type="number">, que el
+    // navegador descarta dejando el campo en blanco sin avisar.
+    document.getElementById('pStock').value         = p.stock ?? 0;
     document.getElementById('pBadge').value         = p.badge || '';
     document.getElementById('pRating').value        = p.rating;
     document.getElementById('pDescription').value   = p.description;
@@ -2293,7 +2296,35 @@ function saveProduct() {
   const category = document.getElementById('pCategory').value.trim();
   const price    = parseFloat(document.getElementById('pPrice').value);
   const unit     = document.getElementById('pUnit').value.trim();
-  const stock    = parseInt(document.getElementById('pStock').value);
+  /* ─── BUILD 412 · EL STOCK PUEDE SER 0 (Y PUEDE IR VACÍO) ──────────────────
+   * Antes: el campo era `required` en admin.html y aquí se rechazaba con
+   * `stock <= 0`. Resultado: para marcar un artículo agotado había que
+   * inventarse una cantidad falsa (poner 1 cuando en realidad no queda nada),
+   * lo que dejaba el inventario mintiendo y permitía que un cliente comprase
+   * algo inexistente.
+   *
+   * 0 NO es un error: es un estado legítimo que significa «agotado». El resto
+   * del sistema ya lo trataba así y era esta validación la única que lo
+   * impedía — comprobado:
+   *   · admin.v33.js:602  bloquea añadir al carrito del TPV si `stock <= 0`
+   *   · admin.v33.js:1431 pinta la fila con la clase `stock-zero`
+   *   · admin.v33.js:1676 la vista previa muestra «Sin stock» / `stock-out`
+   *   · admin.v33.js:3919 el panel de inventario rotula «🔴 Sin stock»
+   *   · app.js:2839       impide finalizar el pedido si `stock < cantidad`
+   *   · favorites.js:162  marca el favorito como no disponible
+   * Ninguno de esos sitios necesita cambio: ya esperaban el 0.
+   *
+   * Campo vacío = 0. Al quitar `required` del HTML el campo puede quedarse en
+   * blanco, y `parseInt('')` devuelve NaN. Interpretarlo como 0 es lo que el
+   * usuario quiere decir al dejarlo vacío («no hay»); si en su lugar lo
+   * dejásemos en NaN, se guardaría `null` en la base y las comparaciones de
+   * arriba (`stock < cantidad`) dejarían de proteger el pedido.
+   *
+   * Lo que SÍ se sigue rechazando: un número negativo. No existe «menos tres
+   * unidades en el almacén», y un negativo sí rompería el aviso de stock bajo.
+   */
+  const _stockRaw = document.getElementById('pStock').value.trim();
+  const stock     = _stockRaw === '' ? 0 : parseInt(_stockRaw, 10);
   if (!name)     { showAdminToast('⚠️ El nombre es obligatorio', 'error'); document.getElementById('pName')?.focus(); _unlock(); return; }
 
   /* ─── BUILD 382 · CATEGORÍA OBLIGATORIA, AL CREAR Y AL EDITAR ───────────────
@@ -2352,7 +2383,9 @@ function saveProduct() {
   }
   if (isNaN(price) || price <= 0) { showAdminToast('⚠️ El precio debe ser mayor a 0', 'error'); document.getElementById('pPrice')?.focus(); _unlock(); return; }
   if (!unit)     { showAdminToast('⚠️ La unidad es obligatoria (ej: lb, unidad, litro…)', 'warn'); document.getElementById('pUnit')?.focus(); _unlock(); return; }
-  if (isNaN(stock) || stock <= 0) { showAdminToast('⚠️ El stock debe ser mayor a 0', 'warn'); document.getElementById('pStock')?.focus(); _unlock(); return; }
+  // Ver el comentario de BUILD 412 arriba: 0 = agotado, es válido. Solo se
+  // rechaza lo que no puede existir: texto sin número o cantidad negativa.
+  if (isNaN(stock) || stock < 0) { showAdminToast('⚠️ El stock no puede ser negativo. Pon 0 si el producto está agotado.', 'warn'); document.getElementById('pStock')?.focus(); _unlock(); return; }
 
   const barcodeVal   = document.getElementById('pBarcode').value.trim();
   const barcodeField = document.getElementById('pBarcode');

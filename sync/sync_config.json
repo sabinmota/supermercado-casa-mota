@@ -3,5 +3,10 @@
   "port": 53628,
   "database": "dbSIC",
   "user": "Sa",
-  "password": "SIC.123"
+  "password": "SIC.123",
+  "backup_carpeta_local": "",
+  "backup_carpeta_servidor": "",
+  "export_costo_col": "CostoUltimo",
+  "backup_retencion": 7,
+  "export_formato": "simple"
 }

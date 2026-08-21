@@ -2672,3 +2672,1154 @@
 2026-08-13 13:31:31  INFO         ⏱️  Duración        : 1.8 segundos
 2026-08-13 13:31:31  INFO      ═══════════════════════════════════════════════════════
 2026-08-13 13:31:31  SUCCESS   🎉 Sincronización completada sin errores
+2026-08-15 14:32:24  WARN      ⚠️ SQL Server está en otra máquina (e14f0c9991b6.sn.mynetname.net). El .bak se escribirá en «C:\RespaldoCasaMota» DE ESA MÁQUINA, no aquí. Se intentará copiarlo después.
+2026-08-15 14:32:25  INFO      💾 Iniciando respaldo completo de [dbSIC] → C:\RespaldoCasaMota\dbSIC_2026-08-15_1432.bak
+2026-08-15 14:32:25  ERROR     ❌ Error en el respaldo: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Cannot open backup device 'C:\\RespaldoCasaMota\\dbSIC_2026-08-15_1432.bak'. Operating system error 3(El sistema no puede encontrar la ruta especificada.). (3201) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]BACKUP DATABASE is terminating abnormally. (3013)") → Esa carpeta no existe en la máquina del servidor SQL.
+2026-08-15 14:32:49  INFO      📋 1020 tablas encontradas. Exportando a CSV…
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconMovimientosCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: A connection attempt failed because the conne
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconMovimientosCuentasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconPlantillaMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconPuestos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconPuestosMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconRetenciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TconTipoBienesServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TimgTest: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivoFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivosAsignacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivosAsignacionDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivosCaracteristicas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivosCaracteristicasAsignadas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivosContratos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvActivosGrupos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvAlmacenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvAlmacenesLotes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvAlmacenesLotesArticulos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvAlmacenesMultiples: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvAlmacenesSecciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArqueos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArqueosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosAlmacenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosAlmacenesPrecios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosConteo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosConteoTurnos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosCounter: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosDependientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosEquivalencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosEspecificaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosFotos100x100: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosFotos300x300: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosLabel: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosLabelRequisiciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosLotes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosLotesMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosMargenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosOfertas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosOfertasCompra: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosProveedores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosPuntosExtra: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosReferencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosSeriales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosTurnosEntrada: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosTurnosEntradaDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosTurnosSalida: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosTurnosSalidaDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCs: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsAccesorios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsColores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsContenidos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsEtiquetas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsVariantes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosUPCsWeb: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosVehiculos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosVehiculosFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosVentaVolumen: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosWebSite: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvArticulosWebSitePrecios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCambioPrecioReplicado: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCambioPrecios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCambioPreciosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCambios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCambiosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCansignaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCansignacionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCapturaFisica: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvCapturaFisicaDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClaseMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClaseMovimientosActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClaseMovimientosSuc: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClases: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClasesActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClasesConfiguracion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClasesPrecios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvClasesSub: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvColores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvControlDescuento: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvControlDescuentoDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvConversiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvConversionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvDepartamentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvDepreciacionActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvDepreciacionActivosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvDespachoMercancias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvDespachoMercanciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvEtiquetas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvExhibicion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvExhibicionDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvFabricaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvGarantias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvGrupos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvLineas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvLocalizadoresVentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvManufacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMarcas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMedidas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMetros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMetrosMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvModelos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMovimientosActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMovimientosActivosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvMovimientosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasAlmacenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasCaptura: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasCapturaDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasDetalleArticulos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasDisplay: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasDisplayAlmacenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasDisplayDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvOfertasSorteoMarcas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvParametros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvPerfiles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvPexArticulos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvPexArticulosConfiguracion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvPreEmpaques: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvPreEmpaquesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvRequisicionMercancias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvRequisicionMercanciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvRequisitosServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvRestaurantes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvRestaurantesLineas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvSizes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvSizesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvSolicitudesMercancias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvSolicitudesMercanciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTarifasColegiosOffLine: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTasasActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTipos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTomaFisica: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTomaFisicaDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransaccionesActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransaccionesActivosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransaccionesConsumo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransaccionesConsumoDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransaccionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TinvTransportes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfEmbarques: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfEmbarquesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesCorte: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesCorteDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesCorteDetalleMarcado: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesCorteDetalleMarcadoProduccion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesCorteMarcados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesCorteTickets: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesDestinos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesDetalleAccesorios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesDetalleEtiquetas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesEmpaques: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesEmpaquesCajas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesEmpaquesCajasSub: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfOrdenesEmpaquesCajasSubDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfPresentacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfTicketsTrabajos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfTicketsTrabajosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TmnfTicketsTrabajosPesado: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TnvSatifaccion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreFuentesFinanciadoras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreFunciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreInstituciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreOrganismosFinanciadores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosCierreMeses: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosCierreMesesLog: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosClasificadorGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosClasificadorGastosSub: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosClasificadorIngresos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosClasificadorIngresosSub: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosEjecucionGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosEjecucionGastosRedenciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosEjecucionGastosSubActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosEjecucionGastosSubActividadesNulos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosEjecucionIngresos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosEjecucionIngresosSubActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosFormulacionGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosFormulacionGastosSubActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosFormulacionIngresos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosModificacionesCIFE: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosModificacionesGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosModificacionesGastosSubActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosModificacionesIngresos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosModificacionesIngresosSubActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosObjetalGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosObjetalIngresos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosObjetalIngresosContable: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosPartidasGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosProgramatica: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TprePresupuestosProgramaticaFormulacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreProgramas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:28  WARN      ⚠️ No se pudo exportar dbo.TpreProyectos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TpreSubProyectos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TpreTipoGasto: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproConfiguracion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproConfiguracionProcesos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproFormulas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproFormulasGestiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproFormulasInsumos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproFormulasTerminados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproGestiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramasActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramasGestiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramasInsumos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramasTerminados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproProgramasTerminadosPosteo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproRecepcionesTrabajos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproRecepcionesTrabajosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproRecepcionesTrabajosDetalleRecibidos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TproRecepcionesTrabajosFactura: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TpryProyectoFases: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TpryProyectos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TpryProyectosFasesFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TpryProyectosFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecActividadesComerciales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecAreas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecClientesInmueblesServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecConceptos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecConceptosCiviles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecConceptosCivilesPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecConceptosCivilesTarifasEspecial: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecConceptosTarifas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecConceptosTarifasUsos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecCuadreDiario: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecCuadreDiarioDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecFacturasCiviles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecFacturasCivilesOficios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecFacturasServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecGrupos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecGruposSub: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecImpuestos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecInmuebles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecInmueblesImagenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecLibros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecPeriodicidades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecUnidadesMedidas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecUrbanizaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecUsos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrecZonas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepCajas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepCajasConfiguracionPOS: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepErrores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepReplicaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepTablasCliente: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepTablasClienteIndice: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepTablasServidor: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepTablasServidorIndice: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrepUrls: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAcciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAccionesPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAccionesPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAFP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAptitudes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAptitudesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAptitudesRespuestas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAreas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnAreasTematicasMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCalendariosHorasExtra: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCalendariosHorasExtraDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCambiosFormasPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCambiosFormasPagosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosEducacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosProcesos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosRefFamiliar: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosRefIdiomas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosRefLaboral: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosRefPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatosRefSalud: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCandidatoValidacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCarreraMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCarreras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCentroGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnClaseMovimientosNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnClasesNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnClasesPasantes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnClasesSolicitudes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCursosPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnCursosPersonalDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnDepartamentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnDiasLibres: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnDirecciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosAdicionales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosCarnets: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosCategorias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosEducacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosHuellas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosLicencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosMaestra: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosMaestraCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosMaestraMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosMaestraNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosMaestraOtrosDatos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosRefFamiliar: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosRefIdiomas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosRefLaboral: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosRefPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosRefSalud: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEmpleadosVacunas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEvaluacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEvaluacionDesglose: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEvaluacionDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEvaluacionPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnEvaluacionValoracion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnFormasPago: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnGradosAcedemicos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnGruposOcupacionalesMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnHorarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnHorariosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnHorariosSucursales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnImpuestoSobreRenta: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnInfotep: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnInstituciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnInstructoresPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnLiquidacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnLiquidacionDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnLiquidacionHistorico: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnLiquidacionIngresos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNivelEducativoMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNivelesAcademicosMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominaExclusion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominaExclusionDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominasAsiento: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominasCheques: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNominasEmpleadosDatos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesDiasNoPago: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesDiasNoPagoDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesFijasNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesFijasNominasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesNominasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesNominasHorasExtra: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesNominasHorasExtraDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesNominasHorasExtraSemanal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesVacaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnNovedadesVacacionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnPasantes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnPDSS: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnPeriodosNominas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnPrestamos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnPrestamosCuotas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnProgramaEvaluacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnPuestos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnReferidores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnRequisicionPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnRequisitosPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnRiesgoLaboral: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnSeguroMedico: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnSFS: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnSolicitudesAccionPersonal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnSolicitudesEmpleados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnTipoCargoMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnTipoDiscapacidadMAP: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnTransaccionesCuotas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnTransaccionesCuotasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TrhnTransaccionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegClavesAccceso: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegInstalaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegInstalacionesConexiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegMensajeChat: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegPerfilesUsuarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegProgramas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegProgramasAccesosPerfil: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegProgramasAccesosUsr: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegProgramasTerminologia: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegReplicacionesFiles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegScripts: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsegUsuariosLogin: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaCargaArchivoDigital: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaCargaArchivoDigitalDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaClasesCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaClasesMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaClientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaClientesCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaInstituciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaMovimientosCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaMovimientosCuentasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaNominasAch: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaNominasAchArvhivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaNominasAchDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaNominasAchRechazos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaNotas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaNotasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaPeriodos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaTransaccionesPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfaTurnos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpActividadesCobros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAmortizacionPrestamo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAmortizacionPrestamoDiario: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAmortizacionPrestamoPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAmortizacionPrestamoReAmort: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAvances: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAvancesDescuentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAvancesDesembolsos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpAvancesRegalia: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpCargaArchivoDigital: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpCargaArchivoDigitalResumen: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpCargos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpClasesMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpClasesPrestamos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpCobradoresRecibos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpCobradoresRecibosDocumento: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpCobradoresRecibosDocumentoDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpDeducciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpDocumentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpDocumentosPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpEstadosGestionCobros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpGarantias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpGestionCobros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpInsidencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpMobilExclucion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpMobilResibosCobrador: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpMobilResibosCobradorDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpMobilTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpMovimientosCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpMovimientosCuentasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpNCF: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpNotas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpNotasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpPrestamos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpPrestamosCambioTasa: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpPrestamosCobradores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpPrestamosDeducciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpPrestamosOtrosDatos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpPrestamosRenovacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpReenganches: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpRutas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpSolicitudes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpSolicitudesAuditoria: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpSolicitudesDiasExclusion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpSolicitudesVehiculos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTasas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesAvances: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesAvancesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesCargos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesCargosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesCargosPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesComercial: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsfpTransaccionesPagosComercial: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguClaseSolicitudes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguClientesCambios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguClientesDependientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguContratos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguContratosDireccionPrincipal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguContratosPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguDescargasFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguDescargasFacturasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguEntregaContratos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguEntregaContratosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguEntregasFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguEntregasFacturasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguFunerarias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguOpciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPagosFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPagosFacturasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPagosFacturasInstituciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPagosFacturasInstitucionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPagosFacturasRecibos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPeriodosVentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlanes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlanesOpciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlanesOpcionesRango: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlanesProductos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlanesServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlanesUltimoDias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguRecepcionFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguRecepcionFacturasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguRecibosContratos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguRecibosContratosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSeguimientoCobertura: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCobertura: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaBeneficiario: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaLapida: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaProductos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaSeguimiento: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaSeguimientoOK: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaUltimosDias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesCoberturaUltimosDiasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesDependientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesDependientesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesRetiro: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesTitulares: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSolicitudesTitularesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSorteos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSorteosConcursantes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsguSorteosPremios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsiteAgendas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsiteAgendasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsitePedidos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsitePedidosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsiteSolicitudesacceso: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsiteSolicitudesPrestamos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsiteSolicitudesRetiro: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupActividades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupAvanzame: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupChoferes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClaseLicitaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClaseMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClases: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClasesGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClasesIncidenciasVehiculos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClasesRetenciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupClaseVehiculos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupConceptosMovimientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupConsumosImportaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupConsumosImportacionesOrdenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupConsumosImportacionesOrdenesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupDevolucionMercancias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupDevolucionMercanciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupDistribucionCompras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupDistribucionComprasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupDistribucionComprasOrdenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupDistribucionComprasRecepciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupFacturaDigital: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupImportaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupImportacionesConceptos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupIncidenciasVehiculos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupInstaladores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupInvoices: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupInvoicesDetail: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupLicitaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupLicitacionesConograma: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupLicitacionesOferentes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupLiquidacionMercancias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupLiquidacionMercanciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupMovimientosCuentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupMovimientosCuentasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOferentes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOrdenesCompras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOrdenesComprasBL: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOrdenesComprasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOrdenesComprasPreEmpaque: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOrdenesServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupOrdenesServiciosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupProveedores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupProveedoresOtrosDatos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupProveedoresRetenciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercancias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasDetalleGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasEnvios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasExternoTickets: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasOrdenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasPreEmpaque: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasTaras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRecepcionMercanciasTarasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRegistroGastosMenores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRegistroGastosMenoresDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRequerimientosCompras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRequerimientosComprasCotizaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRequerimientosComprasCotizacionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRequerimientosComprasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupRNC_DGII: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesArticulos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesPagosDirecto: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesPagosDirectoBeneficiarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesPagosDirectoDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesPagosDirectoNCF: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesPagosDirectoReposicion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupTransaccionesPagosReintegrados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsupVehiculos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsAlergias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsAreas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsARS: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsArsOpcionesPago: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsCentroSalud: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsCitas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsCitasEstados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClases: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClasesMascotas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClasesMascotasRazas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesAlergias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesCitas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesCitasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesEmergencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesEnfermedades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesAuditoria: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesDiagnosticos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesIndicaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesLlamada: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesMascota: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesMedicamentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesExpedientesSintomas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesHospitalizaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesMascotas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsClientesVacunas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsControlVacunas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsControlVacunasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsCorrespondencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsCorrespondenciasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsDiagnosticoPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsDiagnosticos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsEnfermedades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsEnfermeras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsEspecialidades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsEstudios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsExpedientesAnestesiologia: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsExpedientesDiagnosticos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsExpedientesEntregas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsExpedientesOftalmologo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsFarmacias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsHabitaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsHabitacionesActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsLaboratorios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsLaboratoriosActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsMedicoReferidores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsMedicos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsMedicosDepartamentosComisiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsMedicosEspecialidades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsMedicosEspecialidadesHorarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsMedicosHorarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsOftalmologoIndicadores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsOrdenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsOrdenesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsPlanteles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsPlantelesEspecialidades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsPlantelesFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsQuirofanos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsQuirofanosActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsRequisitosServicios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsServiciosArs: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsServiciosDiagnosticos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsServiciosPlantillas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsServiciosPropiedades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsSintomas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsTurnosPacientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsUCIs: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsUCIsActivos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsVacunas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsVisitas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsvsVisitasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysAccesos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysAcuerdos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysCiudades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysClasesIncidencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysClasesIncidenciasUsuarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysCodigosAreas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysContactos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysContactosTipos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysContratos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysDocumentosImagenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysEmpresas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysFormasCitas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysFormatosImpresion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysImangenesTableros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysIncidencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysIncidenciasUsuarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysIncidenciasUsuariosHistorico: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysIndustrias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesMail: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesMailAttachments: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesMailDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesMailGrupo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesMailReportes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMensajesMailReportesGrupo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMeses: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMonedas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysMonedasDeno: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysNotasDocumentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPaises: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPresupuestos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPresupuestosMeses: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPresupuestosSucursales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPresupuestosVendedores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPresupuestosVendedoresClientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysPresupuestosVendedoresMarcas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysRazones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysRemotoImpresiones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysRemotoImpresoras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysReportesTemplates: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysRowEstados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysRows: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSectores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSectoresBarrios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSectoresBarriosCalles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSolicitudesCitas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSolicitudesCitasAcompanantes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSucursales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysSucursalesAlmacenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysTerminos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysUsuarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysUsuariosDSPOS: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysUsuariosVia365: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysUsuariosVia365Rutas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVentanasListados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVentanasListadosCampos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVentanasListadosUsuarios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVentanasListadosUsuariosCampos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVia365ClientesVencidos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TsysVigencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvehInteriores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvehMotores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvehTransmision: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenActividadesEconomicas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenAreasOrdenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenAreasOrdenesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenArticulosFavoritos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenArticulosPrecioArs: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenAsignacionDomicilio: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenBilling: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCajaConfiguracionElectronica: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCajaElectronicaLogTransacciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCajas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCajasElectronicas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenChequesTransitos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenClaseGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenClaseVentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenComponentes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCotizaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCotizacionesComponentes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCotizacionesComponentesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCotizacionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCreditMemos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenCreditMemosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDepartamentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDevoluciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDevolucionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDevolucionesPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDocumentosFinanciamientos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDocumentosReferencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenDocumentosReplicadorLog: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenEntregasVededores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenEntregasVededoresDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenEnviosBultosScan: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasAmortizacion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasARSdetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasConduces: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasConducesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasConducesFacurado: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasConducesReAsignada: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasContratistas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasDetalleEntregas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasDetalleEntregasGarantias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasDetalleInstalaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasEnvios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasEnviosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasFrontHotel: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasFrontHotelDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasFrontHotelPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasManual: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasRetenciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasRetencionesBalance: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasTaras: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasTarasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasTemp: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFacturasTempDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPago: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoElectronico: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesApisConfiguraciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesApisConfiguracionesEndPoints: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesApisConfiguracionesRutas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesSucCajas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesSucursales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesSucursalesGaventas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoOpcionesSumaDescuento: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoRedes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoRedesConfiguraciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormasPagoRedesSucursales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenFormulariosPreImpreso: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenGiftCardPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenMercadeo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenMercadeoDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenMercadeoFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenMesas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenMunicipios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenMunicipiosCiudades: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenNotasDocumentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenOrdenesVentas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenOrdenesVentasClientes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenOrdenesVentasClientesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenOrdenesVentasDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenOrdenesVentasRetornos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenOrdenesVentasRetornosDetalles: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosBloqueos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosCargaConfirmada: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosConfirmados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosDetalleConfirmados: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosDetalleInstalaciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosEmpaques: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosFacturas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosOtrosDatos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPedidosPreEmpaque: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPoliticasDescuento: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPreDevoluciones: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPreDevolucionesDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenPreDevolucionesPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenProcesamientoElectronico: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenProcesamientoElectronicoCierres: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenProcesamientoElectronicoDCC: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRecibosTemporal: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRecibosTemporalDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRecibosTemporalPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRecibosTemporalPagosFotos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRecibosVededores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRecibosVededoresDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenRegimenes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenSupervisorVendedores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTalonarioFacturaManual: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTickets: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTicketsDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTicketsDomicilio: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTransaccionesCaja: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTransaccionesCajaARSdetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTransaccionesCajaDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTransaccionesCajaDetalleCobros: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTransaccionesCajaPagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTransaccionesContadores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosAperturaDesglose: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosCuadreResumen: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosDesglose: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosDesgloseMonedas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosDocumentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosEfectivo: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosES: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosESDetalle: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosLotes: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenTurnosView: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedores: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresAgendaDias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresClaseConfiguracion: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresComisionable: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresDepartamentos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresGastos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresPrecios: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresSucursales: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVendedoresSupervisor: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVigencias: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVisitas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVisitasAgendadas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenVisitasTipos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.TvenZonas: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.Tvia365Chats: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.Tvia365Pagos: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.Tvia365Syns: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.xxxClientes$: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.xxxINV$: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.xxxInvMarcas$: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.xxxMarcas$: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  WARN      ⚠️ No se pudo exportar dbo.xxxpesado$: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (0) (SQLExecDirectW)')
+2026-08-15 14:46:29  SUCCESS   ✅ Respaldo de datos listo: 141 tablas, 9,078,470 filas → C:\RespaldoCasaMota\datos_2026-08-15_1432
+2026-08-15 14:46:29  WARN      ⚠️ 879 tablas no se pudieron leer: dbo.TconMovimientosCuentas, dbo.TconMovimientosCuentasDetalle, dbo.TconPlantillaMovimientos, dbo.TconPuestos, dbo.TconPuestosMovimientos, dbo.TconRetenciones, dbo.TconTipoBienesServicios, dbo.TimgTest
+2026-08-15 14:46:29  WARN      ℹ️ Esto NO restaura el programa. Para eso necesitas el .bak.
+2026-08-17 18:43:59  INFO      📄 CSV en modo «simple»: 3 columnas (Descripción, Costo, Precio).
+2026-08-17 18:43:59  SUCCESS   ✅ Export para ChatGPT listo: 14,036 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-17 18:43:59  INFO      📊 14,034 productos con costo mayor que 0 (2 sin costo registrado).
+2026-08-17 18:43:59  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-17 18:43:59  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-17 18:45:36  WARN      ⚠️ SQL Server está en otra máquina (e14f0c9991b6.sn.mynetname.net). El .bak se escribirá en «C:\RespaldoCasaMota» DE ESA MÁQUINA, no aquí. Se intentará copiarlo después.
+2026-08-17 18:45:36  INFO      💾 Iniciando respaldo completo de [dbSIC] → C:\RespaldoCasaMota\dbSIC_2026-08-17_1845.bak
+2026-08-17 18:45:36  ERROR     ❌ Error en el respaldo: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Cannot open backup device 'C:\\RespaldoCasaMota\\dbSIC_2026-08-17_1845.bak'. Operating system error 3(El sistema no puede encontrar la ruta especificada.). (3201) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]BACKUP DATABASE is terminating abnormally. (3013)") → Esa carpeta no existe en la máquina del servidor SQL.
+2026-08-17 19:02:54  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:02:54  INFO      🚀 Iniciando sincronización — 2026-08-17 19:02:54
+2026-08-17 19:02:54  INFO         Campos a sincronizar: price
+2026-08-17 19:02:54  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:02:54  INFO      🔌 Conectando a SQL Server…
+2026-08-17 19:02:55  INFO      📦 Productos leídos de SQL Server: 13,851
+2026-08-17 19:02:55  INFO      ☁️  Leyendo productos de Supabase…
+2026-08-17 19:02:56  INFO      🗄️  Productos en Supabase (con barcode): 1,932
+2026-08-17 19:02:56  INFO      ───────────────────────────────────────────────────────
+2026-08-17 19:02:56  INFO        ✏️  [041331013338]  GORDALES RELLENAS 207g                 price=185.0
+2026-08-17 19:02:57  INFO        ✏️  [041331013758]  ALCAPARRAS CAPOTES 155g                price=155.0
+2026-08-17 19:02:57  INFO        ✏️  [041331038577]  SALSA PICANTE GOYA 6z                  price=75.0
+2026-08-17 19:02:57  INFO        ✏️  [193968320027]  TOALLAS HUMEDAS MEMBERS MARK 96/1      price=205.0
+2026-08-17 19:02:58  INFO        ✏️  [7460731600413]  SUAVIZANTE BUBBA PRIMAVERAL 1500ml     price=150.0
+2026-08-17 19:02:58  INFO        ✏️  [7460731600420]  SUAVIZANTE BUBBA PRIMAVERAL 900ml      price=100.0
+2026-08-17 19:02:58  INFO        ✏️  [7468235130115]  PAN VIGA INTEGRAL CLUB PREMIU 540g     price=110.0
+2026-08-17 19:02:58  INFO        ✏️  [7468235130610]  PAN BUFFET INTEGRAL MOLINO DEL SOL     price=145.0
+2026-08-17 19:02:59  INFO        ✏️  [7468235130658]  PAN MINI CROISSANTS MI TRIGO 464g      price=180.0
+2026-08-17 19:02:59  INFO        ✏️  [7468235130801]  PAN BUFFET NATURAL MOLINO DEL SOL      price=120.0
+2026-08-17 19:02:59  INFO        ✏️  [7506205816109]  ENFAMIL PREMIUM 375g                   price=1210.0
+2026-08-17 19:02:59  INFO        ✏️  [760203014180]  MALVAVISCOS ANGELITOS 50/1             price=240.0
+2026-08-17 19:03:00  INFO        ✏️  [787545005409]  CATCHUP BALDOM 12z                     price=85.0
+2026-08-17 19:03:00  INFO        ✏️  [787545049410]  GELATINA SIN AZUCAR OLI 30g            price=45.0
+2026-08-17 19:03:00  INFO        ✏️  [787545093017]  CATCHUP BALDOM 14z                     price=95.0
+2026-08-17 19:03:00  INFO        ✏️  [787545195285]  SAZON SUPER COMPLETO BALDOM 3 Lbs.     price=220.0
+2026-08-17 19:03:01  INFO        ✏️  [98741151]  PLATANOS VERDES                        price=10.0
+2026-08-17 19:03:01  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:03:01  INFO      📊 RESUMEN FINAL
+2026-08-17 19:03:01  INFO         ✏️  Actualizados   : 17
+2026-08-17 19:03:01  INFO         ✅ Sin cambios     : 1,649
+2026-08-17 19:03:01  INFO         🔍 No encontrados  : 12,185  (barcode no existe en Supabase)
+2026-08-17 19:03:01  INFO         ❌ Errores         : 0
+2026-08-17 19:03:01  INFO         ⏱️  Duración        : 7.2 segundos
+2026-08-17 19:03:01  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:03:01  SUCCESS   🎉 Sincronización completada sin errores
+2026-08-17 19:22:44  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:22:44  INFO      🚀 Iniciando sincronización — 2026-08-17 19:22:44
+2026-08-17 19:22:44  INFO         Campos a sincronizar: price
+2026-08-17 19:22:44  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:22:44  INFO      🔌 Conectando a SQL Server…
+2026-08-17 19:22:45  INFO      📦 Productos leídos de SQL Server: 13,851
+2026-08-17 19:22:45  INFO      ☁️  Leyendo productos de Supabase…
+2026-08-17 19:22:46  INFO      🗄️  Productos en Supabase (con barcode): 1,932
+2026-08-17 19:22:46  INFO      ───────────────────────────────────────────────────────
+2026-08-17 19:22:46  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:22:46  INFO      📊 RESUMEN FINAL
+2026-08-17 19:22:46  INFO         ✏️  Actualizados   : 0
+2026-08-17 19:22:46  INFO         ✅ Sin cambios     : 1,666
+2026-08-17 19:22:46  INFO         🔍 No encontrados  : 12,185  (barcode no existe en Supabase)
+2026-08-17 19:22:46  INFO         ❌ Errores         : 0
+2026-08-17 19:22:46  INFO         ⏱️  Duración        : 2.2 segundos
+2026-08-17 19:22:46  INFO      ═══════════════════════════════════════════════════════
+2026-08-17 19:22:46  SUCCESS   🎉 Sincronización completada sin errores
+2026-08-17 19:23:00  ERROR     ❌ Error actualizando el listado: [Errno 13] Permission denied: 'C:\\RespaldoCasaMota\\para-chatgpt\\costos-y-precios.csv'
+2026-08-17 19:23:31  ERROR     ❌ Error actualizando el listado: [Errno 13] Permission denied: 'C:\\RespaldoCasaMota\\para-chatgpt\\costos-y-precios.csv'
+2026-08-17 19:24:18  ERROR     ❌ Error actualizando el listado: [Errno 13] Permission denied: 'C:\\RespaldoCasaMota\\para-chatgpt\\costos-y-precios.csv'
+2026-08-17 19:24:35  SUCCESS   ✅ Listado revisado: 14,036 productos, sin ningún cambio desde la última vez.
+2026-08-17 19:24:35  INFO      📂 Se reescribieron los mismos archivos, en la misma carpeta. No hay que descargar nada.
+2026-08-17 19:25:38  SUCCESS   ✅ Listado revisado: 14,036 productos, sin ningún cambio desde la última vez.
+2026-08-17 19:25:38  INFO      📂 Se reescribieron los mismos archivos, en la misma carpeta. No hay que descargar nada.
+2026-08-17 19:29:59  SUCCESS   ✅ Listado revisado: 14,036 productos, sin ningún cambio desde la última vez.
+2026-08-17 19:29:59  INFO      📂 Se reescribieron los mismos archivos, en la misma carpeta. No hay que descargar nada.
+2026-08-18 11:11:43  INFO      📄 CSV en modo «simple»: 3 columnas (Descripción, Costo, Precio).
+2026-08-18 11:11:44  SUCCESS   ✅ Export para ChatGPT listo: 14,036 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 11:11:44  INFO      📊 14,034 productos con costo mayor que 0 (2 sin costo registrado).
+2026-08-18 11:11:44  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 11:11:44  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 11:12:06  INFO      📋 1020 tablas encontradas. Exportando a CSV…
+2026-08-18 13:00:06  SUCCESS   ✅ Respaldo de datos listo: 1020 tablas, 67,772,766 filas → C:\RespaldoCasaMota\datos_2026-08-18_1112
+2026-08-18 13:00:06  WARN      ℹ️ Esto NO restaura el programa. Para eso necesitas el .bak.
+2026-08-18 18:24:37  INFO      📋 1020 tablas encontradas. Exportando a CSV…
+2026-08-18 18:31:51  WARN      🔓 Estado del módulo de respaldo liberado a mano.
+2026-08-18 18:31:57  INFO      🧹 Omitidos 10,306 artículos: 436 sin descripción, 9,870 con costo menor o igual a 1.
+2026-08-18 18:31:57  INFO         · --------- → sin descripción
+2026-08-18 18:31:57  INFO         · ACEITUNAS MANZANILLA 450g → costo <= 1
+2026-08-18 18:31:57  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 18:31:57  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 18:31:57  INFO         · CHICHARRA REVERSIBLE TOLSEN 1/2 → costo <= 1
+2026-08-18 18:31:57  INFO      📄 CSV en modo «simple»: 3 columnas (Descripción, Costo, Precio).
+2026-08-18 18:31:58  SUCCESS   ✅ Export para ChatGPT listo: 3,734 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 18:31:58  INFO      📊 3,734 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 18:31:58  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 18:31:58  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 18:32:15  INFO      🧹 Omitidos 10,306 artículos: 436 sin descripción, 9,870 con costo menor o igual a 1.
+2026-08-18 18:32:15  INFO         · --------- → sin descripción
+2026-08-18 18:32:15  INFO         · ACEITUNAS MANZANILLA 450g → costo <= 1
+2026-08-18 18:32:15  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 18:32:15  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 18:32:15  INFO         · CHICHARRA REVERSIBLE TOLSEN 1/2 → costo <= 1
+2026-08-18 18:32:15  INFO      📄 CSV en modo «simple»: 3 columnas (Descripción, Costo, Precio).
+2026-08-18 18:32:15  SUCCESS   ✅ Export para ChatGPT listo: 3,734 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 18:32:15  INFO      📊 3,734 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 18:32:15  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 18:32:15  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 18:33:19  INFO      🧹 Omitidos 10,306 artículos: 436 sin descripción, 9,870 con costo menor o igual a 1.
+2026-08-18 18:33:19  INFO         · --------- → sin descripción
+2026-08-18 18:33:19  INFO         · ACEITUNAS MANZANILLA 450g → costo <= 1
+2026-08-18 18:33:19  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 18:33:19  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 18:33:19  INFO         · CHICHARRA REVERSIBLE TOLSEN 1/2 → costo <= 1
+2026-08-18 18:33:19  INFO      📄 CSV en modo «simple»: 3 columnas (Descripción, Costo, Precio).
+2026-08-18 18:33:19  SUCCESS   ✅ Export para ChatGPT listo: 3,734 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 18:33:19  INFO      📊 3,734 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 18:33:19  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 18:33:19  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 18:34:14  WARN      ℹ️ No había ningún proceso bloqueado.
+2026-08-18 18:35:45  INFO      📋 1020 tablas encontradas. Exportando a CSV…
+2026-08-18 18:39:45  WARN      🔓 Estado del módulo de respaldo liberado a mano.
+2026-08-18 18:41:37  WARN      ℹ️ No había ningún proceso bloqueado.
+2026-08-18 18:41:40  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 18:41:40  INFO      🚀 Iniciando sincronización — 2026-08-18 18:41:40
+2026-08-18 18:41:40  INFO         Campos a sincronizar: price
+2026-08-18 18:41:40  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 18:41:40  INFO      🔌 Conectando a SQL Server…
+2026-08-18 18:41:41  WARN      ⚠️ La vista dbo.vInvArticulos no tiene la columna «CostoPromedio». Se sincroniza filtrando solo por descripción, sin filtro de costo.
+2026-08-18 18:41:42  INFO      📦 Leídos 13,450 artículos de SQL Server (omitidos: sin descripción).
+2026-08-18 18:41:42  INFO      📦 Productos leídos de SQL Server: 13,450
+2026-08-18 18:41:42  INFO      ☁️  Leyendo productos de Supabase…
+2026-08-18 18:41:43  INFO      🗄️  Productos en Supabase (con barcode): 1,932
+2026-08-18 18:41:43  INFO      ───────────────────────────────────────────────────────
+2026-08-18 18:41:44  INFO        ✏️  [00000406]  AGUACATE VERDE                         price=25.0
+2026-08-18 18:41:44  INFO        ✏️  [051000025487]  SALSA PREGO TRADICIONAL 14z            price=175.0
+2026-08-18 18:41:44  INFO        ✏️  [051000027955]  SALSA PREGO FRESH MUSHROOM 14z         price=175.0
+2026-08-18 18:41:44  INFO        ✏️  [051000193025]  PREGO SALSA THREE CHEESE 14z           price=175.0
+2026-08-18 18:41:45  INFO        ✏️  [051000195326]  SALSA PREGO PIZZA 14z                  price=175.0
+2026-08-18 18:41:45  INFO        ✏️  [7401001622919]  DETERGENTE  ESPUMIL EXP. FLORES 250    price=25.0
+2026-08-18 18:41:45  INFO        ✏️  [7401006107381]  DETERGENTE ESPUMIL EXP DE FLORES 25    price=25.0
+2026-08-18 18:41:45  INFO        ✏️  [7468823650667]  LECHE ENTERA MI CAMPITO 360g           price=120.0
+2026-08-18 18:41:45  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 18:41:45  INFO      📊 RESUMEN FINAL
+2026-08-18 18:41:45  INFO         ✏️  Actualizados   : 8
+2026-08-18 18:41:45  INFO         ✅ Sin cambios     : 1,656
+2026-08-18 18:41:45  INFO         🔍 No encontrados  : 11,786  (barcode no existe en Supabase)
+2026-08-18 18:41:45  INFO         ❌ Errores         : 0
+2026-08-18 18:41:45  INFO         ⏱️  Duración        : 5.0 segundos
+2026-08-18 18:41:45  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 18:41:45  SUCCESS   🎉 Sincronización completada sin errores
+2026-08-18 18:49:35  INFO      🧹 Omitidos 10,306 artículos: 436 sin descripción, 9,870 con costo menor o igual a 1.
+2026-08-18 18:49:35  INFO         · --------- → sin descripción
+2026-08-18 18:49:35  INFO         · ACEITUNAS MANZANILLA 450g → costo <= 1
+2026-08-18 18:49:35  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 18:49:35  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 18:49:35  INFO         · CHICHARRA REVERSIBLE TOLSEN 1/2 → costo <= 1
+2026-08-18 18:49:35  INFO      📄 CSV en modo «simple»: 3 columnas (Descripción, Costo, Precio).
+2026-08-18 18:49:35  SUCCESS   ✅ Export para ChatGPT listo: 3,734 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 18:49:35  INFO      📊 3,734 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 18:49:35  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 18:49:35  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 19:30:03  ERROR     ❌ Error exportando: La columna de costo «CostoPromedio» no existe en dbo.vInvArticulos. Usa «Ver columnas».
+2026-08-18 19:31:18  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:18  INFO      🚀 Iniciando sincronización — 2026-08-18 19:31:18
+2026-08-18 19:31:18  INFO         Campos a sincronizar: price
+2026-08-18 19:31:18  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:18  INFO      🔌 Conectando a SQL Server…
+2026-08-18 19:31:19  WARN      ⚠️ La vista dbo.vInvArticulos no tiene la columna «CostoPromedio». Se sincroniza filtrando solo por descripción, sin filtro de costo.
+2026-08-18 19:31:21  INFO      📦 Leídos 13,450 artículos de SQL Server (omitidos: sin descripción).
+2026-08-18 19:31:21  INFO      📦 Productos leídos de SQL Server: 13,450
+2026-08-18 19:31:21  INFO      ☁️  Leyendo productos de Supabase…
+2026-08-18 19:31:22  INFO      🗄️  Productos en Supabase (con barcode): 1,932
+2026-08-18 19:31:22  INFO      ───────────────────────────────────────────────────────
+2026-08-18 19:31:22  INFO        ✏️  [98741151]  PLATANOS VERDES                        price=20.0
+2026-08-18 19:31:22  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:22  INFO      📊 RESUMEN FINAL
+2026-08-18 19:31:22  INFO         ✏️  Actualizados   : 1
+2026-08-18 19:31:22  INFO         ✅ Sin cambios     : 1,663
+2026-08-18 19:31:22  INFO         🔍 No encontrados  : 11,786  (barcode no existe en Supabase)
+2026-08-18 19:31:22  INFO         ❌ Errores         : 0
+2026-08-18 19:31:22  INFO         ⏱️  Duración        : 3.9 segundos
+2026-08-18 19:31:22  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:22  SUCCESS   🎉 Sincronización completada sin errores
+2026-08-18 19:31:30  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:30  INFO      🚀 Iniciando sincronización — 2026-08-18 19:31:30
+2026-08-18 19:31:30  INFO         Campos a sincronizar: price
+2026-08-18 19:31:30  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:30  INFO      🔌 Conectando a SQL Server…
+2026-08-18 19:31:30  WARN      ⚠️ La vista dbo.vInvArticulos no tiene la columna «CostoPromedio». Se sincroniza filtrando solo por descripción, sin filtro de costo.
+2026-08-18 19:31:32  INFO      📦 Leídos 13,450 artículos de SQL Server (omitidos: sin descripción).
+2026-08-18 19:31:32  INFO      📦 Productos leídos de SQL Server: 13,450
+2026-08-18 19:31:32  INFO      ☁️  Leyendo productos de Supabase…
+2026-08-18 19:31:33  INFO      🗄️  Productos en Supabase (con barcode): 1,932
+2026-08-18 19:31:33  INFO      ───────────────────────────────────────────────────────
+2026-08-18 19:31:33  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:33  INFO      📊 RESUMEN FINAL
+2026-08-18 19:31:33  INFO         ✏️  Actualizados   : 0
+2026-08-18 19:31:33  INFO         ✅ Sin cambios     : 1,664
+2026-08-18 19:31:33  INFO         🔍 No encontrados  : 11,786  (barcode no existe en Supabase)
+2026-08-18 19:31:33  INFO         ❌ Errores         : 0
+2026-08-18 19:31:33  INFO         ⏱️  Duración        : 3.5 segundos
+2026-08-18 19:31:33  INFO      ═══════════════════════════════════════════════════════
+2026-08-18 19:31:33  SUCCESS   🎉 Sincronización completada sin errores
+2026-08-18 19:39:04  ERROR     🔴 La columna de costo «CostoPromedio» no existe en «dbo.vInvArticulos» y no se encontró ninguna alternativa. El listado sale con costo en 0 y SIN filtro de costo (solo se descartan los nombres sin letras). Nota: el sync de la web lee la misma vista, así que tampoco está aplicando el filtro de costo.
+2026-08-18 19:39:05  INFO      🧹 Omitidos 433 artículos: 433 sin descripción, 0 con costo menor o igual a 1.
+2026-08-18 19:39:05  INFO         · --------- → sin descripción
+2026-08-18 19:39:05  INFO         · ..... → sin descripción
+2026-08-18 19:39:05  INFO         · ..... → sin descripción
+2026-08-18 19:39:05  INFO         · ..... → sin descripción
+2026-08-18 19:39:05  INFO         · ..... → sin descripción
+2026-08-18 19:39:05  WARN      ⚠️ Sin columna de costo no se puede filtrar por costo; solo se omitieron los artículos sin descripción.
+2026-08-18 19:39:05  INFO      📊 Precio leído de [dbo.vInvArticulos].[PrecioP] — la MISMA fuente que usa el sync de la web, así que el listado y el admin deben coincidir.
+2026-08-18 19:39:05  INFO      🏷️ Código de barras leído de [NoReferencia] (NoReferencia ↔ products.barcode).
+2026-08-18 19:39:05  INFO      ℹ️ 144 productos no tienen código de barras. Se incluyen igual, con la columna Código vacía (el sync de la web sí los excluye).
+2026-08-18 19:39:05  INFO      ✅ Los precios no parecen estar sin ITBIS (solo 0% de coincidencias sospechosas).
+2026-08-18 19:39:05  INFO      📄 CSV en modo «simple»: 4 columnas (Descripción, Costo, Precio).
+2026-08-18 19:39:06  SUCCESS   ✅ Export para ChatGPT listo: 13,594 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 19:39:06  INFO      📊 0 productos con costo mayor que 0 (13,594 sin costo registrado).
+2026-08-18 19:39:06  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 19:56:28  ERROR     ❌ Error exportando: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'CostoPromedio'. (207) (SQLExecDirectW)")
+2026-08-18 20:14:18  INFO      💰 El costo NO está en la vista «dbo.vInvArticulos». Se lee de [dbo.TinvArticulos].[CostoPromedio] uniendo por ArticuloID. El precio sigue saliendo de la vista (con ITBIS): cada dato de donde es correcto.
+2026-08-18 20:14:19  INFO      🧹 Omitidos 10,293 artículos: 433 sin descripción, 9,860 con costo menor o igual a 1.
+2026-08-18 20:14:19  INFO         · --------- → sin descripción
+2026-08-18 20:14:19  INFO         · ACEITUNAS MANZANILLA 450g → costo <= 1
+2026-08-18 20:14:19  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 20:14:19  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 20:14:19  INFO         · CHICHARRA REVERSIBLE TOLSEN 1/2 → costo <= 1
+2026-08-18 20:14:19  INFO      📊 Precio leído de [dbo.vInvArticulos].[PrecioP] — la MISMA fuente que usa el sync de la web, así que el listado y el admin deben coincidir.
+2026-08-18 20:14:19  INFO      🏷️ Código de barras leído de [NoReferencia] (NoReferencia ↔ products.barcode).
+2026-08-18 20:14:19  INFO      ℹ️ 89 productos no tienen código de barras. Se incluyen igual, con la columna Código vacía (el sync de la web sí los excluye).
+2026-08-18 20:14:19  INFO      ✅ Los precios no parecen estar sin ITBIS (solo 0% de coincidencias sospechosas).
+2026-08-18 20:14:19  INFO      📄 CSV en modo «simple»: 4 columnas (Descripción, Costo, Precio).
+2026-08-18 20:14:19  SUCCESS   ✅ Export para ChatGPT listo: 3,734 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 20:14:19  INFO      📊 3,734 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 20:14:19  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 20:14:19  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 20:15:04  INFO      💰 El costo NO está en la vista «dbo.vInvArticulos». Se lee de [dbo.TinvArticulos].[CostoPromedio] uniendo por ArticuloID. El precio sigue saliendo de la vista (con ITBIS): cada dato de donde es correcto.
+2026-08-18 20:15:05  INFO      🧹 Omitidos 10,293 artículos: 433 sin descripción, 9,860 con costo menor o igual a 1.
+2026-08-18 20:15:05  INFO         · --------- → sin descripción
+2026-08-18 20:15:05  INFO         · ACEITUNAS MANZANILLA 450g → costo <= 1
+2026-08-18 20:15:05  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 20:15:05  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 20:15:05  INFO         · CHICHARRA REVERSIBLE TOLSEN 1/2 → costo <= 1
+2026-08-18 20:15:05  INFO      📊 Precio leído de [dbo.vInvArticulos].[PrecioP] — la MISMA fuente que usa el sync de la web, así que el listado y el admin deben coincidir.
+2026-08-18 20:15:05  INFO      🏷️ Código de barras leído de [NoReferencia] (NoReferencia ↔ products.barcode).
+2026-08-18 20:15:05  INFO      ℹ️ 89 productos no tienen código de barras. Se incluyen igual, con la columna Código vacía (el sync de la web sí los excluye).
+2026-08-18 20:15:05  INFO      ✅ Los precios no parecen estar sin ITBIS (solo 0% de coincidencias sospechosas).
+2026-08-18 20:15:05  INFO      📄 CSV en modo «simple»: 4 columnas (Descripción, Costo, Precio).
+2026-08-18 20:15:05  SUCCESS   ✅ Export para ChatGPT listo: 3,734 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 20:15:05  INFO      📊 3,734 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 20:15:05  INFO      💵 Columna de costo usada: CostoPromedio
+2026-08-18 20:15:05  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.
+2026-08-18 20:47:46  INFO      💰 El costo NO está en la vista «dbo.vInvArticulos». Se lee de [dbo.TinvArticulos].[CostoUltimo] uniendo por ArticuloID. El precio sigue saliendo de la vista (con ITBIS): cada dato de donde es correcto.
+2026-08-18 20:47:46  WARN      ⚠️ Esa tabla tiene MÁS de una columna de costo: se está usando «CostoUltimo» y también existe «CostoPromedio». Si el costo del listado no coincide con el que ves en el programa, es por esto: en dbSIC «Ultimo costo» = CostoUltimo y el promedio ponderado de las compras = CostoPromedio. Cámbialo en el campo «Columna de costo» del panel y vuelve a generar el listado.
+2026-08-18 20:47:47  INFO      🧹 Omitidos 10,458 artículos: 433 sin descripción, 10,025 con costo menor o igual a 1.
+2026-08-18 20:47:47  INFO         · --------- → sin descripción
+2026-08-18 20:47:47  INFO         · BON BRIL ABRASIVO 12X6 → costo <= 1
+2026-08-18 20:47:47  INFO         · BROCHA M/PLASTICO PREMIUM 2 TOLSEN → costo <= 1
+2026-08-18 20:47:47  INFO         · CARNATION EVAPORADA 339.9 ml → costo <= 1
+2026-08-18 20:47:47  INFO         · EDEESTE → costo <= 1
+2026-08-18 20:47:47  INFO      📊 Precio leído de [dbo.vInvArticulos].[PrecioP] — la MISMA fuente que usa el sync de la web, así que el listado y el admin deben coincidir.
+2026-08-18 20:47:47  INFO      🏷️ Código de barras leído de [NoReferencia] (NoReferencia ↔ products.barcode).
+2026-08-18 20:47:47  WARN      🏷️ 120 productos no tenían NoReferencia: se usó su ArticuloID como código, tal como se pidió (que el código salga siempre). Aviso honesto: esos códigos son el ID interno del artículo, así que pueden NO ser el código de barras que la web usa para buscar. Los otros sí lo son.
+2026-08-18 20:47:47  INFO      ✅ Todos los productos del listado llevan código.
+2026-08-18 20:47:47  INFO      ✅ Los precios no parecen estar sin ITBIS (solo 0% de coincidencias sospechosas).
+2026-08-18 20:47:47  INFO      📄 CSV en modo «simple»: 4 columnas (Descripción, Costo, Precio).
+2026-08-18 20:47:47  SUCCESS   ✅ Export para ChatGPT listo: 3,569 productos → C:\RespaldoCasaMota\para-chatgpt
+2026-08-18 20:47:47  INFO      📊 3,569 productos con costo mayor que 0 (0 sin costo registrado).
+2026-08-18 20:47:47  INFO      💵 Columna de costo usada: CostoUltimo
+2026-08-18 20:47:47  WARN      🔒 Este archivo tiene tus costos reales. No lo subas a GitHub.

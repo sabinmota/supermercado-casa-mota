@@ -672,13 +672,25 @@
         <div class="input-row">
           <div>
             <label>Columna de costo</label>
-            <input type="text" id="cfgCostoCol" placeholder="auto-detectar">
+            <input type="text" id="cfgCostoCol" value="CostoUltimo"
+                   placeholder="auto-detectar">
           </div>
           <div>
             <label>Conservar .bak</label>
             <input type="number" id="cfgRetencion" value="7" min="1" max="60">
           </div>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>Contenido del listado</label>
+        <select id="cfgFormato"
+                style="width:100%;background:var(--bg);border:1px solid var(--border);
+                       border-radius:8px;padding:9px 12px;color:var(--text);
+                       font-size:13px;font-family:inherit;outline:none;cursor:pointer;">
+          <option value="simple">Código, Descripción, Costo y Precio</option>
+          <option value="completo">Todo (+ existencia, margen, ganancia…)</option>
+        </select>
       </div>
 
       <button class="btn btn-ghost btn-sm btn-full" onclick="verColumnas()" id="btnCols">
@@ -688,19 +700,67 @@
 
       <div style="height:10px"></div>
 
-      <button class="btn btn-primary btn-full" onclick="hacerRespaldo('bak')" id="btnBak">
-        <i class="fas fa-database"></i> Respaldo completo .bak (restaurable)
-      </button>
-      <div style="height:8px"></div>
-      <button class="btn btn-ghost btn-sm btn-full" onclick="hacerRespaldo('datos')" id="btnDatos">
-        <i class="fas fa-file-csv"></i> Respaldo de datos en CSV
-      </button>
-      <div style="height:8px"></div>
-      <button class="btn btn-ghost btn-sm btn-full" onclick="hacerRespaldo('export')" id="btnExport">
-        <i class="fas fa-robot"></i> Exportar costos y precios para ChatGPT
+      <!-- El botón que se usa de verdad va PRIMERO y en azul. Antes el azul
+           era el .bak y el listado quedaba de tercero en gris: invitaba a
+           pulsar justo lo que no se quiere. -->
+      <button class="btn btn-primary btn-full" onclick="hacerRespaldo('export')" id="btnExport">
+        <i class="fas fa-robot"></i> Crear listado para ChatGPT (una sola vez)
       </button>
 
       <div class="test-result" id="respaldoResult"></div>
+
+      <!-- Botón de aborto. Aparece solo mientras algo está corriendo. -->
+      <button class="btn btn-full" onclick="cancelarRespaldo()" id="btnCancelResp"
+              style="display:none;margin-top:8px;background:#b91c1c;color:#fff">
+        <i class="fas fa-stop"></i> Detener la tarea en curso
+      </button>
+
+      <!-- ── Herramientas de respaldo, plegadas ──────────────────────────
+           Van dentro de un <details> cerrado a propósito: son lentas, no se
+           usan a diario, y una de ellas exporta las 1,020 tablas de dbSIC. -->
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;color:var(--muted);font-size:13px;padding:6px 0">
+          🗄️ Respaldo de la base (no hace falta para el listado)
+        </summary>
+        <div style="padding-top:8px">
+          <p style="font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px">
+            Estos dos botones <strong>no tienen nada que ver</strong> con el
+            listado para ChatGPT. Sirven para recuperar el programa viejo si te
+            atacan o se daña el disco.
+          </p>
+          <button class="btn btn-ghost btn-sm btn-full" onclick="hacerRespaldo('bak')" id="btnBak">
+            <i class="fas fa-database"></i> Respaldo completo .bak (restaurable)
+          </button>
+          <div style="height:8px"></div>
+          <button class="btn btn-ghost btn-sm btn-full" onclick="hacerRespaldo('datos')" id="btnDatos">
+            <i class="fas fa-file-csv"></i> Respaldo de datos en CSV (1,020 tablas · lento)
+          </button>
+          <div style="height:8px"></div>
+          <button class="btn btn-ghost btn-sm btn-full" onclick="desbloquearRespaldo()"
+                  id="btnDesbloquear">
+            <i class="fas fa-unlock"></i> Desbloquear («ya hay un proceso en curso»)
+          </button>
+        </div>
+      </details>
+
+      <!-- Mantener el listado al día -->
+      <div id="listadoBox" style="margin-top:14px;padding:12px;border:1px solid var(--border);
+                                  border-radius:10px;background:var(--bg);">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px;">
+          <i class="fas fa-rotate" style="color:var(--primary)"></i>
+          Listado de precios y costos
+        </div>
+        <div id="listadoInfo" style="font-size:11px;color:var(--text-dim);line-height:1.5;
+                                     margin-bottom:10px;">Comprobando…</div>
+        <button class="btn btn-primary btn-full" onclick="actualizarListado()"
+                id="btnActualizar" disabled>
+          <i class="fas fa-rotate"></i> Actualizar listado de precios y costos
+        </button>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+          Reescribe los mismos archivos en la misma carpeta y te dice
+          <b>qué costos y precios cambiaron</b>. No descarga nada.
+        </div>
+      </div>
 
       <p style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.5;">
         ⚠️ Un respaldo guardado en esta misma PC <b>no sobrevive a un ransomware</b>.
@@ -810,6 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkServer();
   startLogPoll();
   loadAutoSyncState();
+  verEstadoListado();
 });
 
 // ── Verificar servidor local activo ────────────────────────────────────────
@@ -840,6 +901,7 @@ async function loadConfig() {
     if (cfg.backup_carpeta_local)    document.getElementById('cfgCarpetaLocal').value    = cfg.backup_carpeta_local;
     if (cfg.backup_carpeta_servidor) document.getElementById('cfgCarpetaServidor').value = cfg.backup_carpeta_servidor;
     if (cfg.export_costo_col)        document.getElementById('cfgCostoCol').value        = cfg.export_costo_col;
+    if (cfg.export_formato)          document.getElementById('cfgFormato').value         = cfg.export_formato;
     if (cfg.backup_retencion)        document.getElementById('cfgRetencion').value       = cfg.backup_retencion;
     if (cfg.server && cfg.password) enableSyncBtn();
   } catch {}
@@ -856,6 +918,7 @@ async function saveConfig() {
     backup_carpeta_local:    document.getElementById('cfgCarpetaLocal').value.trim(),
     backup_carpeta_servidor: document.getElementById('cfgCarpetaServidor').value.trim(),
     export_costo_col:        document.getElementById('cfgCostoCol').value.trim(),
+    export_formato:          document.getElementById('cfgFormato').value,
     backup_retencion:        parseInt(document.getElementById('cfgRetencion').value) || 7,
   };
   if (!cfg.server || !cfg.password) {
@@ -1299,10 +1362,139 @@ async function clearLog() {
 let _respaldoTimer = null;
 
 function _botonesRespaldo(bloquear) {
-  ['btnBak','btnDatos','btnExport','btnCols'].forEach(id => {
+  ['btnBak','btnDatos','btnExport','btnCols','btnActualizar'].forEach(id => {
     const b = document.getElementById(id);
     if (b) b.disabled = bloquear;
   });
+  // El de actualizar solo se habilita si el listado ya existe.
+  if (!bloquear && !_listadoExiste) {
+    const b = document.getElementById('btnActualizar');
+    if (b) b.disabled = true;
+  }
+}
+
+// ── Desbloqueo manual del módulo de respaldo ───────────────────────────────
+// Se usa cuando el panel insiste en «Ya hay un proceso en curso» pero no hay
+// ninguno corriendo (una tarea murió sin liberar el estado).
+async function desbloquearRespaldo() {
+  const box = document.getElementById('respaldoResult');
+  box.style.display = 'block';
+  box.className = 'test-result loading';
+  box.textContent = 'Liberando…';
+  try {
+    const r = await fetch('/api/respaldo/desbloquear', { method: 'POST' });
+    const j = await r.json();
+    box.className = 'test-result ok';
+    box.textContent = '🔓 ' + (j.msg || 'Desbloqueado.');
+    _botonesRespaldo(false);
+    verEstadoListado();
+  } catch (e) {
+    box.className = 'test-result error';
+    box.textContent = '❌ No se pudo desbloquear: ' + e.message +
+      '. Cierra la ventana negra y vuelve a abrir arrancar.bat.';
+  }
+}
+
+// ── Estado del listado para ChatGPT ────────────────────────────────────────
+let _listadoExiste = false;
+
+async function verEstadoListado() {
+  const info = document.getElementById('listadoInfo');
+  if (!info) return;
+  try {
+    const r = await fetch('/api/respaldo/listado');
+    const d = await r.json();
+    _listadoExiste = !!d.existe;
+
+    if (!d.existe) {
+      info.innerHTML = 'Todavía no existe. Pulsa primero '
+                     + '<b>«Crear listado para ChatGPT»</b> aquí arriba; '
+                     + 'después mantenlo al día con el botón de abajo.';
+      document.getElementById('btnActualizar').disabled = true;
+      return;
+    }
+
+    let html = '📅 Última actualización: <b>' + (d.generado || '—') + '</b>'
+             + '<br>📦 ' + (d.total || 0).toLocaleString('es-DO') + ' productos';
+    if (d.columna_costo) {
+      html += '<br>💵 Columna de costo: <b>' + d.columna_costo + '</b>';
+    }
+    const u = d.ultima_actualizacion;
+    if (u && (u.cambios_de_costo || u.cambios_de_precio)) {
+      html += '<br>🔄 En la última: ' + u.cambios_de_costo + ' costos, '
+            + u.cambios_de_precio + ' precios';
+    }
+    info.innerHTML = html;
+    document.getElementById('btnActualizar').disabled = false;
+  } catch {
+    info.textContent = 'No se pudo comprobar el estado del listado.';
+  }
+}
+
+// ── Actualizar el listado (sin volver a crearlo todo) ──────────────────────
+async function actualizarListado() {
+  const caja = document.getElementById('respaldoResult');
+  caja.className   = 'test-result show';
+  caja.textContent = '⏳ Leyendo precios y costos actuales…';
+  _botonesRespaldo(true);
+  try {
+    // Se mandan los ajustes actuales del panel, no los guardados: si cambias
+    // el desplegable y pulsas sin guardar, debe hacer lo que ves en pantalla.
+    const r = await fetch('/api/respaldo/actualizar', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({
+        costo:   document.getElementById('cfgCostoCol').value.trim(),
+        formato: document.getElementById('cfgFormato').value,
+      }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      caja.className   = 'test-result show error';
+      caja.textContent = d.msg || 'Error';
+      _botonesRespaldo(false);
+      return;
+    }
+    vigilarRespaldo();
+  } catch (e) {
+    caja.className   = 'test-result show error';
+    caja.textContent = '❌ ' + e.message;
+    _botonesRespaldo(false);
+  }
+}
+
+// Muestra el resumen de cambios tras actualizar.
+function _pintarCambios(c) {
+  if (!c) return '';
+  if (!c.total) {
+    return '<div style="margin-bottom:4px">✅ Revisado: '
+         + '<b>ningún cambio</b> desde la última vez.</div>';
+  }
+  let html = '<div style="margin-bottom:6px">✅ Actualizado — '
+           + c.costo + ' costos · ' + c.precio + ' precios · '
+           + c.nuevos + ' nuevos · ' + c.eliminados + ' quitados</div>';
+
+  const fila = (x, simbolo) => {
+    const sube  = x.ahora > x.antes;
+    const color = sube ? '#fca5a5' : '#86efac';
+    const flecha = sube ? '↑' : '↓';
+    return '<div style="font-size:10px;color:var(--text-dim);'
+         + 'padding:2px 0;word-break:break-word">'
+         + simbolo + ' ' + x.nombre + ': '
+         + '<span style="color:' + color + '">' + flecha + ' '
+         + x.antes.toFixed(2) + ' → ' + x.ahora.toFixed(2) + '</span></div>';
+  };
+
+  (c.detalle_costo  || []).slice(0, 12).forEach(x => html += fila(x, '💵'));
+  (c.detalle_precio || []).slice(0, 8).forEach(x  => html += fila(x, '🏷️'));
+
+  const mostrados = Math.min(12, (c.detalle_costo || []).length)
+                  + Math.min(8,  (c.detalle_precio || []).length);
+  if (c.costo + c.precio > mostrados) {
+    html += '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'
+          + '…el resto está en <b>historial-de-cambios.csv</b></div>';
+  }
+  return html;
 }
 
 function _pesar(bytes) {
@@ -1372,10 +1564,30 @@ const _RUTAS_RESPALDO = {
 const _AVISOS_RESPALDO = {
   bak: 'El respaldo completo puede tardar varios minutos y el archivo se '
      + 'escribe en el disco DEL SERVIDOR SQL.\n\n¿Continuar?',
-  datos: 'Se exportará cada tabla a un CSV. Puede tardar según el tamaño de '
-       + 'la base.\n\n¿Continuar?',
+  datos: '⚠️ ESTO NO ES EL LISTADO PARA CHATGPT.\n\n'
+       + 'Va a exportar LAS 1,020 TABLAS de la base (contabilidad, bancos, '
+       + 'clientes, diagramas del sistema…) a un CSV cada una. Tarda mucho y '
+       + 'llena la carpeta de archivos que no necesitas.\n\n'
+       + 'Si lo que quieres son los costos y precios, cierra esto y pulsa '
+       + '«Crear listado para ChatGPT».\n\n'
+       + '¿Seguro que quieres el respaldo completo de datos?',
   export: null,
 };
+
+// ── Detener la tarea en curso ──────────────────────────────────────────────
+async function cancelarRespaldo() {
+  const caja = document.getElementById('respaldoResult');
+  try {
+    const r = await fetch('/api/respaldo/cancelar', { method: 'POST' });
+    const j = await r.json();
+    caja.style.display = 'block';
+    caja.className = 'test-result ' + (j.ok ? 'loading' : 'error');
+    caja.textContent = (j.ok ? '🛑 ' : '⚠️ ') + (j.msg || '');
+  } catch (e) {
+    caja.className = 'test-result error';
+    caja.textContent = '❌ No se pudo cancelar: ' + e.message;
+  }
+}
 
 async function hacerRespaldo(tarea) {
   const aviso = _AVISOS_RESPALDO[tarea];
@@ -1387,7 +1599,8 @@ async function hacerRespaldo(tarea) {
   _botonesRespaldo(true);
 
   const cuerpo = tarea === 'export'
-    ? { costo: document.getElementById('cfgCostoCol').value.trim() }
+    ? { costo:   document.getElementById('cfgCostoCol').value.trim(),
+        formato: document.getElementById('cfgFormato').value }
     : {};
 
   try {
@@ -1423,14 +1636,29 @@ function vigilarRespaldo() {
       if (s.corriendo) {
         caja.className   = 'test-result show';
         caja.textContent = '⏳ ' + (s.paso || 'Trabajando…');
+        // El botón de detener solo tiene sentido mientras algo corre.
+        const bc = document.getElementById('btnCancelResp');
+        if (bc) bc.style.display = 'block';
         return;
       }
 
       clearInterval(_respaldoTimer);
       _botonesRespaldo(false);
+      const bc = document.getElementById('btnCancelResp');
+      if (bc) bc.style.display = 'none';
 
       if (s.ok === true) {
         caja.className = 'test-result show multi ok';
+
+        // Si fue una actualización del listado, lo que importa no es cuántos
+        // archivos se escribieron sino QUÉ cambió de precio y de costo.
+        if (s.tarea === 'actualizar') {
+          caja.innerHTML = _pintarCambios(s.cambios);
+          verEstadoListado();
+          listarArchivos();
+          return;
+        }
+
         let html = '<div style="margin-bottom:6px">✅ Listo — '
                  + (s.archivos || []).length + ' archivo(s) generado(s)</div>';
         (s.archivos || []).slice(0, 12).forEach(a => {
@@ -1442,6 +1670,7 @@ function vigilarRespaldo() {
                 + ((s.archivos || []).length - 12) + ' más</div>';
         }
         caja.innerHTML = html;
+        verEstadoListado();
         listarArchivos();
       } else if (s.ok === false) {
         caja.className   = 'test-result show error';

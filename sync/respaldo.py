@@ -94,11 +94,13 @@ def _cfg():
 # ── Estado del proceso en curso ────────────────────────────────────────────
 _estado = {
     'corriendo': False,
-    'tarea':     '',      # 'bak' | 'datos' | 'export'
+    'tarea':     '',      # 'bak' | 'datos' | 'export' | 'actualizar'
     'paso':      '',
     'ok':        None,
     'archivos':  [],
     'error':     '',
+    'cambios':   None,    # resumen de la última actualización del listado
+    'cancelar':  False,   # lo pone a True /api/respaldo/cancelar
 }
 _estado_lock = threading.Lock()
 
@@ -106,6 +108,18 @@ _estado_lock = threading.Lock()
 def _set_estado(**kw):
     with _estado_lock:
         _estado.update(kw)
+
+
+def _cancelado():
+    """
+    True si el usuario pidió abortar la tarea en curso.
+
+    Hace falta porque «Respaldo de datos en CSV» recorre las MIL VEINTE tablas
+    de dbSIC una por una. Sin este freno, quien lo pulsa por error tiene que
+    esperar a que termine o matar el proceso a mano.
+    """
+    with _estado_lock:
+        return bool(_estado.get('cancelar'))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -235,11 +249,18 @@ def _columnas_de(conn, nombre_tabla):
     return [{'nombre': r[0], 'tipo': r[1]} for r in cur.fetchall()]
 
 
-# Candidatas en orden de probabilidad. Los sistemas dominicanos de punto de
-# venta suelen usar «Costo», «CostoP» o «UltimoCosto».
+# Candidatas en ORDEN DE PRIORIDAD. El orden importa: si la tabla tiene varias
+# columnas de costo, gana la primera de esta lista.
+#
+# 🔴 «costoultimo» va PRIMERO porque es el nombre real confirmado en dbSIC de
+# Casa Mota (columna `CostoUltimo`). Antes la lista empezaba por 'costo', así
+# que si la tabla tuviera además una columna `Costo` genérica, esa habría
+# ganado y el export habría mostrado una cifra distinta a la que el usuario
+# quiere ver, sin avisar de nada.
 _CANDIDATAS_COSTO = [
+    'costoultimo', 'ultimocosto',
     'costo', 'costop', 'costou', 'costounitario', 'costopromedio',
-    'ultimocosto', 'costoultimo', 'costofinal', 'costoactual',
+    'costofinal', 'costoactual',
     'preciocosto', 'precioc', 'costocompra', 'costoneto', 'cost',
 ]
 
@@ -333,7 +354,8 @@ def _tarea_bak():
     archivos = []
     try:
         _set_estado(corriendo=True, tarea='bak', ok=None, error='',
-                    archivos=[], paso='Conectando a SQL Server…')
+                    archivos=[], paso='Conectando a SQL Server…',
+                    cancelar=False)
 
         base   = cfg.get('database', 'dbSIC')
         sello  = datetime.now().strftime('%Y-%m-%d_%H%M')
@@ -458,6 +480,17 @@ def _tarea_bak():
         _log(f'❌ Error en el respaldo: {detalle}{ayuda}', 'ERROR')
         _set_estado(corriendo=False, ok=False, error=detalle + ayuda, paso='Error')
 
+    finally:
+        # 🔴 Red de seguridad. Sin este finally, si el hilo muere por algo que
+        # no es Exception (BaseException, KeyboardInterrupt, un fallo dentro de
+        # _set_estado…), «corriendo» se queda en True PARA SIEMPRE y el panel
+        # rechaza todos los botones con «Ya hay un proceso en curso», sin forma
+        # de recuperarse salvo reiniciando el servidor. Pasó de verdad.
+        if _estado.get('corriendo'):
+            _set_estado(corriendo=False, paso='Interrumpido')
+            _log('⚠️ La tarea terminó de forma inesperada. Estado liberado.',
+                 'WARN')
+
 
 def _limpiar_antiguos(carpeta, conservar):
     """Borra los .bak más viejos y deja solo los N más recientes."""
@@ -491,7 +524,7 @@ def _tarea_datos():
     archivos = []
     try:
         _set_estado(corriendo=True, tarea='datos', ok=None, error='',
-                    archivos=[], paso='Conectando…')
+                    archivos=[], paso='Conectando…', cancelar=False)
 
         sello   = datetime.now().strftime('%Y-%m-%d_%H%M')
         destino = os.path.join(_carpeta_local(cfg), f'datos_{sello}')
@@ -513,6 +546,12 @@ def _tarea_datos():
         total_filas = 0
         fallidas    = []
         for i, (esq, tab) in enumerate(tablas, 1):
+            if _cancelado():
+                _log(f'🛑 Cancelado por el usuario en la tabla {i} de '
+                     f'{len(tablas)}. Los CSV ya escritos se quedan en '
+                     f'{destino} — puedes borrar esa carpeta sin problema.',
+                     'WARN')
+                break
             _set_estado(paso=f'Tabla {i}/{len(tablas)}: {esq}.{tab}')
             try:
                 c2 = conn.cursor()
@@ -573,6 +612,12 @@ def _tarea_datos():
         _log(f'❌ Error en el respaldo de datos: {str(e)[:300]}', 'ERROR')
         _set_estado(corriendo=False, ok=False, error=str(e)[:300], paso='Error')
 
+    finally:
+        if _estado.get('corriendo'):
+            _set_estado(corriendo=False, paso='Interrumpido')
+            _log('⚠️ El respaldo de datos terminó de forma inesperada. Estado '
+                 'liberado.', 'WARN')
+
 
 @bp_respaldo.route('/api/respaldo/datos', methods=['POST'])
 def respaldo_datos():
@@ -610,83 +655,395 @@ def _num(v):
         return 0.0
 
 
-def _tarea_export(opciones):
-    cfg = _cfg()
-    archivos = []
+# ══════════════════════════════════════════════════════════════════════════════
+#  FILTRO DE BASURA — artículos sin descripción real o sin costo real
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# En dbSIC hay filas que no son productos vendibles: renglones de prueba,
+# artículos dados de baja a los que solo les quedó un punto en el nombre, y
+# artículos cuyo costo nunca se cargó (queda en 0 o en 1).
+#
+# 🔴 Por qué «costo <= 1» y no «costo <= 0»: el usuario lo pidió así porque en
+# su base el 1 se usa como valor de relleno cuando no se conoce el costo. Ojo:
+# esto TAMBIÉN descarta cualquier producto que de verdad cueste 1 peso o menos.
+# Si algún día vende algo a ese costo real, hay que subir el criterio.
+COSTO_MINIMO = 1.0
+
+# Exige DOS LETRAS SEGUIDAS en alguna parte del nombre.
+#
+# 🔴 Antes esto contaba letras sueltas en cualquier posición, y eso NO era lo
+# mismo que hace el PATINDEX de las consultas SQL de sync_precios.py y
+# servidor_local.py, que exige dos letras consecutivas. Un nombre como
+# «..A.B..» pasaba en Python y se descartaba en SQL: el listado de ChatGPT y
+# la web habrían quedado con catálogos distintos sin que nada avisara.
+# Ahora las dos implementaciones aplican exactamente el mismo criterio.
+_DOS_LETRAS = re.compile(r'[^\W\d_]{2}', re.UNICODE)
+
+
+def _nombre_valido(nombre):
+    """
+    True si el nombre parece una descripción de producto de verdad.
+
+    Criterio: debe contener al menos DOS LETRAS SEGUIDAS.
+
+    Descarta:
+      - vacío o solo espacios
+      - solo puntuación:  '.'  '..'  '.....'  ','  '---------'  '***'  '. ,'
+      - solo números:  '123'   (un código suelto no es una descripción)
+      - una sola letra:  'X'   ·  letras sueltas entre signos:  '..A.B..'
+
+    Acepta 'Pan', 'Té', 'Maní Piñón', 'A-1 Salsa', 'Aceite de Soya 64oz'.
+    """
+    if not nombre:
+        return False
+    t = str(nombre).strip()
+    if not t:
+        return False
+    return bool(_DOS_LETRAS.search(t))
+
+
+def _costo_valido(costo):
+    """
+    True si el costo es utilizable. Descarta None, 0, negativos y todo lo que
+    sea menor o igual a COSTO_MINIMO (1.0), que en esta base significa
+    «costo no cargado».
+    """
     try:
-        _set_estado(corriendo=True, tarea='export', ok=None, error='',
-                    archivos=[], paso='Conectando…')
+        return float(costo) > COSTO_MINIMO
+    except (TypeError, ValueError):
+        return False
 
-        tabla     = opciones.get('tabla') or cfg.get('export_tabla') or 'dbo.TinvArticulos'
-        col_costo = (opciones.get('costo') or cfg.get('export_costo_col') or '').strip()
 
-        conn = _conectar(cfg, timeout=30)
+def _descartar(nombre, costo, exigir_costo=True):
+    """
+    Devuelve el motivo del descarte, o None si la fila se queda.
+
+    `exigir_costo=False` se usa cuando la consulta no trae columna de costo
+    (el sync del panel lee una vista que no la tiene): en ese caso solo se
+    puede filtrar por nombre, y hay que decirlo en el log en vez de fingir
+    que se filtró por costo.
+    """
+    if not _nombre_valido(nombre):
+        return 'sin descripción'
+    if exigir_costo and not _costo_valido(costo):
+        return 'costo <= 1'
+    return None
+
+
+def _leer_catalogo(cfg, opciones):
+    """
+    Lee costos y precios desde SQL Server y devuelve (productos, tabla, col_costo).
+
+    Esta función es la ÚNICA que lee el catálogo. Tanto la exportación completa
+    como el botón «Actualizar listado» la usan, para que sea imposible que las
+    dos den resultados distintos: si un día se cambia el criterio, cambia para
+    las dos a la vez.
+    """
+    # 🔴 FUENTE ÚNICA — dbo.vInvArticulos, la MISMA que usa el sync.
+    #
+    # Antes esto apuntaba por defecto a 'dbo.TinvArticulos' (la tabla cruda),
+    # mientras que el sync de precios de la web lee 'dbo.vInvArticulos' (la
+    # vista). Las dos tienen una columna llamada «PrecioP», pero NO valen lo
+    # mismo: el usuario comprobó que los precios del listado no coincidían con
+    # los del admin, y al revisar las cifras del CSV, 20 de 20 productos daban
+    # un precio de mostrador redondo al multiplicarlos por 1.18 — es decir, la
+    # tabla guarda el precio SIN ITBIS y la vista lo devuelve YA CON ITBIS.
+    #
+    # Resultado del fallo: ChatGPT respondía precios ~15% por debajo del real.
+    # Leer de la vista, igual que el sync, es lo que garantiza que el listado y
+    # la web digan exactamente lo mismo.
+    tabla = (opciones.get('tabla') or cfg.get('export_tabla')
+             or 'dbo.vInvArticulos')
+    col_costo = (opciones.get('costo') or cfg.get('export_costo_col') or '').strip()
+
+    conn = _conectar(cfg, timeout=30)
+    try:
         cols = _columnas_de(conn, tabla)
         if not cols:
             raise RuntimeError(f'La tabla «{tabla}» no existe o no es accesible. '
                                f'Usa «Ver columnas» para revisar los nombres.')
 
-        # Resolver los nombres reales de cada columna que nos interesa.
         c_id     = _elegir(cols, 'ArticuloID', 'Id', 'IdArticulo', 'Codigo')
         c_nombre = _elegir(cols, 'Nombre', 'Descripcion', 'DescripcionArticulo')
-        c_codigo = _elegir(cols, 'NoReferencia', 'Referencia', 'CodigoBarra',
-                           'CodigoBarras', 'Barcode')
-        c_precio = _elegir(cols, 'PrecioP', 'Precio', 'PrecioVenta', 'Precio1')
+        # 🔴 «NoReferencia» y nada más — copiado de la fuente, no adivinado.
+        #
+        # Verificado en sync_precios.py:
+        #   · cabecera línea 8:  «Matching: TinvArticulos.NoReferencia ↔ products.barcode»
+        #   · consulta línea 146: LTRIM(RTRIM(NoReferencia)) AS NoReferencia
+        #   · create_producto línea 227: 'barcode': sql_row['NoReferencia']
+        #
+        # Aquí había la misma cadena de reserva que rompió el precio:
+        # NoReferencia → Referencia → CodigoBarra → CodigoBarras → Barcode. Si
+        # la vista no tuviera NoReferencia, el listado se habría ido callado a
+        # otra columna y habría publicado códigos que NO son los que la web usa
+        # para identificar el producto. Se exige la columna real o se falla.
+        c_codigo = _elegir(cols, 'NoReferencia')
+        if not c_codigo:
+            raise RuntimeError(
+                f'La tabla «{tabla}» no tiene la columna «NoReferencia», que es '
+                f'la que el sync usa como código de barras (NoReferencia ↔ '
+                f'products.barcode). No se genera el listado: un código '
+                f'distinto al de la web sería inútil para buscar productos.')
+        # 🔴 «PrecioP» a secas y nada más.
+        #
+        # Antes había una cadena de reserva: PrecioP → Precio → PrecioVenta →
+        # Precio1. Eso parece prudente, pero es justo lo que rompe la
+        # coherencia: el sync de la web lee SIEMPRE «PrecioP» y solo esa. Si en
+        # la vista no existiera, el listado se habría ido callado a «Precio» o
+        # a «Precio1» y habría publicado otra tarifa distinta a la de la web,
+        # sin un solo aviso. Mejor fallar con un error claro que mentir.
+        c_precio = _elegir(cols, 'PrecioP')
+        if not c_precio:
+            raise RuntimeError(
+                f'La tabla «{tabla}» no tiene la columna «PrecioP», que es la '
+                f'que usa el sync de la web para fijar los precios. No se '
+                f'genera el listado: preferimos avisar antes que publicar '
+                f'precios que no coincidan con el admin. Usa «Ver columnas» '
+                f'para revisar de dónde estás leyendo.')
         c_stock  = _elegir(cols, 'ExistGlobal', 'Existencia', 'Stock', 'Exist')
         c_unidad = _elegir(cols, 'Unidad', 'UnidadMedida', 'Um')
         c_depto  = _elegir(cols, 'Departamento', 'Categoria', 'Grupo', 'Familia')
+
+        # El nombre que pidió el usuario se guarda aparte ANTES de tocar nada,
+        # porque más abajo hace falta para buscarlo en la tabla de costo.
+        costo_pedido = col_costo
 
         if not col_costo:
             col_costo, motivo = _detectar_costo(cols)
             if col_costo:
                 _log(f'🔍 Columna de costo detectada automáticamente: '
                      f'«{col_costo}» ({motivo}).', 'INFO')
-            else:
-                _log('⚠️ No se encontró columna de costo en esta tabla. El '
-                     'export saldrá con costo en 0. Usa «Ver columnas» para '
-                     'localizarla y escríbela a mano.', 'WARN')
         else:
-            # Validar contra las columnas reales: evita inyección SQL y typos
-            real = _elegir(cols, col_costo)
-            if not real:
-                raise RuntimeError(f'La columna de costo «{col_costo}» no existe '
-                                   f'en {tabla}. Usa «Ver columnas».')
-            col_costo = real
+            # Validar contra las columnas reales: evita inyección SQL y typos.
+            #
+            # 🔴 SI NO EXISTE, HAY QUE VACIARLO. Aquí estuvo el bug que rompió
+            # el listado por completo: dejaba «col_costo» con el nombre que no
+            # existe («CostoPromedio»), así que el bloque del JOIN de abajo
+            # —que solo entra cuando col_costo está vacío— NUNCA se ejecutaba,
+            # y el SELECT acababa pidiendo v.[CostoPromedio] a la vista.
+            # Resultado: «Invalid column name 'CostoPromedio'» y CERO listado.
+            # Es peor que el fallo que venía a arreglar: antes salía el costo
+            # en 0, ahora no salía nada.
+            col_costo = _elegir(cols, col_costo) or ''
+
+        # ══════════════════════════════════════════════════════════════════════
+        #  🔴 EL COSTO VIVE EN OTRO SITIO QUE EL PRECIO
+        # ══════════════════════════════════════════════════════════════════════
+        #
+        # Comprobado en la base real del usuario (log del 2026-08-18 19:39):
+        # «La columna de costo CostoPromedio no existe en dbo.vInvArticulos y no
+        # se encontró NINGUNA alternativa» → 13,594 productos con costo 0.00.
+        #
+        # O sea: la VISTA dbo.vInvArticulos NO expone ninguna columna de costo.
+        # Ni CostoUltimo ni CostoPromedio ni nada. Pero el precio CON ITBIS solo
+        # está en la vista, y el costo solo está en la TABLA dbo.TinvArticulos.
+        #
+        # Escoger una sola fuente es imposible sin perder algo:
+        #   · solo la vista → precio bien, costo en 0        (fallo actual)
+        #   · solo la tabla → costo bien, precio 15% bajo    (fallo anterior)
+        #
+        # Por eso se leen LAS DOS y se unen por ArticuloID, que es la clave que
+        # el propio sync usa para identificar artículos (sync_precios.py lo
+        # selecciona y ordena por él). Cada dato sale de donde es correcto:
+        #   · precio, nombre, código, existencia → vista  (con ITBIS)
+        #   · costo                              → tabla  (el real de compra)
+        #
+        # Se usa LEFT JOIN a propósito: si un artículo estuviera en la vista y
+        # no en la tabla, se queda en el listado con costo 0 en vez de
+        # desaparecer. Antes desaparecer sería peor: sería esconderle al usuario
+        # un producto que sí vende.
+        tabla_costo = ''
+        if not col_costo:
+            TABLA_COSTO_DEF = 'dbo.TinvArticulos'
+            cols_t = _columnas_de(conn, TABLA_COSTO_DEF)
+            if cols_t:
+                cand, motivo = _detectar_costo(cols_t)
+                # Si la config pedía un nombre concreto, se respeta si existe
+                # ahí. Así «CostoUltimo» manda sobre la autodetección.
+                pedida = costo_pedido
+                real_t = _elegir(cols_t, pedida) if pedida else None
+                elegida = real_t or cand
+                # La clave del JOIN tiene que existir en LAS DOS fuentes. Si la
+                # tabla de costo no tiene el mismo ArticuloID, no se une: un
+                # JOIN por otra cosa emparejaría filas equivocadas sin avisar.
+                if elegida and c_id and not _elegir(cols_t, c_id):
+                    _log(f'🔴 {TABLA_COSTO_DEF} no tiene la columna «{c_id}», '
+                         f'que es la clave para unirla con la vista. No se trae '
+                         f'el costo: emparejar por otro campo daría costos de '
+                         f'productos equivocados.', 'ERROR')
+                    elegida = None
+                if elegida:
+                    col_costo   = elegida
+                    tabla_costo = TABLA_COSTO_DEF
+                    if real_t:
+                        _log(f'💰 El costo NO está en la vista «{tabla}». Se lee '
+                             f'de [{TABLA_COSTO_DEF}].[{elegida}] uniendo por '
+                             f'ArticuloID. El precio sigue saliendo de la vista '
+                             f'(con ITBIS): cada dato de donde es correcto.',
+                             'INFO')
+                    else:
+                        _log(f'💰 El costo NO está en la vista «{tabla}» ni con '
+                             f'el nombre configurado. Se lee de '
+                             f'[{TABLA_COSTO_DEF}].[{elegida}] ({motivo}), '
+                             f'uniendo por ArticuloID. Revisa en «Ver columnas» '
+                             f'que sea la que quieres.', 'WARN')
+
+                    # ── 🔴 AVISO DE COLUMNA DE COSTO AMBIGUA ──
+                    #
+                    # dbSIC guarda VARIOS costos por artículo y NO valen lo
+                    # mismo. Caso real medido por el usuario en «AGUA SABOR
+                    # NARANJA COOL HEAVEN 500ml»: el programa muestra
+                    # «Ultimo costo: 17.81» y el listado traía 16.72, porque
+                    # la configuración guardada apuntaba a CostoPromedio (el
+                    # promedio ponderado de las compras) en vez de CostoUltimo
+                    # (lo que se pagó la última vez). Las dos columnas existen y
+                    # las dos son «el costo»: nada en el SQL puede distinguir
+                    # cuál quiere el usuario, así que se le dice cuál se usó y
+                    # cuál es la otra, en vez de dejarlo adivinando por qué las
+                    # cifras no cuadran con la pantalla del programa.
+                    otras = [c['nombre'] for c in cols_t
+                             if c['nombre'].lower() in _CANDIDATAS_COSTO
+                             and c['nombre'].lower() != elegida.lower()]
+                    if otras:
+                        _log(f'⚠️ Esa tabla tiene MÁS de una columna de costo: '
+                             f'se está usando «{elegida}» y también existe '
+                             f'{", ".join(chr(171) + o + chr(187) for o in otras)}. '
+                             f'Si el costo del listado no coincide con el que '
+                             f'ves en el programa, es por esto: en dbSIC '
+                             f'«Ultimo costo» = CostoUltimo y el promedio '
+                             f'ponderado de las compras = CostoPromedio. '
+                             f'Cámbialo en el campo «Columna de costo» del '
+                             f'panel y vuelve a generar el listado.', 'WARN')
+
+        if not col_costo:
+            _log(f'🔴 No se encontró ninguna columna de costo, ni en «{tabla}» '
+                 f'ni en dbo.TinvArticulos. El listado sale con costo en 0 y '
+                 f'SIN filtro de costo (solo se descartan los nombres sin '
+                 f'letras). Usa «Ver columnas» y escribe el nombre a mano.',
+                 'ERROR')
+
+        # El JOIN necesita ArticuloID en las DOS fuentes. Sin él no hay forma
+        # fiable de emparejar filas, así que se avisa y se renuncia al costo en
+        # vez de emparejar por nombre, que daría cruces equivocados en silencio.
+        if tabla_costo and not c_id:
+            _log(f'🔴 «{tabla}» no expone ArticuloID, así que no se puede unir '
+                 f'con {tabla_costo} para traer el costo. Listado con costo 0.',
+                 'ERROR')
+            col_costo, tabla_costo = '', ''
 
         if not c_nombre:
             raise RuntimeError(f'No se encontró columna de nombre en {tabla}.')
 
-        # SELECT armado solo con nombres verificados contra INFORMATION_SCHEMA
+        # SELECT armado solo con nombres verificados contra INFORMATION_SCHEMA.
+        # Se cualifica cada columna con el alias de su fuente (v = vista/tabla
+        # principal, c = tabla de costo) porque con el JOIN puede haber nombres
+        # repetidos en las dos y SQL Server respondería «Ambiguous column name».
         seleccion = []
-        def add(alias, columna):
-            seleccion.append(f'[{columna}] AS [{alias}]' if columna
+        def add(alias, columna, fuente='v'):
+            seleccion.append(f'{fuente}.[{columna}] AS [{alias}]' if columna
                              else f'NULL AS [{alias}]')
         add('id', c_id)
         add('nombre', c_nombre)
         add('codigo', c_codigo)
-        add('costo', col_costo)
+        add('costo', col_costo, 'c' if tabla_costo else 'v')
         add('precio', c_precio)
         add('existencia', c_stock)
         add('unidad', c_unidad)
         add('departamento', c_depto)
 
+        # ── 🔴 RED DE SEGURIDAD ANTES DE MANDAR EL SELECT ──
+        #
+        # Existe porque el bug que rompió el listado fue exactamente esto: una
+        # columna que no existía se colaba en el SELECT y SQL Server contestaba
+        # «Invalid column name», tirando la tarea entera. Un error de una línea
+        # dejó al usuario sin listado, cuando el peor caso aceptable era un
+        # costo en 0.
+        #
+        # Aquí se comprueba cada columna contra las columnas REALES de su propia
+        # fuente. Si alguna falla, se anula solo ESE campo y se sigue: perder
+        # una columna es molesto, perder el listado completo es inaceptable.
+        cols_costo = _columnas_de(conn, tabla_costo) if tabla_costo else []
+        for alias, nombre_col, fuente in (
+                ('id', c_id, 'v'), ('nombre', c_nombre, 'v'),
+                ('codigo', c_codigo, 'v'), ('precio', c_precio, 'v'),
+                ('existencia', c_stock, 'v'), ('unidad', c_unidad, 'v'),
+                ('departamento', c_depto, 'v'),
+                ('costo', col_costo, 'c' if tabla_costo else 'v')):
+            if not nombre_col:
+                continue
+            disponibles = cols_costo if fuente == 'c' else cols
+            if not _elegir(disponibles, nombre_col):
+                origen = tabla_costo if fuente == 'c' else tabla
+                _log(f'🔴 La columna «{nombre_col}» ({alias}) no existe en '
+                     f'«{origen}». Se omite ese dato en vez de tumbar el '
+                     f'listado completo.', 'ERROR')
+                if alias == 'costo':
+                    col_costo, tabla_costo = '', ''
+                    seleccion[3] = 'NULL AS [costo]'
+                else:
+                    raise RuntimeError(
+                        f'La columna «{nombre_col}» ({alias}) no existe en '
+                        f'«{origen}». Usa «Ver columnas» para revisarlo.')
+
         esq, tab = _partir_tabla(tabla)
-        _set_estado(paso='Leyendo productos…')
+        desde = f'[{esq}].[{tab}] AS v'
+        if tabla_costo:
+            esq_c, tab_c = _partir_tabla(tabla_costo)
+            # LEFT JOIN: ningún artículo de la vista se pierde por no estar en
+            # la tabla de costo. ISNULL se aplica luego en Python con _num().
+            desde += (f' LEFT JOIN [{esq_c}].[{tab_c}] AS c '
+                      f'ON c.[{c_id}] = v.[{c_id}]')
+
         cur = conn.cursor()
-        cur.execute(f"SELECT {', '.join(seleccion)} FROM [{esq}].[{tab}] "
-                    f"ORDER BY [{c_nombre}]")
+        cur.execute(f"SELECT {', '.join(seleccion)} FROM {desde} "
+                    f"ORDER BY v.[{c_nombre}]")
 
         productos = []
+        omitidos  = {'sin descripción': 0, 'costo <= 1': 0}
+        ejemplos  = []
+        codigo_de_id = 0     # cuántas filas tuvieron que caer en ArticuloID
         for r in cur.fetchall():
             nombre = (str(r.nombre).strip() if r.nombre else '')
-            if not nombre:
-                continue
             costo  = _num(r.costo)
+
+            # Filtro de basura. Si no hay columna de costo no se puede exigir
+            # el costo, así que solo se valida el nombre.
+            motivo = _descartar(nombre, costo, exigir_costo=bool(col_costo))
+            if motivo:
+                omitidos[motivo] = omitidos.get(motivo, 0) + 1
+                if len(ejemplos) < 5:
+                    ejemplos.append(f'{nombre or "(vacío)"} → {motivo}')
+                continue
+
             precio = _num(r.precio)
             margen = round((precio - costo) / precio * 100, 1) if precio else 0.0
+
+            # ── 🔴 EL CÓDIGO SALE SIEMPRE ──
+            #
+            # El usuario lo pidió explícitamente: «que el código salga sí o sí,
+            # no importa si es compatible con los estándares de código de barras
+            # o no». Muchos artículos de peso, empaque o servicio (BANDEJA DOBLE
+            # TRANSPARENTE PEQUEÑA, por ejemplo) tienen NoReferencia vacío.
+            #
+            # El respaldo es ArticuloID, y no es una elección al azar: en dbSIC
+            # el «Artículo ID» ES el código del artículo. Comprobado en la ficha
+            # del programa que envió el usuario, donde «Artículo ID» y
+            # «Referencia» muestran el MISMO valor: 7461063097148.
+            #
+            # ⚠️ Diferencia importante con la cadena de reserva que rompió el
+            # precio: allí el fallback publicaba OTRA TARIFA fingiendo ser la
+            # buena, en silencio. Aquí no se finge nada — se cuenta cuántas
+            # filas usaron el respaldo y se avisa en el log, porque un código
+            # sacado de ArticuloID puede NO ser el barcode que usa la web.
+            cod = str(r.codigo).strip() if r.codigo else ''
+            if not cod:
+                cod = str(r.id).strip() if r.id is not None else ''
+                if cod:
+                    codigo_de_id += 1
+
             productos.append({
                 'id':           str(r.id).strip() if r.id is not None else '',
-                'codigo':       str(r.codigo).strip() if r.codigo else '',
+                'codigo':       cod,
                 'nombre':       nombre,
                 'busqueda':     _normalizar(nombre),
                 'costo':        costo,
@@ -697,10 +1054,288 @@ def _tarea_export(opciones):
                 'unidad':       str(r.unidad).strip() if r.unidad else '',
                 'departamento': str(r.departamento).strip() if r.departamento else '',
             })
+    finally:
         conn.close()
 
-        if not productos:
-            raise RuntimeError('La consulta no devolvió productos.')
+    total_omitidos = sum(omitidos.values())
+    if total_omitidos:
+        _log(f'🧹 Omitidos {total_omitidos:,} artículos: '
+             f'{omitidos.get("sin descripción", 0):,} sin descripción, '
+             f'{omitidos.get("costo <= 1", 0):,} con costo menor o igual a 1.',
+             'INFO')
+        for e in ejemplos:
+            _log(f'   · {e}', 'INFO')
+    if not col_costo:
+        _log('⚠️ Sin columna de costo no se puede filtrar por costo; solo se '
+             'omitieron los artículos sin descripción.', 'WARN')
+
+    if not productos:
+        raise RuntimeError(
+            'Después de filtrar no quedó ningún producto. Revisa que la '
+            'columna de costo sea la correcta: si apuntas a una columna que '
+            'está en 0 para todo el catálogo, el filtro «costo <= 1» descarta '
+            'absolutamente todo.')
+
+    _log(f'📊 Precio leído de [{tabla}].[{c_precio}] — la MISMA fuente que usa '
+         f'el sync de la web, así que el listado y el admin deben coincidir.',
+         'INFO')
+    _log(f'🏷️ Código de barras leído de [{c_codigo}] '
+         f'(NoReferencia ↔ products.barcode).', 'INFO')
+
+    # Cuántos productos usaron ArticuloID como código, y cuántos siguen sin
+    # ninguno. NO se descarta a nadie: el sync sí los excluye de la web, pero
+    # aquí el objetivo es consultar costos y precios, y esconder un producto que
+    # el usuario sí vende sería peor que mostrarlo sin código.
+    if codigo_de_id:
+        _log(f'🏷️ {codigo_de_id:,} productos no tenían NoReferencia: se usó su '
+             f'ArticuloID como código, tal como se pidió (que el código salga '
+             f'siempre). Aviso honesto: esos códigos son el ID interno del '
+             f'artículo, así que pueden NO ser el código de barras que la web '
+             f'usa para buscar. Los otros sí lo son.', 'WARN')
+
+    sin_codigo = sum(1 for p in productos if not p['codigo'])
+    if sin_codigo:
+        _log(f'ℹ️ {sin_codigo:,} productos no tienen ni NoReferencia ni '
+             f'ArticuloID: salen con la columna Código vacía. No se descartan.',
+             'INFO')
+    else:
+        _log('✅ Todos los productos del listado llevan código.', 'INFO')
+    _avisar_si_precio_sospechoso(productos, tabla)
+
+    return productos, tabla, col_costo
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  DETECTOR DE PRECIO SIN ITBIS
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Este chequeo nace de un fallo real: el listado se estaba generando desde
+# dbo.TinvArticulos mientras el sync leía dbo.vInvArticulos. Las dos tienen
+# «PrecioP», pero la tabla lo guarda SIN ITBIS y la vista lo devuelve con el
+# impuesto ya aplicado, así que ChatGPT respondía precios ~15% por debajo.
+#
+# El síntoma es reconocible: si los precios son «raros» (16.95, 67.80, 254.24)
+# pero al multiplicarlos por 1.18 salen cifras de mostrador redondas (20, 80,
+# 300), lo que se está leyendo es el precio base sin impuesto.
+ITBIS = 1.18
+
+
+def _es_redondo(n):
+    """Múltiplo de 5, que es como se fijan los precios de mostrador."""
+    return abs(n - round(n)) < 0.02 and round(n) % 5 == 0
+
+
+def _avisar_si_precio_sospechoso(productos, tabla):
+    """
+    Avisa en el log si los precios parecen estar SIN ITBIS.
+
+    No corrige nada por su cuenta: aplicar un 18% a ciegas sería peor que el
+    fallo original. Solo avisa, y dice exactamente qué revisar.
+    """
+    muestra = [p['precio'] for p in productos[:400] if p['precio'] > 0]
+    if len(muestra) < 20:
+        return
+
+    candidatos = [v for v in muestra if not _es_redondo(v)]
+    if len(candidatos) < 10:
+        return
+
+    cuadran = sum(1 for v in candidatos if _es_redondo(v * ITBIS))
+    pct = cuadran * 100 // len(candidatos)
+
+    if pct >= 70:
+        _log(f'🔴 ATENCIÓN: {pct}% de los precios de «{tabla}» dan una cifra '
+             f'redonda al multiplicarlos por {ITBIS} ({cuadran} de '
+             f'{len(candidatos)} revisados). Eso indica que esta fuente guarda '
+             f'el precio SIN ITBIS, y el listado NO va a coincidir con el '
+             f'admin. Lee de dbo.vInvArticulos, que es la que usa el sync.',
+             'ERROR')
+    else:
+        _log(f'✅ Los precios no parecen estar sin ITBIS (solo {pct}% de '
+             f'coincidencias sospechosas).', 'INFO')
+
+
+def _clave(p):
+    """
+    Identidad estable de un producto entre una actualización y la siguiente.
+
+    Se prefiere el ArticuloID porque el código de barras puede cambiar o venir
+    repetido (en Supabase ya hay barcodes duplicados, como el 705329002420).
+    Si no hay id, se cae al código y, en último caso, al nombre normalizado.
+    """
+    return (p.get('id') or '').strip() \
+        or (p.get('codigo') or '').strip() \
+        or p.get('busqueda', '')
+
+
+def _comparar(previos, actuales):
+    """
+    Compara dos listados y devuelve qué cambió.
+
+    Esto es lo que convierte el botón en algo útil: no basta con reescribir el
+    archivo, hay que poder ver si a un producto le subió el costo.
+    """
+    antes = {_clave(p): p for p in previos}
+    ahora = {_clave(p): p for p in actuales}
+
+    cambios = {'nuevos': [], 'costo': [], 'precio': [], 'eliminados': []}
+
+    for k, p in ahora.items():
+        viejo = antes.get(k)
+        if viejo is None:
+            cambios['nuevos'].append(p)
+            continue
+        if _num(viejo.get('costo')) != _num(p.get('costo')):
+            cambios['costo'].append({
+                'nombre': p['nombre'], 'codigo': p.get('codigo', ''),
+                'antes':  _num(viejo.get('costo')), 'ahora': _num(p.get('costo')),
+            })
+        if _num(viejo.get('precio')) != _num(p.get('precio')):
+            cambios['precio'].append({
+                'nombre': p['nombre'], 'codigo': p.get('codigo', ''),
+                'antes':  _num(viejo.get('precio')), 'ahora': _num(p.get('precio')),
+            })
+
+    for k, p in antes.items():
+        if k not in ahora:
+            cambios['eliminados'].append(p)
+
+    return cambios
+
+
+# ── Qué columnas lleva el CSV ──────────────────────────────────────────────
+#
+# El usuario pidió el código de barras a la IZQUIERDA de la descripción, así
+# que el modo simple pasa de 3 a 4 columnas:
+#
+#     Codigo | Descripcion | Costo | Precio
+#
+# El código es `NoReferencia`, el MISMO campo que el sync mapea a
+# products.barcode, para que se pueda buscar un producto en el listado con el
+# código que aparece en la web y en el admin.
+#
+# Se mantienen los dos modos porque no son para lo mismo:
+#   · simple   → lo que el usuario lee. 4 columnas, nada de ruido.
+#   · completo → lo que necesita el plugin (existencia, margen, ArticuloID…).
+#
+# El JSON SIEMPRE lleva todos los campos: es el que van a consumir los agentes
+# de IA, y recortarlo ahí solo les quitaría información sin ganar nada, porque
+# ese archivo no lo lee una persona.
+_CAMPOS_SIMPLE   = ['codigo', 'nombre', 'costo', 'precio']
+_CAMPOS_COMPLETO = ['codigo', 'nombre', 'costo', 'precio', 'ganancia',
+                    'margen_pct', 'existencia', 'unidad', 'departamento', 'id']
+
+_TITULOS_CSV = {
+    'nombre':       'Descripcion',
+    'costo':        'Costo',
+    'precio':       'Precio',
+    'codigo':       'Codigo',
+    'ganancia':     'Ganancia',
+    'margen_pct':   'Margen %',
+    'existencia':   'Existencia',
+    'unidad':       'Unidad',
+    'departamento': 'Departamento',
+    'id':           'ArticuloID',
+}
+
+
+def _modo_csv(cfg, opciones=None):
+    """Devuelve 'simple' o 'completo'. Por defecto simple, que es lo pedido."""
+    valor = (opciones or {}).get('formato') or cfg.get('export_formato') or 'simple'
+    return 'completo' if str(valor).lower().startswith('comp') else 'simple'
+
+
+def _escribir_csv(ruta, productos, modo):
+    """
+    Escribe el CSV de costos y precios.
+
+    Una sola función para el export y para la actualización: si fueran dos,
+    un día darían archivos con columnas distintas y no se sabría cuál creer.
+
+    Se usa utf-8-sig (BOM) para que Excel en Windows muestre bien los acentos;
+    sin el BOM, "Maní" aparece como "ManÃ­".
+
+    🔴 El código de barras se escribe con un tabulador delante. Suena raro,
+    pero es necesario: un EAN de 13 dígitos como 7503002936740 lo interpreta
+    Excel como número y lo convierte a «7.503E+12», destruyendo el código a la
+    vista. Con el tabulador delante lo trata como texto y lo muestra completo.
+    El tabulador no molesta a ChatGPT ni al plugin (se limpia con un strip),
+    mientras que un código convertido a notación científica sería inservible.
+    """
+    campos = _CAMPOS_SIMPLE if modo == 'simple' else _CAMPOS_COMPLETO
+    with open(ruta, 'w', newline='', encoding='utf-8-sig') as f:
+        w = csv.writer(f)
+        w.writerow([_TITULOS_CSV.get(c, c) for c in campos])
+        for p in productos:
+            fila = []
+            for c in campos:
+                v = p.get(c, '')
+                if c == 'codigo' and v:
+                    v = '\t' + str(v)     # fuerza texto en Excel
+                fila.append(v)
+            w.writerow(fila)
+    return len(campos)
+
+
+def _escribir_md(ruta, parte, n, total_partes, total_prod, sello, modo):
+    """
+    Escribe una parte del catálogo en Markdown.
+
+    En modo simple salen Código, Descripción, Costo y Precio. El código va a la
+    izquierda, como pidió el usuario, y es `NoReferencia` — el mismo campo que
+    el sync usa como barcode en la web.
+    """
+    with open(ruta, 'w', encoding='utf-8') as f:
+        f.write('# Costos y precios — Supermercado Casa Mota\n\n')
+        f.write(f'Actualizado: {sello}  \n')
+        f.write('Moneda: pesos dominicanos (RD$)  \n')
+        f.write('El «Código» es el código de barras del producto '
+                '(mismo que en la web y el admin)  \n')
+        f.write(f'Parte {n} de {total_partes} — {len(parte)} productos '
+                f'de {total_prod}\n\n')
+
+        if modo == 'simple':
+            f.write('| Código | Descripción | Costo | Precio |\n')
+            f.write('|---|---|---:|---:|\n')
+            for p in parte:
+                seguro = p['nombre'].replace('|', '/')
+                f.write(f"| {p['codigo']} | {seguro} | "
+                        f"{p['costo']:.2f} | {p['precio']:.2f} |\n")
+        else:
+            f.write('| Código | Producto | Costo | Precio | Ganancia | '
+                    'Margen | Existencia |\n')
+            f.write('|---|---|---:|---:|---:|---:|---:|\n')
+            for p in parte:
+                seguro = p['nombre'].replace('|', '/')
+                f.write(f"| {p['codigo']} | {seguro} | "
+                        f"{p['costo']:.2f} | {p['precio']:.2f} | "
+                        f"{p['ganancia']:.2f} | {p['margen_pct']:.1f}% | "
+                        f"{p['existencia']:.0f} |\n")
+
+
+def _leer_json_previo(ruta):
+    """Lee el listado anterior. Si no existe o está dañado, devuelve []."""
+    if not os.path.isfile(ruta):
+        return []
+    try:
+        with open(ruta, 'r', encoding='utf-8') as f:
+            datos = json.load(f)
+        return datos.get('productos', []) if isinstance(datos, dict) else []
+    except Exception as e:
+        _log(f'⚠️ No se pudo leer el listado anterior ({e}). Se tratará como '
+             f'la primera vez.', 'WARN')
+        return []
+
+
+def _tarea_export(opciones):
+    cfg = _cfg()
+    archivos = []
+    try:
+        _set_estado(corriendo=True, tarea='export', ok=None, error='',
+                    archivos=[], paso='Conectando…', cancelar=False)
+
+        _set_estado(paso='Leyendo productos…')
+        productos, tabla, col_costo = _leer_catalogo(cfg, opciones)
 
         carpeta = os.path.join(_carpeta_local(cfg), 'para-chatgpt')
         ok, msg = _asegurar_carpeta(carpeta)
@@ -711,14 +1346,12 @@ def _tarea_export(opciones):
         _set_estado(paso='Escribiendo archivos…')
 
         # ── 1) CSV — el formato que ChatGPT lee mejor para buscar cifras ──
+        modo     = _modo_csv(cfg, opciones)
         ruta_csv = os.path.join(carpeta, 'costos-y-precios.csv')
-        campos = ['codigo', 'nombre', 'costo', 'precio', 'ganancia',
-                  'margen_pct', 'existencia', 'unidad', 'departamento', 'id']
-        with open(ruta_csv, 'w', newline='', encoding='utf-8-sig') as f:
-            w = csv.DictWriter(f, fieldnames=campos, extrasaction='ignore')
-            w.writeheader()
-            for p in productos:
-                w.writerow(p)
+        n_cols   = _escribir_csv(ruta_csv, productos, modo)
+        _log(f'📄 CSV en modo «{modo}»: {n_cols} columnas '
+             f'({"Descripción, Costo, Precio" if modo == "simple" else "todas"}).',
+             'INFO')
         archivos.append({'nombre': 'costos-y-precios.csv', 'ruta': ruta_csv,
                          'bytes': os.path.getsize(ruta_csv)})
 
@@ -733,7 +1366,9 @@ def _tarea_export(opciones):
             'moneda':         'DOP',
             'total':          len(productos),
             'campos': {
-                'codigo':       'Código de barras o referencia interna',
+                'codigo':       'Código de barras del producto (columna '
+                                'NoReferencia de SQL Server, el mismo valor '
+                                'que products.barcode en la web)',
                 'nombre':       'Nombre del producto tal como está en el sistema',
                 'busqueda':     'Nombre normalizado (minúsculas, sin acentos) para buscar',
                 'costo':        'Costo de compra por unidad, en pesos dominicanos',
@@ -767,21 +1402,8 @@ def _tarea_export(opciones):
             nom = (f'catalogo-parte-{n:02d}-de-{len(partes):02d}.md'
                    if len(partes) > 1 else 'catalogo.md')
             ruta_md = os.path.join(carpeta, nom)
-            with open(ruta_md, 'w', encoding='utf-8') as f:
-                f.write(f'# Costos y precios — Supermercado Casa Mota\n\n')
-                f.write(f'Actualizado: {sello_txt}  \n')
-                f.write(f'Moneda: pesos dominicanos (RD$)  \n')
-                f.write(f'Parte {n} de {len(partes)} — {len(parte)} productos '
-                        f'de {len(productos)}\n\n')
-                f.write('| Código | Producto | Costo | Precio | Ganancia | '
-                        'Margen | Existencia |\n')
-                f.write('|---|---|---:|---:|---:|---:|---:|\n')
-                for p in parte:
-                    nom_seguro = p['nombre'].replace('|', '/')
-                    f.write(f"| {p['codigo']} | {nom_seguro} | "
-                            f"{p['costo']:.2f} | {p['precio']:.2f} | "
-                            f"{p['ganancia']:.2f} | {p['margen_pct']:.1f}% | "
-                            f"{p['existencia']:.0f} |\n")
+            _escribir_md(ruta_md, parte, n, len(partes), len(productos),
+                         sello_txt, modo)
             archivos.append({'nombre': nom, 'ruta': ruta_md,
                              'bytes': os.path.getsize(ruta_md)})
 
@@ -800,16 +1422,27 @@ def _tarea_export(opciones):
                 '  3. Pregunta, por ejemplo:\n'
                 '     "Dame el costo del aceite de soya Crisol de 64oz"\n'
                 '     "Cuales 20 productos tienen el margen mas bajo"\n'
-                '     "Que productos vendo por debajo del costo"\n\n'
+                '     "Que productos vendo por debajo del costo"\n'
+                '     "Que producto tiene el codigo 7503002936740"\n\n'
+                'SOBRE LA COLUMNA CODIGO:\n'
+                '  Es el codigo de barras (NoReferencia en SQL Server, el\n'
+                '  mismo que barcode en la web). Va con un tabulador delante\n'
+                '  para que Excel no lo convierta en 7.503E+12.\n\n'
                 'SI EL ARCHIVO ES MUY GRANDE:\n'
                 '  Adjunta los archivos catalogo-parte-XX.md por separado.\n\n'
                 'PARA EL PLUGIN QUE VAN A CONSTRUIR LOS AGENTES DE IA:\n'
                 '  Usen costos-y-precios.json. Trae el campo "busqueda" ya\n'
                 '  normalizado (minusculas, sin acentos) y una llave\n'
                 '  "como_buscar" que explica el algoritmo de coincidencia.\n\n'
+                'MANTENERLO AL DIA:\n'
+                '  NO hace falta volver a exportar todo. Usa el boton\n'
+                '  "Actualizar listado de precios y costos" del panel: reescribe\n'
+                '  estos MISMOS archivos, en esta MISMA carpeta, y ademas te\n'
+                '  dice que costos y precios cambiaron desde la ultima vez.\n'
+                '  Las rutas nunca cambian, asi que el plugin puede apuntar\n'
+                '  siempre al mismo sitio.\n\n'
                 'IMPORTANTE:\n'
                 '  Estos archivos son una FOTO del momento indicado arriba.\n'
-                '  Si cambian precios o costos, vuelve a exportar.\n'
                 '  Contienen tus costos reales: no los subas a ningun sitio\n'
                 '  publico ni a GitHub.\n'
             )
@@ -830,6 +1463,12 @@ def _tarea_export(opciones):
         _log(f'❌ Error exportando: {str(e)[:300]}', 'ERROR')
         _set_estado(corriendo=False, ok=False, error=str(e)[:300], paso='Error')
 
+    finally:
+        if _estado.get('corriendo'):
+            _set_estado(corriendo=False, paso='Interrumpido')
+            _log('⚠️ La exportación terminó de forma inesperada. Estado '
+                 'liberado.', 'WARN')
+
 
 @bp_respaldo.route('/api/respaldo/exportar', methods=['POST'])
 def respaldo_exportar():
@@ -838,6 +1477,276 @@ def respaldo_exportar():
     opciones = request.get_json(silent=True) or {}
     threading.Thread(target=_tarea_export, args=(opciones,), daemon=True).start()
     return jsonify({'ok': True, 'msg': 'Exportación iniciada.'})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAREA 4 — ACTUALIZAR EL LISTADO (sin volver a generarlo todo)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+#  Diferencia con «Exportar»:
+#
+#    Exportar  → crea la carpeta y TODOS los formatos (CSV, JSON, Markdown
+#                partido, instrucciones). Se hace UNA VEZ.
+#
+#    Actualizar → vuelve a leer SQL Server y reescribe los MISMOS archivos en
+#                 la MISMA ruta, sin renombrar nada. Además compara con el
+#                 listado anterior y dice qué costos y precios cambiaron.
+#
+#  Que la ruta no cambie es lo importante para el plugin: puede apuntar
+#  siempre a costos-y-precios.json y encontrarlo al día.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _tarea_actualizar(opciones=None):
+    cfg = _cfg()
+    opciones = opciones or {}
+    try:
+        _set_estado(corriendo=True, tarea='actualizar', ok=None, error='',
+                    archivos=[], paso='Conectando…', cambios=None,
+                    cancelar=False)
+
+        carpeta   = os.path.join(_carpeta_local(cfg), 'para-chatgpt')
+        ruta_json = os.path.join(carpeta, 'costos-y-precios.json')
+        ruta_csv  = os.path.join(carpeta, 'costos-y-precios.csv')
+
+        if not os.path.isfile(ruta_json):
+            raise RuntimeError(
+                'Todavía no existe el listado. Pulsa primero «Exportar costos '
+                'y precios para ChatGPT» para crearlo, y a partir de ahí usa '
+                'este botón para mantenerlo al día.')
+
+        # 1) Lo que había
+        previos = _leer_json_previo(ruta_json)
+
+        # 2) Lo que hay ahora — misma función que usa el export, así que es
+        #    imposible que los dos caminos den resultados distintos.
+        _set_estado(paso='Leyendo precios y costos actuales…')
+        productos, tabla, col_costo = _leer_catalogo(cfg, opciones)
+
+        # 3) Qué cambió
+        _set_estado(paso='Comparando con el listado anterior…')
+        cambios = _comparar(previos, productos)
+        n_costo = len(cambios['costo'])
+        n_prec  = len(cambios['precio'])
+        n_nuev  = len(cambios['nuevos'])
+        n_elim  = len(cambios['eliminados'])
+        total_c = n_costo + n_prec + n_nuev + n_elim
+
+        sello_txt = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+        # 4) Reescribir SIEMPRE, incluso sin cambios: así la fecha del archivo
+        #    refleja cuándo se comprobó de verdad, y no queda la duda de si el
+        #    listado está viejo o solo es que nada cambió.
+        _set_estado(paso='Reescribiendo el listado…')
+
+        modo = _modo_csv(cfg, opciones)
+        _escribir_csv(ruta_csv, productos, modo)
+
+        # Se conserva la metadata del archivo anterior (campos, como_buscar…)
+        # y solo se refrescan los datos: si el export original documentaba algo
+        # para el plugin, actualizar no debe borrárselo.
+        paquete = {}
+        try:
+            with open(ruta_json, 'r', encoding='utf-8') as f:
+                anterior = json.load(f)
+            if isinstance(anterior, dict):
+                paquete = {k: v for k, v in anterior.items() if k != 'productos'}
+        except Exception:
+            paquete = {}
+
+        paquete.update({
+            'negocio':       paquete.get('negocio', 'Supermercado Casa Mota'),
+            'generado':      sello_txt,
+            'base_datos':    cfg.get('database', 'dbSIC'),
+            'tabla_origen':  tabla,
+            'columna_costo': col_costo or '(no encontrada)',
+            'moneda':        paquete.get('moneda', 'DOP'),
+            'total':         len(productos),
+            'ultima_actualizacion': {
+                'fecha':            sello_txt,
+                'cambios_de_costo':  n_costo,
+                'cambios_de_precio': n_prec,
+                'productos_nuevos':  n_nuev,
+                'productos_quitados': n_elim,
+            },
+            'productos':     productos,
+        })
+        with open(ruta_json, 'w', encoding='utf-8') as f:
+            json.dump(paquete, f, ensure_ascii=False, indent=1)
+
+        # 5) Rehacer también el Markdown, para que no quede desfasado respecto
+        #    al CSV y al JSON. Si no, ChatGPT leería cifras viejas del .md.
+        por_parte = 1200
+        for viejo in os.listdir(carpeta):
+            if viejo.startswith('catalogo') and viejo.endswith('.md'):
+                try:
+                    os.remove(os.path.join(carpeta, viejo))
+                except OSError:
+                    pass
+        partes = [productos[i:i + por_parte]
+                  for i in range(0, len(productos), por_parte)]
+        for n, parte in enumerate(partes, 1):
+            nom = (f'catalogo-parte-{n:02d}-de-{len(partes):02d}.md'
+                   if len(partes) > 1 else 'catalogo.md')
+            _escribir_md(os.path.join(carpeta, nom), parte, n, len(partes),
+                         len(productos), sello_txt, modo)
+
+        # 6) Historial: un CSV que se va acumulando con cada cambio detectado.
+        #    Sirve para responder "¿desde cuándo me subió este costo?", que es
+        #    una pregunta que el listado plano no puede contestar.
+        if total_c:
+            ruta_hist = os.path.join(carpeta, 'historial-de-cambios.csv')
+            nuevo = not os.path.isfile(ruta_hist)
+            with open(ruta_hist, 'a', newline='', encoding='utf-8-sig') as f:
+                w = csv.writer(f)
+                if nuevo:
+                    w.writerow(['fecha', 'tipo', 'codigo', 'producto',
+                                'antes', 'ahora', 'diferencia'])
+                for c in cambios['costo']:
+                    w.writerow([sello_txt, 'costo', c['codigo'], c['nombre'],
+                                c['antes'], c['ahora'],
+                                round(c['ahora'] - c['antes'], 2)])
+                for c in cambios['precio']:
+                    w.writerow([sello_txt, 'precio', c['codigo'], c['nombre'],
+                                c['antes'], c['ahora'],
+                                round(c['ahora'] - c['antes'], 2)])
+                for p in cambios['nuevos']:
+                    w.writerow([sello_txt, 'nuevo', p.get('codigo', ''),
+                                p['nombre'], '', p['costo'], ''])
+                for p in cambios['eliminados']:
+                    w.writerow([sello_txt, 'eliminado', p.get('codigo', ''),
+                                p['nombre'], p.get('costo', ''), '', ''])
+
+        # ── Resumen en el log ──
+        if total_c == 0:
+            _log(f'✅ Listado revisado: {len(productos):,} productos, '
+                 f'sin ningún cambio desde la última vez.', 'SUCCESS')
+        else:
+            _log(f'✅ Listado actualizado: {len(productos):,} productos · '
+                 f'{n_costo} costos, {n_prec} precios, {n_nuev} nuevos, '
+                 f'{n_elim} quitados.', 'SUCCESS')
+            for c in cambios['costo'][:15]:
+                flecha = '↑' if c['ahora'] > c['antes'] else '↓'
+                _log(f"   💵 {flecha} {c['nombre']}: costo "
+                     f"{c['antes']:.2f} → {c['ahora']:.2f}", 'INFO')
+            if n_costo > 15:
+                _log(f'   …y {n_costo - 15} cambios de costo más '
+                     f'(ver historial-de-cambios.csv).', 'INFO')
+            for c in cambios['precio'][:10]:
+                flecha = '↑' if c['ahora'] > c['antes'] else '↓'
+                _log(f"   🏷️ {flecha} {c['nombre']}: precio "
+                     f"{c['antes']:.2f} → {c['ahora']:.2f}", 'INFO')
+            if n_prec > 10:
+                _log(f'   …y {n_prec - 10} cambios de precio más '
+                     f'(ver historial-de-cambios.csv).', 'INFO')
+
+        _log('📂 Se reescribieron los mismos archivos, en la misma carpeta. '
+             'No hay que descargar nada.', 'INFO')
+
+        archivos = []
+        for fi in sorted(os.listdir(carpeta)):
+            completo = os.path.join(carpeta, fi)
+            if os.path.isfile(completo):
+                archivos.append({'nombre': fi, 'ruta': completo,
+                                 'bytes': os.path.getsize(completo)})
+
+        _set_estado(corriendo=False, ok=True, paso='Listo', archivos=archivos,
+                    cambios={
+                        'total':      total_c,
+                        'costo':      n_costo,
+                        'precio':     n_prec,
+                        'nuevos':     n_nuev,
+                        'eliminados': n_elim,
+                        'detalle_costo':  cambios['costo'][:40],
+                        'detalle_precio': cambios['precio'][:40],
+                    })
+
+    except Exception as e:
+        _log(f'❌ Error actualizando el listado: {str(e)[:300]}', 'ERROR')
+        _set_estado(corriendo=False, ok=False, error=str(e)[:300], paso='Error')
+
+    finally:
+        if _estado.get('corriendo'):
+            _set_estado(corriendo=False, paso='Interrumpido')
+            _log('⚠️ La actualización terminó de forma inesperada. Estado '
+                 'liberado.', 'WARN')
+
+
+@bp_respaldo.route('/api/respaldo/cancelar', methods=['POST'])
+def respaldo_cancelar():
+    """
+    Pide a la tarea en curso que se detenga en el siguiente punto seguro.
+
+    Solo «Respaldo de datos en CSV» puede abortar a mitad, porque recorre 1,020
+    tablas y revisa la bandera entre una y otra. El .bak NO se puede cortar:
+    lo ejecuta SQL Server, no este proceso.
+    """
+    if not _estado.get('corriendo'):
+        return jsonify({'ok': False, 'msg': 'No hay ninguna tarea corriendo.'})
+    _set_estado(cancelar=True)
+    tarea = _estado.get('tarea', '')
+    if tarea == 'bak':
+        msg = ('El .bak lo ejecuta SQL Server y no se puede cortar desde '
+               'aquí. Espera a que termine.')
+    else:
+        msg = 'Cancelando… se detendrá en unos segundos.'
+    _log(f'🛑 Cancelación solicitada ({tarea or "sin tarea"}).', 'WARN')
+    return jsonify({'ok': True, 'msg': msg})
+
+
+@bp_respaldo.route('/api/respaldo/desbloquear', methods=['POST'])
+def respaldo_desbloquear():
+    """
+    Libera el estado a mano cuando el panel se queda diciendo «Ya hay un
+    proceso en curso» y no hay ninguno.
+
+    Existe porque pasó de verdad: un .bak que falló dejó «corriendo» en True y
+    todos los botones quedaron bloqueados hasta reiniciar el servidor. Ahora
+    los `finally` de cada tarea deberían evitarlo, pero este botón es la
+    salida de emergencia si vuelve a ocurrir.
+    """
+    antes = _estado.get('corriendo')
+    _set_estado(corriendo=False, tarea='', paso='', ok=None, error='')
+    _log('🔓 Estado del módulo de respaldo liberado a mano.'
+         if antes else 'ℹ️ No había ningún proceso bloqueado.', 'WARN')
+    return jsonify({'ok': True, 'estaba_bloqueado': bool(antes),
+                    'msg': ('Desbloqueado. Ya puedes usar los botones.'
+                            if antes else 'No había nada bloqueado.')})
+
+
+@bp_respaldo.route('/api/respaldo/actualizar', methods=['POST'])
+def respaldo_actualizar():
+    if _estado['corriendo']:
+        return jsonify({'ok': False, 'msg': '⚠️ Ya hay un proceso en curso.'})
+    opciones = request.get_json(silent=True) or {}
+    threading.Thread(target=_tarea_actualizar, args=(opciones,),
+                     daemon=True).start()
+    return jsonify({'ok': True, 'msg': 'Actualizando listado…'})
+
+
+@bp_respaldo.route('/api/respaldo/listado', methods=['GET'])
+def respaldo_listado():
+    """
+    Dice si el listado ya existe y de cuándo es. El panel lo usa para mostrar
+    la fecha y para saber si habilitar el botón de actualizar.
+    """
+    carpeta   = os.path.join(_carpeta_local(), 'para-chatgpt')
+    ruta_json = os.path.join(carpeta, 'costos-y-precios.json')
+    if not os.path.isfile(ruta_json):
+        return jsonify({'ok': True, 'existe': False, 'carpeta': carpeta})
+    try:
+        with open(ruta_json, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        return jsonify({
+            'ok':       True,
+            'existe':   True,
+            'carpeta':  carpeta,
+            'generado': d.get('generado', ''),
+            'total':    d.get('total', 0),
+            'columna_costo': d.get('columna_costo', ''),
+            'ultima_actualizacion': d.get('ultima_actualizacion'),
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'existe': True, 'msg': str(e)[:150]})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

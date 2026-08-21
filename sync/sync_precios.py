@@ -92,22 +92,68 @@ def conectar_sqlserver():
         raise
 
 
+COSTO_MINIMO   = 1.0
+COLUMNA_COSTO  = 'CostoPromedio'
+
+
+def _existe_columna(conn, tabla, columna):
+    """
+    Comprueba en INFORMATION_SCHEMA si la columna existe.
+
+    Hace falta porque este script traía una consulta fija que NO pedía el
+    costo. Si le añadimos la columna a ciegas y el nombre no coincide, SQL
+    Server responde «Invalid column name» y el sync entero deja de correr,
+    dejando los precios de la web congelados sin que nadie se entere.
+    """
+    esq, tab = (tabla.split('.', 1) if '.' in tabla else ('dbo', tabla))
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+    """, esq.strip('[]'), tab.strip('[]'), columna)
+    return (cur.fetchone()[0] or 0) > 0
+
+
 def leer_productos_sql(conn):
     """
     Lee ArticuloID, Nombre, NoReferencia, PrecioP, ExistGlobal
     de dbo.TinvArticulos.
-    Solo trae filas donde NoReferencia no es NULL ni vacío.
+
+    Filtra fuera lo que no es un producto vendible:
+      · NoReferencia nulo o vacío
+      · Nombre vacío, o que solo tiene puntos, comas u otros signos
+      · Costo menor o igual a 1  (solo si la columna de costo existe)
+
+    El filtro de nombre se hace en SQL con PATINDEX: exige al menos DOS letras
+    seguidas, así que '.', '..', ',', '---' y '123' quedan descartados, pero
+    'Pan', 'Té' o 'A-1 Salsa' pasan.
     """
-    query = """
+    hay_costo = _existe_columna(conn, 'dbo.TinvArticulos', COLUMNA_COSTO)
+    if hay_costo:
+        col_costo   = f"ISNULL([{COLUMNA_COSTO}], 0) AS Costo"
+        filtro_cost = f"AND ISNULL([{COLUMNA_COSTO}], 0) > {COSTO_MINIMO}"
+    else:
+        col_costo   = "CAST(NULL AS decimal(18,2)) AS Costo"
+        filtro_cost = ""
+        log.warning("⚠️ La columna «%s» no existe en dbo.TinvArticulos. "
+                    "No se puede filtrar por costo; solo se omitirán los "
+                    "artículos sin descripción.", COLUMNA_COSTO)
+
+    query = f"""
         SELECT
             ArticuloID,
             LTRIM(RTRIM(Nombre))       AS Nombre,
             LTRIM(RTRIM(NoReferencia)) AS NoReferencia,
             ISNULL(PrecioP,    0)      AS PrecioP,
-            ISNULL(ExistGlobal,0)      AS ExistGlobal
+            ISNULL(ExistGlobal,0)      AS ExistGlobal,
+            {col_costo}
         FROM dbo.TinvArticulos
         WHERE NoReferencia IS NOT NULL
           AND LTRIM(RTRIM(NoReferencia)) <> ''
+          AND Nombre IS NOT NULL
+          AND PATINDEX('%[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]%',
+                       LTRIM(RTRIM(Nombre))) > 0
+          {filtro_cost}
         ORDER BY ArticuloID
     """
     cursor = conn.cursor()
@@ -115,7 +161,9 @@ def leer_productos_sql(conn):
     rows = cursor.fetchall()
     cols = [c[0] for c in cursor.description]
     productos = [dict(zip(cols, row)) for row in rows]
-    log.info("📦 Productos leídos de SQL Server: %d", len(productos))
+    log.info("📦 Productos leídos de SQL Server: %d (filtrados: sin "
+             "descripción%s)", len(productos),
+             f", costo <= {COSTO_MINIMO:g}" if hay_costo else "")
     return productos
 
 
