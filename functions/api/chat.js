@@ -66,7 +66,23 @@ const MODELOS_PERMITIDOS = new Set([
 // El escáner envía fotos en base64, por eso el límite es amplio.
 // El chat de texto ronda los 10-20 KB.
 const MAX_BODY_BYTES  = 6 * 1024 * 1024; // 6 MB
-const MAX_TOKENS_TOPE = 400;             // techo de respuesta, por coste
+
+/* 🔴 BUILD 414 · Este techo era 400 y ANULABA EN SILENCIO el arreglo del
+ * cliente. Los `openai/gpt-oss-*` son modelos de RAZONAMIENTO: gastan tokens
+ * «pensando» antes de escribir, y ese gasto sale del mismo `max_tokens`. Si el
+ * presupuesto se agota razonando, Groq devuelve 200 OK con el texto VACÍO
+ * (`finish_reason: "length"`) — que es exactamente el «Groq respondió pero sin
+ * texto» que veía el dueño.
+ *
+ * js/ia-modelos.js sube el presupuesto a 512 como mínimo, pero toda petición
+ * de Maya pasa por AQUÍ, y aquí se recortaba otra vez a 400: por debajo del
+ * mínimo necesario. El chat habría seguido devolviendo respuestas vacías
+ * aunque el cliente estuviera arreglado.
+ *
+ * Se sube a 1024. Sigue siendo un techo real contra abusos (una respuesta de
+ * Maya son ~200 tokens visibles) y solo se paga lo que de verdad se gasta:
+ * subir el LÍMITE no obliga a consumirlo. */
+const MAX_TOKENS_TOPE = 1024;            // techo de respuesta, por coste
 
 const json = (obj, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(obj), {
@@ -229,8 +245,15 @@ export async function onRequestPost(context) {
     return json({ error: `Modelo no permitido: ${body.model}` }, 400);
   }
 
-  // Techo de tokens (el cliente puede pedir menos, nunca más)
-  body.max_tokens = Math.min(Number(body.max_tokens) || 200, MAX_TOKENS_TOPE);
+  /* Techo de tokens (el cliente puede pedir menos, nunca más).
+   *
+   * 🔴 Y un SUELO para los modelos que razonan: si el cliente pide 200, no le
+   * alcanza para pensar y responder, y devolvería texto vacío. Sin este suelo,
+   * el `max_tokens: 200` que manda js/chat.js dejaría a Maya muda. */
+  const _razona = /gpt-oss|qwen3|^groq\/compound/.test(String(body.model || ''));
+  let _tokens = Math.min(Number(body.max_tokens) || 200, MAX_TOKENS_TOPE);
+  if (_razona) _tokens = Math.max(_tokens, 512);
+  body.max_tokens = _tokens;
 
   /* 4) Límite de uso — protege la CUOTA, no solo la clave
    *

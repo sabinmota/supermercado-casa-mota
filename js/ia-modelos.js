@@ -288,6 +288,49 @@ function _iaOrden(lista, clave) {
 function iaModeloTexto()  { return _iaOrden(IA_MODELOS_TEXTO,  _IA_LS_TEXTO)[0]; }
 function iaModeloVision() { return _iaOrden(IA_MODELOS_VISION, _IA_LS_VISION)[0]; }
 
+/* ─── 🔴 EL FALLO DE «RESPONDIÓ PERO SIN TEXTO» ──────────────────────────────
+ * Síntoma real del dueño (captura 2026-08-22): «Probar conexión» decía
+ * «⚠️ Groq respondió pero sin texto. Modelo: openai/gpt-oss-20b» y, al pedir
+ * una descripción, «No se pudo conectar con Groq».
+ *
+ * Parecían dos problemas distintos. ERAN EL MISMO, y ninguno es de conexión:
+ * un 200 OK con `content` VACÍO. La clave y los permisos estaban BIEN.
+ *
+ * LA CAUSA: los `openai/gpt-oss-*` son modelos de RAZONAMIENTO. Antes de
+ * escribir la respuesta gastan tokens «pensando» en un canal aparte
+ * (`reasoning`), y ese gasto SALE DEL MISMO `max_tokens`. Si el presupuesto se
+ * agota durante el razonamiento, Groq devuelve 200 con:
+ *
+ *     finish_reason: "length"   ·   message.content: ""
+ *
+ * O sea: respuesta correcta, texto vacío. Con `max_tokens: 5` (la prueba de
+ * conexión) es GARANTIZADO. Con 60 (las descripciones) pasa casi siempre.
+ *
+ * Los `llama-3.x` de antes NO razonaban, así que 5 tokens bastaban para un
+ * «OK». Al cambiar de familia de modelos, ese presupuesto dejó de servir.
+ *
+ * ARREGLO: un mínimo por debajo del cual no se pide nada a un modelo que
+ * razona. No es un capricho: es la diferencia entre recibir texto y recibir
+ * vacío. El coste es irrelevante — solo se pagan los tokens realmente usados,
+ * y subir el TECHO no obliga a gastarlo.
+ */
+const IA_MIN_TOKENS_RAZONA = 512;
+
+/** ¿Este modelo gasta tokens razonando antes de contestar? */
+function iaModeloRazona(modelo) {
+  return /gpt-oss|qwen3|^groq\/compound/.test(String(modelo || ''));
+}
+
+/**
+ * Corrige `max_tokens` para que el modelo tenga sitio para razonar Y responder.
+ * Devuelve el valor original si el modelo no razona o si ya es suficiente.
+ */
+function iaTokensSeguros(modelo, maxTokens) {
+  const n = Number(maxTokens) || 0;
+  if (!iaModeloRazona(modelo)) return n || undefined;
+  return Math.max(n, IA_MIN_TOKENS_RAZONA);
+}
+
 /* Lista completa en orden de intento. La necesita js/chat.js, que NO puede
  * pasar por `iaLlamarGroq` porque su petición va primero al proxy /api/chat
  * (con timeout y caída a Groq directo) y esa lógica no cabe aquí sin
@@ -376,12 +419,21 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
   let ultimoError = 'No hay ningún modelo de IA disponible.';
 
   for (const modelo of lista) {
+    /* 🔴 Se corrige `max_tokens` AQUÍ, en el único punto por el que pasan todas
+     * las llamadas, y no en cada sitio que llama: así ninguna se queda sin el
+     * arreglo. El presupuesto depende del modelo elegido, y el modelo se decide
+     * en este bucle, por lo que dentro es el único lugar donde puede hacerse. */
+    const cuerpo = { ...body, model: modelo };
+    if (cuerpo.max_tokens !== undefined) {
+      cuerpo.max_tokens = iaTokensSeguros(modelo, cuerpo.max_tokens);
+    }
+
     let res;
     try {
       res = await fetch(url, {
         method:  'POST',
         headers,
-        body:    JSON.stringify({ ...body, model: modelo }),
+        body:    JSON.stringify(cuerpo),
         ...(cfg.signal ? { signal: cfg.signal } : {}),
       });
     } catch (e) {
@@ -395,9 +447,33 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
     const texto = await res.text();
 
     if (res.ok) {
-      _iaRecordar(vision ? _IA_LS_VISION : _IA_LS_TEXTO, modelo);
       let datos = {};
       try { datos = JSON.parse(texto); } catch (e) {}
+
+      /* 🔴 UN 200 OK NO SIGNIFICA QUE HAYA TEXTO. Si el modelo agotó el
+       * presupuesto razonando, `content` viene VACÍO y `finish_reason` es
+       * "length". Antes esto se devolvía como éxito y el usuario veía
+       * «respondió pero sin texto» o un «no se pudo conectar» engañoso.
+       *
+       * Ahora se detecta y se reintenta UNA VEZ con el doble de presupuesto
+       * (el aviso dice qué pasó, para no volver a diagnosticar a ciegas). */
+      const _cont  = datos?.choices?.[0]?.message?.content;
+      const _fin   = datos?.choices?.[0]?.finish_reason;
+      const _vacio = !String(_cont || '').trim();
+
+      if (_vacio && _fin === 'length' && !cfg._yaAmplie && cuerpo.max_tokens) {
+        console.warn(`[IA] «${modelo}» se quedó sin tokens razonando (finish_reason=length, texto vacío). Reintentando con ${cuerpo.max_tokens * 2}.`);
+        return iaLlamarGroq(
+          url,
+          { ...body, max_tokens: cuerpo.max_tokens * 2 },
+          headers,
+          { ...cfg, _yaAmplie: true }
+        );
+      }
+
+      // Solo se recuerda como "bueno" el modelo que DEVOLVIÓ TEXTO. Recordar
+      // uno que contesta vacío haría que se intentara primero siempre.
+      if (!_vacio) _iaRecordar(vision ? _IA_LS_VISION : _IA_LS_TEXTO, modelo);
       return { datos, modelo };
     }
 

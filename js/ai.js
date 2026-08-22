@@ -145,10 +145,17 @@ async function _aiRequest(prompt, maxTokens = 300) {
     }
   }
 
+  /* 🔴 BUILD 414 · El mensaje sin error era «No se pudo conectar con Groq.
+   * Verifica la clave» — y MANDABA A MIRAR DONDE NO ERA. Si se llega aquí sin
+   * `_ultimoErrorGroq`, no hubo ninguna excepción: Groq respondió 200 OK pero
+   * con el texto vacío. La clave está perfecta. Decir «verifica la clave» hizo
+   * perder tiempo revisando permisos que ya estaban bien. */
   throw new Error(
     _ultimoErrorGroq
       ? `La IA no respondió: ${_ultimoErrorGroq}`
-      : 'No se pudo conectar con Groq. Verifica la clave en Configuración → IA.'
+      : 'La IA respondió sin texto (se quedó sin espacio para razonar). '
+        + 'Vuelve a intentarlo; si sigue igual, pulsa «Probar conexión» en '
+        + 'Configuración → IA. NO es la clave.'
   );
 }
 

@@ -1255,6 +1255,10 @@ INSTRUCCIONES IMPORTANTES:
       ? iaListaTexto()
       : ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
 
+    // Solo se amplia el presupuesto UNA vez en toda la tanda, no por modelo:
+    // si no, cada modelo doblaría tokens y la espera se haría larga.
+    let _yaAmplieTokens = false;
+
     for (const modelo of modelos) {
       try {
         const groqBody = {
@@ -1264,7 +1268,17 @@ INSTRUCCIONES IMPORTANTES:
             ...safeHistory,
             { role: 'user', content: userMsg }
           ],
-          max_tokens: 200,
+          /* 🔴 BUILD 414 · Aquí ponía 200 fijos y DEJABA MUDA A MAYA. Los
+           * `gpt-oss` razonan antes de escribir y ese gasto sale del mismo
+           * `max_tokens`: con 200 se agota pensando y Groq devuelve 200 OK con
+           * el texto vacío. Es el mismo fallo del «respondió pero sin texto».
+           *
+           * Este fichero NO pasa por `iaLlamarGroq` (su petición va primero al
+           * proxy), así que el arreglo central no le llegaba: hay que pedir el
+           * presupuesto correcto aquí también. */
+          max_tokens: (typeof iaTokensSeguros === 'function')
+            ? iaTokensSeguros(modelo, 200)
+            : 512,
           temperature: 0.7
         };
         const res = await _chatLLMFetch(groqBody, groqKey);
@@ -1273,10 +1287,30 @@ INSTRUCCIONES IMPORTANTES:
         const data = await res.json().catch(() => null);
         if (res.ok && data) {
           const text = data.choices?.[0]?.message?.content;
-          if (text) {
+          if (text && text.trim()) {
             if (typeof iaRecordarTexto === 'function') iaRecordarTexto(modelo);
             return text.trim();
           }
+          /* 🔴 200 OK CON TEXTO VACÍO. Antes este caso no hacía NADA: caía al
+           * `break` de abajo y Maya lanzaba «Sin conexión a la IA» — mintiendo,
+           * porque la conexión funcionó perfectamente. Pasa cuando el modelo
+           * agota el presupuesto razonando (`finish_reason: "length"`).
+           * Se reintenta UNA vez con el doble antes de rendirse. */
+          const fin = data.choices?.[0]?.finish_reason;
+          console.warn(`[Chat] «${modelo}» devolvió texto vacío (finish_reason=${fin}).`);
+          if (fin === 'length' && !_yaAmplieTokens) {
+            _yaAmplieTokens = true;
+            const masBody = { ...groqBody, max_tokens: (groqBody.max_tokens || 512) * 2 };
+            const res3 = await _chatLLMFetch(masBody, groqKey);
+            const d3 = res3 ? await res3.json().catch(() => null) : null;
+            const t3 = d3?.choices?.[0]?.message?.content;
+            if (res3 && res3.ok && t3 && t3.trim()) {
+              if (typeof iaRecordarTexto === 'function') iaRecordarTexto(modelo);
+              return t3.trim();
+            }
+          }
+          // Sigue vacío: quizá otro modelo sí conteste. Merece el intento.
+          continue;
         } else {
           console.warn('Groq error:', res.status, JSON.stringify(data));
 
@@ -1317,7 +1351,9 @@ INSTRUCCIONES IMPORTANTES:
     }
   }
 
-  throw new Error('Sin conexión a la IA');
+  /* Si se agotaron los modelos, el mensaje NO debe culpar a la conexión: el
+   * caso más probable a estas alturas es que respondieran vacío. */
+  throw new Error('La IA no devolvió respuesta. Vuelve a intentarlo.');
 }
 
 // ─── LIMPIAR CHAT ─────────────────────────────────────────────────────────────

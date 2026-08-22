@@ -2945,12 +2945,12 @@
   <script src="js/extras.v33.js?v=312"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
-  <script src="js/ia-modelos.js?v=3"></script>
+  <script src="js/ia-modelos.js?v=4"></script>
   <!-- IA: Groq integration -->
-  <script src="js/ai.js?v=257"></script>
+  <script src="js/ai.js?v=258"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=236"></script>
+  <script src="js/chat.js?v=237"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 
@@ -3020,13 +3020,22 @@
       try {
         const { datos, modelo } = await iaLlamarGroq(
           'https://api.groq.com/openai/v1/chat/completions',
-          { messages: [{ role: 'user', content: 'Di "OK" en una palabra.' }], max_tokens: 5 },
+          /* 🔴 BUILD 414 · Aquí pedía `max_tokens: 5`. Con los `gpt-oss`, que
+           * son modelos de RAZONAMIENTO, 5 tokens se agotan pensando y Groq
+           * devuelve 200 OK con el texto VACÍO: de ahí el «respondió pero sin
+           * texto». El botón de prueba estaba provocando ÉL MISMO el fallo que
+           * decía encontrar. Ahora da margen para razonar. */
+          { messages: [{ role: 'user', content: 'Di "OK" en una palabra.' }], max_tokens: 512 },
           { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key }
         );
         if (datos.choices?.[0]?.message?.content) {
           showAdminToast('✅ Groq conectado — Maya está lista (modelo: ' + modelo + ')', 'success');
         } else {
-          showAdminToast('⚠️ Groq respondió pero sin texto. Modelo: ' + modelo, 'warning');
+          /* Si aún así llega vacío, lo importante es dejar claro que la CLAVE
+           * FUNCIONA: un 200 OK ya demuestra que la conexión y los permisos
+           * están bien. Antes esto se leía como «algo va mal con Groq». */
+          showAdminToast('⚠️ Conexión y clave CORRECTAS (' + modelo + '), pero el modelo '
+            + 'devolvió texto vacío. Reinténtalo.', 'warning');
         }
       } catch(e) {
         showAdminToast('❌ ' + e.message, 'error');
