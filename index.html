@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '414', KEY = 'cm_app_ver';
+        var VER = '415', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1319,7 +1319,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
   <!-- Quagga2: decodificador de foto estática (el más fiable de los tres) -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
-<script src="js/api.js?v=332"></script>
+<script src="js/api.js?v=333"></script>
   <script src="js/auth.js?v=203"></script>
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
@@ -1506,33 +1506,44 @@
      * Flujo: foto → base64 → Groq Vision → código → buscar producto
      */
 
-    // ── Precargar clave Groq desde DB al iniciar la página ───────────────────
-    // Así cualquier dispositivo nuevo la obtiene automáticamente, sin configuración manual
+    /* ═══════════════════════════════════════════════════════════════════════
+     * 🔴🔴 BUILD 415 · AQUÍ SE REGALABA LA CLAVE DE GROQ A CADA VISITANTE
+     * ═══════════════════════════════════════════════════════════════════════
+     * Este bloque leía `settings.groqApiKey` de la base de datos y la GUARDABA
+     * EN EL localStorage DEL NAVEGADOR DE CUALQUIERA que abriese la tienda.
+     *
+     * No era «la clave se podía leer»: era que se la ENTREGÁBAMOS. Cualquier
+     * visitante podía abrir la consola, escribir
+     *     localStorage.getItem('groq_api_key')
+     * y llevarse la clave para gastar la cuota de Casa Mota en lo que quisiera.
+     *
+     * 🔴 Y LO PEOR: ESTO NO SERVÍA PARA NADA. La clave alimentaba el paso 4 del
+     * escáner (leer el código de barras con IA de visión), y en esta cuenta de
+     * Groq NO EXISTE NINGÚN MODELO DE VISIÓN — verificado en el BUILD 414 sobre
+     * la lista real de 12 modelos. Se estaba publicando un secreto para
+     * sostener una función que no podía funcionar.
+     *
+     * ✅ EL ESCÁNER SIGUE FUNCIONANDO. La IA era el paso 4 de 4; los tres
+     * anteriores (BarcodeDetector nativo, Quagga2 y ZXing) leen las barras de
+     * verdad y validan el dígito de control, cosa que la IA nunca hizo — podía
+     * inventarse el número, y por eso ya estaba relegada al último puesto.
+     *
+     * Si algún día Groq añade visión a esta cuenta, se reactiva pasando por
+     * `/api/chat` (functions/api/chat.js), que usa la variable de entorno
+     * GROQ_API_KEY de Cloudflare: vive en el servidor y el navegador NO la ve.
+     * Nunca volviendo a repartir el secreto al cliente.
+     *
+     * Se limpia además cualquier copia que este navegador ya tenga guardada de
+     * cuando sí se repartía: borrar el código no borra lo ya entregado.
+     */
     let _cachedGroqKey = null;
-    (async function _preloadGroqKey() {
+    (function _limpiarClaveRegalada() {
       try {
-        // Si ya está en localStorage, perfecto
-        const local = localStorage.getItem('groq_api_key');
-        if (local && local.startsWith('gsk_') && local.length > 20) {
-          _cachedGroqKey = local;
-          console.log('[Scanner] Clave Groq lista (localStorage)');
-          return;
+        if (localStorage.getItem('groq_api_key')) {
+          localStorage.removeItem('groq_api_key');
+          console.log('[Seguridad] Copia local de la clave de IA eliminada.');
         }
-        // Si no, leerla desde la base de datos y guardarla localmente.
-        // DB.getSettings() resuelve el entorno solo (Supabase en producción).
-        // NO usar 'tables/settings': no existe en producción y devuelve 404.
-        const s    = (typeof DB !== 'undefined' && DB.getSettings) ? await DB.getSettings() : null;
-        const key  = s && s.groqApiKey;
-        if (key && key.startsWith('gsk_') && key.length > 20) {
-          _cachedGroqKey = key;
-          localStorage.setItem('groq_api_key', key);
-          console.log('[Scanner] Clave Groq cargada desde DB y guardada en localStorage ✅');
-        } else {
-          console.warn('[Scanner] No hay clave Groq en la base de datos');
-        }
-      } catch(e) {
-        console.warn('[Scanner] Error precargando clave Groq:', e.message);
-      }
+      } catch (e) {}
     })();
 
     async function handleBarcodePhoto(input) {
@@ -1650,22 +1661,14 @@
     // La clave se obtiene de: 1) localStorage, 2) base de datos settings
     // NOTA: _cachedGroqKey ya fue declarada arriba en el bloque de preload
 
+    /* 🔴 BUILD 415 · Esta función buscaba la clave de Groq en `settings` y la
+     * volvía a guardar en el localStorage del visitante. Devuelve `null` a
+     * propósito: la tienda pública NO debe tener nunca la clave.
+     *
+     * No se borra la función para no romper a quien la llame; devolver `null`
+     * hace que el paso 4 del escáner se salte limpiamente, que es justo lo
+     * que se quiere (no hay modelo de visión en esta cuenta — BUILD 414). */
     async function _getScanGroqKey() {
-      // 1) Intentar desde localStorage (más rápido)
-      const local = localStorage.getItem('groq_api_key');
-      if (local && local.startsWith('gsk_')) return local;
-
-      // 2) Si no hay en localStorage, buscar en base de datos
-      if (_cachedGroqKey) return _cachedGroqKey;
-      try {
-        const s    = (typeof DB !== 'undefined' && DB.getSettings) ? await DB.getSettings() : null;
-        const key  = s && s.groqApiKey;
-        if (key && key.startsWith('gsk_')) {
-          _cachedGroqKey = key;
-          localStorage.setItem('groq_api_key', key); // cachear localmente
-          return key;
-        }
-      } catch(e) { console.warn('[Scanner] No se pudo obtener clave desde DB', e.message); }
       return null;
     }
 

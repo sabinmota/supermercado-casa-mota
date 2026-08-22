@@ -111,7 +111,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
   <!-- Capa de datos real (Supabase). Sin esto la pagina usaba 'tables/settings',
        que solo existe en el entorno de desarrollo y da 404 en produccion. -->
-  <script src="js/api.js?v=330"></script>
+  <script src="js/api.js?v=333"></script>
 
   <script>
   // ─── LOG ────────────────────────────────────────────────────────────────────
@@ -128,24 +128,26 @@
   function clearLog() { logEl.innerHTML = ''; }
 
   // ─── OBTENER CLAVE GROQ ──────────────────────────────────────────────────────
-  // Usa DB.getSettings() (js/api.js). NUNCA 'tables/settings': esa ruta es la API
-  // del entorno de desarrollo de Genspark y devuelve 404 en produccion.
+  /* 🔴 BUILD 415 · Esta página es PÚBLICA: está en el sitio en vivo y cualquiera
+   * puede abrirla. Antes leía `settings.groqApiKey` y encima guardaba la clave
+   * en el `localStorage` del visitante. O sea: una página de diagnóstico estaba
+   * repartiendo el secreto de la cuenta a quien pasara por ahí.
+   *
+   * Ahora se pide por RPC con el vale de sesión del panel. Si quien abre la
+   * página no ha entrado como personal, no hay clave — y eso es lo correcto.
+   * Los pasos 1 a 3 del escáner (BarcodeDetector nativo, Quagga2 y ZXing) NO
+   * usan clave: leen las barras de verdad y validan el dígito de control. */
   async function getGroqKey() {
-    const local = localStorage.getItem('groq_api_key');
-    if (local && local.startsWith('gsk_') && local.length > 20) return local;
-    if (typeof DB === 'undefined' || !DB.getSettings) {
-      log('⚠️ js/api.js no se cargó — no puedo leer la clave de la base de datos', 'warn');
+    if (typeof DB === 'undefined' || !DB.getAiKey) {
+      log('⚠️ js/api.js no se cargó — no puedo consultar la clave', 'warn');
       return null;
     }
     try {
-      const settings = await DB.getSettings();
-      const key = settings?.groqApiKey;
-      if (key && key.startsWith('gsk_') && key.length > 20) {
-        localStorage.setItem('groq_api_key', key);
-        return key;
-      }
+      const key = await DB.getAiKey();
+      if (key && key.startsWith('gsk_') && key.length > 20) return key;
+      log('ℹ️ Sin clave de IA disponible (el paso 4 se omite)', 'info');
     } catch (e) {
-      log('⚠️ No se pudo leer la configuración: ' + (e?.message || e), 'warn');
+      log('ℹ️ Sin sesión de panel: la clave no está disponible aquí', 'info');
     }
     return null;
   }
@@ -278,26 +280,28 @@
     if (!key || !key.startsWith('gsk_') || key.length < 30) {
       log('❌ Clave inválida — debe empezar con gsk_', 'err'); return;
     }
-    localStorage.setItem('groq_api_key', key);
-    log('Guardada en localStorage ✅', 'ok');
-    if (typeof DB === 'undefined' || !DB.saveSettings) {
-      log('⚠️ js/api.js no se cargó — la clave solo quedó en este dispositivo', 'warn');
+    /* 🔴 BUILD 415 · Ya NO se escribe en `localStorage`: eso dejaba la clave en
+     * el disco del navegador de quien abriera esta página pública. Se guarda
+     * por RPC, que exige sesión de personal activa. */
+    if (typeof DB === 'undefined' || !DB.saveAiKey) {
+      log('⚠️ js/api.js no se cargó — no se puede guardar', 'warn');
     } else {
       try {
-        // DB.saveSettings hace PATCH sobre la fila activa (o INSERT si no existe).
-        await DB.saveSettings({ groqApiKey: key });
-        log('✅ Guardada en DB — disponible en TODOS los dispositivos', 'ok');
+        await DB.saveAiKey(key);
+        log('✅ Guardada de forma segura en la base de datos', 'ok');
       } catch (e) {
-        log('❌ Error DB: ' + (e?.message || e), 'err');
+        log('❌ No se pudo guardar: ' + (e?.message || e), 'err');
       }
     }
     document.getElementById('keyInput').value = '';
     checkEngines();
   }
 
+  /* Se mantiene el botón: sirve para borrar copias que builds anteriores
+   * dejaron guardadas en este navegador. */
   function clearLocalKey() {
     localStorage.removeItem('groq_api_key');
-    log('🗑 Clave local eliminada', 'warn');
+    log('🗑 Copia local eliminada de este navegador', 'warn');
   }
 
   // ─── HELPERS ─────────────────────────────────────────────────────────────────

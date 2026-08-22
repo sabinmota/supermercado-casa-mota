@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '414';
+      const VER = '415';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -2933,7 +2933,7 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=332"></script>
+  <script src="js/api.js?v=333"></script>
   <script src="js/auth.v33.js?v=297"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
@@ -2947,10 +2947,10 @@
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=4"></script>
   <!-- IA: Groq integration -->
-  <script src="js/ai.js?v=258"></script>
+  <script src="js/ai.js?v=259"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=237"></script>
+  <script src="js/chat.js?v=238"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 
@@ -2967,8 +2967,22 @@
       }
     }
 
-    function loadAiKeysDisplay() {
-      const groqKey = localStorage.getItem('groq_api_key') || '';
+    /* 🔴 BUILD 415 · Esta función leía la clave de `localStorage`, donde builds
+     * anteriores la dejaban escrita en el disco del navegador. Ya no se guarda
+     * ahí: se pide a la base con el vale de sesión (DB.getAiKey()), que
+     * comprueba que quien la pide es personal activo.
+     *
+     * OJO: es `async` y NO devuelve la clave, solo pinta el estado. Nunca se
+     * muestra la clave completa en pantalla. */
+    async function loadAiKeysDisplay() {
+      let groqKey = '';
+      try {
+        groqKey = (typeof DB !== 'undefined' && DB.getAiKey) ? (await DB.getAiKey()) : '';
+      } catch (e) {
+        // Sesión caducada o sin permiso: se pinta «no configurada», que es lo
+        // honesto — este navegador no puede saberlo.
+        console.warn('[Admin] No se pudo consultar la clave de IA:', e.message);
+      }
       const inp = document.getElementById('settingGroqKey');
       if (inp) inp.placeholder = groqKey ? '✅ Clave guardada (oculta)' : 'gsk_••••••••••••••';
       // Badge de estado
@@ -2987,16 +3001,27 @@
       }
     }
 
-    function saveGroqKey() {
+    /* 🔴 BUILD 415 · Guardaba la clave en `localStorage`, o sea en el disco de
+     * ESTE navegador y en ningún otro sitio: había que volver a escribirla en
+     * cada dispositivo, y quedaba legible desde la consola del inspector.
+     *
+     * Ahora se guarda en la base mediante `admin_guardar_clave_ia`, que exige
+     * un vale de sesión válido. La base rechaza claves de menos de 20
+     * caracteres (CLAVE_INVALIDA). */
+    async function saveGroqKey() {
       const inp = document.getElementById('settingGroqKey');
       const key = inp?.value?.trim();
       if (!key) { showAdminToast('⚠️ Ingresa la clave Groq primero', 'warning'); return; }
       if (!key.startsWith('gsk_')) { showAdminToast('⚠️ La clave Groq debe comenzar con gsk_', 'warning'); return; }
-      localStorage.setItem('groq_api_key', key);
-      inp.value = '';
-      inp.placeholder = '✅ Clave guardada (oculta)';
-      showAdminToast('✅ Clave Groq guardada correctamente', 'success');
-      loadAiKeysDisplay();
+      try {
+        await DB.saveAiKey(key);
+        inp.value = '';
+        inp.placeholder = '✅ Clave guardada (oculta)';
+        showAdminToast('✅ Clave Groq guardada de forma segura', 'success');
+        await loadAiKeysDisplay();
+      } catch (e) {
+        showAdminToast('❌ No se pudo guardar la clave: ' + e.message, 'error');
+      }
     }
 
     function saveGeminiKey() {
@@ -3006,7 +3031,17 @@
     async function testAiConnection() {
       const btn = document.getElementById('btnTestAi');
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Probando...'; }
-      const key = localStorage.getItem('groq_api_key');
+      /* BUILD 415 · La clave se pide a la base (con el vale de sesión) en vez
+       * de leerla del disco del navegador. Si la sesión no vale, el mensaje
+       * dice la verdad —hay que volver a entrar— en vez de «no hay clave». */
+      let key = '';
+      try {
+        key = (typeof DB !== 'undefined' && DB.getAiKey) ? (await DB.getAiKey()) : '';
+      } catch (e) {
+        showAdminToast('❌ ' + e.message, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Probar conexión'; }
+        return;
+      }
       if (!key) {
         showAdminToast('⚠️ No hay clave Groq configurada. Guárdala primero en Configuración → IA', 'warning');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Probar conexión'; }

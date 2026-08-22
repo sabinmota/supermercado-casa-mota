@@ -65,60 +65,62 @@ async function _chatLLMFetch(body, groqKey) {
 }
 
 /**
- * Obtiene la clave Groq:
- * 1) Memoria (cache)
- * 2) localStorage
- * 3) Base de datos (tabla settings → groqApiKey)
- * NO se usa clave hardcodeada — se guarda desde Admin → Configuración → IA
+ * Obtiene la clave Groq para la llamada DIRECTA (plan B, cuando el proxy
+ * /api/chat no está disponible).
+ *
+ * 🔴 BUILD 415 · ANTES: leía `settings.groqApiKey` y la GUARDABA en
+ * `localStorage`. Dos problemas, no uno:
+ *
+ *   1. La clave quedaba escrita en el disco del navegador. Cualquiera con
+ *      acceso a ese equipo la sacaba escribiendo una línea en la consola.
+ *   2. `js/chat.js` se cargaba también en la tienda (hasta el build 361), así
+ *      que la clave se repartía a CLIENTES, no solo al panel.
+ *
+ * AHORA: se pide a la base con el vale de sesión (`DB.getAiKey()`), que
+ * comprueba que quien la pide es personal activo, y se queda SOLO en memoria.
+ * Al recargar la página desaparece. Eso es lo correcto para un secreto.
+ *
+ * Nota importante: devolver `null` NO rompe el chat. El camino normal es el
+ * proxy `/api/chat`, que usa la variable de entorno GROQ_API_KEY del servidor
+ * y no necesita clave en el navegador (ver `_chatLLMFetch`, que se lanza con
+ * `groqKey || _CHAT_USE_PROXY`).
  */
 async function _chatGroqKey() {
   // 1) Cache en memoria (evita llamadas repetidas)
   if (_chatGroqKeyCache && _chatGroqKeyCache.startsWith('gsk_')) return _chatGroqKeyCache;
 
-  // 2) localStorage
-  const local = localStorage.getItem('groq_api_key');
-  if (local && local.startsWith('gsk_')) {
-    _chatGroqKeyCache = local;
-    return local;
-  }
-
-  // 3) Base de datos — vía DB.getSettings(), que resuelve solo el entorno
-  //    (Supabase en producción / tables API en el editor). NO usar 'tables/...'
-  //    directamente: esa ruta no existe en producción y devuelve 404.
+  /* 2) Base de datos, por RPC con el vale de sesión.
+   *    Si no hay sesión de panel, `_rpcStaff` lanza «Tu sesión caducó»: eso NO
+   *    es un error que haya que mostrar aquí, solo significa «este navegador
+   *    no tiene derecho a la clave», y entonces se usa el proxy. */
   try {
-    if (typeof DB === 'undefined' || !DB.getSettings) return null;
-    const s   = await DB.getSettings();
-    const key = s && s.groqApiKey;
+    if (typeof DB === 'undefined' || !DB.getAiKey) return null;
+    const key = await DB.getAiKey();
     if (key && key.startsWith('gsk_')) {
-      _chatGroqKeyCache = key;
-      localStorage.setItem('groq_api_key', key); // cachear para próximas veces
+      _chatGroqKeyCache = key;   // solo memoria: NUNCA localStorage
       return key;
     }
-  } catch(e) { console.warn('[Chat] No se pudo obtener clave Groq desde DB:', e.message); }
+  } catch (e) {
+    console.warn('[Chat] Sin clave directa (se usará el proxy):', e.message);
+  }
 
-  return null; // Sin clave disponible
+  return null; // Sin clave: el proxy se encarga
 }
 
-// ── Precargar clave Groq desde DB al iniciar ─────────────────────────────────
-// Cualquier dispositivo nuevo la obtiene automáticamente sin configuración manual
-(async function _preloadChatGroqKey() {
+/* 🔴 BUILD 415 · Aquí había un `_preloadChatGroqKey()` que al arrancar la
+ * página descargaba la clave y la escribía en `localStorage`. Se ha ELIMINADO:
+ * era el reparto automático del secreto, y encima lo hacía antes de que nadie
+ * hubiera abierto el chat.
+ *
+ * Ya no hace falta precargar nada: la clave se pide en el momento y solo si el
+ * proxy falla. Y si alguna copia quedó guardada de antes, se borra ahora. */
+(function _chatLimpiarClaveGuardada() {
   try {
-    const local = localStorage.getItem('groq_api_key');
-    if (local && local.startsWith('gsk_') && local.length > 20) {
-      _chatGroqKeyCache = local;
-      return; // Ya la tenemos
+    if (localStorage.getItem('groq_api_key')) {
+      localStorage.removeItem('groq_api_key');
+      console.log('[Seguridad] Copia local de la clave de IA eliminada (chat).');
     }
-    if (typeof DB === 'undefined' || !DB.getSettings) return;
-    const s   = await DB.getSettings();
-    const key = s && s.groqApiKey;
-    if (key && key.startsWith('gsk_') && key.length > 20) {
-      _chatGroqKeyCache = key;
-      localStorage.setItem('groq_api_key', key);
-      console.log('[Chat] Clave Groq cargada desde DB ✅');
-    }
-  } catch(e) {
-    console.warn('[Chat] Error precargando clave Groq:', e.message);
-  }
+  } catch (e) { /* modo privado sin almacenamiento: nada que limpiar */ }
 })();
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────

@@ -109,7 +109,13 @@ const _SELECT_FIELDS = {
   staff:     'id,created_at,updated_at,firstName,lastName,email,phone,cedula,role,cargo,status,avatar,notes,lastLogin,deleted,has_password',
   drivers:   '*',
   categories:'*',
-  settings:  '*',
+  /* 🔴 BUILD 415 · `settings` YA NO pide '*', por el mismo motivo que
+   * `customers` y `staff` arriba: el asterisco incluía `groqApiKey`, columna
+   * que `anon` ya no puede leer, y PostgREST rechaza la petición ENTERA con
+   * un 403 cuando una sola columna está prohibida. Un '*' aquí dejaría la
+   * pantalla de Configuración en blanco sin decir por qué.
+   * El panel, que necesita la fila completa, usa DB.getSettingsAdmin(). */
+  settings:  'id,created_at,updated_at,deleted,"storeName","storeEmail","storePhone","storeWhatsapp","storeAddress","storeCity",currency,"shippingFee","freeShippingMin","serviceZones","hoursWeekday","hoursSunday","taxPercent","loyaltyPesosPerPoint","loyaltyPointsEarned","loyaltyPointValue","loyaltyExpiryMonths"',
 };
 
 // ─── ERRORES SILENCIOSOS ─────────────────────────────────────────────────────
@@ -1209,13 +1215,23 @@ const DB = {
         const json = await res.json();
         list = json.data || [];
       } else {
-        // Fetch directo — settings es una tabla muy pequeña (1-2 filas)
+        /* 🔴 BUILD 415 · Antes esto pedía `settings?select=*`, y ese asterisco
+         * incluía la columna `groqApiKey`: la clave de IA viajaba al navegador
+         * de CUALQUIER visitante de la tienda.
+         *
+         * Ahora se lee `settings_publico`, una vista que contiene los mismos
+         * campos MENOS los secretos (ver seguridad/41-cerrar-settings.sql).
+         * La tienda solo necesita 6 de ellos —teléfono, dirección, correo,
+         * whatsapp y los dos horarios— y ninguno es sensible.
+         *
+         * El panel, que sí necesita la fila entera, la pide por RPC con el
+         * vale de sesión: DB.getSettingsAdmin(). */
         const ctrl  = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 8000);
         let res;
         try {
           res = await fetch(
-            `${_SB_URL}/settings?select=*&order=created_at.desc&limit=5`,
+            `${_SB_URL}/settings_publico?select=*&order=created_at.desc&limit=5`,
             { headers: _SB_HEADERS, signal: ctrl.signal }
           );
         } catch(e) { clearTimeout(timer); throw e; }
@@ -1230,6 +1246,32 @@ const DB = {
     } catch {
       return _defaults;
     }
+  },
+
+  /* ── BUILD 415 · Ajustes COMPLETOS para el panel ─────────────────────────
+   * `getSettings()` lee la vista pública, que NO trae los secretos. El panel
+   * necesita la fila entera (para mostrar la clave de IA como «configurada»),
+   * y la pide por RPC: la BASE comprueba el vale de sesión y que quien lo usa
+   * sea personal activo. Así el secreto nunca depende de que el navegador
+   * «sea» el panel — eso el navegador puede fingirlo, la sesión no. */
+  async getSettingsAdmin() {
+    const fila = await _rpcStaff('admin_leer_settings', { p_vale: _valeAdmin() });
+    return fila || {};
+  },
+
+  /* Devuelve la clave de IA. Solo funciona con una sesión de personal válida.
+   * Se pide en el momento y NO se guarda en localStorage: guardarla ahí fue
+   * exactamente el fallo que este build corrige. */
+  async getAiKey() {
+    const r = await _rpcStaff('admin_obtener_clave_ia', { p_vale: _valeAdmin() });
+    return (typeof r === 'string') ? r : (r && r.admin_obtener_clave_ia) || '';
+  },
+
+  async saveAiKey(clave) {
+    return _rpcStaff('admin_guardar_clave_ia', {
+      p_vale:  _valeAdmin(),
+      p_clave: clave,
+    });
   },
 
   async saveSettings(data) {
@@ -1249,8 +1291,19 @@ const DB = {
       delete payload.id;             // id va en la URL, no en el body
       delete payload.created_at;     // nunca sobreescribir created_at
       delete payload.deleted;        // nunca sobreescribir deleted por aquí
+      /* 🔴 BUILD 415 · El `select=id` de esta URL NO es cosmético.
+       *
+       * `Prefer: return=representation` hace que PostgREST devuelva la fila
+       * actualizada, y por omisión la devuelve COMPLETA. Desde este build
+       * `anon` ya no puede leer la columna `groqApiKey`, así que devolver la
+       * fila entera exigiría un permiso que ya no tiene: el PATCH entero
+       * fallaría con 403 y el botón «Guardar cambios» dejaría de funcionar.
+       *
+       * Con `select=id` solo se devuelve el identificador, que sí es legible.
+       * Nadie usa el resto de la respuesta: `saveSettings` solo se comprueba
+       * por su éxito o su error. */
       const patchRes = await fetch(
-        `${_SB_URL}/settings?id=eq.${id}`,
+        `${_SB_URL}/settings?id=eq.${id}&select=id`,
         {
           method:  'PATCH',
           headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },

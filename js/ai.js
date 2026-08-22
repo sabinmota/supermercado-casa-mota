@@ -14,7 +14,19 @@
 // ─── CONFIGURACIÓN ───────────────────────────────────────────────────────────
 
 const GROQ_API_URL    = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_KEY_BACKUP = '';
+
+/* 🔴 BUILD 415 · `GROQ_KEY_BACKUP` ELIMINADA.
+ *
+ * Era una constante para escribir una clave «de respaldo» dentro del código.
+ * Aquí estaba vacía, pero en `backup/v20.0/ai.js` línea 11 había una clave
+ * REAL Y ACTIVA, publicada en GitHub y en el sitio en vivo. Cualquiera que
+ * leyera el fichero podía gastar la cuenta. La clave ya fue revocada.
+ *
+ * No se deja la constante «por si acaso»: mientras exista, el patrón invita a
+ * volver a escribir un secreto en un fichero que se publica. Un secreto no se
+ * guarda NUNCA en el código del navegador — va en una variable de entorno del
+ * servidor (Cloudflare → GROQ_API_KEY, que usa functions/api/chat.js) o en la
+ * base de datos detrás de una función con comprobación de sesión. */
 
 /* BUILD 414 · El nombre del modelo YA NO SE ESCRIBE AQUÍ.
  * Toda la IA murió a la vez porque el nombre estaba repetido a mano en 5
@@ -32,8 +44,54 @@ Ejemplo INCORRECTO (demasiado largo, dos oraciones): "...ideales para un refrige
 
 // ─── GETTERS DE KEYS ─────────────────────────────────────────────────────────
 
-function _getGroqKey()   { return localStorage.getItem('groq_api_key') || GROQ_KEY_BACKUP; }
+/* 🔴 BUILD 415 · La clave ya NO se guarda en `localStorage`.
+ *
+ * ANTES: `localStorage.getItem('groq_api_key')`. Eso dejaba el secreto escrito
+ * en el disco del navegador de forma permanente, legible con una sola línea en
+ * la consola del inspector. AHORA vive solo en esta variable de memoria: al
+ * recargar la página desaparece y hay que volver a pedirla a la base, que
+ * comprueba la sesión antes de darla.
+ *
+ * ¿Por qué DOS funciones y no una `async`?
+ * `_getGroqKey()` se usa en 10 sitios, varios de ellos sincrónicos (pintar un
+ * badge «● Configurado», decidir si se habilita un botón). Convertirla en
+ * `async` los rompería todos en silencio: devolverían una Promesa, que en un
+ * `if` SIEMPRE es verdadera, y los badges dirían «configurado» aunque no lo
+ * estuviera. Así que:
+ *   · `_getGroqKey()`    — sincrónica, mira la memoria. Para la UI.
+ *   · `_ensureGroqKey()` — asíncrona, la pide a la base si falta. Antes de
+ *                          cualquier llamada real a la IA. */
+let _groqKeyMemoria = null;
+
+function _getGroqKey()   { return _groqKeyMemoria || ''; }
 function _getGeminiKey() { return ''; } // Gemini desactivado
+
+/** Obtiene la clave pidiéndola a la base si no está en memoria.
+ *  Requiere sesión de personal activa (la comprueba la base, no el navegador). */
+async function _ensureGroqKey() {
+  if (_groqKeyMemoria) return _groqKeyMemoria;
+  try {
+    if (typeof DB === 'undefined' || !DB.getAiKey) return '';
+    const key = await DB.getAiKey();
+    if (key && key.startsWith('gsk_')) {
+      _groqKeyMemoria = key;
+      return key;
+    }
+  } catch (e) {
+    console.warn('[AI] No se pudo obtener la clave de IA:', e.message);
+  }
+  return '';
+}
+
+/* Borra cualquier copia que builds anteriores hubieran dejado en el disco. */
+(function _aiLimpiarClaveGuardada() {
+  try {
+    if (localStorage.getItem('groq_api_key')) {
+      localStorage.removeItem('groq_api_key');
+      console.log('[Seguridad] Copia local de la clave de IA eliminada (ai).');
+    }
+  } catch (e) { /* modo privado: nada que limpiar */ }
+})();
 
 // ─── INDICADOR DE PROVEEDOR ACTIVO ───────────────────────────────────────────
 
@@ -58,7 +116,9 @@ function _setAiProvider(provider) {
 // ─── LLAMADA A GROQ ───────────────────────────────────────────────────────────
 
 async function _groqRequest(prompt, maxTokens = 300) {
-  const key = _getGroqKey();
+  // BUILD 415 · `_ensureGroqKey` (no `_getGroqKey`): esta es una llamada REAL a
+  // la IA, así que si la clave no está en memoria hay que pedirla a la base.
+  const key = await _ensureGroqKey();
   if (!key) throw new Error('NO_KEY_GROQ');
 
   // BUILD 414 · `iaLlamarGroq` recorre la lista de modelos hasta dar con uno
@@ -127,8 +187,8 @@ async function _aiRequest(prompt, maxTokens = 300) {
    * pudo conectar», que manda a revisar la clave cuando el problema puede ser
    * que el modelo no esté autorizado en la organización. */
   let _ultimoErrorGroq = '';
-  // 1️⃣ Intentar Groq
-  const groqKey = _getGroqKey();
+  // 1️⃣ Intentar Groq — BUILD 415: se pide a la base si no está en memoria.
+  const groqKey = await _ensureGroqKey();
   if (groqKey) {
     try {
       const text = await _groqRequest(prompt, maxTokens);
@@ -167,17 +227,25 @@ async function saveGroqKey() {
   const key = input.value.trim();
   if (!key || key.includes('•')) { showAdminToast('⚠️ Ingresa la API key completa', 'warn'); return; }
 
-  // 1) Guardar en localStorage (para este dispositivo)
-  localStorage.setItem('groq_api_key', key);
-  input.value = key.substring(0, 8) + '••••••••••••••••••••••••';
-
-  // 2) NO se guarda en Supabase — a propósito.
-  //    La tabla `settings` la lee cualquier cliente de la tienda con la clave
-  //    anónima, así que escribir aquí la API key equivaldría a publicarla.
-  //    Desde 2026-08-01 la clave de producción vive en una variable de entorno
-  //    de Cloudflare (GROQ_API_KEY) y la usa el proxy functions/api/chat.js.
-  //    Este campo sirve solo como respaldo local para este navegador.
-  showAdminToast('✅ Guardada solo en este dispositivo. La clave de producción se configura en Cloudflare.', 'success');
+  /* 🔴 BUILD 415 · Antes esto escribía la clave en `localStorage` y NO la
+   * guardaba en la base, con este razonamiento en el comentario: «la tabla
+   * settings la lee cualquier cliente, así que guardarla equivaldría a
+   * publicarla». El razonamiento era CORRECTO; la conclusión, incompleta:
+   * la clave ya estaba en `settings` de antes, y además el disco del
+   * navegador tampoco es un sitio seguro para un secreto.
+   *
+   * Ahora la tabla `settings` YA NO la lee cualquiera (la columna
+   * `groqApiKey` está cerrada a `anon`), así que sí se puede guardar en la
+   * base — a través de una función que comprueba la sesión de personal. */
+  try {
+    await DB.saveAiKey(key);
+    _groqKeyMemoria = key;             // memoria, no disco
+    input.value = key.substring(0, 8) + '••••••••••••••••••••••••';
+    _updateAiStatusBadges();
+    showAdminToast('✅ Clave guardada de forma segura en la base de datos', 'success');
+  } catch (e) {
+    showAdminToast('❌ No se pudo guardar: ' + e.message, 'error');
+  }
 }
 
 function saveGeminiKey() {
@@ -190,10 +258,16 @@ function saveGeminiKey() {
   showAdminToast('✅ API key de Gemini guardada', 'success');
 }
 
-function loadGroqKeyDisplay() {
+/* BUILD 415 · Ahora es `async`: al cargar la página la memoria está vacía, así
+ * que hay que preguntar a la base si existe una clave guardada. Antes bastaba
+ * con mirar `localStorage`, que es justo lo que se ha eliminado.
+ *
+ * Se muestran solo los 8 primeros caracteres, nunca la clave entera: sirve
+ * para reconocer «es la que creía» sin volver a exponerla en pantalla. */
+async function loadGroqKeyDisplay() {
   const input = document.getElementById('settingGroqKey');
   if (!input) return;
-  const key = _getGroqKey();
+  const key = await _ensureGroqKey();
   if (key) input.value = key.substring(0, 8) + '••••••••••••••••••••••••';
 }
 
@@ -204,8 +278,11 @@ function loadGeminiKeyDisplay() {
   if (key) input.value = key.substring(0, 8) + '••••••••••••••••••••••••';
 }
 
-function loadAiKeysDisplay() {
-  loadGroqKeyDisplay();
+/* BUILD 415 · `async` y con `await`: si no se espera a que la clave llegue de
+ * la base, `_updateAiStatusBadges()` se ejecutaría con la memoria todavía
+ * vacía y el sello diría «○ Sin configurar» teniendo la clave guardada. */
+async function loadAiKeysDisplay() {
+  await loadGroqKeyDisplay();
   loadGeminiKeyDisplay();
   _updateAiStatusBadges();
 }
@@ -238,7 +315,7 @@ async function testAiConnection() {
 // ─── GENERADOR DE DESCRIPCIÓN DE PRODUCTO ────────────────────────────────────
 
 async function aiGenerateDescription() {
-  const hasKey = _getGroqKey() || _getGeminiKey();
+  const hasKey = await _ensureGroqKey() || _getGeminiKey();
   if (!hasKey) {
     showAdminToast('⚠️ Configura al menos una API key en Configuración → IA', 'warn');
     showSection('settings', document.querySelector('[data-section="settings"]'));
@@ -484,7 +561,7 @@ function _bulkClose() {
 async function _bulkGenerateOne(product, _intento = 1, _saltos = 0) {
   _bulkAbortCtrl = new AbortController();
   const signal   = _bulkAbortCtrl.signal;
-  const key      = _getGroqKey();
+  const key      = await _ensureGroqKey();
 
   if (!key) throw new Error('NO_KEY_GROQ');
 
@@ -575,7 +652,7 @@ async function _bulkGenerateOne(product, _intento = 1, _saltos = 0) {
  * Pausa de 2.2s entre cada producto → respeta rate limit de Groq.
  */
 async function aiBulkDescribe() {
-  if (!_getGroqKey()) {
+  if (!await _ensureGroqKey()) {
     showAdminToast('⚠️ Configura la API key de Groq en Configuración → IA', 'warn');
     return;
   }
