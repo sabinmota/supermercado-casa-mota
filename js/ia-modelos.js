@@ -25,57 +25,111 @@
  * que nos trajo hasta aquí.
  *
  * ═════════════════════════════════════════════════════════════════════════════
- * 🔴 LÍMITE DELIBERADO DE LA CUENTA — LEER ANTES DE AÑADIR MODELOS
+ * 🔴🔴 CORRECCIÓN DE UN DIAGNÓSTICO EQUIVOCADO (mismo build, segunda vuelta)
  * ═════════════════════════════════════════════════════════════════════════════
- * En Groq → Organization Limits → «Allowed Models», el dueño autorizó
- * EXCLUSIVAMENTE estos dos:
+ * La primera versión de este fichero afirmaba que Groq había RETIRADO los
+ * modelos. ERA FALSO. El error que llegó después lo dejó claro:
  *
- *     groq/compound        groq/compound-mini
+ *   403 — The model `llama-3.3-70b-versatile` is BLOCKED AT THE ORGANIZATION
+ *   LEVEL. Please have the org admin enable this model in the org settings.
  *
- * Cualquier otro modelo (openai/gpt-oss-*, qwen/*, allam-*…) aparece en
- * /v1/models pero la organización lo RECHAZA. Añadirlo aquí no da más
- * respaldo: da un error distinto y más confuso. Si en el futuro se quieren
- * más, primero hay que autorizarlos en esa pantalla de Groq y DESPUÉS
- * añadirlos a estas listas. En ese orden.
+ * Los modelos estaban vivos todo el tiempo. Quien los rechazaba era la lista
+ * «Allowed Models» de la propia cuenta. El error original decía «does not
+ * exist OR YOU DO NOT HAVE ACCESS TO IT» y se leyó solo la primera mitad.
  *
- * Lista comprobada en la cuenta real el 2026-08-21 con
- * GET https://api.groq.com/openai/v1/models + la pantalla Organization Limits.
- * No adivinada.
+ * 🔴 Y de ahí sale la trampa que rompió el arreglo anterior:
+ * `groq/compound` NO ES UN MODELO, es un sistema agéntico que POR DENTRO
+ * llama a `llama-3.3-70b-versatile`. Autorizar solo los dos «compound» y
+ * bloquear el resto es contradictorio: compound se choca contra el bloqueo de
+ * su propio motor interno y devuelve 403. Por eso al arreglarlo seguía roto.
  *
- * ⚠️ CUOTA MUY DISTINTA A LA DE ANTES:
- *     groq/compound       → 30 req/min · 250 req/DÍA · 70K tokens/min
- *     groq/compound-mini  → 30 req/min · 250 req/DÍA · 70K tokens/min
- * El modelo anterior daba 14.400 peticiones al día. Ahora son 250. Es de sobra
- * para el chat de Maya y para describir productos sueltos, pero NO alcanza
- * para generar descripciones masivas del catálogo entero de una sentada
- * (ver el aviso en aiBulkDescribe).
+ * ═════════════════════════════════════════════════════════════════════════════
+ * 🔴 TERCERA CORRECCIÓN: LOS MODELOS «LLAMA» NO SE PUEDEN AUTORIZAR
+ * ═════════════════════════════════════════════════════════════════════════════
+ * Recomendé activar `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` y
+ * `meta-llama/llama-4-scout-...`. ERA UN CONSEJO IMPOSIBLE DE SEGUIR: la
+ * pantalla «Base Models» de esta cuenta NO LOS OFRECE. La lista completa,
+ * leída de la captura del dueño el 2026-08-22, es exactamente esta:
+ *
+ *   canopylabs/orpheus-arabic-saudi        → voz (TTS), no sirve para texto
+ *   canopylabs/orpheus-v1-english          → voz (TTS)
+ *   groq/compound                          → agéntico
+ *   groq/compound-mini                     → agéntico
+ *   meta-llama/llama-prompt-guard-2-22m    → clasificador de seguridad
+ *   meta-llama/llama-prompt-guard-2-86m    → clasificador de seguridad
+ *   openai/gpt-oss-120b                    → ✅ CHAT
+ *   openai/gpt-oss-20b                     → ✅ CHAT
+ *   openai/gpt-oss-safeguard-20b           → clasificador de seguridad
+ *   qwen/qwen3.6-27b                       → ✅ CHAT
+ *   whisper-large-v3                       → transcribe audio
+ *   whisper-large-v3-turbo                 → transcribe audio
+ *
+ * De los doce, SOLO TRES sirven para conversar: los dos `gpt-oss` y `qwen`.
+ * Los `prompt-guard` y `safeguard` solo dicen si un texto es peligroso; los
+ * `orpheus` y `whisper` son de audio. Ponerlos aquí daría error siempre.
+ *
+ * 🔴 Y `groq/compound` NO VA A FUNCIONAR NUNCA en esta cuenta: por dentro
+ * llama a `llama-3.3-70b-versatile`, que ni siquiera aparece en la lista, así
+ * que no hay forma de desbloquearlo. Por eso da 403. Se deja el último, como
+ * último recurso, pero no se cuenta con él.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ✅ LO QUE HAY QUE HACER EN GROQ (esto NO se arregla con código)
+ * ═════════════════════════════════════════════════════════════════════════════
+ * console.groq.com → Settings → Limits → Allowed Models → MARCAR LA CASILLA de:
+ *
+ *     openai/gpt-oss-20b     (el principal: rápido y suficiente)
+ *     openai/gpt-oss-120b    (respaldo, más capaz y más lento)
+ *
+ * En la captura TODAS las casillas salían VACÍAS. Mientras no se marque
+ * ninguna, cualquier modelo dará 403 y la IA seguirá muerta.
  */
 
 /* ─── MODELOS DE TEXTO, POR ORDEN DE PREFERENCIA ─────────────────────────────
- * · groq/compound-mini → el más rápido de los dos; suficiente para el chat de
- *   Maya y para una descripción de producto de 25 palabras.
- * · groq/compound      → más capaz, algo más lento; respaldo si el mini falla.
+ * Solo modelos que EXISTEN en esta cuenta y saben conversar.
+ *
+ * ✅ LÍMITES VERIFICADOS en «Current Limits» de la cuenta real (2026-08-22):
+ *
+ *   MODELO                 req/min  req/día  tok/min   tok/día
+ *   openai/gpt-oss-20b       30      1.000    8.000    200.000
+ *   openai/gpt-oss-120b      30      1.000    8.000    200.000
+ *   qwen/qwen3.6-27b         30      1.000    8.000    200.000
+ *   groq/compound            30        250   70.000    sin tope
+ *   groq/compound-mini       30        250   70.000    sin tope
+ *
+ * 💡 Los tres primeros SUMAN ~3.000 peticiones al día, porque el límite es
+ * por modelo y no de la cuenta: al agotarse uno, el sistema salta al
+ * siguiente. De sobra para los ~1.900 productos del catálogo.
+ *
+ * 🔴 PERO OJO CON EL CHAT DE MAYA: el cuello de botella NO son las peticiones
+ * sino los 8.000 TOKENS POR MINUTO. Maya manda en cada mensaje un contexto
+ * grande (catálogo, pedidos, estadísticas). Si ese contexto pasa de ~8.000
+ * tokens (unos 30.000 caracteres), Groq responderá 429 SIEMPRE, aunque no se
+ * haya gastado ni una petición del día. Los «compound» tienen 70.000 tok/min,
+ * casi nueve veces más, pero no sirven en esta cuenta porque su motor interno
+ * está bloqueado. Si Maya empieza a dar 429 con el catálogo lleno, la solución
+ * es RECORTAR EL CONTEXTO (menos productos por mensaje), no cambiar de modelo.
  */
 const IA_MODELOS_TEXTO = [
-  'groq/compound-mini',
+  'openai/gpt-oss-20b',   // principal: rápido, de sobra para Maya y descripciones
+  'openai/gpt-oss-120b',  // respaldo: más capaz, más lento (otras 1.000/día)
+  'qwen/qwen3.6-27b',     // segundo respaldo (otras 1.000/día)
+  'groq/compound-mini',   // último recurso (su motor interno está bloqueado)
   'groq/compound',
 ];
 
 /* ─── MODELOS CON VISIÓN (leer fotos) ────────────────────────────────────────
- * 🔴 AVISO HONESTO, SIN ADORNOS:
- * `meta-llama/llama-4-scout-17b-16e-instruct`, que usaba el escáner de códigos
- * de barras, YA NO EXISTE en la cuenta y NO está entre los dos autorizados.
+ * 🔴 AVISO HONESTO: EN ESTA CUENTA NO HAY NINGÚN MODELO DE VISIÓN. Los doce
+ * disponibles son de texto, de audio o clasificadores. `meta-llama/llama-4-
+ * scout`, que era el que leía las fotos, no figura y no se puede autorizar.
+ * Se dejan estos por si Groq amplía la lista, pero lo más probable es que
+ * fallen con 403.
  *
- * `groq/compound` es un sistema agéntico que PUEDE derivar a un modelo con
- * visión, pero NO ESTÁ COMPROBADO con una foto real desde aquí. Puede que
- * funcione y puede que no.
- *
- * Lo importante: si falla, EL ESCÁNER NO SE ROMPE. La IA era el paso 4 de 4
- * (index.html ~1585) y los tres anteriores —BarcodeDetector nativo, Quagga2 y
- * ZXing— leen las barras de verdad y validan el dígito de control, cosa que la
- * IA no hacía; de hecho podía alucinar el número, y por eso se la relegó al
- * final. Sin visión el escáner es algo menos tolerante con fotos malas; no
- * deja de funcionar.
+ * EL ESCÁNER NO SE ROMPE POR ESTO: la IA es el paso 4 de 4 (index.html ~1585)
+ * y los tres anteriores —BarcodeDetector nativo, Quagga2 y ZXing— leen las
+ * barras de verdad y validan el dígito de control, cosa que la IA nunca hizo;
+ * podía inventarse el número, y por eso está la última. Se pierde algo de
+ * tolerancia con fotos malas; no se pierde el escáner.
  */
 const IA_MODELOS_VISION = [
   'groq/compound',
@@ -133,7 +187,16 @@ function _iaModeloMuerto(status, texto) {
       || t.includes('do not have access')
       || t.includes('not allowed')
       || t.includes('not permitted')
-      || t.includes('decommission');
+      || t.includes('decommission')
+      /* 🔴 ESTE ERA EL FALLO que dejó la IA rota tras el primer arreglo.
+       * Groq responde «is blocked at the organization level» con un 403 y
+       * NINGUNA de las frases de arriba. Al no reconocerlo, el código daba el
+       * error por definitivo y NUNCA probaba el siguiente modelo de la lista:
+       * justo lo contrario de para lo que existe este fichero. */
+      || t.includes('blocked at the organization')
+      || t.includes('organization level')
+      || t.includes('org admin')
+      || t.includes('model_blocked');
 }
 
 /** Igual que `_iaModeloMuerto`, con nombre público para usarlo desde chat.js. */
@@ -194,7 +257,9 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
     }
 
     if (_iaModeloMuerto(res.status, texto)) {
-      console.warn(`[IA] «${modelo}» no está disponible (retirado o no autorizado). Probando el siguiente…`);
+      // El motivo casi siempre es que está bloqueado en «Allowed Models»,
+      // no que Groq lo haya retirado. Decirlo bien ahorra buscar donde no es.
+      console.warn(`[IA] «${modelo}» rechazado por Groq (${res.status}) — normalmente está bloqueado en Allowed Models. Probando el siguiente…`);
       ultimoError = `El modelo «${modelo}» no está disponible.`;
       continue;
     }
@@ -209,9 +274,16 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
     throw new Error(msg);
   }
 
+  /* El mensaje dice QUÉ HACER, no solo que algo falló. El motivo casi siempre
+   * es el mismo: la lista «Allowed Models» de la cuenta bloquea el modelo. */
+  /* El mensaje dice QUÉ HACER, no solo que algo falló, y nombra un modelo que
+   * SÍ existe en esta cuenta (recomendar uno inexistente ya hizo perder un
+   * viaje entero a la pantalla de Groq). */
   throw new Error(
     ultimoError +
-    ' Comprueba en Groq → Organization Limits → Allowed Models que ' +
-    'groq/compound y groq/compound-mini sigan autorizados.'
+    ' Ningún modelo está autorizado en su cuenta de Groq. Entre en ' +
+    'console.groq.com → Settings → Limits → Allowed Models y MARQUE LA ' +
+    'CASILLA de «openai/gpt-oss-20b» (y, si quiere respaldo, ' +
+    '«openai/gpt-oss-120b»).'
   );
 }

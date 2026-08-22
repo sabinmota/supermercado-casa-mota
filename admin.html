@@ -939,10 +939,22 @@
               <span id="aiProviderBadge" style="font-weight:600">—</span>
             </div>
           </div>
-          <p style="font-size:.82rem;color:#6b7280;margin-bottom:16px">
-            Sistema de IA dual con <strong>failover automático</strong>: Groq responde primero (⚡ más rápido), 
-            si falla cambia a Gemini (💎 respaldo). Ambas son gratuitas.
+          <!-- BUILD 414 · Este texto prometía un «failover automático a
+               Gemini» que NO EXISTE: Gemini está desactivado en el código.
+               Se dice lo que hay de verdad, y qué hacer cuando falla. -->
+          <p style="font-size:.82rem;color:#6b7280;margin-bottom:12px">
+            Proveedor único: <strong>Groq</strong> (gratuito). No hay respaldo de otro
+            proveedor: si Groq falla, la IA no responde.
           </p>
+          <div style="font-size:.8rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:16px;color:#78350f">
+            <strong>⚠️ Si la IA da error «blocked at the organization level»</strong>, no es la clave
+            ni el saldo: su cuenta tiene los modelos sin autorizar. Entre en
+            <a href="https://console.groq.com/settings/limits" target="_blank" style="color:#b45309;font-weight:600">console.groq.com → Settings → Limits</a>
+            → <em>Allowed Models</em> y <strong>marque la casilla</strong> de
+            <code>openai/gpt-oss-20b</code> (y <code>openai/gpt-oss-120b</code> como respaldo).
+            <br>Nota: <code>groq/compound</code> <strong>no sirve en esta cuenta</strong> — usa por dentro
+            <code>llama-3.3-70b-versatile</code>, que no figura entre los modelos disponibles.
+          </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="ai-keys-grid">
 
@@ -970,7 +982,10 @@
               <small style="color:#9ca3af;font-size:.7rem">
                 <i class="fas fa-external-link-alt"></i>
                 <a href="https://console.groq.com" target="_blank" style="color:#7c3aed">console.groq.com</a>
-                · 14 400 req/día gratis
+                <!-- BUILD 414 · cifras verificadas en «Current Limits» de la
+                     cuenta real (2026-08-22), no estimadas. -->
+                · gratis · <code>gpt-oss</code>: 1.000 consultas/día por modelo
+                (~3.000 sumando los tres)
               </small>
             </div>
 

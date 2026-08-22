@@ -1722,11 +1722,12 @@
 
       /* BUILD 414 · El modelo ya no se escribe aquí.
        *
-       * AVISO HONESTO: `meta-llama/llama-4-scout-17b-16e-instruct`, que era el
-       * que leía las fotos, fue retirado por Groq y NO está entre los dos
-       * modelos autorizados en la cuenta. Se usa `iaModeloVision()`, que hoy
-       * devuelve `groq/compound` — un sistema agéntico que PUEDE derivar a
-       * visión, pero NO ESTÁ COMPROBADO con una foto real.
+       * 🔴 AVISO HONESTO: EN ESTA CUENTA NO HAY MODELO DE VISIÓN. Los doce
+       * modelos disponibles son de texto, de audio (whisper, orpheus) o
+       * clasificadores (prompt-guard); `meta-llama/llama-4-scout`, que era el
+       * que leía las fotos, NO FIGURA y no se puede autorizar. Se llama a
+       * `iaModeloVision()` por si Groq amplía la lista, pero lo más probable
+       * es que responda 403.
        *
        * Si no funciona, EL ESCÁNER NO SE ROMPE: esto es el paso 4 de 4. Los
        * tres anteriores (BarcodeDetector nativo, Quagga2 y ZXing) leen las

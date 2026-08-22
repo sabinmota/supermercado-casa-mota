@@ -44,13 +44,23 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
  * .js no exporta nada y toca `localStorage`). Si algún día se añade un modelo,
  * hay que tocar LOS DOS SITIOS o el proxy devolverá «Modelo no permitido: …».
  *
- * Los tres anteriores (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`,
- * `meta-llama/llama-4-scout-17b-16e-instruct`) fueron retirados por Groq y
- * además NO están autorizados en Organization Limits → Allowed Models, donde
- * el dueño dejó solo estos dos. */
+ * 🔴 Esta lista se equivocó DOS VECES en este mismo build: primero se quitaron
+ * los «llama» creyéndolos retirados (estaban bloqueados, que es distinto) y
+ * después se volvieron a poner creyendo que bastaba con autorizarlos. Ninguna
+ * de las dos cosas: la pantalla «Base Models» de esta cuenta NO OFRECE ningún
+ * modelo llama de chat, así que no se pueden activar. Los de aquí son los
+ * únicos disponibles que saben conversar (los `whisper` son de audio, los
+ * `orpheus` de voz y los `prompt-guard`/`safeguard` son clasificadores).
+ *
+ * Esta lista solo evita que un tercero gaste la cuota. Que un modelo esté
+ * aquí NO significa que funcione: la última palabra la tiene «Allowed Models»
+ * en console.groq.com, donde hay que MARCAR SU CASILLA. */
 const MODELOS_PERMITIDOS = new Set([
-  'groq/compound-mini', // chat Maya y descripciones de producto
-  'groq/compound',      // respaldo y, si lo admite, visión del escáner
+  'openai/gpt-oss-20b',   // principal (chat Maya y descripciones)
+  'openai/gpt-oss-120b',  // respaldo
+  'qwen/qwen3.6-27b',     // segundo respaldo
+  'groq/compound-mini',   // último recurso
+  'groq/compound',
 ]);
 
 // El escáner envía fotos en base64, por eso el límite es amplio.

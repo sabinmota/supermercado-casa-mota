@@ -17,9 +17,11 @@ const GROQ_API_URL    = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_KEY_BACKUP = '';
 
 /* BUILD 414 · El nombre del modelo YA NO SE ESCRIBE AQUÍ.
- * Groq retiró `llama-3.1-8b-instant` y toda la IA murió a la vez porque el
- * nombre estaba repetido a mano en 5 ficheros. Ahora vive solo en
- * js/ia-modelos.js, que además prueba varios en orden si uno desaparece. */
+ * Toda la IA murió a la vez porque el nombre estaba repetido a mano en 5
+ * ficheros y los modelos que usaba no están disponibles en esta cuenta de
+ * Groq. Ahora vive solo en js/ia-modelos.js, que prueba varios en orden y se
+ * salta el que la cuenta rechace. (Nota: NO fue una retirada de Groq, como se
+ * escribió al principio aquí; era la lista «Allowed Models» de la cuenta.) */
 
 // System prompt compartido para ambos modelos
 const AI_SYSTEM_PROMPT = `Eres el asistente de IA del Supermercado Casa Mota en República Dominicana.
@@ -354,15 +356,40 @@ function onProductDescInput() {
 
 let _bulkCancelled = false;
 let _bulkAbortCtrl  = null;   // AbortController activo para cancelar fetch inmediatamente
+let _bulk429Texto   = '';     // texto del último 429: distingue límite por minuto vs por día
 
 /* BUILD 414 · El modelo del bulk sale de js/ia-modelos.js, igual que el resto.
  *
- * 🔴 AVISO DE CUOTA: los modelos autorizados hoy (groq/compound y su versión
- * mini) dan 250 PETICIONES AL DÍA, no las 14.400 del modelo anterior. Con
- * ~1.900 productos en el catálogo, describirlos todos de una sentada YA NO ES
- * POSIBLE: se agota la cuota diaria en el producto 250. Se avisa al usuario
- * antes de empezar en vez de dejar que falle a mitad. */
-const BULK_TOPE_DIARIO = 250;
+ * ✅ CIFRAS VERIFICADAS en la pantalla «Current Limits» de la cuenta real
+ * (2026-08-22). Antes eran una estimación mía; ahora son las de Groq:
+ *
+ *   openai/gpt-oss-20b   → 30/min · 1K/día · 8K tokens/min · 200K tokens/día
+ *   openai/gpt-oss-120b  → 30/min · 1K/día · 8K tokens/min · 200K tokens/día
+ *   qwen/qwen3.6-27b     → 30/min · 1K/día · 8K tokens/min · 200K tokens/día
+ *   groq/compound(-mini) → 30/min · 250/día · 70K tokens/min · sin tope diario
+ *
+ * 🔴 SE COMPROBÓ CUÁL DE LOS DOS LÍMITES MANDA, porque no es evidente:
+ * cada descripción gasta ~130 tokens (unas 70 de pregunta + 60 de respuesta).
+ * 200.000 ÷ 130 ≈ 1.500 productos por tokens, pero solo 1.000 por peticiones.
+ * Manda el de PETICIONES. Por eso la tabla es de peticiones y no de tokens.
+ *
+ * 💡 Los límites son POR MODELO, no de la cuenta entera: al agotar las 1.000
+ * de gpt-oss-20b, el sistema salta a gpt-oss-120b y dispone de otras 1.000.
+ * Sumando los tres modelos de chat salen ~3.000 al día, de sobra para los
+ * ~1.900 productos del catálogo. */
+const BULK_CUOTAS_DIARIAS = {
+  'openai/gpt-oss-20b':  1000,
+  'openai/gpt-oss-120b': 1000,
+  'qwen/qwen3.6-27b':    1000,
+  'groq/compound-mini':   250,
+  'groq/compound':        250,
+};
+const BULK_TOPE_POR_DEFECTO = 250; // el más restrictivo, si el modelo no está en la tabla
+
+function _bulkTopeDiario() {
+  const m = (typeof iaModeloTexto === 'function') ? iaModeloTexto() : '';
+  return BULK_CUOTAS_DIARIAS[m] || BULK_TOPE_POR_DEFECTO;
+}
 // Pausa entre cada producto (ms) — respeta rate limit de Groq (~30 req/min)
 const BULK_DELAY_MS   = 2200;
 
@@ -419,7 +446,7 @@ function _bulkClose() {
  * Genera descripción de UN solo producto con Groq.
  * Prompt simple, sin JSON, sin lotes — máxima tasa de éxito.
  */
-async function _bulkGenerateOne(product) {
+async function _bulkGenerateOne(product, _intento = 1) {
   _bulkAbortCtrl = new AbortController();
   const signal   = _bulkAbortCtrl.signal;
   const key      = _getGroqKey();
@@ -446,15 +473,40 @@ async function _bulkGenerateOne(product) {
     { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     {
       signal,
-      onEstado: (status) => (status === 429 ? REINTENTAR : undefined)
+      /* Se guarda el texto del 429 porque Groq distingue dos casos con el
+       * mismo código y NO se arreglan igual: el de MINUTO se pasa esperando,
+       * el de DÍA no se pasa hasta mañana. */
+      onEstado: (status, texto) => {
+        if (status !== 429) return undefined;
+        _bulk429Texto = String(texto || '');
+        return REINTENTAR;
+      }
     }
   );
 
   if (salida === REINTENTAR) {
-    // Rate limit — esperar 8 segundos y reintentar una vez
+    /* 🔴 BUILD 414 · Este bloque tenía un bucle infinito. Decía «reintentar
+     * una vez» pero se llamaba a sí mismo sin contador, así que cada reintento
+     * podía volver a fallar y reintentar otra vez, para siempre.
+     *
+     * Con las cuotas reales (1.000/día por modelo) esto deja de ser teórico:
+     * al agotar la del día, TODAS las peticiones dan 429 y el proceso se
+     * quedaría girando cada 8 segundos sin describir nada y sin decir por qué.
+     *
+     * Un 429 por límite de MINUTO sí se pasa esperando (30/min); uno por
+     * límite de DÍA no se pasa hasta mañana, y hay que rendirse y decirlo. */
+    const esLimiteDiario = /per\s*day|daily|día/i.test(_bulk429Texto);
+    if (esLimiteDiario) {
+      _bulkAbortCtrl = null;
+      throw new Error('CUOTA_DIARIA_AGOTADA');
+    }
+    if (_intento >= 2) {
+      _bulkAbortCtrl = null;
+      throw new Error('El servicio de IA sigue saturado tras esperar. Inténtalo más tarde.');
+    }
     await _sleep(8000);
     if (_bulkCancelled) throw new Error('AbortError');
-    return _bulkGenerateOne(product);
+    return _bulkGenerateOne(product, _intento + 1);
   }
 
   const text = (salida.datos.choices?.[0]?.message?.content || '').trim();
@@ -507,17 +559,21 @@ async function aiBulkDescribe() {
     }
 
     /* BUILD 414 · AVISO DE CUOTA ANTES DE EMPEZAR.
-     * Los modelos autorizados hoy permiten 250 peticiones AL DÍA. Antes eran
-     * 14.400, así que este proceso se lanzaba sin pensar. Con ~1.900 productos
-     * ahora se agotaría la cuota en el nº 250 y el resto fallaría uno a uno,
-     * dejando el catálogo a medias sin explicación. Mejor decirlo antes. */
-    if (todo.length > BULK_TOPE_DIARIO) {
+     * Cifras reales de la cuenta: 1.000 peticiones/día por cada modelo de
+     * chat. Con ~1.900 productos el proceso se cortará a mitad, así que se
+     * avisa antes en vez de dejarlo morir en el producto 1.000. */
+    const _tope   = _bulkTopeDiario();
+    const _modelo = (typeof iaModeloTexto === 'function') ? iaModeloTexto() : 'el modelo actual';
+    if (todo.length > _tope) {
+      const _mins = Math.ceil(_tope * BULK_DELAY_MS / 60000);
       const seguir = confirm(
-        `Vas a generar ${todo.length} descripciones, pero la cuenta de Groq ` +
-        `permite unas ${BULK_TOPE_DIARIO} al día.\n\n` +
-        `Se describirán las primeras ~${BULK_TOPE_DIARIO} y el resto dará error ` +
-        `por cuota agotada. Puedes continuar mañana donde se quedó.\n\n` +
-        `¿Quieres empezar de todas formas?`
+        `Vas a generar ${todo.length} descripciones, pero «${_modelo}» permite ` +
+        `${_tope} peticiones al día.\n\n` +
+        `Se describirán las primeras ~${_tope} (unos ${_mins} minutos) y el proceso ` +
+        `se detendrá solo al agotarse la cuota.\n\n` +
+        `💡 Mañana puedes volver a pulsar el botón: los productos ya descritos ` +
+        `no se repiten, así que continuará donde se quedó.\n\n` +
+        `¿Quieres empezar?`
       );
       if (!seguir) {
         _bulkSetProgress(0, 0, null, 'Cancelado antes de empezar');
@@ -559,6 +615,16 @@ async function aiBulkDescribe() {
         if (e.name === 'AbortError' || _bulkCancelled) {
           _bulkCancelled = true;
           _bulkSetProgress(done, todo.length, null, `⛔ Cancelado — ${done} generadas`);
+          break;
+        }
+        /* BUILD 414 · Si se agotó la cuota del DÍA no tiene sentido seguir:
+         * los ~1.500 productos restantes fallarían uno a uno, con 2,2 s de
+         * pausa entre cada uno (casi una hora de errores) y el usuario mirando
+         * una lista roja sin entender nada. Se para y se dice qué pasa. */
+        if (e.message === 'CUOTA_DIARIA_AGOTADA') {
+          _bulkSetProgress(done, todo.length,
+            '🛑 Cuota diaria de Groq agotada',
+            `${done} descripciones guardadas. Vuelve mañana y continuará donde se quedó (los ya descritos no se repiten).`);
           break;
         }
         errors++;
