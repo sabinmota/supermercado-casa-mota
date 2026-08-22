@@ -1321,8 +1321,12 @@ const DB = {
     delete createPayload.id;
     delete createPayload.created_at;
     delete createPayload.deleted;
+    /* BUILD 415 · `&select=id` por el mismo motivo que en el PATCH de arriba:
+     * `return=representation` devolvería la fila COMPLETA, y `anon` ya no
+     * puede leer la columna `groqApiKey`. Sin esto, crear la primera fila de
+     * configuración fallaría con 403. */
     const createRes = await fetch(
-      `${_SB_URL}/settings`,
+      `${_SB_URL}/settings?select=id`,
       {
         method:  'POST',
         headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
