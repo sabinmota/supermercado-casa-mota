@@ -1242,11 +1242,18 @@ INSTRUCCIONES IMPORTANTES:
      *
      * Solo se pasa al siguiente si el modelo está retirado o no autorizado.
      * Un 401 o un 429 no mejoran cambiando de modelo: reintentar solo
-     * gastaría cuota (recuerda: 250 peticiones al DÍA) y retrasaría el
-     * mensaje real para el cliente. */
+     * gastaría cuota (verificado: 1.000 peticiones al DÍA por modelo con los
+     * `gpt-oss`; los 250 que decía antes eran mi estimación, no un dato) y
+     * retrasaría el mensaje real para el cliente. */
+    /* 🔴 BUILD 414 · El respaldo de emergencia (solo se usa si ia-modelos.js
+     * no llegó a cargar) nombraba `groq/compound-mini` y `groq/compound`:
+     * justo los DOS ÚNICOS que NO pueden funcionar en esta cuenta, porque su
+     * motor interno (`llama-3.3-70b-versatile`) está bloqueado y encima no
+     * figuran en los permisos del proyecto. O sea: el plan B garantizaba el
+     * fallo. Ahora nombra los `gpt-oss`, que son los reales. */
     const modelos = (typeof iaListaTexto === 'function')
       ? iaListaTexto()
-      : ['groq/compound-mini', 'groq/compound'];
+      : ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
 
     for (const modelo of modelos) {
       try {

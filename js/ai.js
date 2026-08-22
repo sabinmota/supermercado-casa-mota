@@ -375,8 +375,21 @@ let _bulk429Texto   = '';     // texto del último 429: distingue límite por mi
  *
  * 💡 Los límites son POR MODELO, no de la cuenta entera: al agotar las 1.000
  * de gpt-oss-20b, el sistema salta a gpt-oss-120b y dispone de otras 1.000.
- * Sumando los tres modelos de chat salen ~3.000 al día, de sobra para los
- * ~1.900 productos del catálogo. */
+ * Sumando los tres modelos de chat saldrían ~3.000 al día.
+ *
+ * 🔴 ESE ~3.000 SIGUE SIN CUMPLIRSE DEL TODO. Groq exige permiso en DOS
+ * niveles —ORGANIZATION y PROJECT— y el efectivo es la intersección. Tras
+ * marcar los tres en la organización (captura 2026-08-22), el proyecto solo
+ * lista los dos `gpt-oss`, así que `qwen` sigue bloqueado:
+ *
+ *   openai/gpt-oss-20b   ✅ usable
+ *   openai/gpt-oss-120b  ✅ usable
+ *   qwen/qwen3.6-27b     ⛔ falta en PROJECT → Limits
+ *
+ * Total real: ~2.000 peticiones al día. Basta para los ~1.900 productos del
+ * catálogo en una sola jornada, con poco margen. Si se agota, no se pierde
+ * nada: el proceso salta los que ya tienen descripción y continúa donde
+ * se quedó. */
 const BULK_CUOTAS_DIARIAS = {
   'openai/gpt-oss-20b':  1000,
   'openai/gpt-oss-120b': 1000,
@@ -386,9 +399,20 @@ const BULK_CUOTAS_DIARIAS = {
 };
 const BULK_TOPE_POR_DEFECTO = 250; // el más restrictivo, si el modelo no está en la tabla
 
+/* Cuántas descripciones caben HOY. Antes devolvía la cuota de UN solo modelo,
+ * lo que subestimaba el total: ahora que el proceso salta al siguiente cuando
+ * se agota uno, el tope real es la SUMA de los que quedan por gastar.
+ *
+ * 🔴 Es una cota superior optimista, no una promesa: si un modelo está
+ * autorizado en la organización pero no en el proyecto, dará 403 y no aportará
+ * sus 1.000. Por eso el aviso al usuario dice «hasta», no «son». */
 function _bulkTopeDiario() {
-  const m = (typeof iaModeloTexto === 'function') ? iaModeloTexto() : '';
-  return BULK_CUOTAS_DIARIAS[m] || BULK_TOPE_POR_DEFECTO;
+  if (typeof iaListaTexto !== 'function') return BULK_TOPE_POR_DEFECTO;
+  const agotados = (typeof iaAgotadosHoy === 'function') ? iaAgotadosHoy() : [];
+  const suma = iaListaTexto()
+    .filter(m => !agotados.includes(m))
+    .reduce((t, m) => t + (BULK_CUOTAS_DIARIAS[m] || 0), 0);
+  return suma || BULK_TOPE_POR_DEFECTO;
 }
 // Pausa entre cada producto (ms) — respeta rate limit de Groq (~30 req/min)
 const BULK_DELAY_MS   = 2200;
@@ -446,7 +470,11 @@ function _bulkClose() {
  * Genera descripción de UN solo producto con Groq.
  * Prompt simple, sin JSON, sin lotes — máxima tasa de éxito.
  */
-async function _bulkGenerateOne(product, _intento = 1) {
+/* `_intento` cuenta las esperas por límite de MINUTO; `_saltos` cuenta los
+ * cambios de modelo por cuota de DÍA agotada. Van separados a propósito: si
+ * compartieran contador, un salto de modelo consumiría el cupo de reintentos y
+ * el modelo nuevo se rendiría en su primer 429 de minuto sin esperar. */
+async function _bulkGenerateOne(product, _intento = 1, _saltos = 0) {
   _bulkAbortCtrl = new AbortController();
   const signal   = _bulkAbortCtrl.signal;
   const key      = _getGroqKey();
@@ -498,6 +526,26 @@ async function _bulkGenerateOne(product, _intento = 1) {
     const esLimiteDiario = /per\s*day|daily|día/i.test(_bulk429Texto);
     if (esLimiteDiario) {
       _bulkAbortCtrl = null;
+      /* 🔴 Aquí estaba el fallo que hacía FALSA la suma de cuotas que anuncié.
+       * Se anunciaba «~2.000 al día porque al agotar un modelo salta al otro»,
+       * pero al llegar aquí el proceso se detenía y las 1.000 peticiones del
+       * segundo modelo NO se usaban nunca.
+       *
+       * Ahora se marca el modelo como agotado (hasta mañana) y, si queda otro
+       * sin agotar, se sigue con él en vez de rendirse. Solo se para de verdad
+       * cuando no queda ninguno. */
+      const _agotado = (typeof iaModeloTexto === 'function') ? iaModeloTexto() : '';
+      if (typeof iaAgotadoHoy === 'function') iaAgotadoHoy(_agotado);
+
+      const _quedan = (typeof iaListaTexto === 'function' && typeof iaAgotadosHoy === 'function')
+        ? iaListaTexto().filter(m => !iaAgotadosHoy().includes(m))
+        : [];
+      // `_saltos` topa en el número de modelos de la lista: nunca puede girar.
+      if (_quedan.length && _saltos < 5) {
+        console.warn(`[AI] «${_agotado}» agotó su cuota del día. Continuando con «${_quedan[0]}».`);
+        // El contador de esperas vuelve a 1: el modelo nuevo merece su reintento.
+        return _bulkGenerateOne(product, 1, _saltos + 1);
+      }
       throw new Error('CUOTA_DIARIA_AGOTADA');
     }
     if (_intento >= 2) {
@@ -506,7 +554,7 @@ async function _bulkGenerateOne(product, _intento = 1) {
     }
     await _sleep(8000);
     if (_bulkCancelled) throw new Error('AbortError');
-    return _bulkGenerateOne(product, _intento + 1);
+    return _bulkGenerateOne(product, _intento + 1, _saltos);
   }
 
   const text = (salida.datos.choices?.[0]?.message?.content || '').trim();

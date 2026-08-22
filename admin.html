@@ -947,12 +947,21 @@
             proveedor: si Groq falla, la IA no responde.
           </p>
           <div style="font-size:.8rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:16px;color:#78350f">
-            <strong>⚠️ Si la IA da error «blocked at the organization level»</strong>, no es la clave
-            ni el saldo: su cuenta tiene los modelos sin autorizar. Entre en
+            <strong>⚠️ Si la IA da error «blocked» o «not authorized»</strong>, no es la clave
+            ni el saldo: es la lista de modelos autorizados de su cuenta de Groq.
+            <br><br>
+            <strong>Groq pide permiso en DOS sitios</strong> y el modelo solo funciona si está
+            marcado en <u>los dos</u>:
+            <br>• <strong>ORGANIZATION → Limits → Allowed Models</strong> — es el que manda.
+            <br>• <strong>PROJECT → Limits</strong> — solo puede recortar dentro de lo anterior.
+            <br><br>
+            En
             <a href="https://console.groq.com/settings/limits" target="_blank" style="color:#b45309;font-weight:600">console.groq.com → Settings → Limits</a>
-            → <em>Allowed Models</em> y <strong>marque la casilla</strong> de
-            <code>openai/gpt-oss-20b</code> (y <code>openai/gpt-oss-120b</code> como respaldo).
-            <br>Nota: <code>groq/compound</code> <strong>no sirve en esta cuenta</strong> — usa por dentro
+            deben estar marcados <code>openai/gpt-oss-20b</code> y <code>openai/gpt-oss-120b</code>
+            en <strong>ambos</strong> niveles. Para sumar también <code>qwen/qwen3.6-27b</code>
+            (otras 1.000 consultas/día), pulse <strong>Clear</strong> en
+            <em>PROJECT → Limits</em>: así el proyecto hereda la organización y deja de recortar.
+            <br><br>Nota: <code>groq/compound</code> <strong>no sirve en esta cuenta</strong> — usa por dentro
             <code>llama-3.3-70b-versatile</code>, que no figura entre los modelos disponibles.
           </div>
 
@@ -984,8 +993,8 @@
                 <a href="https://console.groq.com" target="_blank" style="color:#7c3aed">console.groq.com</a>
                 <!-- BUILD 414 · cifras verificadas en «Current Limits» de la
                      cuenta real (2026-08-22), no estimadas. -->
-                · gratis · <code>gpt-oss</code>: 1.000 consultas/día por modelo
-                (~3.000 sumando los tres)
+                · gratis · 1.000 consultas/día por modelo · <strong>~2.000 en total</strong>
+                (<code>gpt-oss-20b</code> + <code>gpt-oss-120b</code>)
               </small>
             </div>
 
@@ -2936,12 +2945,12 @@
   <script src="js/extras.v33.js?v=312"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
-  <script src="js/ia-modelos.js?v=1"></script>
+  <script src="js/ia-modelos.js?v=3"></script>
   <!-- IA: Groq integration -->
-  <script src="js/ai.js?v=255"></script>
+  <script src="js/ai.js?v=257"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=235"></script>
+  <script src="js/chat.js?v=236"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 

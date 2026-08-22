@@ -5,6 +5,10 @@
  *
  * POR QUÉ EXISTE ESTE FICHERO (BUILD 414)
  * ───────────────────────────────────────
+ * ⚠️ LO QUE SIGUE ERA MI PRIMERA EXPLICACIÓN Y ESTABA MAL. Se conserva para que
+ * se entienda de dónde salió el error; la versión correcta está más abajo, en
+ * «CORRECCIÓN DE UN DIAGNÓSTICO EQUIVOCADO».
+ *
  * Groq retiró `llama-3.1-8b-instant` y `llama-3.3-70b-versatile` sin avisar, y
  * toda la IA del proyecto murió de golpe con este error:
  *
@@ -83,6 +87,81 @@
  *
  * En la captura TODAS las casillas salían VACÍAS. Mientras no se marque
  * ninguna, cualquier modelo dará 403 y la IA seguirá muerta.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * 🔴 CUARTO HALLAZGO: HAY DOS NIVELES DE PERMISOS, NO UNO
+ * ═════════════════════════════════════════════════════════════════════════════
+ * La captura de «Project Limits: Default Project» (2026-08-22) destapó algo
+ * que no sabía: Groq autoriza modelos en DOS SITIOS distintos, y el permiso
+ * efectivo es la INTERSECCIÓN de ambos.
+ *
+ *   ORGANIZATION → Limits → Allowed Models   (manda; es el techo)
+ *   PROJECT      → Limits → Allowed Models   (solo puede restringir dentro)
+ *
+ * Estado leído en la captura del proyecto «Default Project»:
+ *
+ *   openai/gpt-oss-20b    ✅ verde   → autorizado en LOS DOS niveles → FUNCIONA
+ *   openai/gpt-oss-120b   ⚠️ naranja → «(conflicts with org permissions)»:
+ *                                      permitido en el proyecto pero NO en la
+ *                                      organización → dará 403
+ *   qwen/qwen3.6-27b      ⛔ NO APARECE en la lista del proyecto → dará 403
+ *   groq/compound         ⛔ NO APARECE
+ *   groq/compound-mini    ⛔ NO APARECE
+ *
+ * Aviso literal de Groq en esa pantalla:
+ *   «This project has conflicting model permissions with the organization
+ *   settings. To fix this, you need to either allow these models at the
+ *   organization level or clear the model permissions at the project level.»
+ *
+ * ✅ LO BUENO: `openai/gpt-oss-20b` es el PRIMERO de la lista y está verde en
+ * los dos niveles, así que la IA debe funcionar tal cual está.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ✅ ESTADO REAL TRAS ARREGLAR EL NIVEL DE ORGANIZACIÓN (captura 2026-08-22)
+ * ═════════════════════════════════════════════════════════════════════════════
+ * El dueño marcó los tres en ORGANIZATION → Limits → Allowed Models:
+ *
+ *   ✅ openai/gpt-oss-120b
+ *   ✅ openai/gpt-oss-20b
+ *   ✅ qwen/qwen3.6-27b
+ *
+ * 🔴 PERO EL PERMISO EFECTIVO ES LA INTERSECCIÓN DE LOS DOS NIVELES, y la
+ * lista del PROYECTO solo contenía `gpt-oss-120b` y `gpt-oss-20b`. Resultado:
+ *
+ *   openai/gpt-oss-20b   ✅ ORG + ✅ PROJECT → FUNCIONA
+ *   openai/gpt-oss-120b  ✅ ORG + ✅ PROJECT → FUNCIONA (el «conflicts with
+ *                        org permissions» de antes queda resuelto: el conflicto
+ *                        era que el proyecto lo permitía y la org no)
+ *   qwen/qwen3.6-27b     ✅ ORG + ⛔ ausente del PROJECT → SIGUE BLOQUEADO
+ *   groq/compound(-mini) ⛔ sin marcar en ORG → bloqueados (da igual: su motor
+ *                        interno tampoco está autorizado)
+ *
+ * Es decir: hay 2 modelos usables → ~2.000 peticiones/día, no 3.000. Para el
+ * tercero hay que pulsar «Clear» en PROJECT → Limits (así el proyecto hereda
+ * la organización) o añadir qwen también allí.
+ *
+ * 🔴 Los puestos 4 y 5 (los «compound») se DEJAN en la lista aunque se sepa
+ * que están bloqueados: solo se intentan si fallan los tres de arriba, y ese
+ * día quizá los permisos hayan cambiado. Borrarlos obligaría a publicar un
+ * build nuevo para recuperarlos; dejarlos cuesta dos peticiones fallidas en el
+ * peor caso.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ✅ CIFRAS DE «CURRENT LIMITS» DEL NIVEL ORGANIZACIÓN — CONTRASTADAS
+ * ═════════════════════════════════════════════════════════════════════════════
+ * La tabla de la organización coincide EXACTAMENTE con la que ya estaba
+ * apuntada abajo (30/min · 1K/día · 8K tok/min · 200K tok/día para los tres de
+ * chat; 250/día y 70K tok/min para los «compound»). No hay que corregir nada.
+ *
+ * 💡 Y aparece de dónde salió el «14.400 req/día» que el panel anunciaba como
+ * si fuera el límite del chat: son los `meta-llama/llama-prompt-guard-2-*`,
+ * que tienen 14.4K/día. Son CLASIFICADORES DE SEGURIDAD, no sirven para
+ * conversar. Se estaba enseñando el límite de un modelo que la app no usa.
+ *
+ * 💡 En esa tabla también sale `allam-2-7b` con 7K peticiones/día — siete veces
+ * más que los `gpt-oss`. NO SE USA, y conviene saber por qué: está afinado para
+ * árabe, así que para descripciones en español daría peor resultado; además no
+ * está marcado en Allowed Models. Se anota por si algún día hace falta volumen.
  */
 
 /* ─── MODELOS DE TEXTO, POR ORDEN DE PREFERENCIA ─────────────────────────────
@@ -97,9 +176,15 @@
  *   groq/compound            30        250   70.000    sin tope
  *   groq/compound-mini       30        250   70.000    sin tope
  *
- * 💡 Los tres primeros SUMAN ~3.000 peticiones al día, porque el límite es
+ * 💡 Los tres primeros SUMARÍAN ~3.000 peticiones al día, porque el límite es
  * por modelo y no de la cuenta: al agotarse uno, el sistema salta al
- * siguiente. De sobra para los ~1.900 productos del catálogo.
+ * siguiente. Sería de sobra para los ~1.900 productos del catálogo.
+ *
+ * 🔴 HOY SE CUMPLE A MEDIAS: ver «ESTADO REAL» arriba. Están autorizados en los
+ * dos niveles `gpt-oss-20b` y `gpt-oss-120b` → ~2.000 peticiones al día, no
+ * 3.000. `qwen` falta en la lista del PROYECTO. Con 2.000 al día el catálogo
+ * de ~1.900 productos entra en UNA jornada (y si no, el proceso no repite los
+ * ya descritos: continúa donde se quedó).
  *
  * 🔴 PERO OJO CON EL CHAT DE MAYA: el cuello de botella NO son las peticiones
  * sino los 8.000 TOKENS POR MINUTO. Maya manda en cada mensaje un contexto
@@ -139,14 +224,65 @@ const IA_MODELOS_VISION = [
 const _IA_LS_TEXTO  = 'ia_modelo_texto';
 const _IA_LS_VISION = 'ia_modelo_vision';
 
+/* ─── MODELOS CON LA CUOTA DEL DÍA YA GASTADA ────────────────────────────────
+ * 🔴 POR QUÉ HACE FALTA ESTO (fallo mío detectado al contrastar las cifras
+ * con el código, no al leerlas):
+ *
+ * Escribí que tener dos modelos autorizados da «~2.000 peticiones al día,
+ * porque al agotar uno se salta al siguiente». EL CÓDIGO NO HACÍA ESO. Solo se
+ * pasaba al siguiente modelo cuando el fallo era de permisos (400/403/404); un
+ * 429 de cuota diaria detenía el proceso y las otras 1.000 peticiones del
+ * segundo modelo se quedaban SIN USAR. La suma que prometí era falsa.
+ *
+ * Ahora, al gastarse la cuota de un modelo, se apunta aquí CON LA FECHA y se
+ * deja de ofrecer hasta mañana. La fecha importa: sin ella, el modelo quedaría
+ * descartado para siempre y al día siguiente —con la cuota ya renovada— se
+ * estaría usando el respaldo lento sin motivo.
+ */
+const _IA_LS_AGOTADOS = 'ia_agotados_hoy';
+
+function _iaHoy() { return new Date().toISOString().slice(0, 10); }
+
+/** Modelos cuya cuota diaria se gastó HOY (lista vacía si cambió el día). */
+function iaAgotadosHoy() {
+  try {
+    const raw = localStorage.getItem(_IA_LS_AGOTADOS);
+    if (!raw) return [];
+    const d = JSON.parse(raw);
+    if (!d || d.fecha !== _iaHoy()) return [];   // otro día: cuota renovada
+    return Array.isArray(d.modelos) ? d.modelos : [];
+  } catch (e) { return []; }
+}
+
+/** Apunta que este modelo agotó su cuota de hoy. */
+function iaAgotadoHoy(modelo) {
+  if (!modelo) return;
+  const ya = iaAgotadosHoy();
+  if (ya.includes(modelo)) return;
+  try {
+    localStorage.setItem(_IA_LS_AGOTADOS,
+      JSON.stringify({ fecha: _iaHoy(), modelos: ya.concat([modelo]) }));
+    // Si era el «modelo que funcionó», dejar de empezar por él.
+    if (localStorage.getItem(_IA_LS_TEXTO)  === modelo) localStorage.removeItem(_IA_LS_TEXTO);
+    if (localStorage.getItem(_IA_LS_VISION) === modelo) localStorage.removeItem(_IA_LS_VISION);
+  } catch (e) {}
+}
+
 /** Devuelve la lista a probar, empezando por el que funcionó la última vez. */
 function _iaOrden(lista, clave) {
+  const agotados = iaAgotadosHoy();
+  /* Los agotados van al final, NO se eliminan: si todos lo están, es mejor
+   * intentarlo y que Groq conteste 429 (con su mensaje real) que devolver una
+   * lista vacía y provocar un error confuso de «no hay modelos». */
+  let base = lista.filter(m => !agotados.includes(m));
+  const alFinal = lista.filter(m => agotados.includes(m));
+
   let recordado = null;
   try { recordado = localStorage.getItem(clave); } catch (e) {}
-  if (recordado && lista.includes(recordado)) {
-    return [recordado, ...lista.filter(m => m !== recordado)];
+  if (recordado && base.includes(recordado)) {
+    base = [recordado, ...base.filter(m => m !== recordado)];
   }
-  return [...lista];
+  return [...base, ...alFinal];
 }
 
 function iaModeloTexto()  { return _iaOrden(IA_MODELOS_TEXTO,  _IA_LS_TEXTO)[0]; }
@@ -196,7 +332,16 @@ function _iaModeloMuerto(status, texto) {
       || t.includes('blocked at the organization')
       || t.includes('organization level')
       || t.includes('org admin')
-      || t.includes('model_blocked');
+      || t.includes('model_blocked')
+      /* Nivel PROYECTO: Groq habla de «conflicting model permissions» cuando
+       * el proyecto permite un modelo que la organización no. En la consola
+       * web se ve como «(conflicts with org permissions)». NO ESTÁ VERIFICADO
+       * que la API devuelva esa palabra —solo se ha visto en la interfaz—,
+       * pero reconocerla no cuesta nada: solo entra aquí con 400/403/404, y
+       * el único efecto es pasar al siguiente modelo en vez de rendirse.
+       * Ignorarla sería repetir exactamente el fallo de «blocked at the
+       * organization level». */
+      || t.includes('conflict');
 }
 
 /** Igual que `_iaModeloMuerto`, con nombre público para usarlo desde chat.js. */
@@ -279,11 +424,14 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
   /* El mensaje dice QUÉ HACER, no solo que algo falló, y nombra un modelo que
    * SÍ existe en esta cuenta (recomendar uno inexistente ya hizo perder un
    * viaje entero a la pantalla de Groq). */
+  /* 🔴 Y se avisa de los DOS niveles: mandar al dueño solo a los permisos del
+   * proyecto ya le hizo perder un viaje, porque la organización manda. */
   throw new Error(
     ultimoError +
-    ' Ningún modelo está autorizado en su cuenta de Groq. Entre en ' +
-    'console.groq.com → Settings → Limits → Allowed Models y MARQUE LA ' +
-    'CASILLA de «openai/gpt-oss-20b» (y, si quiere respaldo, ' +
-    '«openai/gpt-oss-120b»).'
+    ' Ningún modelo está autorizado en su cuenta de Groq. Groq pide permiso en ' +
+    'DOS sitios y hay que mirar los dos: (1) ORGANIZATION → Limits → Allowed ' +
+    'Models y (2) PROJECT → Limits. Marque «openai/gpt-oss-20b» en el nivel de ' +
+    'ORGANIZACIÓN, o pulse «Clear» en los permisos del proyecto para que herede ' +
+    'los de la organización.'
   );
 }
