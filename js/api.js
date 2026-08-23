@@ -557,7 +557,27 @@ async function _rpcStaff(funcion, params) {
     for (const clave in _ERRORES_STAFF) {
       if (texto.includes(clave)) throw new Error(_ERRORES_STAFF[clave]);
     }
-    throw new Error(`No se pudo guardar (${res.status}).`);
+    /* 🔴 BUILD 416 · Aquí se DESCARTABA `texto` y solo se mostraba el número de
+     * estado. Eso convirtió el diagnóstico de un 404 en cinco rondas de
+     * hipótesis: PostgREST SIEMPRE explica la causa en el cuerpo de la
+     * respuesta (`message`, `details`, `hint`), y este `catch` la tiraba a la
+     * basura antes de que nadie la viera.
+     *
+     * Un manejador de errores que oculta la causa del error no protege al
+     * usuario: le impide arreglar el problema, y hace que quien depura vaya
+     * adivinando. El mensaje se registra en consola SIEMPRE y se incluye en la
+     * excepción para que llegue al aviso de pantalla. */
+    console.error('[RPC ' + funcion + '] HTTP ' + res.status + ' — respuesta de la base:', texto);
+    let detalle = '';
+    try {
+      const j = JSON.parse(texto);
+      detalle = [j.message, j.details, j.hint].filter(Boolean).join(' · ');
+    } catch (e) {
+      detalle = (texto || '').slice(0, 300);
+    }
+    throw new Error(
+      `No se pudo guardar (${res.status})` + (detalle ? `: ${detalle}` : '.')
+    );
   }
 
   const texto = await res.text();
