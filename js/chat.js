@@ -1019,8 +1019,18 @@ async function _chatSendMsg(msg) {
   } catch (e) {
     console.error('🔴 Chat AI error:', e.message, e);
     let errMsg;
+    /* 🔴 BUILD 417 · Si `_chatCallAI` averiguó la causa REAL, se muestra esa y
+     * no la genérica. Va PRIMERO a propósito: cualquier comprobación por
+     * delante volvería a sepultar el diagnóstico, que es el fallo a corregir.
+     * Solo el corte de red real tiene prioridad, porque en ese caso el motivo
+     * guardado sería engañoso. */
+    const _motivo = (e.message && e.message.startsWith('_CHAT_MOTIVO:'))
+      ? e.message.slice('_CHAT_MOTIVO:'.length)
+      : null;
     if (!navigator.onLine) {
       errMsg = '📵 Sin conexión a internet. Por favor verifica tu red e intenta de nuevo.';
+    } else if (_motivo) {
+      errMsg = _motivo;
     } else if (e.message && e.message.includes('Sin conexión')) {
       errMsg = '😕 Servicio de IA temporalmente no disponible. Por favor intenta en unos minutos.';
     } else {
@@ -1081,6 +1091,46 @@ function _getRelevantProducts(userMsg) {
   // Ordenar por score desc, tomar top 40
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, 40).map(s => s.p);
+}
+
+/* 🔴 BUILD 417 · Traduce el fallo REAL de la IA a algo que se pueda arreglar.
+ *
+ * Motivo: Maya decía «No pude procesar tu consulta» cuando la causa era
+ * `401 Invalid API Key` — la variable GROQ_API_KEY de Cloudflare seguía
+ * teniendo una clave revocada. El dueño tuvo que abrir la consola del
+ * navegador para enterarse. Es el MISMO defecto que se corrigió en
+ * `js/api.js` en el build 416: un mensaje genérico que oculta la causa no
+ * protege a nadie, solo impide arreglar el problema.
+ *
+ * Devuelve null si el estado no tiene una explicación mejor que la genérica:
+ * inventar un diagnóstico equivocado sería peor que no dar ninguno.
+ */
+function _chatMotivoFallo(status, data) {
+  const crudo = (() => {
+    try { return JSON.stringify(data || '').toLowerCase(); } catch (e) { return ''; }
+  })();
+
+  /* 401/403 con «api key» = la clave que usa el PROXY no sirve. Ojo: es la
+   * variable GROQ_API_KEY de Cloudflare Pages, NO la que se guarda en
+   * `settings` desde el panel. Son dos copias distintas y esa distinción es
+   * justo la que costó una sesión entera de diagnóstico. */
+  if ((status === 401 || status === 403) &&
+      (crudo.includes('api key') || crudo.includes('api_key') || crudo.includes('unauthorized'))) {
+    return '🔑 La clave de IA no es válida. Hay que actualizar la variable '
+         + '**GROQ_API_KEY** en Cloudflare Pages (Settings → Variables and Secrets) '
+         + 'y volver a desplegar. Ojo: no es la misma clave que se guarda en el panel.';
+  }
+  if (status === 401 || status === 403) {
+    return '🔒 El servicio de IA rechazó la petición (error ' + status + '). '
+         + 'Revisa la clave y los permisos de modelos en console.groq.com.';
+  }
+  if (status === 500 && crudo.includes('groq_api_key')) {
+    return '🔑 Falta configurar la variable **GROQ_API_KEY** en Cloudflare Pages.';
+  }
+  if (status === 502) {
+    return '📡 No se pudo contactar con el servicio de IA. Vuelve a intentarlo en un momento.';
+  }
+  return null;
 }
 
 async function _chatCallAI(userMsg) {
@@ -1232,6 +1282,12 @@ INSTRUCCIONES IMPORTANTES:
     safeHistory.pop();
   }
 
+  /* 🔴 BUILD 417 · Declarada AQUÍ, en el ámbito de la función, y no dentro del
+   * `if` de abajo: el mensaje se compone al final de `_chatCallAI`, fuera de
+   * ese bloque. Declararla dentro habría dado un `ReferenceError` — o sea, un
+   * fallo nuevo mientras se arregla el de los mensajes que ocultan fallos. */
+  let _motivoDiagnostico = null;
+
   // 1️⃣ Intentar Groq primero
   const groqKey = await _chatGroqKey();
   if (groqKey || _CHAT_USE_PROXY) {
@@ -1261,6 +1317,8 @@ INSTRUCCIONES IMPORTANTES:
     // si no, cada modelo doblaría tokens y la espera se haría larga.
     let _yaAmplieTokens = false;
 
+
+
     for (const modelo of modelos) {
       try {
         const groqBody = {
@@ -1284,7 +1342,17 @@ INSTRUCCIONES IMPORTANTES:
           temperature: 0.7
         };
         const res = await _chatLLMFetch(groqBody, groqKey);
-        if (!res) throw new Error('Sin proxy ni clave disponible');
+        if (!res) {
+          /* 🔴 BUILD 417 · Ni proxy ni clave: el caso del panel abierto sin
+           * sesión válida y con la Function caída. Se nombra en vez de dejarlo
+           * caer en el mensaje genérico. */
+          if (!_motivoDiagnostico) {
+            _motivoDiagnostico = '⚠️ El servicio de IA no está disponible: no responde el proxy '
+              + '`/api/chat` y este navegador no tiene clave. Comprueba que la Function '
+              + 'esté desplegada en Cloudflare Pages.';
+          }
+          throw new Error('Sin proxy ni clave disponible');
+        }
         // Leer el body UNA SOLA VEZ (no se puede leer dos veces)
         const data = await res.json().catch(() => null);
         if (res.ok && data) {
@@ -1315,6 +1383,11 @@ INSTRUCCIONES IMPORTANTES:
           continue;
         } else {
           console.warn('Groq error:', res.status, JSON.stringify(data));
+
+          /* 🔴 BUILD 417 · Guardar la causa ANTES de cualquier `continue` o
+           * `break`: si no, se pierde por el camino y la persona vuelve a ver
+           * «No pude procesar tu consulta» sin saber qué arreglar. */
+          if (!_motivoDiagnostico) _motivoDiagnostico = _chatMotivoFallo(res.status, data);
 
           // ¿El modelo ya no existe o la organización no lo permite?
           // Entonces sí merece la pena probar el siguiente de la lista.
@@ -1354,7 +1427,15 @@ INSTRUCCIONES IMPORTANTES:
   }
 
   /* Si se agotaron los modelos, el mensaje NO debe culpar a la conexión: el
-   * caso más probable a estas alturas es que respondieran vacío. */
+   * caso más probable a estas alturas es que respondieran vacío.
+   *
+   * 🔴 BUILD 417 · Pero si SÍ se conoce la causa (clave inválida, permisos,
+   * proxy caído), se dice esa y no la genérica. `_CHAT_MOTIVO` es la marca que
+   * `_chatSendMsg` reconoce para mostrar el texto tal cual en vez de
+   * sustituirlo por «No pude procesar tu consulta». */
+  if (_motivoDiagnostico) {
+    throw new Error('_CHAT_MOTIVO:' + _motivoDiagnostico);
+  }
   throw new Error('La IA no devolvió respuesta. Vuelve a intentarlo.');
 }
 
