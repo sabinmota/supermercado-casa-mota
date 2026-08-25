@@ -425,6 +425,59 @@ async function _apiDelete(table, id) {
   });
 }
 
+/* ─── BUILD 418 · `_sinClaveVacia(obj)` ──────────────────────────────────────
+ * Devuelve una COPIA del objeto sin la propiedad `password` cuando esa
+ * propiedad no lleva nada útil (no existe, es null, o es cadena vacía o solo
+ * espacios).
+ *
+ * POR QUÉ EXISTE, QUE NO ES COSMÉTICA
+ * ───────────────────────────────────
+ * `js/admin.v33.js`, al CREAR un cliente, arma el objeto con:
+ *     password: data.password || ''        (línea 5050)
+ * O sea que la propiedad VIENE SIEMPRE, aunque el empleado no haya escrito
+ * ninguna contraseña. Este build revoca a `anon` el permiso de INSERT y UPDATE
+ * sobre la columna `password`, así que un INSERT que MENCIONE esa columna
+ * —incluso para meterle una cadena vacía— lo rechaza PostgreSQL con un 403 y
+ * el aviso en pantalla no explicaría el motivo. Se borra la propiedad en vez
+ * de mandarla vacía.
+ *
+ * Vale también para el camino de Google (`createClientFromOAuth`), que no
+ * manda `password` en absoluto: ahí no toca nada y devuelve la copia igual.
+ *
+ * 🔴 Si lo que llega NO es un objeto (null, undefined), se devuelve TAL CUAL,
+ * a propósito. Antes de este build, `createCustomer(null)` reventaba en el
+ * desestructurado de `_apiCreate`. Devolver `{}` aquí convertiría ese fallo
+ * ruidoso en la creación silenciosa de una ficha vacía en la base — cambiar un
+ * error visible por corrupción de datos callada es peor negocio. */
+/* `_tieneClave(obj)` — ÚNICA definición de «este objeto trae contraseña».
+ *
+ * 🔴 Existe porque la primera versión de este build tenía DOS definiciones
+ * distintas de lo mismo, y no coincidían. El enrutado preguntaba
+ * `if (!customer.password)` mientras `_sinClaveVacia` comparaba con `.trim()`.
+ * Para `password: '   '` (solo espacios) eso daba resultados OPUESTOS: el
+ * enrutado la veía como contraseña real y mandaba la petición a la RPC, que
+ * exige vale de panel; la tienda, que no tiene vale, se habría quedado con un
+ * «Tu sesión caducó» imposible de entender. Lo detectó el arnés de pruebas,
+ * no yo leyendo el código.
+ *
+ * Regla que queda: quien decida el camino y quien limpie el objeto tienen que
+ * preguntar a ESTA función, nunca cada uno por su cuenta. */
+function _tieneClave(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  const clave = obj.password;
+  if (clave === undefined || clave === null) return false;
+  if (typeof clave === 'string') return clave.trim() !== '';
+  return true;
+}
+
+function _sinClaveVacia(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (_tieneClave(obj)) return obj;
+  const copia = { ...obj };
+  delete copia.password;
+  return copia;
+}
+
 // ─── ESCRITURA EN `staff` VÍA FUNCIÓN DE BASE DE DATOS (build 397) ───────────
 //
 // Ver el comentario largo en DB.createStaff. Resumen: `anon` ya no puede
@@ -541,7 +594,34 @@ const _ERRORES_ORDER = {
   FALTA_ID:           'Falta indicar el pedido.',
 };
 
-async function _rpcStaff(funcion, params) {
+/* ─── BUILD 418 · Mensajes de las RPC de CLIENTES ────────────────────────────
+ * Mismo patrón que `_ERRORES_STAFF`: la base lanza un código corto y aquí se
+ * traduce a algo que un empleado pueda entender y arreglar.
+ *
+ * `_rpcCliente` NO es una función nueva: reutiliza `_rpcStaff`, que desde el
+ * build 416 ya registra el cuerpo completo de la respuesta de PostgREST en
+ * consola. Duplicar esa lógica sería duplicar también el defecto que costó
+ * cinco rondas de diagnóstico si algún día hay que volver a tocarla. */
+const _ERRORES_CLIENTE = {
+  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA: 'Tu cuenta ya no está activa.',
+  DATOS_INVALIDOS:    'Los datos del cliente no llegaron correctamente.',
+  CLAVE_CORTA:        'La contraseña debe tener al menos 6 caracteres.',
+  FALTA_EMAIL:        'Falta el correo del cliente.',
+  FALTA_CLAVE:        'Hay que asignar una contraseña para crear el acceso del cliente.',
+  EMAIL_DUPLICADO:    'Ya existe un cliente con ese correo.',
+  CLIENTE_NO_EXISTE:  'Ese cliente ya no existe.',
+  FALTA_ID:           'Falta indicar el cliente.',
+};
+
+/* BUILD 418 · Se añade el tercer parámetro `dicc` con valor por omisión
+ * `_ERRORES_STAFF`. Así las RPC de clientes reutilizan ESTE manejador —el que
+ * ya registra el cuerpo completo de PostgREST desde el 416— con sus propios
+ * mensajes, en vez de copiar la función y arrastrar el defecto de partida.
+ * Los ocho llamadores anteriores no cambian: al no pasar el tercer argumento,
+ * siguen usando el diccionario de personal. */
+async function _rpcStaff(funcion, params, dicc = _ERRORES_STAFF) {
   if (!params.p_vale) {
     throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
   }
@@ -554,8 +634,8 @@ async function _rpcStaff(funcion, params) {
 
   if (!res.ok) {
     const texto = await res.text();
-    for (const clave in _ERRORES_STAFF) {
-      if (texto.includes(clave)) throw new Error(_ERRORES_STAFF[clave]);
+    for (const clave in dicc) {
+      if (texto.includes(clave)) throw new Error(dicc[clave]);
     }
     /* 🔴 BUILD 416 · Aquí se DESCARTABA `texto` y solo se mostraba el número de
      * estado. Eso convirtió el diagnóstico de un 404 en cinco rondas de
@@ -662,6 +742,16 @@ async function _apiPatchWhere(table, filter, data) {
 //   2. Se pone `clientId = null` → deja de ser una referencia rota y pasa a
 //      ser un pedido explícitamente sin ficha asociada.
 // Así el histórico de ventas sobrevive y no queda ni un puntero muerto.
+//
+// 🔴 BUILD 418 · YA NO SE USA. Su único llamador era `DB.deleteCustomer`, que
+// ahora hace todo el trabajo en la base con `admin_borrar_cliente` (una sola
+// transacción, en vez de tres viajes desde el navegador que podían quedarse a
+// medias). Se deja escrito aquí en vez de borrarla porque el paso 2 del cierre
+// de seguridad (`drivers`) necesita la misma maniobra para `driverId`, y este
+// código ya está probado en producción.
+// REGLA: si al cerrar `drivers` sigue sin usarse, BÓRRALA. Código muerto que
+// parece vivo es peor que no tenerlo — es la misma nota que dejó el build 410
+// sobre `_apiPatchWhere`, y sigue sin cumplirse.
 
 async function _desvincularPedidosDeCliente(customerId) {
   // 1) ¿Qué pedidos cuelgan de esta ficha?
@@ -1024,16 +1114,80 @@ const DB = {
     return arr.find(c => c.email.toLowerCase() === email.toLowerCase()) || null;
   },
 
+  /* ─── BUILD 418 · CREAR Y EDITAR CLIENTES DESDE EL PANEL ───────────────────
+   *
+   * EL AGUJERO QUE ESTO CIERRA
+   * ──────────────────────────
+   * Medido en la base REAL con `seguridad/42-leer-politicas.sql`:
+   * `anon` podía ESCRIBIR e INSERTAR la columna `password` de `customers`.
+   * Como la clave `anon` está publicada en este mismo fichero (línea 22),
+   * cualquiera podía ponerle la contraseña que quisiera a cualquier cliente
+   * y entrar como él. No era una fuga de datos: era SECUESTRO DE CUENTAS.
+   * El disparador `trg_cifrar_password_customers` la habría cifrado sin
+   * inmutarse, dejando la cuenta ajena perfectamente usable.
+   *
+   * POR QUÉ NO BASTABA UN `REVOKE`
+   * ──────────────────────────────
+   * El panel NECESITA asignar contraseñas: `admin.v33.js` las envía en
+   * `data.password` a través de estos métodos. Un `REVOKE UPDATE (password)`
+   * a secas habría roto la creación de clientes — el mismo error que estuve
+   * a punto de cometer en el 415 con `settings`. Por eso el permiso no se
+   * quita sin más: se MUEVE a una función que exige el vale del panel.
+   *
+   * `admin_guardar_cliente` sirve para las dos cosas: si `p_id` es null crea,
+   * si no, edita. Una sola función porque la validación (correo duplicado,
+   * longitud de la clave) es idéntica en ambos casos y duplicarla garantiza
+   * que algún día divergan.
+   *
+   * LO QUE **NO** CAMBIA, Y ES DELIBERADO
+   * ─────────────────────────────────────
+   * `patchCustomer` sigue escribiendo directamente. La TIENDA lo usa en cinco
+   * sitios (contadores del pedido, GPS, mapLink, lastLogin) y los clientes NO
+   * TIENEN VALE — no existe `cliente_sesiones` en la base. Enrutarlo por una
+   * RPC de admin habría roto el checkout. Cerrar esas columnas es el paso B y
+   * exige antes crear el vale de cliente. Aquí se cierra solo `password`,
+   * que es lo grave y lo que no tiene ningún uso legítimo desde la tienda. */
   async createCustomer(customer) {
-    return _apiCreate('customers', customer);
+    // Sin contraseña no hay nada que proteger: sigue el camino directo, que es
+    // el que usa el registro por Google (`createClientFromOAuth`), donde no
+    // hay vale de panel porque no hay ningún empleado delante.
+    //
+    // 🔴 `_sinClaveVacia` NO es cosmético. `admin.v33.js` construye el objeto
+    // de creación con `password: data.password || ''`, o sea que la propiedad
+    // VIENE SIEMPRE, aunque vacía. Enviarla vacía por el camino directo sería
+    // un INSERT que menciona la columna `password` → 403 por el REVOKE de este
+    // mismo build, y el aviso en pantalla no diría por qué. Se borra la
+    // propiedad en vez de mandar una cadena vacía.
+    if (!_tieneClave(customer)) {
+      return _apiCreate('customers', _sinClaveVacia(customer));
+    }
+    return _rpcStaff('admin_guardar_cliente', {
+      p_vale:  _valeAdmin(),
+      p_id:    null,
+      p_datos: customer,
+    }, _ERRORES_CLIENTE);
   },
 
   async updateCustomer(id, customer) {
-    return _apiUpdate('customers', id, customer);
+    if (!_tieneClave(customer)) {
+      return _apiUpdate('customers', id, _sinClaveVacia(customer));
+    }
+    return _rpcStaff('admin_guardar_cliente', {
+      p_vale:  _valeAdmin(),
+      p_id:    id,
+      p_datos: customer,
+    }, _ERRORES_CLIENTE);
   },
 
   async patchCustomer(id, fields) {
-    return _apiPatch('customers', id, fields);
+    if (!_tieneClave(fields)) {
+      return _apiPatch('customers', id, _sinClaveVacia(fields));
+    }
+    return _rpcStaff('admin_guardar_cliente', {
+      p_vale:  _valeAdmin(),
+      p_id:    id,
+      p_datos: fields,
+    }, _ERRORES_CLIENTE);
   },
 
   /**
@@ -1048,13 +1202,31 @@ const DB = {
    *
    * @returns {Promise<{pedidosDesvinculados: number}>}
    */
+  /* 🔴 BUILD 418 · Reescrito: el borrado lo hace ahora LA BASE DE DATOS.
+   *
+   * Medido con `seguridad/42-leer-politicas.sql`: `anon` tenía DELETE sobre
+   * `customers`. Con la clave `anon` publicada, cualquiera podía borrar las
+   * fichas de los 8 clientes con una sola petición.
+   *
+   * `admin_borrar_cliente` exige el vale del panel y hace las tres cosas en
+   * UNA transacción: estampa la identidad en los pedidos, los desvincula y
+   * borra la ficha. Antes eran tres viajes desde el navegador y, si el último
+   * fallaba, quedaban pedidos ya desvinculados de un cliente que seguía
+   * existiendo. Ahora o pasa todo o no pasa nada.
+   *
+   * Se conserva la misma forma de retorno (`{ pedidosDesvinculados }`) para
+   * no tocar `confirmDeleteCustomer()` en el panel, que lee ese campo para
+   * decidir el texto del aviso. */
   async deleteCustomer(id) {
-    const pedidosDesvinculados = await _desvincularPedidosDeCliente(id);
-    await _apiDelete('customers', id);
-    if (pedidosDesvinculados > 0) {
-      console.log(`[deleteCustomer] ${pedidosDesvinculados} pedido(s) desvinculado(s) y conservados.`);
+    const pedidosDesvinculados = await _rpcStaff('admin_borrar_cliente', {
+      p_vale: _valeAdmin(),
+      p_id:   id,
+    }, _ERRORES_CLIENTE);
+    const n = Number(pedidosDesvinculados) || 0;
+    if (n > 0) {
+      console.log(`[deleteCustomer] ${n} pedido(s) desvinculado(s) y conservados.`);
     }
-    return { pedidosDesvinculados };
+    return { pedidosDesvinculados: n };
   },
 
   // ── Personal (Staff) ───────────────────────────────────────────────────────
