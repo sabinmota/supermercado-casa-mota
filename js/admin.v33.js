@@ -5036,11 +5036,29 @@ function saveCustomer() {
     cedula:      document.getElementById('cCedula').value.trim(),
     address:     document.getElementById('cAddress').value.trim(),
     city:        document.getElementById('cCity').value.trim(),
-    status:      document.getElementById('cStatus').value,
-    loyaltyTier: document.getElementById('cRanking').value, // ranking → loyaltyTier (nombre real en Supabase)
     notes:       document.getElementById('cNotes').value.trim(),
     mapLink:     document.getElementById('cMapLink').value.trim(),
   };
+
+  /* 🔴 BUILD 419 · `status` y `loyaltyTier` SE SACARON de `data` y se añaden
+   * más abajo SOLO cuando la operación va a pasar por la RPC.
+   *
+   * Por qué: `46-cerrar-fidelidad.sql` revocó a `anon` el UPDATE de esas dos
+   * columnas. `DB.patchCustomer` solo enruta por `admin_guardar_cliente`
+   * cuando el objeto TRAE contraseña (`_tieneClave`, js/api.js:1183). Editar
+   * un cliente SIN tocarle la contraseña es el caso normal —cambiar un
+   * teléfono, una dirección— y ese camino es un PATCH directo: mencionar
+   * `status` ahí es un 403 seguro.
+   *
+   * O sea que el fallo NO habría salido al crear ni al cambiar la clave; solo
+   * al editar cualquier otro dato. El caso más frecuente del panel.
+   *
+   * Se añaden en los dos sitios donde SÍ hay RPC: al crear (siempre lleva
+   * contraseña, es obligatoria) y al editar cuando se escribió una nueva. */
+  if (password) {
+    data.status      = document.getElementById('cStatus').value;
+    data.loyaltyTier = document.getElementById('cRanking').value;
+  }
   // Solo actualizar contraseña si se ingresó una nueva
   if (password) data.password = password;
 
@@ -5076,18 +5094,28 @@ function saveCustomer() {
       cedula:               data.cedula   || '',
       address:              data.address  || '',
       city:                 data.city     || '',
-      status:               data.status   || 'habilitado',
-      loyaltyTier:          data.ranking  || 'bronce',   // ranking → loyaltyTier (nombre real en Supabase)
+      status:               data.status      || 'habilitado',
+      /* 🔴 BUILD 419 · Era `data.ranking`, que NO EXISTE — el formulario guarda
+       * ese valor en `data.loyaltyTier` (línea 5040 antes del cambio). Bug
+       * preexistente: TODOS los clientes creados desde el panel quedaban en
+       * 'bronce' aunque se eligiera Oro o VIP. */
+      loyaltyTier:          data.loyaltyTier || 'bronce',
       notes:                data.notes    || '',
       mapLink:              data.mapLink  || '',
       password:             data.password || '',
       orders:               0,
       spent:                0,
-      loyaltyPoints:        0,
-      loyaltyHistory:       [],
-      loyaltyLastActivity:  Date.now(),
-      access:               true,
-      deleted:              false,
+      /* 🔴 BUILD 419 · `loyaltyPoints`, `loyaltyHistory`, `loyaltyLastActivity`,
+       * `access` y `deleted` SE QUITARON de este INSERT.
+       *
+       * Las cinco están revocadas a `anon`. Este INSERT sí pasa por la RPC
+       * (crear siempre exige contraseña), así que técnicamente pasarían — pero
+       * mencionarlas no aporta nada: el SQL les puso DEFAULT en la tabla
+       * (0, [], NULL, true, false), que es exactamente lo que se enviaba.
+       *
+       * Dejarlas sería además una trampa para el futuro: si algún día crear
+       * sin contraseña se permite, el INSERT se iría por el camino directo y
+       * daría 403 sin que nadie recuerde por qué. */
     };
     DB.createCustomer(newC)
       .then(saved => {
