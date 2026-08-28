@@ -4344,7 +4344,40 @@ function addPointsToCustomer(customerId, pts, reason, orderId = null) {
     balance: customers[idx].loyaltyPoints
   });
 
-  DB.patchCustomer(customerId, { loyaltyPoints: customers[customers.findIndex(c => c.id === customerId)].loyaltyPoints, loyaltyTier: customers[customers.findIndex(c => c.id === customerId)].loyaltyTier, loyaltyHistory: customers[customers.findIndex(c => c.id === customerId)].loyaltyHistory })
+  /* 🔴 BUILD 419 · Antes esta línea hacía `DB.patchCustomer` directo, o sea un
+   * PATCH a la tabla con la llave `anon` que está publicada en el código fuente
+   * del sitio. Cualquiera podía regalarse puntos desde la consola del navegador
+   * sin ser empleado — y 1 punto vale RD$ 1 al canjear, así que era dinero.
+   * Ahora pasa por `admin_ajustar_puntos`, que exige vale de panel y registra
+   * QUIÉN hizo el movimiento en el historial.
+   *
+   * Se corrigen además dos defectos que estaban en la línea anterior:
+   *
+   * 1. `loyaltyLastActivity` se calculaba arriba (línea 4337) y NO se enviaba.
+   *    Es la fecha que usa `checkPointsExpiry` para caducar a los 6 meses, así
+   *    que se actualizaba en pantalla y se perdía al recargar: un cliente que
+   *    compra cada mes podía perder sus puntos porque en la base su "última
+   *    actividad" seguía congelada. La RPC ahora la escribe siempre.
+   *
+   * 2. `customers[customers.findIndex(...)]` aparecía TRES veces en la misma
+   *    línea cuando `idx` ya existía desde la 4329.
+   *
+   * El saldo autoritativo lo calcula la base, no el navegador: se le manda el
+   * DELTA (`pts`) y ella devuelve el saldo resultante. Si dos empleados dan
+   * puntos al mismo cliente a la vez, el `FOR UPDATE` de la RPC lo serializa;
+   * antes el último PATCH sobrescribía al otro. */
+  DB.adjustCustomerPoints(customerId, pts, reason, orderId)
+    .then(res => {
+      if (!res) return;
+      const j = customers.findIndex(c => c.id === customerId);
+      if (j === -1) return;
+      /* La base manda: se sobrescribe lo que el navegador había supuesto. */
+      if (typeof res.puntos === 'number')     customers[j].loyaltyPoints       = res.puntos;
+      if (res.nivel)                          customers[j].loyaltyTier         = res.nivel;
+      if (res.historial)                      customers[j].loyaltyHistory      = res.historial;
+      if (res.ultima_actividad)               customers[j].loyaltyLastActivity = Number(res.ultima_actividad);
+      DBCached.invalidateCustomers();
+    })
     .catch(logFail(`guardar los puntos de "${customers[idx].name}"`));
   DBCached.invalidateCustomers();
 }

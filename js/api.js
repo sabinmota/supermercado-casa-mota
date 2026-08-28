@@ -615,6 +615,18 @@ const _ERRORES_CLIENTE = {
   FALTA_ID:           'Falta indicar el cliente.',
 };
 
+/* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
+ * la RPC llama a `admin_sesion_basica` igual que las de clientes. */
+const _ERRORES_PUNTOS = {
+  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA: 'Tu cuenta ya no está activa.',
+  FALTA_ID:           'Falta indicar el cliente.',
+  PUNTOS_CERO:        'La cantidad de puntos no puede ser 0.',
+  FALTA_MOTIVO:       'Hay que indicar el motivo del movimiento de puntos.',
+  CLIENTE_NO_EXISTE:  'Ese cliente ya no existe.',
+};
+
 /* BUILD 418 · Se añade el tercer parámetro `dicc` con valor por omisión
  * `_ERRORES_STAFF`. Así las RPC de clientes reutilizan ESTE manejador —el que
  * ya registra el cuerpo completo de PostgREST desde el 416— con sus propios
@@ -1188,6 +1200,58 @@ const DB = {
       p_id:    id,
       p_datos: fields,
     }, _ERRORES_CLIENTE);
+  },
+
+  /**
+   * BUILD 419 · Suma o resta puntos de fidelidad a un cliente.
+   *
+   * 🔴 POR QUÉ EXISTE ESTE MÉTODO
+   * ─────────────────────────────
+   * Hasta el build 418, `admin.v33.js` guardaba los puntos con un
+   * `patchCustomer` directo: un PATCH a `customers` con la llave `anon`, que
+   * está publicada en el código fuente del sitio (`js/api.js:22`). Cualquier
+   * persona podía abrir la consola del navegador y regalarse puntos sin ser
+   * empleado. Con la configuración de la tienda, 1 punto = RD$ 1 de descuento
+   * al canjear, así que la columna abierta era dinero abierto.
+   *
+   * `46-cerrar-fidelidad.sql` revoca a `anon` el UPDATE de `loyaltyPoints`,
+   * `loyaltyTier`, `loyaltyHistory` y `loyaltyLastActivity`, y crea esta RPC
+   * como única puerta. Exige vale de panel y guarda en el historial QUIÉN hizo
+   * el movimiento.
+   *
+   * LO QUE NO CAMBIA, Y ES DELIBERADO
+   * ─────────────────────────────────
+   * `spent` y `orders` SIGUEN abiertas: las escribe la tienda en el checkout
+   * (`js/app.js:3082`) y los clientes no tienen vale. Cerrarlas exige el vale
+   * de cliente, que es el paso C. El daño de dejarlas es menor de lo que
+   * parece: el panel NO las usa para las estadísticas — cuenta los pedidos
+   * reales (ver `js/admin.v33.js:4473`), así que un cliente que las falsee no
+   * engaña al panel. Falsificar `spent` no da dinero; falsificar
+   * `loyaltyPoints` sí. Eso es lo que se cierra aquí.
+   *
+   * SE MANDA EL DELTA, NO EL TOTAL
+   * ──────────────────────────────
+   * A propósito. El saldo lo calcula la base con `FOR UPDATE`, así que si dos
+   * empleados acreditan puntos al mismo cliente a la vez, los dos movimientos
+   * se suman. Con el PATCH anterior, el último sobrescribía al primero.
+   *
+   * @param   {string}  id       UUID del cliente
+   * @param   {number}  pts      Delta: positivo suma, negativo resta
+   * @param   {string}  reason   Motivo — obligatorio, queda en el historial
+   * @param   {string?} orderId  Pedido que originó el movimiento, si aplica
+   * @returns {Promise<{puntos:number, nivel:string, historial:Array, ultima_actividad:number}>}
+   */
+  async adjustCustomerPoints(id, pts, reason, orderId = null) {
+    /* No hace falta desenvolver el arreglo de `RETURNS TABLE`: `_rpcStaff` ya
+     * lo hace en su última línea (`Array.isArray(datos) ? datos[0] : datos`).
+     * Volver a desenvolverlo aquí devolvería el primer CAMPO de la fila. */
+    return _rpcStaff('admin_ajustar_puntos', {
+      p_vale:    _valeAdmin(),
+      p_cliente: id,
+      p_puntos:  pts,
+      p_motivo:  reason,
+      p_pedido:  orderId,
+    }, _ERRORES_PUNTOS);
   },
 
   /**
@@ -1837,10 +1901,31 @@ async function createClientFromOAuth(profile) {
 
   const _name = profile.name || profile.given_name || email.split('@')[0];
 
+  /* 🔴 BUILD 419 · `status: 'habilitado'` SE QUITÓ de los tres niveles.
+   *
+   * `46-cerrar-fidelidad.sql` revoca a `anon` el INSERT de `status`, porque el
+   * panel es el único que debe decidir si un cliente está habilitado. Pero este
+   * INSERT corre en el navegador DEL CLIENTE al entrar con Google por primera
+   * vez — ahí no hay ningún empleado ni ningún vale.
+   *
+   * Si la columna se quedaba mencionada aquí, el INSERT daba 403 y el registro
+   * por Google se rompía... para gente que TODAVÍA NO EXISTE. O sea que nadie
+   * lo habría notado hasta que un cliente nuevo se quejara, y el mensaje en
+   * pantalla solo diría "no se pudo crear el cliente".
+   *
+   * Peor: los tres niveles de reintento de abajo capturan el error y bajan a un
+   * INSERT más pequeño, pero el nivel C TAMBIÉN mencionaba `status`. Los tres
+   * habrían fallado por la misma causa, dando la falsa impresión de un problema
+   * de schema cache.
+   *
+   * La solución no es dejar la columna abierta: es que la BASE ponga el valor.
+   * El mismo SQL hace `ALTER COLUMN status SET DEFAULT 'habilitado'`, así que
+   * un cliente creado sin mencionarla queda igual que antes. */
+
   // Nivel A — todos los campos conocidos (incluyendo authProvider/avatar)
   const clientFull = {
     name: _name, email, phone: '', address: '', city: '',
-    cedula: '', notes: '', status: 'habilitado',
+    cedula: '', notes: '',
     ranking: 'bronce', orders: 0, spent: 0,
     lastOrder: '', lastLogin: _nowTs(), createdAt: _nowTs(),
     authProvider: profile.authProvider || 'google',
@@ -1850,15 +1935,16 @@ async function createClientFromOAuth(profile) {
   // Nivel B — sin authProvider/avatar (columnas nuevas que pueden faltar)
   const clientBase = {
     name: _name, email, phone: '', address: '', city: '',
-    cedula: '', notes: '', status: 'habilitado',
+    cedula: '', notes: '',
     ranking: 'bronce', orders: 0, spent: 0,
     lastOrder: '', lastLogin: _nowTs(), createdAt: _nowTs(),
   };
 
-  // Nivel C — solo lo absolutamente mínimo (name, email, status)
+  // Nivel C — solo lo absolutamente mínimo (name, email)
   // Útil cuando el schema cache de PostgREST no reconoce columnas que SÍ existen
+  // BUILD 419 · `status` fuera: la base la pone por DEFAULT.
   const clientMinimal = {
-    name: _name, email, status: 'habilitado',
+    name: _name, email,
   };
 
   function _isSchemaErr(e) {
