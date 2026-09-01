@@ -678,6 +678,91 @@ async function _rpcStaff(funcion, params, dicc = _ERRORES_STAFF) {
   return Array.isArray(datos) ? (datos[0] ?? null) : datos;
 }
 
+/* ═══ BUILD 421 · VALE DEL CLIENTE ═══════════════════════════════════════════
+ *
+ * Hermano del vale de empleado (`_VALE_KEY` / `_valeAdmin`, arriba), pero para
+ * la TIENDA. Vive en su propia clave para que un cliente y un empleado puedan
+ * usar el mismo navegador sin pisarse.
+ *
+ * 🔴 POR QUÉ HACÍA FALTA, Y POR QUÉ AHORA
+ * ───────────────────────────────────────
+ * El comentario de `DB.patchCustomer` (más abajo) decía: «los clientes NO
+ * TIENEN VALE — no existe `cliente_sesiones` en la base». Ahora existe
+ * (`seguridad/47-vale-cliente.sql`), y eso es lo que permite cerrar las
+ * columnas que la tienda escribe sin romper el checkout.
+ *
+ * Va en `sessionStorage`, igual que el del panel: al cerrar la pestaña
+ * desaparece. Deliberado. `localStorage` sobreviviría en un navegador
+ * compartido —el de un cíber, o el móvil que se presta— y dejaría la sesión
+ * abierta al siguiente que lo use.
+ *
+ * 🔴 EL VALE NO ES UNA CONTRASEÑA Y NO LA SUSTITUYE. Solo dice «esta pestaña
+ * ya demostró ser este cliente». Caduca a las 12 horas en la propia base, así
+ * que robarlo sirve de poco y por poco tiempo. */
+const _VALE_CLIENTE_KEY = 'cm_cliente_vale';
+
+function _valeCliente() {
+  try { return sessionStorage.getItem(_VALE_CLIENTE_KEY) || ''; }
+  catch { return ''; }
+}
+
+function _guardarValeCliente(vale) {
+  try {
+    if (vale) sessionStorage.setItem(_VALE_CLIENTE_KEY, vale);
+    else      sessionStorage.removeItem(_VALE_CLIENTE_KEY);
+  } catch { /* modo privado sin almacenamiento: se pedirá entrar de nuevo */ }
+}
+
+function _borrarValeCliente() {
+  try { sessionStorage.removeItem(_VALE_CLIENTE_KEY); } catch { /* ignorado */ }
+}
+
+const _ERRORES_CLIENTE_SESION = {
+  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar.',
+  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar.',
+  CUENTA_DESACTIVADA: 'Tu cuenta está desactivada. Contacta al supermercado.',
+  CORREO_INVALIDO:    'Ese correo no es válido.',
+};
+
+/* Hermana de `_rpcStaff`, con el vale del CLIENTE.
+ *
+ * 🔴 Mismo detalle que costó cinco pruebas en el build 419: la respuesta se lee
+ * con `res.text()` y se desenvuelve el arreglo de `RETURNS TABLE` UNA sola vez,
+ * aquí. Quien llame a esta función NO debe volver a desenvolver: recibiría el
+ * primer CAMPO de la fila en vez de la fila. */
+async function _rpcClient(funcion, params, dicc = _ERRORES_CLIENTE_SESION) {
+  if (!params.p_vale) {
+    throw new Error('Tu sesión caducó. Vuelve a entrar a la tienda.');
+  }
+
+  const res = await fetch(`${_SB_URL}/rpc/${funcion}`, {
+    method:  'POST',
+    headers: _SB_HEADERS,
+    body:    JSON.stringify(params),
+  });
+
+  if (!res.ok) {
+    const texto = await res.text();
+    for (const clave in dicc) {
+      if (texto.includes(clave)) throw new Error(dicc[clave]);
+    }
+    console.error('[RPC ' + funcion + '] HTTP ' + res.status + ' — respuesta de la base:', texto);
+    let detalle = '';
+    try {
+      const j = JSON.parse(texto);
+      detalle = [j.message, j.details, j.hint].filter(Boolean).join(' · ');
+    } catch (e) {
+      detalle = (texto || '').slice(0, 300);
+    }
+    throw new Error(`No se pudo completar la operación (${res.status})` + (detalle ? `: ${detalle}` : '.'));
+  }
+
+  const texto = await res.text();
+  if (!texto || texto === 'null') return null;
+  const datos = JSON.parse(texto);
+  return Array.isArray(datos) ? (datos[0] ?? null) : datos;
+}
+
 // BUILD 410 · Igual que `_rpcStaff` pero con los mensajes de pedidos, y sin
 // exigir vale: `cliente_borrar_pedido` la llama un comprador, que no tiene.
 async function _rpcOrder(funcion, params, exigeVale = true) {
@@ -1112,6 +1197,50 @@ const DB = {
     if (!res.ok) throw new Error(`API error ${res.status}`);
     const list = await res.json();
     return Array.isArray(list) ? list : [];
+  },
+
+  /* ─── BUILD 421 · LA FICHA DEL PROPIO CLIENTE, POR VALE ────────────────────
+   *
+   * Sustituye a `getCustomerByEmail` para la TIENDA. La diferencia no es
+   * cosmética:
+   *
+   *   getCustomerByEmail('x@y.com')  → cualquiera puede pedir la ficha de
+   *                                    CUALQUIER correo, con la llave `anon`
+   *                                    publicada en este mismo fichero.
+   *   misDatos()                     → la base decide de quién es el vale y
+   *                                    devuelve SOLO esa ficha.
+   *
+   * 🔴 Con la primera bastaba ADIVINAR UN CORREO para leer nombre, teléfono,
+   * dirección, cédula, cuánto ha gastado alguien, sus puntos y su historial de
+   * compras completo. Los correos de Gmail no son secretos.
+   *
+   * `getCustomerByEmail` se conserva porque el PANEL la usa, y el panel tiene
+   * su propio vale. Lo que cambia es quién la llama desde la tienda.
+   *
+   * Devuelve `null` si no hay vale, en vez de lanzar: la pantalla de puntos
+   * debe poder dibujar «vuelve a entrar» sin romperse. */
+  async misDatos() {
+    const vale = _valeCliente();
+    if (!vale) return null;
+    return _rpcClient('cliente_mis_datos', { p_vale: vale });
+  },
+
+  /* Cierra la sesión del cliente EN LA BASE, no solo en el navegador.
+   * Sin esto, el vale seguiría siendo válido 12 horas después de que el cliente
+   * pulsara «Cerrar sesión» — y un vale vivo en un navegador compartido es
+   * exactamente el problema que se quería evitar. */
+  async cerrarSesionCliente() {
+    const vale = _valeCliente();
+    _borrarValeCliente();
+    if (!vale) return true;
+    try {
+      await fetch(`${_SB_URL}/rpc/cliente_cerrar_sesion`, {
+        method:  'POST',
+        headers: _SB_HEADERS,
+        body:    JSON.stringify({ p_vale: vale }),
+      });
+    } catch (e) { /* sin red: el vale caducará solo en 12 h */ }
+    return true;
   },
 
   async getCustomerByEmail(email) {
@@ -1847,8 +1976,79 @@ const DBCached = {
 //  OAUTH — Auto-creación / recuperación de cliente por proveedor social
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/* ═══ BUILD 421 · ENTRAR CON GOOGLE, VERIFICADO EN EL SERVIDOR ═══════════════
+ *
+ * 🔴 EL AGUJERO QUE ESTO CIERRA — ERA EL CASO MAYORITARIO
+ * ───────────────────────────────────────────────────────
+ * De los 9 clientes de la tienda, 6 entran con Google. Hasta el build 420 esos
+ * 6 estaban identificados por NADA: `login-cliente.html` partía el token de
+ * Google por los puntos, leía el correo del trozo del medio y se lo creía. Su
+ * propio comentario lo admitía: «sin verificar firma […] La verificación real
+ * la haría el servidor». Ese servidor no existía.
+ *
+ * El trozo del medio de un JWT es Base64, no está cifrado. Cualquiera lo
+ * escribe a mano. O sea que **cualquiera podía entrar como cualquier cliente
+ * escribiendo su correo**, sin contraseña. Para esos 6 clientes el correo ERA
+ * la credencial, y un correo de Gmail no es un secreto.
+ *
+ * Ahora el token va a `/api/oauth` (Cloudflare Pages Function), que comprueba
+ * la FIRMA con la clave pública de Google, más el destinatario, el emisor y la
+ * caducidad. Solo entonces la base emite el vale.
+ *
+ * POR QUÉ NO SE PODÍA HACER EN EL NAVEGADOR
+ * ─────────────────────────────────────────
+ * Verificar la firma exige una llave de servicio para emitir el vale. Cualquier
+ * cosa que esté en el navegador está publicada — es la misma razón por la que
+ * la llave `anon` de la línea 22 no protege nada. `cliente_abrir_sesion_oauth`
+ * está REVOCADA a `anon` a propósito y concedida solo a `service_role`.
+ *
+ * 🔴 SI LA FUNCIÓN DEL SERVIDOR NO ESTÁ DESPLEGADA O CONFIGURADA, ESTO FALLA
+ * CON UN AVISO CLARO Y NO DEJA ENTRAR A NADIE. Es deliberado: el «respaldo
+ * silencioso» que decodifica el token en el navegador es justo lo que estamos
+ * quitando. Volver a él ante un error sería reabrir el agujero precisamente
+ * cuando algo va mal. Ya nos pasó con el `Fallback: si RPC no existe aún,
+ * comparar directo (temporal)` de `auth.v33.js`, que dejó a los clientes sin
+ * poder entrar durante builds enteros. */
+async function abrirSesionGoogle(credential) {
+  if (!credential) throw new Error('Google no devolvió ningún token.');
+
+  let res, datos;
+  try {
+    res = await fetch('/api/oauth', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ credential }),
+    });
+  } catch (e) {
+    throw new Error('No se pudo conectar para verificar tu cuenta. Revisa tu conexión.');
+  }
+
+  const texto = await res.text();
+  try { datos = JSON.parse(texto); } catch (e) { datos = null; }
+
+  if (!res.ok || !datos || !datos.vale) {
+    const msg = (datos && datos.error) || `No se pudo verificar tu cuenta (${res.status}).`;
+    console.error('[oauth] respuesta del servidor:', res.status, texto.slice(0, 300));
+    throw new Error(msg);
+  }
+
+  _guardarValeCliente(datos.vale);
+  return { cliente: datos.cliente, creado: Boolean(datos.creado) };
+}
+
 /**
  * createClientFromOAuth(profile)
+ *
+ * 🔴 BUILD 421 · EN DESUSO PARA GOOGLE. Usa `abrirSesionGoogle(credential)`.
+ *
+ * Se conserva porque Apple Sign In todavía no está activo
+ * (`login-cliente.html:1071` responde «estará disponible muy pronto») y cuando
+ * se active necesitará el mismo tratamiento: verificar la firma en
+ * `/api/oauth` antes de crear nada. Borrarla ahora obligaría a reescribirla;
+ * dejarla EN USO sería mantener el agujero abierto por la puerta de Apple.
+ *
+ * Si al activar Apple esta función sigue sin usarse, bórrala: código muerto que
+ * parece vivo es peor que no tenerlo.
  *
  * Dado un perfil normalizado de Google/Apple, busca al cliente por email en
  * Supabase. Si no existe, lo crea con status='habilitado' y authProvider marcado.
@@ -1869,8 +2069,10 @@ async function createClientFromOAuth(profile) {
   } catch(e) { /* continuar — red fallida */ }
 
   if (existing) {
-    // Actualizar lastLogin siempre
-    const safePatch = { lastLogin: _nowTs() };
+    // Actualizar lastLogin siempre.
+    // BUILD 421b · `_nowMs()`, no `_nowTs()`: la columna es BIGINT y hasta
+    // ahora esta escritura fallaba en silencio en cada entrada por Google.
+    const safePatch = { lastLogin: _nowMs() };
     try { await DB.patchCustomer(existing.id, safePatch); } catch(e) { /* no crítico */ }
 
     // Patch authProvider + avatar — intentarlo aunque falle (schema cache puede estar desact.)
@@ -1927,7 +2129,8 @@ async function createClientFromOAuth(profile) {
     name: _name, email, phone: '', address: '', city: '',
     cedula: '', notes: '',
     ranking: 'bronce', orders: 0, spent: 0,
-    lastOrder: '', lastLogin: _nowTs(), createdAt: _nowTs(),
+    // BUILD 421b · `lastOrder` es TEXT; `lastLogin` y `createdAt` son BIGINT.
+    lastOrder: '', lastLogin: _nowMs(), createdAt: _nowMs(),
     authProvider: profile.authProvider || 'google',
     avatar: profile.picture || '',
   };
@@ -1937,7 +2140,7 @@ async function createClientFromOAuth(profile) {
     name: _name, email, phone: '', address: '', city: '',
     cedula: '', notes: '',
     ranking: 'bronce', orders: 0, spent: 0,
-    lastOrder: '', lastLogin: _nowTs(), createdAt: _nowTs(),
+    lastOrder: '', lastLogin: _nowMs(), createdAt: _nowMs(),
   };
 
   // Nivel C — solo lo absolutamente mínimo (name, email)
@@ -2001,10 +2204,39 @@ async function createClientFromOAuth(profile) {
   return safe;
 }
 
-/** Timestamp legible: "31/07/2026 14:30" */
+/** Timestamp legible: "31/07/2026 14:30".
+ *
+ * 🔴 BUILD 421b · SOLO PARA MOSTRAR EN PANTALLA. NO SE MANDA A LA BASE.
+ * Ver `_nowMs()` justo debajo para el motivo. */
 function _nowTs() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* Marca de tiempo NUMÉRICA (milisegundos desde 1970) para las columnas que la
+ * base declara `BIGINT`.
+ *
+ * 🔴 BUILD 421b · ESTO ARREGLA UN FALLO QUE YA ESTABA EN PRODUCCIÓN, y que
+ * salió a la luz porque la función SQL nueva se quejó del tipo:
+ *
+ *     column "lastLogin" is of type bigint but expression is of type text
+ *
+ * `supabase_alter.sql` declara **`lastLogin` BIGINT** (línea 161) y
+ * **`createdAt` BIGINT** (línea 142). Pero todo el JS les metía `_nowTs()`,
+ * que devuelve una CADENA ("01/09/2026 14:30"). Postgres rechaza la escritura.
+ *
+ * ¿Por qué nadie lo notó nunca? Porque las tres llamadas están envueltas en un
+ * `catch` que descarta el error como «no crítico», y el panel solo pinta el
+ * dato `if (c.lastLogin)` — así que la ficha simplemente NO mostraba «Último acceso
+ * tienda» y no había ningún error a la vista. Es el mismo patrón exacto que el
+ * `loyaltyLastActivity` que no se enviaba nunca (build 419): un fallo que no
+ * se queja no es un fallo que no exista.
+ *
+ * `lastOrder` (TEXT, línea 160) y `loyaltyLastActivity` (TEXT, línea 166) SÍ
+ * llevan texto: esos siguen usando `_nowTs()`. No se puede aplicar la misma
+ * regla a toda la tabla — hay que mirar columna por columna. */
+function _nowMs() {
+  return Date.now();
 }
 
 // ─── Helper de error legible ──────────────────────────────────────────────────

@@ -205,7 +205,27 @@ function clearClientSession() {
   sessionStorage.removeItem('cm_client_session');
 }
 
-function logoutCliente() {
+/* BUILD 421 · Al salir se borra el vale TAMBIÉN EN LA BASE.
+ *
+ * Si solo se borrara del navegador, el vale seguiría siendo válido en la base
+ * durante 12 horas. En un navegador compartido —el móvil que se presta, el
+ * ordenador de un cíber— eso es una sesión que sigue viva después de que el
+ * cliente creyó haberla cerrado.
+ *
+ * Se espera a la base ANTES de redirigir, pero con un tope: si no hay red, no
+ * se deja al cliente atrapado en una pantalla que no responde. El vale caducará
+ * solo. */
+async function logoutCliente() {
+  try {
+    if (DB && typeof DB.cerrarSesionCliente === 'function') {
+      await Promise.race([
+        DB.cerrarSesionCliente(),
+        new Promise(r => setTimeout(r, 2500)),
+      ]);
+    } else if (typeof _borrarValeCliente === 'function') {
+      _borrarValeCliente();
+    }
+  } catch (e) { /* salir nunca debe fallar */ }
   clearClientSession();
   window.location.href = 'login-cliente.html';
 }
@@ -271,15 +291,40 @@ async function loginCliente(email, password) {
     return { ok: false, msg: 'Correo o contraseña incorrectos. Si no tienes acceso, contacta al supermercado.' };
   }
 
-  // Registrar último acceso en la API
+  /* 🔴 BUILD 421 · El vale que la base acaba de emitir.
+   *
+   * `verify_customer_password` ahora devuelve una columna `vale` además de los
+   * datos del cliente (ver seguridad/47-vale-cliente.sql). Es el mismo patrón
+   * que el vale de empleado del build 397, que lleva funcionando desde
+   * entonces: la base entrega el permiso al validar la contraseña, no el
+   * navegador al afirmar quién es.
+   *
+   * Va en su propia clave de sessionStorage (`cm_cliente_vale`), NO dentro de
+   * la sesión: si viviera dentro del objeto de sesión acabaría copiado en cada
+   * `setClientSession(...)` de app.js y location.js, y bastaría un descuido
+   * para escribirlo en un registro o mandarlo a la base. */
+  if (typeof _guardarValeCliente === 'function' && client.vale) {
+    _guardarValeCliente(client.vale);
+  }
+
+  /* Registrar último acceso.
+   *
+   * 🔴 BUILD 421b · A LA BASE VA EL NÚMERO, A LA PANTALLA EL TEXTO.
+   * `customers.lastLogin` es BIGINT (supabase_alter.sql:161) y aquí se le
+   * mandaba la cadena `ts` → Postgres rechazaba la escritura, y el `catch`
+   * de abajo se lo tragaba. Es decir: **el «último acceso» de los clientes
+   * nunca se ha guardado**, ni por Google ni por contraseña. El panel no lo
+   * mostraba y nadie lo echó de menos. */
   const now = new Date();
   const ts  = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   try {
-    await DB.patchCustomer(client.id, { lastLogin: ts });
+    await DB.patchCustomer(client.id, { lastLogin: Date.now() });
   } catch(e) { /* no crítico */ }
 
-  // Guardar sesión SIN contraseña
-  const { password: _pw, ...safeClient } = { ...client, lastLogin: ts };
+  /* Guardar sesión SIN contraseña Y SIN VALE. El vale se descarta aquí a
+   * propósito: ya está guardado arriba en su propia clave.
+   * En la SESIÓN va `ts` (texto legible) porque es lo que se pinta en pantalla. */
+  const { password: _pw, vale: _vale, ...safeClient } = { ...client, lastLogin: ts };
   setClientSession(safeClient);
   return { ok: true, client: safeClient };
 }

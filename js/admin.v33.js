@@ -4315,6 +4315,37 @@ function renderLoyaltyHist() {
   }).join('');
 }
 
+/* Pinta una fecha que puede venir en DOS formatos distintos.
+ *
+ * 🔴 BUILD 421b · POR QUÉ HACE FALTA ESTO.
+ *
+ * `customers.lastLogin` y `customers.createdAt` son BIGINT en la base
+ * (supabase_alter.sql:161 y :142), pero el JS les mandaba texto
+ * («01/09/2026 14:30»). Postgres rechazaba la escritura y el `catch` la
+ * descartaba como «no crítica», así que **el último acceso de los clientes
+ * nunca se guardó**. Desde el 421b se manda el número, que es lo correcto.
+ *
+ * Pero quedan filas viejas: las de `staff`, que SÍ se guardaron bien como
+ * número desde el build 397, y cualquier fila donde alguna vez entrase texto.
+ * Si esta función asumiera un solo formato, el panel mostraría
+ * «1756742400000» o «Invalid Date» según el caso.
+ *
+ * Regla: si son solo dígitos, es epoch en milisegundos → se formatea.
+ * Si no, ya es texto legible → se devuelve tal cual. */
+function _fechaFlexible(valor) {
+  if (valor === null || valor === undefined || valor === '') return '—';
+  const s = String(valor).trim();
+  if (/^\d+$/.test(s)) {
+    let ms = Number(s);
+    // Un epoch en SEGUNDOS son 10 dígitos; en milisegundos, 13.
+    if (s.length <= 10) ms = ms * 1000;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '—';
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  return s;
+}
+
 // Calcula puntos ganados por un total de compra (sin fracciones)
 function calcPoints(total) {
   const cfg = getLoyaltyConfig();
@@ -5271,8 +5302,8 @@ function viewCustomerDetail(id) {
       <div class="order-detail-item"><label>Total gastado</label><span style="color:#1a7c3e;font-weight:700">RD$ ${fmt$(st.spent)}</span></div>
       <div class="order-detail-item"><label>Último pedido</label><span>${st.lastLabel}</span></div>
       <div class="order-detail-item"><label><i class="fas fa-star" style="color:#7c3aed"></i> Puntos acumulados</label><span style="font-weight:800;font-size:1.05rem;color:#7c3aed">${(c.loyaltyPoints||0).toLocaleString('es-DO')} pts &nbsp;${loyaltyBadgeHTML(c.loyaltyPoints||0)}</span></div>
-      ${c.createdAt ? `<div class="order-detail-item"><label>Registrado</label><span>${c.createdAt}</span></div>` : ''}
-      ${c.lastLogin ? `<div class="order-detail-item"><label>Último acceso tienda</label><span>${c.lastLogin}</span></div>` : ''}
+      ${c.createdAt ? `<div class="order-detail-item"><label>Registrado</label><span>${_fechaFlexible(c.createdAt)}</span></div>` : ''}
+      ${c.lastLogin ? `<div class="order-detail-item"><label>Último acceso tienda</label><span>${_fechaFlexible(c.lastLogin)}</span></div>` : ''}
     </div>
     ${c.notes ? `<div style="margin-top:16px"><label style="font-size:0.8rem;color:#888;font-weight:600;display:block;margin-bottom:6px">NOTAS INTERNAS</label><p style="margin:0;padding:12px;background:#f8f9fa;border-radius:8px;font-size:0.9rem">${c.notes}</p></div>` : ''}
     <div style="margin-top:16px;display:flex;gap:10px">
@@ -5357,7 +5388,7 @@ function renderStaff() {
       <td>${s.phone || '&mdash;'}</td>
       <td><span class="role-badge role-${s.role}"><i class="fas ${roleIcons[s.role]}"></i> ${roleLabels[s.role]}</span></td>
       <td><span class="staff-status ${statusCls}">${s.status === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
-      <td style="font-size:.8rem;color:#888">${s.lastLogin || 'Nunca'}</td>
+      <td style="font-size:.8rem;color:#888">${s.lastLogin ? _fechaFlexible(s.lastLogin) : 'Nunca'}</td>
       <td>
         <div class="action-btns">
           ${canManage ? `

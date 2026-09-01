@@ -3876,11 +3876,32 @@ async function renderLoyaltyCard() {
   const container = document.getElementById('loyaltyCard');
   if (!container || !currentClient) return;
 
-  // Leer datos frescos del cliente desde la API
+  /* Leer datos frescos del cliente desde la API.
+   *
+   * 🔴 BUILD 421 · Antes esta línea era:
+   *     fresh = await DB.getCustomerByEmail(currentClient.email);
+   *
+   * Y eso significaba que la ficha se pedía POR CORREO con la llave `anon`, que
+   * está publicada en el código fuente del sitio (js/api.js:22). Cualquiera
+   * podía pedir la ficha de cualquier correo desde la consola del navegador y
+   * recibir nombre, teléfono, dirección, cédula, cuánto ha gastado, sus puntos
+   * y su historial de compras completo. Solo había que ADIVINAR UN CORREO — y
+   * los correos de Gmail no son secretos.
+   *
+   * `DB.misDatos()` no recibe correo: la base mira de quién es el vale y
+   * devuelve SOLO esa ficha. No se puede pedir la de otro porque no hay dónde
+   * escribirlo.
+   *
+   * Si no hay vale devuelve `null`, y entonces se usa lo que haya en la sesión
+   * en vez de dejar la pantalla en blanco. Los puntos se verían desactualizados,
+   * no falsos. */
   let fresh = null;
   try {
-    fresh = await DB.getCustomerByEmail(currentClient.email);
-  } catch(e) { fresh = currentClient; }
+    fresh = await DB.misDatos();
+  } catch(e) {
+    console.warn('[puntos] no se pudieron leer los datos frescos:', e && e.message);
+  }
+  if (!fresh) fresh = currentClient;
   const pts     = (fresh?.loyaltyPoints) || 0;
   const history = (fresh?.loyaltyHistory || []).slice(0, 5);
 

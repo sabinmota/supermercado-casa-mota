@@ -198,18 +198,60 @@ function clearClientSession() {
   sessionStorage.removeItem('cm_client_session');
 }
 
-function logoutCliente() {
+/* BUILD 421 · Al salir se invalida el vale TAMBIÉN EN LA BASE. Ver el comentario
+ * gemelo en js/auth.v33.js. Sin esto el vale seguiría vivo 12 horas después de
+ * que el cliente creyera haber cerrado la sesión. */
+async function logoutCliente() {
+  try {
+    if (typeof DB !== 'undefined' && DB && typeof DB.cerrarSesionCliente === 'function') {
+      await Promise.race([
+        DB.cerrarSesionCliente(),
+        new Promise(r => setTimeout(r, 2500)),
+      ]);
+    } else if (typeof _borrarValeCliente === 'function') {
+      _borrarValeCliente();
+    }
+  } catch (e) { /* salir nunca debe fallar */ }
   clearClientSession();
   window.location.href = 'login-cliente.html';
 }
 
-// Guard para la tienda: redirige a login si no hay sesión de cliente
+/* Guard para la tienda: redirige a login si no hay sesión de cliente.
+ *
+ * 🔴 BUILD 421 · SE COMPRUEBA TAMBIÉN EL VALE, Y HAY UN MOTIVO CONCRETO.
+ *
+ * Este fichero y `auth.v33.js` NO guardan la sesión en el mismo sitio, y eso
+ * crea un desajuste que habría dado un fallo dificilísimo de diagnosticar:
+ *
+ *   auth.v33.js  (login-cliente.html) → sessionStorage
+ *   auth.js      (index.html, aquí)   → localStorage **Y** sessionStorage
+ *
+ * El vale vive en `sessionStorage` a propósito (no debe sobrevivir al cierre de
+ * la pestaña en un navegador compartido). Pero la sesión SÍ sobrevive, porque
+ * `setClientSession` de este fichero la escribe en `localStorage`.
+ *
+ * Consecuencia: cierra la pestaña, vuelve a abrir la tienda al día siguiente
+ * → PARECE que sigue dentro (su nombre, su carrito) pero NO TIENE VALE. Todo
+ * lo que dependa del vale —los puntos, y mañana el canje— fallaría con
+ * «tu sesión caducó» mientras la pantalla insiste en que está conectado.
+ *
+ * Se resuelve donde se detecta: si hay sesión pero no hay vale, la sesión no
+ * sirve. Se limpia y se pide entrar otra vez. Molesta una vez; la alternativa
+ * es una tienda que miente sobre su propio estado. */
 function requireClientAuth() {
   const session = getClientSession();
   if (!session) {
     window.location.href = 'login-cliente.html';
     return null;
   }
+
+  if (typeof _valeCliente === 'function' && !_valeCliente()) {
+    console.warn('[auth] sesión de cliente sin vale (pestaña reabierta) — se pide entrar de nuevo.');
+    clearClientSession();
+    window.location.href = 'login-cliente.html';
+    return null;
+  }
+
   return session;
 }
 
@@ -254,15 +296,49 @@ async function loginCliente(email, password) {
     return { ok: false, msg: 'Correo o contraseña incorrectos. Si no tienes acceso, contacta al supermercado.' };
   }
 
-  // Registrar último acceso en la API
+  /* 🔴 BUILD 421b · GUARDAR EL VALE QUE LA BASE ACABA DE EMITIR.
+   *
+   * Faltaba en este fichero. `auth.v33.js` sí lo hacía (línea 306) porque es
+   * donde vive el formulario de `login-cliente.html`, y por eso el hueco no se
+   * veía: hoy nadie entra por aquí. Pero `requireClientAuth` de ESTE fichero
+   * EXIGE el vale desde el 421 — así que si algún día un formulario llamara a
+   * este `loginCliente`, el cliente entraría sin vale y el guard lo echaría
+   * inmediatamente a `login-cliente.html`, en un bucle: entra, se le expulsa,
+   * entra otra vez. Un fallo de los que no se diagnostican en cinco minutos. */
+  if (typeof _guardarValeCliente === 'function' && client.vale) {
+    _guardarValeCliente(client.vale);
+  }
+
+  /* Registrar último acceso.
+   * 🔴 BUILD 421b · A la base el NÚMERO (la columna es BIGINT), a la sesión el
+   * texto legible. Ver el comentario gemelo en js/auth.v33.js. */
   const now = new Date();
   const ts  = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   try {
-    await DB.patchCustomer(client.id, { lastLogin: ts });
+    await DB.patchCustomer(client.id, { lastLogin: Date.now() });
   } catch(e) { /* no crítico */ }
 
-  // Guardar sesión SIN contraseña
-  const { password: _pw, ...safeClient } = { ...client, lastLogin: ts };
+  /* Guardar sesión SIN contraseña Y SIN VALE.
+   *
+   * 🔴 BUILD 421b · EL `vale` SE SACA AQUÍ, Y NO ES UN DETALLE.
+   *
+   * Este fichero guarda la sesión con `setClientSession`, que la escribe en
+   * **localStorage además de sessionStorage** (línea 191). El vale vive en
+   * `sessionStorage` A PROPÓSITO: no debe sobrevivir al cierre de la pestaña en
+   * un navegador compartido. Si se colara dentro del objeto de sesión,
+   * terminaría COPIADO EN localStorage y sobreviviría días — justo lo que el
+   * vale existe para evitar.
+   *
+   * Y peor: `app.js` y `location.js` vuelven a llamar a `setClientSession(...)`
+   * con el objeto de sesión, así que el vale se reescribiría solo en cada
+   * actualización de perfil, y bastaría un descuido para acabar mandándolo a la
+   * base dentro de un PATCH.
+   *
+   * Su gemela de `auth.v33.js` (línea 319) ya lo sacaba; esta se había quedado
+   * atrás. Lo encontró la prueba 15 del arnés del 421b, no una lectura: la
+   * prueba ejecuta el `loginCliente` real y mira QUÉ CLAVES tiene la sesión
+   * resultante. */
+  const { password: _pw, vale: _vale, ...safeClient } = { ...client, lastLogin: ts };
   setClientSession(safeClient);
   return { ok: true, client: safeClient };
 }

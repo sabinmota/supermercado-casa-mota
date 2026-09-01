@@ -797,8 +797,8 @@
 
   </div><!-- /screens-wrap -->
 
-  <script src="js/api.js?v=337"></script>
-  <script src="js/auth.v33.js?v=297"></script>
+  <script src="js/api.js?v=339"></script>
+  <script src="js/auth.v33.js?v=299"></script>
   <script>
     // ── Redirigir si ya hay sesión ─────────────────────────────────
     (function() {
@@ -1042,18 +1042,25 @@
         return;
       }
       try {
-        // Decodificar el JWT payload (sin verificar firma — solo para extraer campos)
-        // La verificación real la haría el servidor; aquí solo necesitamos el email y nombre
-        const parts   = response.credential.split('.');
-        const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-        await _processOAuthProfile({
-          email:        payload.email,
-          name:         payload.name,
-          given_name:   payload.given_name,
-          picture:      payload.picture,
-          authProvider: 'google',
-          sub:          payload.sub,
-        });
+        /* 🔴 BUILD 421 · YA NO SE DECODIFICA EL TOKEN AQUÍ.
+         *
+         * Lo que había antes hacía esto, y su propio comentario lo confesaba:
+         *
+         *   // Decodificar el JWT payload (sin verificar firma — solo para
+         *   // extraer campos). La verificación real la haría el servidor
+         *
+         * Ese servidor no existía. El trozo del medio de un JWT es Base64, NO
+         * está cifrado: cualquiera lo escribe a mano. O sea que cualquier
+         * persona podía fabricar un token con el correo de OTRO cliente y
+         * entrar como él, sin contraseña.
+         *
+         * Y era el caso mayoritario: de los 9 clientes de la tienda, 6 entran
+         * con Google. Para esos 6 el correo ERA la credencial.
+         *
+         * Ahora el token va tal cual a /api/oauth, que comprueba la FIRMA con
+         * la clave pública de Google (más emisor, destinatario y caducidad) y
+         * solo entonces pide a la base que emita el vale. */
+        await _entrarConGoogleVerificado(response.credential);
       } catch(e) {
         const btn = document.getElementById('btnGoogleLogin');
         if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
@@ -1110,6 +1117,40 @@
     //  FLUJO COMÚN: Buscar/Crear cliente → Sesión → Redirigir
     // ══════════════════════════════════════════════════════════════════
 
+    /* BUILD 421 · Entrar con Google, verificado en el servidor.
+     *
+     * El navegador ya no decide quién es nadie: manda el token a /api/oauth y
+     * recibe la sesión con su vale, o un error. No hay tercera opción y no hay
+     * respaldo que decodifique el token localmente — ese respaldo sería
+     * exactamente el agujero que este build cierra. */
+    async function _entrarConGoogleVerificado(credential) {
+      const googleBtn = document.getElementById('btnGoogleLogin');
+      const appleBtn  = document.getElementById('btnAppleLogin');
+
+      [googleBtn, appleBtn].forEach(b => { if (b) { b.classList.add('loading'); b.disabled = true; } });
+
+      try {
+        const { cliente } = await abrirSesionGoogle(credential);
+        setClientSession(cliente);
+
+        if (googleBtn) {
+          googleBtn.classList.remove('loading');
+          googleBtn.innerHTML = '<i class="fas fa-check" style="color:#1a7c3e;font-size:1rem"></i> <span class="oauth-label">¡Bienvenido/a ' + (cliente.name || '').split(' ')[0] + '!</span>';
+          googleBtn.style.border = '1.5px solid #1a7c3e';
+        }
+
+        setTimeout(() => { window.location.href = 'index.html'; }, 800);
+
+      } catch (err) {
+        [googleBtn, appleBtn].forEach(b => { if (b) { b.classList.remove('loading'); b.disabled = false; } });
+        _showOAuthToast(err.message || 'No se pudo iniciar sesión. Intenta de nuevo.');
+        throw err;
+      }
+    }
+
+    /* En desuso para Google desde el build 421 (ver arriba). Se conserva para
+     * Apple Sign In, que todavía no está activo y necesitará el mismo trato:
+     * verificar la firma en el servidor antes de crear nada. */
     async function _processOAuthProfile(profile) {
       const googleBtn = document.getElementById('btnGoogleLogin');
       const appleBtn  = document.getElementById('btnAppleLogin');
