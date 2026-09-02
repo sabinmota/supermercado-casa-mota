@@ -633,7 +633,30 @@ const _ERRORES_PUNTOS = {
  * mensajes, en vez de copiar la función y arrastrar el defecto de partida.
  * Los ocho llamadores anteriores no cambian: al no pasar el tercer argumento,
  * siguen usando el diccionario de personal. */
-async function _rpcStaff(funcion, params, dicc = _ERRORES_STAFF) {
+/* 🔴 BUILD 422a2 · EL CUARTO PARÁMETRO NO ES UN ADORNO: `devolverArreglo`
+ *
+ * La línea del final de esta función hace `datos[0] ?? null` cuando la
+ * respuesta es un arreglo. Eso es CORRECTO para las nueve llamadas que
+ * existían antes, porque todas devuelven UNA cosa: un cliente guardado, un
+ * saldo, un contador de pedidos desvinculados. PostgREST envuelve ese único
+ * resultado en un arreglo de un elemento y aquí se desenvuelve.
+ *
+ * Pero `admin_listar_clientes` devuelve NUEVE FILAS. Desenvolverlas se queda
+ * con la primera y tira las otras ocho — y como el resultado deja de ser un
+ * arreglo, `getCustomers()` lo descartaba entero y devolvía `[]`.
+ * **Pantalla de Clientes en blanco, sin un solo error en consola.**
+ *
+ * 🔴 POR QUÉ NO SE CAMBIÓ LA LÍNEA 678 A SECAS: hay NUEVE llamadas más que
+ * dependen de que desenvuelva. «Arreglarlo» ahí habría roto guardar clientes,
+ * ajustar puntos, borrar clientes y guardar empleados —los cuatro en
+ * silencio— para reparar una lectura. Se añade un interruptor y se pide
+ * explícitamente donde hace falta.
+ *
+ * LECCIÓN, y es la MISMA del 419 vista por el otro lado: esta función
+ * **ya desenvolvía**. En el 419 el fallo fue desenvolver DOS veces; aquí fue
+ * escribir el llamador dando por hecho que no desenvolvía ninguna. El README
+ * lo tenía anotado y no lo releí antes de escribir el llamador. */
+async function _rpcStaff(funcion, params, dicc = _ERRORES_STAFF, devolverArreglo = false) {
   if (!params.p_vale) {
     throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
   }
@@ -673,8 +696,9 @@ async function _rpcStaff(funcion, params, dicc = _ERRORES_STAFF) {
   }
 
   const texto = await res.text();
-  if (!texto || texto === 'null') return null;
+  if (!texto || texto === 'null') return devolverArreglo ? [] : null;
   const datos = JSON.parse(texto);
+  if (devolverArreglo) return Array.isArray(datos) ? datos : (datos == null ? [] : [datos]);
   return Array.isArray(datos) ? (datos[0] ?? null) : datos;
 }
 
@@ -1213,7 +1237,11 @@ const DB = {
       const json = await res.json();
       return json.data || [];
     }
-    const lista = await _rpcStaff('admin_listar_clientes', { p_vale: _valeAdmin() });
+    /* El cuarto argumento (`true`) es imprescindible: sin él `_rpcStaff`
+     * desenvuelve el arreglo y devuelve SOLO el primer cliente, con lo que
+     * esta función veía algo que no era arreglo y devolvía `[]` — la pantalla
+     * en blanco del 422a. Ver la nota grande en `_rpcStaff`. */
+    const lista = await _rpcStaff('admin_listar_clientes', { p_vale: _valeAdmin() }, _ERRORES_STAFF, true);
     return Array.isArray(lista) ? lista : [];
   },
 
