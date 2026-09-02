@@ -861,13 +861,20 @@ async function _desvincularPedidosDeCliente(customerId) {
   if (!Array.isArray(pedidos) || pedidos.length === 0) return 0;
 
   // 2) Traer la identidad de la ficha para estamparla donde falte.
+  // 🔴 BUILD 422a · Por RPC con vale, no por SELECT con la llave `anon`.
+  // Esta lectura pide solo `name,email,phone` (no cédula ni puntos), pero el
+  // permiso que usaba era el mismo que el 422b va a revocar: sin este cambio,
+  // borrar un cliente dejaría de estampar la identidad en sus pedidos y esos
+  // pedidos quedarían huérfanos y sin nombre. El `catch` de abajo lo habría
+  // ocultado, así que el fallo no se habría notado hasta ir a buscar un
+  // pedido antiguo.
   let ficha = null;
   try {
-    const r = await fetch(
-      `${_SB_URL}/customers?id=eq.${encodeURIComponent(customerId)}&select=name,email,phone`,
-      { headers: _SB_HEADERS }
-    );
-    if (r.ok) { const arr = await r.json(); ficha = Array.isArray(arr) ? arr[0] : null; }
+    const r = await _rpcStaff('admin_ficha_cliente', {
+      p_vale: _valeAdmin(),
+      p_id:   customerId,
+    }, _ERRORES_CLIENTE);
+    ficha = Array.isArray(r) ? (r[0] || null) : (r || null);
   } catch (e) {
     console.warn('[deleteCustomer] no se pudo leer la ficha para estampar identidad:', e?.message || e);
   }
@@ -1176,27 +1183,38 @@ const DB = {
     );
   },
 
-  // ── Clientes ───────────────────────────────────────────────────────────────
+  /* ── Clientes ─────────────────────────────────────────────────────────────
+   *
+   * 🔴 BUILD 422a · EL PANEL LEE CON SU VALE, NO CON LA LLAVE DE TODOS.
+   *
+   * Hasta el 421, esta función pedía la tabla directamente con `_SB_HEADERS`,
+   * o sea con la llave `anon` que está publicada en la línea 22 de ESTE mismo
+   * fichero. Consecuencia medida: **el panel no leía nada que un visitante
+   * cualquiera no pudiera leer también.** El vale de administrador solo se
+   * usaba para ESCRIBIR; para leer, el panel iba por la puerta de todos.
+   *
+   * Eso convertía el cierre del agujero en un problema: revocar el SELECT a
+   * `anon` habría dejado la pantalla de Clientes en blanco, porque el panel
+   * usaba exactamente el mismo permiso que se quería quitar.
+   *
+   * Ahora se pide por RPC y **la base comprueba el vale** con
+   * `admin_sesion_basica`, la misma que ya valida el resto del panel desde el
+   * build 39 — no se inventa otro control. Es el mismo patrón que
+   * `getSettingsAdmin()` (BUILD 415) para los ajustes con secretos.
+   *
+   * 🔴 POR QUÉ ESTE BUILD NO REVOCA NADA: primero el mecanismo, después el
+   * cierre (422b). Si algo falla aquí, el panel sigue funcionando y se ve al
+   * instante; si se cerrara a la vez, un fallo dejaría al dueño sin su
+   * herramienta de trabajo y sin saber por qué. Es la misma cautela que
+   * funcionó en el 421. */
   async getCustomers() {
     if (_IS_GENSPARK) {
       const res  = await fetch('tables/customers?limit=2000');
       const json = await res.json();
       return json.data || [];
     }
-    const fields = _SELECT_FIELDS.customers;
-    const ctrl   = new AbortController();
-    const timer  = setTimeout(() => ctrl.abort(), 12000);
-    let res;
-    try {
-      res = await fetch(
-        `${_SB_URL}/customers?select=${encodeURIComponent(fields)}&order=created_at.desc&limit=2000`,
-        { headers: _SB_HEADERS, signal: ctrl.signal }
-      );
-    } catch(e) { clearTimeout(timer); throw e; }
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const list = await res.json();
-    return Array.isArray(list) ? list : [];
+    const lista = await _rpcStaff('admin_listar_clientes', { p_vale: _valeAdmin() });
+    return Array.isArray(lista) ? lista : [];
   },
 
   /* ─── BUILD 421 · LA FICHA DEL PROPIO CLIENTE, POR VALE ────────────────────
@@ -1243,16 +1261,34 @@ const DB = {
     return true;
   },
 
+  /* 🔴 BUILD 422a · AHORA EXIGE VALE DE PANEL.
+   *
+   * Esta función era el agujero de lectura más directo del proyecto: bastaba
+   * ADIVINAR UN CORREO para obtener nombre, teléfono, dirección, cédula,
+   * cuánto ha gastado alguien, sus puntos y su historial completo — con la
+   * llave `anon` publicada. Y los correos de Gmail no son secretos.
+   *
+   * La TIENDA ya no la usa desde el 421 (usa `misDatos()`, donde la base mira
+   * de quién es el vale). El único llamador legítimo que queda es el PANEL,
+   * que sí tiene vale propio. Así que en vez de borrarla —lo que rompería al
+   * panel— pasa por la RPC y **la base decide si quien pregunta tiene derecho
+   * a preguntar.**
+   *
+   * Devuelve `null` en vez de lanzar cuando no hay resultado, igual que antes,
+   * para no cambiar el comportamiento de quien la llama. */
   async getCustomerByEmail(email) {
-    const encoded = encodeURIComponent(email.toLowerCase());
-    const res = await fetch(
-      // BUILD 395 · antes '*' → incluía `password` → 403 tras el SQL de seguridad.
-      `${_SB_URL}/customers?email=ilike.${encoded}&select=${encodeURIComponent(_SELECT_FIELDS.customers)}`,
-      { headers: _SB_HEADERS }
-    );
-    if (!res.ok) return null;
-    const arr = await res.json();
-    return arr.find(c => c.email.toLowerCase() === email.toLowerCase()) || null;
+    if (!email) return null;
+    try {
+      const fila = await _rpcStaff('admin_ficha_cliente_email', {
+        p_vale:  _valeAdmin(),
+        p_email: String(email).trim(),
+      }, _ERRORES_CLIENTE);
+      if (!fila) return null;
+      return Array.isArray(fila) ? (fila[0] || null) : fila;
+    } catch (e) {
+      console.warn('[getCustomerByEmail] no se pudo leer la ficha:', e?.message || e);
+      return null;
+    }
   },
 
   /* ─── BUILD 418 · CREAR Y EDITAR CLIENTES DESDE EL PANEL ───────────────────

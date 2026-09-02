@@ -936,7 +936,24 @@ async function loadNotificaciones() {
   } catch(e) { notificaciones = []; }
 
   try {
-    const jc = await _supaFetch('customers?select=*&limit=500&order=created_at.asc', {});
+    /* 🔴 BUILD 422a · ANTES PEDÍA `select=*` Y ESO ERA DOS PROBLEMAS EN UNO.
+     *
+     * (1) Descargaba las 27 columnas de 500 clientes —cédula, dirección,
+     *     cuánto ha gastado cada uno, sus puntos, su historial— para llenar
+     *     UN DESPLEGABLE de destinatarios que solo muestra nombre y correo.
+     *     Traer datos personales que no se van a usar es exponerlos gratis.
+     *
+     * (2) El asterisco habría ROTO esta pantalla en el 422b. PostgREST
+     *     rechaza la petición ENTERA con 403 cuando una sola columna está
+     *     prohibida — no devuelve las permitidas. Es el mismo fallo que ya
+     *     nos pasó con `settings` en el build 415, y el `catch` de abajo lo
+     *     habría convertido en una lista de destinatarios vacía, sin ningún
+     *     error visible.
+     *
+     * Se piden las tres columnas que el desplegable realmente usa. No hace
+     * falta RPC aquí: `id`, `name` y `email` no son datos sensibles y el
+     * 422b no las va a revocar. */
+    const jc = await _supaFetch('customers?select=id,name,email&limit=500&order=created_at.asc', {});
     _notiClientes = Array.isArray(jc) ? jc : [];
   } catch(e) { _notiClientes = []; }
 
