@@ -169,47 +169,35 @@ export function onRequestGet(context) {
   return json({
     ok: true,
     servicio: 'vale-cliente-casamota',
-    build: '421c',
+    build: '421d',
     configurado: {
       supabase_url:     Boolean(env.SUPABASE_URL),
       service_key:      Boolean(env.SUPABASE_SERVICE_KEY),
       google_client_id: Boolean(env.GOOGLE_CLIENT_ID),
-      // Longitud, NO la clave. Una `anon` y una `service_role` se distinguen
-      // por el tamaño, y confundirlas es el error más probable aquí.
-      service_key_largo: env.SUPABASE_SERVICE_KEY ? String(env.SUPABASE_SERVICE_KEY).length : 0,
-      url_valor:         env.SUPABASE_URL || '(vacía)',
     },
   });
 }
 
 /** POST /api/oauth — verifica el token y devuelve la sesión CON vale. */
-/* 🔴 BUILD 421c · ENVOLTORIO QUE CONVIERTE UNA CAÍDA EN UN MENSAJE LEGIBLE.
+/* 🔴 ENVOLTORIO QUE IMPIDE QUE UNA CAÍDA SE VUELVA UN 502 CIEGO.
  *
  * Un `throw` sin capturar dentro de una Pages Function NO produce una respuesta
  * mía: produce la página de error HTML de Cloudflare, con un 502 y sin una sola
- * pista. Eso fue exactamente lo que vio el dueño — `<!DOCTYPE html>` en la
- * consola donde debía haber JSON.
+ * pista. Eso fue exactamente lo que ocurrió en el build 421c — `<!DOCTYPE html>`
+ * en la consola donde debía haber JSON.
  *
- * Todos MIS errores devuelven JSON. Así que si llega HTML, el fallo está en
- * algún punto que no estaba dentro de un `try`. En vez de ir probando cambios a
- * ver cuál acierta, esto hace que el propio servidor diga qué se rompió.
+ * Este envoltorio NO es andamio de depuración y por eso se queda: garantiza que
+ * pase lo que pase el navegador reciba JSON con un mensaje entendible, y que el
+ * motivo real quede en el registro de Cloudflare, donde solo lo ve el dueño.
  *
- * `diagnostico` NO revela ninguna clave: solo el nombre y el mensaje del error.
- * Aun así se quitará cuando el acceso funcione — un servidor que cuenta sus
- * tripas ayuda tanto a quien depura como a quien busca por dónde entrar. */
+ * El detalle del fallo va al registro y NO al navegador: a quien intenta entrar
+ * como otra persona no se le explica qué le falló. */
 export async function onRequestPost(context) {
   try {
     return await manejarPost(context);
   } catch (e) {
     console.error('[oauth] EXCEPCIÓN NO CAPTURADA:', e && e.stack);
-    return json({
-      error: 'No se pudo verificar tu cuenta. Avisa al supermercado.',
-      diagnostico: {
-        tipo:    (e && e.name)    || 'Error',
-        mensaje: (e && e.message) || String(e),
-        donde:   String((e && e.stack) || '').split('\n').slice(0, 3).join(' | '),
-      },
-    }, 500);
+    return json({ error: 'No se pudo verificar tu cuenta. Avisa al supermercado.' }, 500);
   }
 }
 
@@ -243,15 +231,7 @@ async function manejarPost(context) {
     /* El motivo se registra en Cloudflare pero NO se devuelve al navegador:
      * a quien intenta suplantar a alguien no se le explica qué le falló. */
     console.warn('[oauth] token rechazado:', e && e.message);
-    /* 🔴 BUILD 421c · El MOTIVO viaja mientras depuramos, y solo mientras.
-     * Son cinco comprobaciones distintas (firma, emisor, destinatario,
-     * caducidad, correo confirmado) y sin saber cuál falló habría que ir
-     * probando a ciegas. SE QUITA al terminar: a quien intenta suplantar a
-     * alguien no se le explica qué le faltó. */
-    return json({
-      error: 'No pudimos verificar tu cuenta de Google. Intenta de nuevo.',
-      diagnostico: { paso: 'token', motivo: (e && e.message) || String(e) },
-    }, 401);
+    return json({ error: 'No pudimos verificar tu cuenta de Google. Intenta de nuevo.' }, 401);
   }
 
   const url = env.SUPABASE_URL.replace(/\/+$/, '') + '/rest/v1/rpc/cliente_abrir_sesion_oauth';
@@ -276,31 +256,19 @@ async function manejarPost(context) {
       if (cuerpo.includes('CUENTA_DESACTIVADA')) {
         return json({ error: 'Tu cuenta está desactivada. Contacta al supermercado.' }, 403);
       }
-      /* 🔴 BUILD 421c · El motivo REAL viaja al navegador mientras depuramos.
-       * Antes solo iba al registro de Cloudflare, y el dueño se quedaba con un
-       * «no se pudo» que no distingue entre clave equivocada, función que no
-       * existe y permiso denegado. Se quitará al terminar. */
-      return json({
-        error: 'No se pudo abrir tu sesión. Intenta de nuevo.',
-        diagnostico: { paso: 'rpc', estado: res.status, respuesta: String(cuerpo).slice(0, 400) },
-      }, 502);
+      return json({ error: 'No se pudo abrir tu sesión. Intenta de nuevo.' }, 502);
     }
     try {
       filas = JSON.parse(cuerpo);
     } catch (ep) {
-      // Supabase respondió 200 con algo que no es JSON: sin esto, el `throw`
-      // salía de la función y Cloudflare lo tapaba con su HTML.
-      return json({
-        error: 'Respuesta inesperada de la base.',
-        diagnostico: { paso: 'json', respuesta: String(cuerpo).slice(0, 400) },
-      }, 502);
+      // Supabase respondió 200 con algo que no es JSON. Sin este `catch` el
+      // `throw` salía de la función y Cloudflare lo tapaba con su HTML.
+      console.error('[oauth] respuesta no-JSON de la base:', String(cuerpo).slice(0, 400));
+      return json({ error: 'Respuesta inesperada de la base.' }, 502);
     }
   } catch (e) {
     console.error('[oauth] fallo al hablar con la base:', e && e.message);
-    return json({
-      error: 'No se pudo conectar. Revisa tu conexión.',
-      diagnostico: { paso: 'red', tipo: (e && e.name) || 'Error', mensaje: (e && e.message) || String(e) },
-    }, 502);
+    return json({ error: 'No se pudo conectar. Revisa tu conexión.' }, 502);
   }
 
   const fila = Array.isArray(filas) ? filas[0] : filas;
