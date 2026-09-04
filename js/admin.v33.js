@@ -5153,7 +5153,24 @@ function saveCustomer() {
         // Añadir al array local con el registro real devuelto por Supabase (tiene UUID real)
         // BUILD 395 · El respaldo local nunca lleva la contraseña en claro.
         const { password: _pwC, ...newCSafe } = newC;
-        const record = saved || { ...newCSafe, has_password: !!newC.password, id: 'tmp_' + Date.now() };
+        /* 🔴 BUILD 422b1 · SE FUSIONA, YA NO SE SUSTITUYE.
+         *
+         * Antes esto era `saved || {…}`: se usaba la fila de Supabase TAL CUAL
+         * porque traía las 27 columnas. Desde el 422b1 la escritura solo pide
+         * de vuelta cinco (`id,name,email,authProvider,avatar`) para no
+         * mencionar columnas que el 422b2 va a cerrar — así que quedarse solo
+         * con `saved` pintaría el cliente recién creado SIN teléfono, sin
+         * cédula y sin estado hasta recargar la página.
+         *
+         * Se combinan las dos mitades: los datos del formulario (que son los
+         * que el empleado acaba de escribir) y lo que la base confirma, que
+         * manda porque incluye el UUID real. */
+        const record = {
+          ...newCSafe,
+          has_password: !!newC.password,
+          ...(saved || {}),
+          id: (saved && saved.id) || 'tmp_' + Date.now(),
+        };
         customers.push(record);
         _unlockC();
         DBCached.invalidateCustomers();

@@ -362,9 +362,50 @@ async function _apiGet(table, id) {
 // `password`), y el guardado seguía fallando con 401 / 42501
 // «permission denied for table staff» — exactamente el fallo que se pretendía
 // arreglar. Se detectó al intentar crear un empleado nuevo en producción.
+/* 🔴 BUILD 422b1 · LO QUE UNA ESCRITURA DEVUELVE ES TAMBIÉN UNA LECTURA
+ *
+ * Hasta aquí, escribir en `customers` pedía de vuelta las VEINTISIETE columnas
+ * de `_SELECT_FIELDS.customers` — `cedula`, `spent` y `loyaltyPoints`
+ * incluidas. Eso convierte cada INSERT y cada PATCH en una lectura de esas
+ * columnas, y PostgREST rechaza **la petición ENTERA con 403** cuando una sola
+ * está prohibida (la lección del 396 para `password`, y del 415 para
+ * `settings`).
+ *
+ * Consecuencia si el 422b revocase el SELECT sin tocar esto: se romperían
+ * OCHO caminos de escritura, y el peor de todos es **el checkout de la
+ * tienda** (`app.js:3088`), que además lo haría en silencio porque su `catch`
+ * marca el fallo como «no crítico». Sería el fallo del 420 por tercera vez:
+ * revocar mirando quién lee con un SELECT, cuando también lee quien escribe.
+ *
+ * 🔴 POR QUÉ NO SE DEVUELVE NADA EN ABSOLUTO (lo primero que se pensó, y era
+ * un error): el registro por Google **SÍ usa la fila devuelta**. En la línea
+ * 2247 lanza «Supabase no devolvió el cliente creado» si llega vacía, en la
+ * 2251 usa `created.id`, y en la 2267 **esa fila SE CONVIERTE en la sesión del
+ * cliente**. Como `_apiFetch` (línea 71) devuelve `null` con cuerpo vacío,
+ * suprimir la respuesta habría roto el registro de todo cliente nuevo — y
+ * seis de los nueve clientes actuales entran con Google. Otra vez «se rompe
+ * para gente que TODAVÍA NO EXISTE», como el `status` del 419.
+ *
+ * Se devuelve, entonces, LO MÍNIMO QUE ALGUIEN USA DE VERDAD, medido llamador
+ * por llamador: `id` (registro por Google y el panel al crear), `name` y
+ * `email` (la sesión del cliente nuevo), `authProvider` y `avatar` (el sello
+ * de Google en la ficha). Ninguna de las cinco está en la lista de cierre del
+ * 422b2, así que la escritura ya no depende de un permiso que va a
+ * desaparecer.
+ *
+ * `staff` NO SE TOCA a propósito: el 422b va de `customers`, `staff` tiene su
+ * propio cierre pendiente, y mover algo que hoy funciona y que nadie pidió
+ * mover es cómo se fabrican fallos nuevos. */
+const _DEVUELVE_ESCRITURA = {
+  customers: 'id,name,email,authProvider,avatar',
+};
+
 function _devuelveSel(table) {
+  const minimo = _DEVUELVE_ESCRITURA[table];
+  if (minimo) return `select=${encodeURIComponent(minimo)}`;
+
   const campos = _SELECT_FIELDS[table];
-  return (table === 'staff' || table === 'customers') && campos && campos !== '*'
+  return table === 'staff' && campos && campos !== '*'
     ? `select=${encodeURIComponent(campos)}`
     : '';
 }
