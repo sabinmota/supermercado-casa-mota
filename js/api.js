@@ -396,8 +396,32 @@ async function _apiGet(table, id) {
  * `staff` NO SE TOCA a propósito: el 422b va de `customers`, `staff` tiene su
  * propio cierre pendiente, y mover algo que hoy funciona y que nadie pidió
  * mover es cómo se fabrican fallos nuevos. */
+/* 🔴 BUILD 423c · `authProvider` Y `avatar` FUERA DE ESTA LISTA.
+ *
+ * CONTRADICCIÓN MÍA ENTRE DOS BUILDS, y salió en producción al editar un
+ * cliente: el 422b1 decidió devolver `id,name,email,authProvider,avatar`
+ * afirmando que «ninguna de las cinco está en la lista de cierre del 422b2»
+ * — y **era falso**: el `49-cerrar-lectura-clientes.sql` que yo mismo escribí
+ * revoca `authProvider` en su línea 23. `avatar` nunca se concedió.
+ *
+ * Resultado: cada PATCH y cada INSERT sobre `customers` pedía de vuelta dos
+ * columnas prohibidas, y PostgREST rechaza **la petición ENTERA con 401 /
+ * 42501** cuando una sola columna lo está. Guardar un cliente desde el panel
+ * fallaba con «permission denied for table customers».
+ *
+ * 🔴 LA LECCIÓN, y es la misma que este proyecto ya tiene anotada dos veces:
+ * afirmé una coincidencia entre dos listas **sin comprobarla**, y encima la
+ * escribí en el README como si estuviera medida. La lista de cierre y la
+ * lista de columnas devueltas **tienen que compararse una contra otra**, no
+ * de memoria. El arnés del 423c lo hace: lee los dos ficheros y exige que la
+ * intersección esté vacía, así que esta clase de contradicción ya no puede
+ * volver sin ponerse roja.
+ *
+ * Quedan las TRES que sí están concedidas (`49-...sql:41-43`): `id`, `name`,
+ * `email`. Es lo mínimo que alguien usa de verdad — `created.id` en el
+ * registro por Google (`api.js:2292`) y el `saved.id` del panel. */
 const _DEVUELVE_ESCRITURA = {
-  customers: 'id,name,email,authProvider,avatar',
+  customers: 'id,name,email',
 };
 
 function _devuelveSel(table) {
