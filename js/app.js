@@ -88,7 +88,8 @@ function renderStars(rating) {
  * MIGRACIÓN: lo que hubiera en las claves viejas se traspasa UNA VEZ al cajón
  * del cliente que esté dentro, y la clave vieja se borra. Así el dueño no
  * pierde el carrito que tenga a medias al subir este build, y la clave
- * compartida desaparece en la primera visita de cada quien. */
+ * compartida desaparece en la primera visita de cada quien.
+ *
  * TODA la lógica vive en UN SOLO SITIO: `js/almacen-cliente.js`. Este fichero
  * no construye claves ni las conoce; se limita a pedirle el carrito y los
  * favoritos del cliente que esté dentro. Ese es el punto: mientras cada
