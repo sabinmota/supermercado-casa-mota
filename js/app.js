@@ -3834,10 +3834,53 @@ async function renderMyAccount() {
   const home = document.getElementById('acc-view-home');
   if (home) { home.style.display = 'flex'; home.classList.add('active'); }
 
+  /* 🔴 BUILD 423b · EL PERFIL PIDE SUS DATOS A LA BASE, NO A LA SESIÓN.
+   *
+   * SÍNTOMA: el dueño entra con Google y su perfil mostraba «Cédula: —»
+   * aunque en el panel su cédula está guardada.
+   *
+   * CAUSA, en cadena y con tres capas implicadas:
+   *   1. `cliente_abrir_sesion_oauth` (47-vale-cliente.sql:117-126) devuelve
+   *      SOLO id, email, name, phone, address, city, vale, creado.
+   *      **No devuelve `cedula`.**
+   *   2. `functions/api/oauth.js:281` arma el objeto `cliente` con esos ocho
+   *      campos, así que tampoco puede pasarla.
+   *   3. La sesión se forma con eso → `currentClient.cedula` es `undefined` y
+   *      el perfil pinta el guion.
+   *
+   * Y afectaba a MÁS de lo que se veía: `status` y `ranking` tampoco viajan en
+   * la sesión de Google, así que las filas «Cuenta Habilitada» y «Bronce»
+   * mostraban su valor por omisión para todo el mundo — parecían correctas
+   * porque el valor por omisión suele coincidir. Un dato equivocado que acierta
+   * por casualidad es peor que uno vacío: nadie lo detecta.
+   *
+   * 🔴 LO QUE NO SE HIZO, Y ES EL FONDO: añadir `cedula` a la RPC, luego a la
+   * Pages Function, luego a la sesión. Habría funcionado y sería un remiendo
+   * de tres capas: el día que haga falta otro campo, se repite el viaje por
+   * las tres. Y encima deja el dato congelado en la sesión — si el dueño
+   * corrige una cédula en el panel, el cliente seguiría viendo la vieja hasta
+   * volver a entrar. Es el mismo defecto que hacía que «pedidos» y «gastado»
+   * mostraran ceros.
+   *
+   * ARREGLO DEFINITIVO: el perfil pregunta a la base por VALE con
+   * `DB.misDatos()`, que YA EXISTE desde el build 421 y YA devuelve las 26
+   * columnas —cédula, estado y nivel incluidos— sin recibir ningún correo: la
+   * base mira de quién es el vale. Es el mismo camino que ya usa «Mis puntos»,
+   * o sea que no se inventa nada. Ventajas: funciona igual con Google y con
+   * contraseña, muestra SIEMPRE el dato actual, y no añade ni una columna a
+   * ninguna de las tres capas. */
+  let datos = currentClient;
+  try {
+    const frescos = await DB.misDatos();
+    if (frescos) datos = { ...currentClient, ...frescos };
+  } catch (e) {
+    console.warn('[perfil] no se pudieron leer los datos frescos, se usa la sesión:', e && e.message);
+  }
+
   // Info grid del perfil (se renderiza siempre para tenerlo listo)
   const statusLabel  = { habilitado:'✅ Cuenta Habilitada', deshabilitado:'🚫 Cuenta Deshabilitada', activo:'✅ Cuenta Habilitada', inactivo:'🚫 Cuenta Deshabilitada' };
   const rankingLabel = { vip:'💎 VIP', oro:'🥇 Oro', plata:'🥈 Plata', bronce:'🥉 Bronce' };
-  const rkVal = (currentClient.ranking || currentClient.loyaltyTier || 'bronce').toLowerCase();
+  const rkVal = (datos.ranking || datos.loyaltyTier || 'bronce').toLowerCase();
   const grid = document.getElementById('accountInfoGrid');
   if (grid) {
     /* 🔴 BUILD 423a · «PEDIDOS» y «GASTADO» SE QUITARON DE AQUÍ A PROPÓSITO.
@@ -3864,17 +3907,19 @@ async function renderMyAccount() {
      * Quitarlos deja además el perfil SIN NINGUNA lectura de `spent` ni de
      * `orders`, lo que despeja el camino del build 423 (cerrar su escritura). */
 
-    // Cédula o RNC — mostrar etiqueta correcta según longitud
-    const docNum   = currentClient.cedula || '—';
+    /* Cédula o RNC — mostrar etiqueta correcta según longitud.
+     * `String(...)` porque la base puede devolver la cédula como número si
+     * alguien la guardó sin guiones, y `.replace()` no existe en un número. */
+    const docNum   = String(datos.cedula || '').trim() || '—';
     const docLabel = docNum !== '—' && docNum.replace(/\D/g,'').length > 11 ? 'RNC' : 'Cédula';
 
     grid.innerHTML = `
-      <div class="acc-info-item" style="grid-column:1/-1"><i class="fas fa-envelope"></i><span>${currentClient.email || '—'}</span></div>
-      <div class="acc-info-item"><i class="fas fa-phone"></i><span>${currentClient.phone || '—'}</span></div>
+      <div class="acc-info-item" style="grid-column:1/-1"><i class="fas fa-envelope"></i><span>${datos.email || '—'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-phone"></i><span>${datos.phone || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-id-card"></i><span>${docLabel}: ${docNum}</span></div>
-      <div class="acc-info-item"><i class="fas fa-location-dot"></i><span>${currentClient.address || '—'}</span></div>
-      <div class="acc-info-item"><i class="fas fa-city"></i><span>${currentClient.city || '—'}</span></div>
-      <div class="acc-info-item"><i class="fas fa-circle-check"></i><span>${statusLabel[currentClient.status] || '✅ Cuenta Habilitada'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-location-dot"></i><span>${datos.address || '—'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-city"></i><span>${datos.city || '—'}</span></div>
+      <div class="acc-info-item"><i class="fas fa-circle-check"></i><span>${statusLabel[datos.status] || '✅ Cuenta Habilitada'}</span></div>
       <div class="acc-info-item"><i class="fas fa-ranking-star"></i><span>${rankingLabel[rkVal] || '🥉 Bronce'}</span></div>`;
   }
 }
