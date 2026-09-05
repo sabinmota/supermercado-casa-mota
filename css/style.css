@@ -1489,12 +1489,23 @@ input, select { font-family: var(--font); }
   gap: 8px; padding: 4px 18px 16px;
   flex-shrink: 0;
 }
+/* 🔴 BUILD 423a · Letra más grande y con más contraste.
+ *
+ * Antes: .8rem (unos 12,8 px) en #555 sobre un fondo gris claro. El dueño lo
+ * describió como «muy pequeñas y mediocres», y tenía razón: 12,8 px está por
+ * debajo de lo cómodo para leer datos personales en un móvil, y el gris medio
+ * sobre gris claro reducía aún más la legibilidad.
+ *
+ * Ahora: .95rem (unos 15,2 px), color #333 y peso 500. Se sube también el
+ * relleno y el hueco para que la fila respire — agrandar solo la letra dentro
+ * de la misma caja la habría dejado apretada. */
 .acc-info-item {
-  display: flex; align-items: center; gap: 7px;
-  font-size: .8rem; color: #555; background: #f8f9fa;
-  border-radius: 8px; padding: 7px 10px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: .95rem; font-weight: 500; color: #333; background: #f8f9fa;
+  border-radius: 8px; padding: 11px 13px;
+  line-height: 1.35;
 }
-.acc-info-item i { color: var(--green); font-size: .8rem; width: 14px; text-align: center; }
+.acc-info-item i { color: var(--green); font-size: .95rem; width: 18px; text-align: center; }
 
 /* ═══════════════════════════════════════════════════════════
    SISTEMA DE VISTAS — Mi Cuenta (navegación tipo app nativa)

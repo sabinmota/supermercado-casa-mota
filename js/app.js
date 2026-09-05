@@ -3840,6 +3840,30 @@ async function renderMyAccount() {
   const rkVal = (currentClient.ranking || currentClient.loyaltyTier || 'bronce').toLowerCase();
   const grid = document.getElementById('accountInfoGrid');
   if (grid) {
+    /* 🔴 BUILD 423a · «PEDIDOS» y «GASTADO» SE QUITARON DE AQUÍ A PROPÓSITO.
+     * NO es un olvido, no se deben volver a añadir.
+     *
+     * DECISIÓN DEL DUEÑO, con dos motivos distintos:
+     *
+     *   · «Pedidos» ya tiene su propia pestaña en la tienda, con su diseño.
+     *     Repetir el número aquí no añadía nada y obligaba a mantener dos
+     *     sitios que podían discrepar.
+     *
+     *   · «Gastado» NO ES INFORMACIÓN QUE DEBA VERSE. Mostrarle a un cliente
+     *     el total acumulado de todo lo que ha gastado en el supermercado no
+     *     le sirve de nada y puede incomodarle. Criterio del dueño, y es el
+     *     correcto: un dato no se muestra porque exista, se muestra porque
+     *     el cliente lo necesite.
+     *
+     * 🔴 Y HABÍA UN MOTIVO TÉCNICO QUE CONFIRMA LA DECISIÓN: los dos campos
+     * salían de `currentClient`, que se llena al entrar y NO SE REFRESCA. Por
+     * eso el dueño los veía en «0 pedidos» y «RD$ 0.00» aunque hubiera
+     * pedidos reales: mostraban un dato viejo. Un dato incorrecto en pantalla
+     * es peor que ningún dato, porque el cliente se lo cree.
+     *
+     * Quitarlos deja además el perfil SIN NINGUNA lectura de `spent` ni de
+     * `orders`, lo que despeja el camino del build 423 (cerrar su escritura). */
+
     // Cédula o RNC — mostrar etiqueta correcta según longitud
     const docNum   = currentClient.cedula || '—';
     const docLabel = docNum !== '—' && docNum.replace(/\D/g,'').length > 11 ? 'RNC' : 'Cédula';
@@ -3851,9 +3875,7 @@ async function renderMyAccount() {
       <div class="acc-info-item"><i class="fas fa-location-dot"></i><span>${currentClient.address || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-city"></i><span>${currentClient.city || '—'}</span></div>
       <div class="acc-info-item"><i class="fas fa-circle-check"></i><span>${statusLabel[currentClient.status] || '✅ Cuenta Habilitada'}</span></div>
-      <div class="acc-info-item"><i class="fas fa-ranking-star"></i><span>${rankingLabel[rkVal] || '🥉 Bronce'}</span></div>
-      <div class="acc-info-item"><i class="fas fa-cart-shopping"></i><span>${currentClient.orders || 0} pedido${(currentClient.orders||0)!==1?'s':''}</span></div>
-      <div class="acc-info-item"><i class="fas fa-dollar-sign"></i><span>RD$ ${fmt$(currentClient.spent||0)} gastado</span></div>`;
+      <div class="acc-info-item"><i class="fas fa-ranking-star"></i><span>${rankingLabel[rkVal] || '🥉 Bronce'}</span></div>`;
   }
 }
 
