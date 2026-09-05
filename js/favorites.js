@@ -61,7 +61,9 @@ function removeFromFavorites(productId) {
 
 // Guardar favoritos en localStorage
 function saveFavorites() {
-  localStorage.setItem('casamota_favorites', JSON.stringify(favorites));
+  /* BUILD 422c · Clave POR CLIENTE. La define `CasaMotaAlmacen`, en
+   * js/almacen-cliente.js, que se carga ANTES que este fichero. */
+  CasaMotaAlmacen.guardarFavoritos(favorites);
 }
 
 // Actualizar badge de favoritos en el header

@@ -51,9 +51,55 @@ function renderStars(rating) {
   return html;
 }
 
+/* ═══ BUILD 422c · EL CARRITO Y LOS FAVORITOS ERAN COMPARTIDOS ══════════════
+ *
+ * 🔴 EL FALLO, TAL COMO LO VIO EL DUEÑO: entraba con Carlos, metía artículos
+ * al carrito y marcaba favoritos; salía, entraba con Sabin Mota — y aparecían
+ * LOS MISMOS artículos y LOS MISMOS favoritos. Con cualquier cuenta.
+ *
+ * CAUSA: las dos claves de `localStorage` eran FIJAS —`casamota_cart` y
+ * `casamota_favorites`— sin el identificador de nadie. `localStorage` es del
+ * NAVEGADOR, no de la persona: un solo cajón para todos los que usen ese
+ * equipo. Y `clearClientSession()` (auth.js:196 y auth.v33.js:204) borraba la
+ * sesión y el vale, pero NO estas dos claves, así que el carrito del anterior
+ * sobrevivía intacto a la salida.
+ *
+ * POR QUÉ NADIE LO HABÍA NOTADO: en el uso normal cada cliente entra desde su
+ * propio móvil, donde solo hay una persona. Solo se ve al usar varias cuentas
+ * en el MISMO navegador — que es exactamente lo que hace el dueño al probar,
+ * y lo que hará un revisor de Apple con la cuenta demo.
+ *
+ * 🔴 POR QUÉ ESTO ES MÁS QUE UNA MOLESTIA: el carrito alimenta el checkout
+ * (`app.js:3082`). Un cliente podía terminar comprando —y pagando— artículos
+ * que metió OTRA persona en ese equipo. Y los favoritos revelan a un cliente
+ * lo que otro estuvo mirando.
+ *
+ * ARREGLO: la clave lleva el id del cliente (`casamota_cart_<id>`). Cada
+ * cuenta tiene su cajón, sin que nadie tenga que acordarse de vaciar nada al
+ * salir. Se conserva un cajón «invitado» para quien navegue sin sesión.
+ *
+ * 🔴 POR QUÉ NO SE HIZO LO OBVIO —«que `logoutCliente` borre las dos claves»—:
+ * eso solo funciona si el cliente PULSA salir. Si cierra la pestaña, o si la
+ * sesión caduca por el guard sin vale (auth.js:250), el carrito ajeno sigue
+ * ahí. Además borrarlo al salir DESTRUYE el carrito del cliente legítimo, que
+ * es justo lo que no se quiere: al volver a entrar debe encontrar lo suyo.
+ * Separar por dueño resuelve las dos cosas a la vez.
+ *
+ * MIGRACIÓN: lo que hubiera en las claves viejas se traspasa UNA VEZ al cajón
+ * del cliente que esté dentro, y la clave vieja se borra. Así el dueño no
+ * pierde el carrito que tenga a medias al subir este build, y la clave
+ * compartida desaparece en la primera visita de cada quien. */
+ * TODA la lógica vive en UN SOLO SITIO: `js/almacen-cliente.js`. Este fichero
+ * no construye claves ni las conoce; se limita a pedirle el carrito y los
+ * favoritos del cliente que esté dentro. Ese es el punto: mientras cada
+ * fichero armara su propia clave, bastaba que uno se olvidara del
+ * identificador para que el fallo volviera. Ahora escribir la clave a mano ya
+ * no es posible. */
+CasaMotaAlmacen.migrarClavesCompartidas();
+
 // ─── Estado global ──────────────────────────────────────────────────────────
-let cart = JSON.parse(localStorage.getItem('casamota_cart') || '[]');
-let favorites = JSON.parse(localStorage.getItem('casamota_favorites') || '[]');
+let cart = CasaMotaAlmacen.leerCarrito();
+let favorites = CasaMotaAlmacen.leerFavoritos();
 let currentCategory = 'all';
 let currentSearch = '';
 let currentSort = 'default';
@@ -2577,7 +2623,7 @@ function updateQty(productId, delta) {
 }
 
 function saveCart() {
-  localStorage.setItem('casamota_cart', JSON.stringify(cart));
+  CasaMotaAlmacen.guardarCarrito(cart);
 }
 
 function updateCartUI() {

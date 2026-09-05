@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '422b1', KEY = 'cm_app_ver';
+        var VER = '422c', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1320,11 +1320,14 @@
   <!-- Quagga2: decodificador de foto estática (el más fiable de los tres) -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
 <script src="js/api.js?v=342"></script>
+  <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
+       Debe cargarse ANTES de favorites.js, app.js y chat.js. -->
+  <script src="js/almacen-cliente.js?v=1"></script>
   <script src="js/auth.js?v=205"></script>
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
-  <script src="js/favorites.js?v=280"></script>
-  <script src="js/app.js?v=356"></script>
+  <script src="js/favorites.js?v=281"></script>
+  <script src="js/app.js?v=357"></script>
   <script src="js/location.js?v=121"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
   <!-- IA: qué modelo usa el escáner de códigos. DEBE ir antes del script

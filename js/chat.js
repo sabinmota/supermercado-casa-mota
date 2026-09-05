@@ -1162,14 +1162,26 @@ async function _chatCallAI(userMsg) {
       ];
       const lvl = [...levels].reverse().find(l => pts >= l.min) || levels[0];
 
-      // Favoritos guardados en localStorage
+      /* 🔴 BUILD 422c · LOS FAVORITOS DEL CLIENTE, NO LOS DEL NAVEGADOR.
+       *
+       * Este bloque construye el contexto de `currentClient` —o sea de una
+       * persona concreta— pero leía la clave compartida `casamota_favorites`,
+       * la misma para todas las cuentas del equipo. Consecuencia: Maya podía
+       * recomendarle a un cliente basándose en lo que OTRO había marcado.
+       *
+       * Es el mismo fallo del carrito, y estaba en un cuarto fichero. Por eso
+       * las claves pasan a tener un único dueño (`js/almacen-cliente.js`) en
+       * vez de repararse fichero por fichero.
+       *
+       * `chat.js` hoy solo se carga en `admin.html`, donde no hay
+       * `currentClient` — así que esta rama no llega a ejecutarse. Se arregla
+       * igual: dejar el fallo dormido porque «ahora no se usa» es cómo vuelve
+       * a producción el día que Maya regrese a la tienda. */
       let favNames = '';
-      try {
-        const favs = JSON.parse(localStorage.getItem('casamota_favorites') || '[]');
-        if (favs.length > 0) {
-          favNames = favs.slice(0, 10).map(f => f.name).join(', ');
-        }
-      } catch(_) {}
+      const favs = CasaMotaAlmacen.leerFavoritos();
+      if (favs.length > 0) {
+        favNames = favs.slice(0, 10).map(f => f.name).join(', ');
+      }
 
       clientContext = `
 ── CLIENTE ACTUAL ──
