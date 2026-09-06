@@ -5086,10 +5086,21 @@ function saveCustomer() {
    *
    * Se añaden en los dos sitios donde SÍ hay RPC: al crear (siempre lleva
    * contraseña, es obligatoria) y al editar cuando se escribió una nueva. */
-  if (password) {
-    data.status      = document.getElementById('cStatus').value;
-    data.loyaltyTier = document.getElementById('cRanking').value;
-  }
+  /* 🔴 BUILD 423d · SE ENVÍAN SIEMPRE, SIN CONDICIÓN.
+   *
+   * Antes esto era `if (password) { … }`, y ESE ERA EL FALLO: cambiar el
+   * ranking de un cliente sin tocarle la contraseña —el caso normal— hacía que
+   * `loyaltyTier` NUNCA saliera del navegador. El panel decía «Cliente
+   * actualizado correctamente» y el dato se perdía. Un guardado que miente es
+   * peor que un error visible.
+   *
+   * Ya se pueden mandar siempre porque `DB.patchCustomer` enruta por la RPC
+   * `admin_guardar_cliente` en cuanto detecta una de estas columnas
+   * (`_exigeRpcCliente` en js/api.js), y esa función valida el vale del
+   * empleado y las acepta desde el build 43. La decisión de si hay permiso la
+   * toma la base, no un `if` del navegador. */
+  data.status      = document.getElementById('cStatus').value;
+  data.loyaltyTier = document.getElementById('cRanking').value;
   // Solo actualizar contraseña si se ingresó una nueva
   if (password) data.password = password;
 

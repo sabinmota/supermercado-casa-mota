@@ -543,6 +543,57 @@ function _sinClaveVacia(obj) {
   return copia;
 }
 
+/* 🔴 BUILD 423d · COLUMNAS QUE `anon` NO PUEDE ESCRIBIR DIRECTAMENTE.
+ *
+ * EL FALLO QUE ESTO ARREGLA, y era SILENCIOSO: el dueño cambiaba el ranking de
+ * un cliente de Bronce a Plata, el panel decía «Cliente actualizado
+ * correctamente», y al reabrir la ficha seguía en Bronce. **Guardaba sin
+ * error y no persistía nada.**
+ *
+ * CAUSA: `46-cerrar-fidelidad.sql:107` revocó a `anon` el UPDATE de
+ * `loyaltyTier` (y de `status`, `access`, `deleted`, `loyaltyPoints`…). El
+ * build 420, para no dar un 403, hizo que `admin.v33.js` **solo añadiera esos
+ * campos al objeto CUANDO había contraseña nueva** (`if (password)`), porque
+ * `patchCustomer` solo enrutaba por la RPC en ese caso. Aquello quitó el error
+ * visible pero **convirtió el problema en una pérdida de datos muda**: editar
+ * un cliente sin tocarle la clave —el caso normal— descartaba el ranking
+ * antes de enviarlo.
+ *
+ * 🔴 UN ERROR QUE NO SE VE ES PEOR QUE UN ERROR QUE SE VE. El 420 cambió un
+ * 403 ruidoso por un «guardado correctamente» que mentía.
+ *
+ * ARREGLO DE RAÍZ: el camino no lo decide «¿trae contraseña?» sino
+ * **«¿menciona alguna columna que `anon` no pueda escribir?»**. Si la
+ * menciona, la petición va por `admin_guardar_cliente`, que es
+ * `SECURITY DEFINER`, valida el vale del empleado y **ya acepta `loyaltyTier`
+ * y `ranking` en su lista blanca desde el build 43** (`43-cerrar-clientes.sql:27`)
+ * — no hay que crear ni ampliar nada en la base.
+ *
+ * Así `admin.v33.js` puede mandar el ranking SIEMPRE, sin condiciones, y es la
+ * base la que decide si quien pide tiene derecho. Es el mismo principio del
+ * resto del proyecto: el permiso viene del vale, no de la llave publicada.
+ *
+ * ⚠️ La tienda NO se rompe: un cliente nunca manda estas columnas. El
+ * checkout escribe `spent`, `orders`, `lastOrder` y `loyaltyLastActivity`, que
+ * NO están en esta lista a propósito — su cierre es el build 423, y hasta
+ * entonces deben seguir yendo por el camino directo. */
+const _COLS_SOLO_RPC = [
+  'loyaltyTier',
+  'ranking',
+  'loyaltyPoints',
+  'loyaltyHistory',
+  'status',
+  'access',
+  'deleted',
+  'password',
+];
+
+function _exigeRpcCliente(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  if (_tieneClave(obj)) return true;
+  return _COLS_SOLO_RPC.some(c => c !== 'password' && Object.prototype.hasOwnProperty.call(obj, c));
+}
+
 // ─── ESCRITURA EN `staff` VÍA FUNCIÓN DE BASE DE DATOS (build 397) ───────────
 //
 // Ver el comentario largo en DB.createStaff. Resumen: `anon` ya no puede
@@ -1439,7 +1490,7 @@ const DB = {
   },
 
   async updateCustomer(id, customer) {
-    if (!_tieneClave(customer)) {
+    if (!_exigeRpcCliente(customer)) {
       return _apiUpdate('customers', id, _sinClaveVacia(customer));
     }
     return _rpcStaff('admin_guardar_cliente', {
@@ -1449,8 +1500,11 @@ const DB = {
     }, _ERRORES_CLIENTE);
   },
 
+  /* BUILD 423d · El camino lo decide `_exigeRpcCliente`, no «¿trae clave?».
+   * Ver la nota larga sobre `_COLS_SOLO_RPC`: preguntar por la contraseña
+   * hacía que el ranking se perdiera en silencio al editar un cliente. */
   async patchCustomer(id, fields) {
-    if (!_tieneClave(fields)) {
+    if (!_exigeRpcCliente(fields)) {
       return _apiPatch('customers', id, _sinClaveVacia(fields));
     }
     return _rpcStaff('admin_guardar_cliente', {
