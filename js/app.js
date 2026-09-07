@@ -4023,11 +4023,16 @@ async function renderLoyaltyCard() {
   const history = (fresh?.loyaltyHistory || []).slice(0, 5);
 
   // Niveles (misma config que admin)
+  /* 🔴 BUILD 425 · UMBRALES BAJADOS, y tienen que coincidir con
+   * `public.nivel_por_puntos` (seguridad/51-niveles-por-puntos.sql), que es la
+   * fuente de verdad. Si aquí dijeran otra cosa, el cliente vería un nivel
+   * distinto del que la base le ha asignado — el mismo problema de los dos
+   * criterios que este build viene a cerrar. */
   const levels = [
-    { name:'Bronce', min:0,    max:499,       icon:'🥉', color:'#cd7f32', bg:'#fdf3e7' },
-    { name:'Plata',  min:500,  max:1499,      icon:'🥈', color:'#888',    bg:'#f4f4f4' },
-    { name:'Oro',    min:1500, max:2999,      icon:'🥇', color:'#c9a500', bg:'#fffbea' },
-    { name:'VIP',    min:3000, max:Infinity,  icon:'💎', color:'#7c3aed', bg:'#f3eeff' },
+    { name:'Bronce', min:0,    max:199,       icon:'🥉', color:'#cd7f32', bg:'#fdf3e7' },
+    { name:'Plata',  min:200,  max:599,       icon:'🥈', color:'#888',    bg:'#f4f4f4' },
+    { name:'Oro',    min:600,  max:1499,      icon:'🥇', color:'#c9a500', bg:'#fffbea' },
+    { name:'VIP',    min:1500, max:Infinity,  icon:'💎', color:'#7c3aed', bg:'#f3eeff' },
   ];
   const lvl     = [...levels].reverse().find(l => pts >= l.min) || levels[0];
   const nextLvl = levels.find(l => l.min > pts);

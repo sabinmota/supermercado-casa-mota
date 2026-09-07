@@ -4017,11 +4017,38 @@ function exportInventory() {
 
 // ─── PROGRAMA DE PUNTOS / FIDELIZACIÓN ───────────────────────────────────────
 const LOYALTY_KEY     = 'cm_loyalty_config';
+/* 🔴 BUILD 425 · EL NIVEL SE CALCULA POR PUNTOS. NO SE ASIGNA A MANO.
+ *
+ * Decisión del dueño (opción A): «el nivel sube solo comprando». El
+ * desplegable del panel pasa a ser informativo.
+ *
+ * POR QUÉ ERA NECESARIO: había DOS criterios para el mismo dato. El panel
+ * dejaba elegir el nivel a mano, mientras «Mis puntos» y Fidelización lo
+ * CALCULABAN — así que el mismo cliente aparecía como Oro en su ficha y
+ * Bronce en la pantalla de puntos. Y peor: `admin_ajustar_puntos`
+ * (46-cerrar-fidelidad.sql:65) YA recalculaba el nivel al acreditar puntos,
+ * o sea que **lo que el dueño asignaba a mano se deshacía solo en el primer
+ * pedido.** No era un guardado que fallara: era la base recalculando.
+ *
+ * 🔴 LA FUENTE DE VERDAD ES LA BASE: `public.nivel_por_puntos(puntos)`
+ * (seguridad/51-niveles-por-puntos.sql). Estos umbrales son una COPIA para
+ * pintar sin ir a la red, y tienen que coincidir con esa función. El
+ * verificador del 425 los compara uno contra otro, porque tener el mismo
+ * número escrito en cuatro sitios sin nada que los ate es exactamente la
+ * trampa de `ranking`/`loyaltyTier` que costó los builds 423e y 424.
+ *
+ * UMBRALES BAJADOS a peticion del dueño. Los anteriores (500/1500/3000)
+ * exigían RD$ 15.000 de compra para llegar a Oro, y en un supermercado de
+ * barrio con tickets de RD$ 500-1.500 eso tardaba casi un año. Ahora:
+ *   Plata  200 pts = RD$  2.000 gastados
+ *   Oro    600 pts = RD$  6.000
+ *   VIP  1.500 pts = RD$ 15.000
+ * (con la config vigente de 1 punto por cada RD$ 10). */
 const LOYALTY_LEVELS  = [
-  { name: 'Bronce', min: 0,    max: 499,      icon: '🥉', color: '#cd7f32', bg: '#fdf3e7' },
-  { name: 'Plata',  min: 500,  max: 1499,     icon: '🥈', color: '#888',    bg: '#f4f4f4' },
-  { name: 'Oro',    min: 1500, max: 2999,     icon: '🥇', color: '#c9a500', bg: '#fffbea' },
-  { name: 'VIP',    min: 3000, max: Infinity, icon: '💎', color: '#7c3aed', bg: '#f3eeff' },
+  { name: 'Bronce', min: 0,    max: 199,      icon: '🥉', color: '#cd7f32', bg: '#fdf3e7' },
+  { name: 'Plata',  min: 200,  max: 599,      icon: '🥈', color: '#888',    bg: '#f4f4f4' },
+  { name: 'Oro',    min: 600,  max: 1499,     icon: '🥇', color: '#c9a500', bg: '#fffbea' },
+  { name: 'VIP',    min: 1500, max: Infinity, icon: '💎', color: '#7c3aed', bg: '#f3eeff' },
 ];
 
 // Config por defecto (se sobreescribe con lo guardado en localStorage)
@@ -4754,11 +4781,34 @@ function openCustomerModal(id) {
     const rawStatus = (c.status || 'habilitado').toLowerCase();
     const normStatus = rawStatus === 'activo' ? 'habilitado' : rawStatus === 'inactivo' ? 'deshabilitado' : rawStatus;
     document.getElementById('cStatus').value   = normStatus;
-    // Ranking
-    /* BUILD 424 · Una sola columna: ya no puede haber discrepancia entre lo
-     * que muestra la ficha y lo que muestra la lista. */
+    /* 🔴 BUILD 425 · NIVEL INFORMATIVO, NO EDITABLE.
+     *
+     * El nivel lo calcula la base desde los puntos. Se deja el desplegable
+     * para MOSTRARLO —así el empleado ve de un golpe en qué nivel está el
+     * cliente— pero deshabilitado, porque elegirlo a mano no serviría de nada:
+     * `admin_ajustar_puntos` lo recalcularía en el primer pedido.
+     *
+     * Se pinta también el saldo de puntos y lo que falta para el nivel
+     * siguiente, que es la información que de verdad explica POR QUÉ está en
+     * ese nivel. Un campo bloqueado sin explicación se percibe como un fallo. */
     const rawRanking = (c.loyaltyTier || 'bronce').toLowerCase();
-    document.getElementById('cRanking').value  = rawRanking;
+    const selRk = document.getElementById('cRanking');
+    selRk.value    = rawRanking;
+    selRk.disabled = true;
+    selRk.title    = 'El nivel lo calcula el sistema según los puntos acumulados';
+
+    const _ptsCli = Number(c.loyaltyPoints || 0);
+    const _lvls   = (typeof LOYALTY_LEVELS !== 'undefined') ? LOYALTY_LEVELS : [];
+    const _sig    = _lvls.find(l => l.min > _ptsCli);
+    const _ayuda  = document.getElementById('cRankingAyuda');
+    if (_ayuda) {
+      _ayuda.innerHTML = _sig
+        ? `<i class="fas fa-circle-info"></i> ${_ptsCli} puntos acumulados — `
+          + `le faltan <b>${_sig.min - _ptsCli}</b> para ${_sig.icon} ${_sig.name}. `
+          + `El nivel lo calcula el sistema, no se asigna a mano.`
+        : `<i class="fas fa-circle-info"></i> ${_ptsCli} puntos acumulados — `
+          + `nivel máximo alcanzado. El nivel lo calcula el sistema.`;
+    }
     document.getElementById('cNotes').value   = c.notes   || '';
     document.getElementById('cMapLink').value = c.mapLink || '';
     previewCustMap();
@@ -5103,18 +5153,21 @@ function saveCustomer() {
    * toma la base, no un `if` del navegador. */
   data.status      = document.getElementById('cStatus').value;
 
-  /* 🔴 BUILD 424 · UNA SOLA COLUMNA: `loyaltyTier`.
+  /* 🔴 BUILD 425 · `loyaltyTier` YA NO SE ENVÍA DESDE AQUÍ. NO LO VUELVAS A AÑADIR.
    *
-   * La tabla tenía DOS columnas para el nivel de fidelidad (`ranking` y
-   * `loyaltyTier`) y de ahí salió el fallo del 423e: el formulario guardaba en
-   * `loyaltyTier` mientras la ficha leía `ranking || loyaltyTier`, así que el
-   * valor viejo de `ranking` tapaba el recién guardado. El 423e lo tapó
-   * escribiendo las dos; **el 424 elimina la causa**: `ranking` se renombró a
-   * `ranking_obsoleta_borrar_tras_verificar` y ya no la usa nadie.
+   * El nivel lo calcula LA BASE a partir de los puntos
+   * (`public.nivel_por_puntos`, llamada desde `admin_ajustar_puntos`). Si este
+   * formulario lo mandara, **pisaría el cálculo** y volveríamos al problema de
+   * los dos criterios: el panel diciendo una cosa y la pantalla de puntos
+   * otra.
    *
-   * Con una sola columna **es imposible que la lista y la ficha discrepen**,
-   * que era la segunda petición del dueño. Ver `seguridad/50-una-sola-columna-ranking.sql`. */
-  data.loyaltyTier = document.getElementById('cRanking').value;
+   * El desplegable `cRanking` sigue existiendo pero está DESHABILITADO: sirve
+   * para MOSTRAR el nivel, no para elegirlo. Ver `openCustomerModal`.
+   *
+   * ⚠️ Si algún día hay que premiar a un cliente por encima de sus compras, la
+   * vía es REGALARLE PUNTOS con `admin_ajustar_puntos` (queda auditado con
+   * motivo y actor), no reabrir la edición del nivel. Tenga en cuenta que con
+   * `pointValue: 1` cada punto regalado es RD$ 1 de canje. */
 
   // Solo actualizar contraseña si se ingresó una nueva
   if (password) data.password = password;

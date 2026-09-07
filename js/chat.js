@@ -1154,11 +1154,14 @@ async function _chatCallAI(userMsg) {
     if (cli) {
       // Puntos y nivel de fidelización
       const pts = cli.loyaltyPoints || 0;
+      /* BUILD 425 · Deben coincidir con `public.nivel_por_puntos`
+       * (seguridad/51-niveles-por-puntos.sql). Si no, Maya le diría al cliente
+       * un nivel distinto del que ve en pantalla. */
       const levels = [
         { name:'Bronce', min:0    },
-        { name:'Plata',  min:500  },
-        { name:'Oro',    min:1500 },
-        { name:'VIP',    min:3000 },
+        { name:'Plata',  min:200  },
+        { name:'Oro',    min:600  },
+        { name:'VIP',    min:1500 },
       ];
       const lvl = [...levels].reverse().find(l => pts >= l.min) || levels[0];
 

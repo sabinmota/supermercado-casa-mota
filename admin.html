@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '424';
+      const VER = '425';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1846,13 +1846,20 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label><i class="fas fa-ranking-star" style="color:#7c3aed"></i> Ranking del cliente</label>
-            <select class="form-input" id="cRanking">
+            <label><i class="fas fa-ranking-star" style="color:#7c3aed"></i> Nivel de fidelidad
+              <span style="font-weight:400;color:#888;font-size:.8rem">(calculado por puntos)</span>
+            </label>
+            <select class="form-input" id="cRanking" disabled
+                    title="El nivel lo calcula el sistema según los puntos acumulados"
+                    style="background:#f5f5f5;cursor:not-allowed">
               <option value="bronce">🥉 Bronce</option>
               <option value="plata">🥈 Plata</option>
               <option value="oro">🥇 Oro</option>
               <option value="vip">💎 VIP</option>
             </select>
+            <!-- BUILD 425 · Explica POR QUÉ el campo está bloqueado y cuántos
+                 puntos faltan. Lo rellena openCustomerModal(). -->
+            <small id="cRankingAyuda" style="display:block;margin-top:6px;color:#666;font-size:.78rem;line-height:1.4"></small>
           </div>
           <div class="form-group">
             <!-- espacio reservado -->
@@ -2942,7 +2949,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=386"></script>
+  <script src="js/admin.v33.js?v=387"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=7"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
@@ -2954,7 +2961,7 @@
   <script src="js/ai.js?v=259"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=241"></script>
+  <script src="js/chat.js?v=242"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 
