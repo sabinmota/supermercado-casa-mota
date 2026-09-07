@@ -3880,7 +3880,10 @@ async function renderMyAccount() {
   // Info grid del perfil (se renderiza siempre para tenerlo listo)
   const statusLabel  = { habilitado:'✅ Cuenta Habilitada', deshabilitado:'🚫 Cuenta Deshabilitada', activo:'✅ Cuenta Habilitada', inactivo:'🚫 Cuenta Deshabilitada' };
   const rankingLabel = { vip:'💎 VIP', oro:'🥇 Oro', plata:'🥈 Plata', bronce:'🥉 Bronce' };
-  const rkVal = (datos.ranking || datos.loyaltyTier || 'bronce').toLowerCase();
+  /* BUILD 424 · `loyaltyTier` es la ÚNICA columna del nivel. La tabla tenía
+   * dos y eso hacía que el panel y la tienda pudieran mostrar niveles
+   * distintos del mismo cliente. Ver seguridad/50-una-sola-columna-ranking.sql */
+  const rkVal = (datos.loyaltyTier || 'bronce').toLowerCase();
   const grid = document.getElementById('accountInfoGrid');
   if (grid) {
     /* 🔴 BUILD 423a · «PEDIDOS» y «GASTADO» SE QUITARON DE AQUÍ A PROPÓSITO.

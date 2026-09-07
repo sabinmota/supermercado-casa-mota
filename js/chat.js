@@ -560,7 +560,7 @@ function _chatClienteResumen(userMsg) {
       `Pedidos encontrados: ${pedidos.length}`,
       `Desglose por estado: ${_fmtEstados(cnt)}`,
       `Total gastado (sin cancelados): RD$ ${gastado.toFixed(2)}`,
-      `Puntos de fidelización: ${cli.loyaltyPoints || 0} (${cli.ranking || cli.loyaltyTier || 'bronce'})`,
+      `Puntos de fidelización: ${cli.loyaltyPoints || 0} (${cli.loyaltyTier || 'bronce'})`,
       pedidos.length ? `Últimos pedidos:\n${ultimos}` : 'Sin pedidos registrados.',
       '──────────────────',
     ].join('\n');

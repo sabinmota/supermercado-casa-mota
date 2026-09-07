@@ -3514,8 +3514,8 @@ function onNoClientChange() {
       <span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;background:${c.status==='deshabilitado'||c.status==='inactivo'?'#fce4ec':'#e8f5ee'};color:${c.status==='deshabilitado'||c.status==='inactivo'?'#c62828':'#1a7c3e'}">
         ${c.status==='deshabilitado'||c.status==='inactivo'?'🚫 Deshabilitado':'✅ Habilitado'}
       </span>
-      <span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;margin-left:4px;background:${(c.ranking||c.loyaltyTier||'bronce')==='vip'?'#f3eeff':(c.ranking||c.loyaltyTier||'bronce')==='oro'?'#fff8e1':(c.ranking||c.loyaltyTier||'bronce')==='plata'?'#f1f5f9':'#fff3e0'};color:${(c.ranking||c.loyaltyTier||'bronce')==='vip'?'#7c3aed':(c.ranking||c.loyaltyTier||'bronce')==='oro'?'#c77a00':(c.ranking||c.loyaltyTier||'bronce')==='plata'?'#475569':'#b45309'}">
-        ${{vip:'💎 VIP',oro:'🥇 Oro',plata:'🥈 Plata',bronce:'🥉 Bronce'}[(c.ranking||c.loyaltyTier||'bronce')]||'🥉 Bronce'}
+      <span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;margin-left:4px;background:${(c.loyaltyTier||'bronce')==='vip'?'#f3eeff':(c.loyaltyTier||'bronce')==='oro'?'#fff8e1':(c.loyaltyTier||'bronce')==='plata'?'#f1f5f9':'#fff3e0'};color:${(c.loyaltyTier||'bronce')==='vip'?'#7c3aed':(c.loyaltyTier||'bronce')==='oro'?'#c77a00':(c.loyaltyTier||'bronce')==='plata'?'#475569':'#b45309'}">
+        ${{vip:'💎 VIP',oro:'🥇 Oro',plata:'🥈 Plata',bronce:'🥉 Bronce'}[(c.loyaltyTier||'bronce')]||'🥉 Bronce'}
       </span>
     </div>`;
 }
@@ -4651,7 +4651,7 @@ function renderCustomers() {
     // Ranking: bronce / plata / oro / vip (independiente del estado)
     const rankingMap   = { vip:'cst-vip', oro:'cst-oro', plata:'cst-plata', bronce:'cst-bronce' };
     const rankingLabel = { vip:'💎 VIP', oro:'🥇 Oro', plata:'🥈 Plata', bronce:'🥉 Bronce' };
-    const rkVal  = (c.ranking || c.loyaltyTier || 'bronce').toLowerCase();
+    const rkVal  = (c.loyaltyTier || 'bronce').toLowerCase();
     const rkCls  = rankingMap[rkVal]  || 'cst-bronce';
     const rkLbl  = rankingLabel[rkVal] || '🥉 Bronce';
     const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -4755,7 +4755,9 @@ function openCustomerModal(id) {
     const normStatus = rawStatus === 'activo' ? 'habilitado' : rawStatus === 'inactivo' ? 'deshabilitado' : rawStatus;
     document.getElementById('cStatus').value   = normStatus;
     // Ranking
-    const rawRanking = (c.ranking || c.loyaltyTier || 'bronce').toLowerCase();
+    /* BUILD 424 · Una sola columna: ya no puede haber discrepancia entre lo
+     * que muestra la ficha y lo que muestra la lista. */
+    const rawRanking = (c.loyaltyTier || 'bronce').toLowerCase();
     document.getElementById('cRanking').value  = rawRanking;
     document.getElementById('cNotes').value   = c.notes   || '';
     document.getElementById('cMapLink').value = c.mapLink || '';
@@ -5100,7 +5102,20 @@ function saveCustomer() {
    * empleado y las acepta desde el build 43. La decisión de si hay permiso la
    * toma la base, no un `if` del navegador. */
   data.status      = document.getElementById('cStatus').value;
+
+  /* 🔴 BUILD 424 · UNA SOLA COLUMNA: `loyaltyTier`.
+   *
+   * La tabla tenía DOS columnas para el nivel de fidelidad (`ranking` y
+   * `loyaltyTier`) y de ahí salió el fallo del 423e: el formulario guardaba en
+   * `loyaltyTier` mientras la ficha leía `ranking || loyaltyTier`, así que el
+   * valor viejo de `ranking` tapaba el recién guardado. El 423e lo tapó
+   * escribiendo las dos; **el 424 elimina la causa**: `ranking` se renombró a
+   * `ranking_obsoleta_borrar_tras_verificar` y ya no la usa nadie.
+   *
+   * Con una sola columna **es imposible que la lista y la ficha discrepen**,
+   * que era la segunda petición del dueño. Ver `seguridad/50-una-sola-columna-ranking.sql`. */
   data.loyaltyTier = document.getElementById('cRanking').value;
+
   // Solo actualizar contraseña si se ingresó una nueva
   if (password) data.password = password;
 
@@ -5280,7 +5295,7 @@ function viewCustomerDetail(id) {
         <div style="font-size:1.2rem;font-weight:700;margin-bottom:6px">${c.name}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="cust-status ${stCls}">${statusLabel[c.status]||'Activo'}</span>
-          <span class="cust-status ${ {vip:'cst-vip',oro:'cst-oro',plata:'cst-plata',bronce:'cst-bronce'}[(c.loyaltyTier||c.ranking||'bronce').toLowerCase()] || 'cst-bronce' }">${ {vip:'💎 VIP',oro:'🥇 Oro',plata:'🥈 Plata',bronce:'🥉 Bronce'}[(c.loyaltyTier||c.ranking||'bronce').toLowerCase()] || '🥉 Bronce' }</span>
+          <span class="cust-status ${ {vip:'cst-vip',oro:'cst-oro',plata:'cst-plata',bronce:'cst-bronce'}[(c.loyaltyTier||'bronce').toLowerCase()] || 'cst-bronce' }">${ {vip:'💎 VIP',oro:'🥇 Oro',plata:'🥈 Plata',bronce:'🥉 Bronce'}[(c.loyaltyTier||'bronce').toLowerCase()] || '🥉 Bronce' }</span>
           ${accessBadge}
         </div>
       </div>

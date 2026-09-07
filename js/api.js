@@ -105,7 +105,10 @@ const _SELECT_FIELDS = {
   //
   // `has_password` es una columna calculada por la base (true/false). Sirve para
   // pintar el sello "Acceso / Sin contraseña" sin descargar la contraseña.
-  customers: 'id,created_at,updated_at,name,email,phone,address,city,cedula,status,access,deleted,notes,avatar,mapLink,loyaltyTier,loyaltyPoints,loyaltyHistory,loyaltyLastActivity,orders,spent,lastOrder,lastLogin,authProvider,ranking,has_password',
+  /* BUILD 424 · `ranking` FUERA. La tabla tenía DOS columnas para el nivel de
+   * fidelidad (`ranking` y `loyaltyTier`) y eso causó el fallo del 423e: se
+   * guardaba en una y se leía la otra. Ahora la única es `loyaltyTier`. */
+  customers: 'id,created_at,updated_at,name,email,phone,address,city,cedula,status,access,deleted,notes,avatar,mapLink,loyaltyTier,loyaltyPoints,loyaltyHistory,loyaltyLastActivity,orders,spent,lastOrder,lastLogin,authProvider,has_password',
   staff:     'id,created_at,updated_at,firstName,lastName,email,phone,cedula,role,cargo,status,avatar,notes,lastLogin,deleted,has_password',
   drivers:   '*',
   categories:'*',
@@ -579,7 +582,6 @@ function _sinClaveVacia(obj) {
  * entonces deben seguir yendo por el camino directo. */
 const _COLS_SOLO_RPC = [
   'loyaltyTier',
-  'ranking',
   'loyaltyPoints',
   'loyaltyHistory',
   'status',
@@ -2307,11 +2309,25 @@ async function createClientFromOAuth(profile) {
    * El mismo SQL hace `ALTER COLUMN status SET DEFAULT 'habilitado'`, así que
    * un cliente creado sin mencionarla queda igual que antes. */
 
+  /* 🔴 BUILD 424 · `ranking: 'bronce'` SE QUITÓ DE LOS DOS NIVELES.
+   *
+   * Esa columna ya no existe (se renombró y se borrará). Mencionarla en un
+   * INSERT daría error de columna inexistente y **rompería el registro de
+   * todo cliente nuevo por Google** — el mismo tipo de fallo que el `status`
+   * del build 419: invisible hasta que alguien que todavía no existe se
+   * quejara.
+   *
+   * NO se sustituye por `loyaltyTier: 'bronce'`: la columna tiene DEFAULT
+   * 'bronce' en la base (`31-contrasenas.sql`), así que un cliente creado sin
+   * mencionarla queda igual. Y además `loyaltyTier` está revocada a `anon` al
+   * insertar (`46-cerrar-fidelidad.sql:115`), así que mencionarla aquí sería
+   * un 403. La base pone el valor; el navegador no decide el nivel. */
+
   // Nivel A — todos los campos conocidos (incluyendo authProvider/avatar)
   const clientFull = {
     name: _name, email, phone: '', address: '', city: '',
     cedula: '', notes: '',
-    ranking: 'bronce', orders: 0, spent: 0,
+    orders: 0, spent: 0,
     // BUILD 421b · `lastOrder` es TEXT; `lastLogin` y `createdAt` son BIGINT.
     lastOrder: '', lastLogin: _nowMs(), createdAt: _nowMs(),
     authProvider: profile.authProvider || 'google',
@@ -2322,7 +2338,7 @@ async function createClientFromOAuth(profile) {
   const clientBase = {
     name: _name, email, phone: '', address: '', city: '',
     cedula: '', notes: '',
-    ranking: 'bronce', orders: 0, spent: 0,
+    orders: 0, spent: 0,
     lastOrder: '', lastLogin: _nowMs(), createdAt: _nowMs(),
   };
 
