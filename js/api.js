@@ -733,6 +733,36 @@ const _ERRORES_CLIENTE = {
   FALTA_ID:           'Falta indicar el cliente.',
 };
 
+/* 🔴 BUILD 426a · Mensajes del CANJE de puntos.
+ *
+ * Estos códigos los lanza `seguridad/52-canje-puntos.sql`. Cada uno es una
+ * regla de negocio que el dueño decidió, no un fallo técnico, así que el
+ * cliente merece leer la razón concreta y no un "error inesperado":
+ *
+ *   MINIMO_NO_ALCANZADO  decisión 4 · hay que juntar 100 pts
+ *   SUPERA_TOPE          decisión 1 · como mucho el 20% del subtotal
+ *   CUPON_Y_PUNTOS       decisión 3 · o cupón o puntos, no ambos
+ *   CANJE_YA_APLICADO    ese pedido ya gastó puntos
+ *   PEDIDO_AJENO         el pedido es de otra cuenta
+ *
+ * 🔴 `PEDIDO_AJENO` NO debe explicar de quién es el pedido. Quien lo provoca
+ * está intentando canjear contra un pedido que no es suyo; confirmarle que
+ * existe ya sería contarle de más. */
+const _ERRORES_CANJE = {
+  SESION_INVALIDA:     'Tu sesión no es válida. Vuelve a entrar.',
+  SESION_CADUCADA:     'Tu sesión caducó. Vuelve a entrar.',
+  CUENTA_DESACTIVADA:  'Tu cuenta está desactivada. Contacta al supermercado.',
+  MINIMO_NO_ALCANZADO: 'Necesitas al menos 100 puntos para canjear.',
+  SALDO_INSUFICIENTE:  'No tienes suficientes puntos para ese canje.',
+  SUPERA_TOPE:         'Puedes usar como máximo el 20% del valor de tu compra en puntos.',
+  CUPON_Y_PUNTOS:      'No puedes usar un cupón y puntos en el mismo pedido. Elige uno.',
+  CANJE_YA_APLICADO:   'Este pedido ya tiene un canje de puntos aplicado.',
+  PEDIDO_NO_EXISTE:    'No encontramos ese pedido.',
+  PEDIDO_AJENO:        'No encontramos ese pedido.',
+  PUNTOS_INVALIDOS:    'La cantidad de puntos a canjear no es válida.',
+  FALTA_PEDIDO:        'Falta indicar el pedido.',
+};
+
 /* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
  * la RPC llama a `admin_sesion_basica` igual que las de clientes. */
 const _ERRORES_PUNTOS = {
@@ -1566,6 +1596,99 @@ const DB = {
       p_motivo:  reason,
       p_pedido:  orderId,
     }, _ERRORES_PUNTOS);
+  },
+
+  /* ─── BUILD 426a · CANJE DE PUNTOS ────────────────────────────────────────
+   *
+   * Tres métodos, y la separación entre ellos NO es cosmética:
+   *
+   *   canjeDisponible()   lo pregunta el CLIENTE — solo lee, no compromete nada
+   *   canjearPuntos()     lo hace el CLIENTE — mueve dinero, es irreversible
+   *   devolverPuntosCanje() lo hace el PANEL — repone lo canjeado al cancelar
+   *
+   * 🔴 POR QUÉ EL TOPE Y EL MÍNIMO NO SE CALCULAN AQUÍ: el navegador es del
+   * cliente. Cualquiera puede abrir la consola y llamar a `canjearPuntos` con
+   * los puntos que se le antojen. Todos los límites los impone
+   * `cliente_canjear_puntos` en la base, que además bloquea la fila con
+   * `FOR UPDATE`. Lo que se calcula aquí es solo para PINTAR el deslizador.
+   * Si algún día alguien cambia el 20% en el JavaScript creyendo que ahí vive
+   * la regla, la base seguirá rechazándolo — y así debe ser. */
+
+  /**
+   * Pregunta a la base cuántos puntos puede usar el cliente en ESTE carrito.
+   *
+   * No compromete nada: es una consulta. Devuelve también el mínimo y el tope
+   * vigentes para que el deslizador se dibuje con los números de verdad y no
+   * con constantes copiadas.
+   *
+   * @param   {number} subtotal  Subtotal del carrito SIN envío (decisión 2:
+   *                             los puntos no pagan el envío, así que el tope
+   *                             se calcula sobre el subtotal a secas)
+   * @returns {Promise<{puntos_saldo:number, puntos_max:number,
+   *                    descuento_max:number, valor_punto:number,
+   *                    minimo_puntos:number, tope_porcentaje:number,
+   *                    puede_canjear:boolean, motivo:string}|null>}
+   *          `null` si el cliente no tiene sesión abierta (invitado).
+   */
+  async canjeDisponible(subtotal) {
+    const vale = _valeCliente();
+    if (!vale) return null;
+
+    return _rpcClient('cliente_canje_disponible', {
+      p_vale:     vale,
+      p_subtotal: Number(subtotal) || 0,
+    }, _ERRORES_CANJE);
+  },
+
+  /**
+   * Aplica el canje sobre un pedido YA CREADO.
+   *
+   * 🔴 EL ORDEN IMPORTA Y NO ES NEGOCIABLE: primero nace el pedido, después se
+   * canjea contra él. Al revés no se puede, porque la base necesita el UUID
+   * del pedido para dejar constancia de cuántos puntos se gastaron ahí — y esa
+   * constancia (`puntosUsados`) es lo único que permite devolverlos si el
+   * pedido se cancela. Un canje sin pedido asociado sería dinero que se
+   * evapora sin rastro.
+   *
+   * La base descuenta los puntos, recalcula el nivel con `nivel_por_puntos`,
+   * anota el movimiento en el historial y baja el total del pedido. Todo en
+   * una sola transacción: o pasa completo o no pasa nada.
+   *
+   * @param   {string} orderId   UUID del pedido recién creado
+   * @param   {number} puntos    Puntos a canjear
+   * @param   {number} subtotal  Subtotal sin envío, para revalidar el tope
+   * @returns {Promise<{puntos_usados:number, descuento:number,
+   *                    puntos_restantes:number, nivel:string}>}
+   */
+  async canjearPuntos(orderId, puntos, subtotal) {
+    return _rpcClient('cliente_canjear_puntos', {
+      p_vale:     _valeCliente(),
+      p_pedido:   orderId,
+      p_puntos:   Math.floor(Number(puntos) || 0),
+      p_subtotal: Number(subtotal) || 0,
+    }, _ERRORES_CANJE);
+  },
+
+  /**
+   * Devuelve al cliente los puntos que canjeó, cuando el pedido se cancela.
+   *
+   * Decisión 6 del dueño. Lo llama el PANEL (vale de empleado), no el cliente.
+   *
+   * 🔴 ES IDEMPOTENTE A PROPÓSITO: la base marca `puntosDevueltos` y si se
+   * vuelve a llamar responde `ya_estaba: true` sin repetir el abono. Sin eso,
+   * un empleado que cambie el estado del pedido dos veces —o un doble clic—
+   * regalaría los puntos dos veces. El panel puede llamarla sin miedo.
+   *
+   * @param   {string} orderId  UUID del pedido cancelado
+   * @returns {Promise<{devueltos:number, puntos_restantes:number|null,
+   *                    nivel:string|null, ya_estaba:boolean}>}
+   *          `devueltos: 0` si el pedido nunca tuvo canje.
+   */
+  async devolverPuntosCanje(orderId) {
+    return _rpcStaff('admin_devolver_puntos_canje', {
+      p_vale:   _valeAdmin(),
+      p_pedido: orderId,
+    }, _ERRORES_CANJE);
   },
 
   /**

@@ -3225,7 +3225,10 @@ function saveOrderStatus() {
   // ── Puntos de fidelización ────────────────────────────────────────────────
   // Caso A: pedido pasa a ENTREGADO → acumular puntos al cliente
   if (newStatus === 'entregado' && prevStatus !== 'entregado') {
-    const pts = calcPoints(order.total || 0);
+    /* BUILD 426b · decisión A: sobre lo pagado de bolsillo, no sobre el total
+     * ya rebajado por el canje. Ver `baseParaPuntos` para el razonamiento. */
+    const base = baseParaPuntos(order);
+    const pts  = calcPoints(base);
     if (pts > 0) {
       // Buscar cliente por email o por clientId
       const cust = customers.find(c =>
@@ -3233,16 +3236,71 @@ function saveOrderStatus() {
       );
       if (cust) {
         addPointsToCustomer(cust.id, pts,
-          `🛒 Pedido #${order.order_number || order.id} entregado (RD$ ${fmt$(order.total||0)})`,
+          `🛒 Pedido #${order.order_number || order.id} entregado (RD$ ${fmt$(base)})`,
           order.id
         );
         showAdminToast(`+${pts} puntos acreditados a ${cust.name}`, 'success');
       }
     }
   }
+  /* 🔴 BUILD 426a · Caso C: se CANCELA el pedido → devolver los puntos canjeados
+   *
+   * Decisión 6 del dueño: si el pedido no se entrega, el cliente recupera los
+   * puntos que gastó en él.
+   *
+   * POR QUÉ VA AQUÍ Y NO EN EL CASO B: los puntos GANADOS se acreditan al
+   * entregar (caso A) y se retiran al revertir la entrega (caso B). Los puntos
+   * CANJEADOS son otra cosa: se gastaron al hacer el pedido, mucho antes de
+   * entregarlo. Un pedido puede cancelarse sin haber estado nunca entregado, y
+   * en ese caso el caso B no se ejecuta jamás. Meter la devolución ahí dejaría
+   * sin reintegro justo el escenario más común: cancelar un pedido pendiente.
+   *
+   * POR QUÉ NO SE COMPRUEBA ANTES SI EL PEDIDO TUVO CANJE: la RPC ya lo hace y
+   * responde `devueltos: 0` sin tocar nada. Repetir la comprobación aquí con
+   * los datos del navegador significaría fiarse de una copia que puede estar
+   * vieja. Además la RPC es idempotente (`puntosDevueltos`), así que un doble
+   * clic o un cambio de estado repetido no regala puntos dos veces.
+   *
+   * NO se usa `await`: `saveOrderStatus` no es asíncrona y convertirla movería
+   * mucho más de lo que este build debe tocar. El fallo se registra y se avisa,
+   * pero no se traga en silencio — que es como se perdieron datos en el 423d. */
+  if (newStatus === 'cancelado' && prevStatus !== 'cancelado') {
+    DB.devolverPuntosCanje(order.id)
+      .then(res => {
+        if (res && res.devueltos > 0) {
+          const cust = customers.find(c =>
+            c.id === order.clientId || c.email === order.email
+          );
+          const quien = cust ? cust.name : 'el cliente';
+          showAdminToast(
+            `↩️ Se devolvieron ${res.devueltos} puntos a ${quien}`, 'success');
+
+          /* Refrescar el saldo en memoria. Mismo patrón que la línea 814: la
+           * base ya recalculó puntos y nivel, así que se relee en vez de
+           * intentar reproducir la cuenta aquí y arriesgar que difieran. */
+          if (DB.getCustomers) {
+            DB.getCustomers()
+              .then(list => { if (list && list.length) { customers = list; renderCustomers(); } })
+              .catch(() => {});
+          }
+        }
+      })
+      .catch(err => {
+        console.error('[426a] No se pudieron devolver los puntos del canje:', err);
+        showAdminToast(
+          'El pedido se canceló, pero NO se pudieron devolver los puntos ' +
+          'canjeados. Revísalo en la ficha del cliente.', 'error');
+      });
+  }
+
   // Caso B: se revierte un pedido entregado → descontar puntos
   if (prevStatus === 'entregado' && newStatus !== 'entregado') {
-    const pts = calcPoints(order.total || 0);
+    /* 🔴 BUILD 426b · LA MISMA BASE QUE EL CASO A, OBLIGATORIAMENTE.
+     * Si se acreditara sobre `baseParaPuntos` y se reversara sobre
+     * `order.total`, cada reversión de un pedido con canje dejaría un saldo
+     * descuadrado —puntos regalados o robados— que nadie notaría hasta que un
+     * cliente reclamara. Estas dos ramas SIEMPRE se cambian juntas. */
+    const pts = calcPoints(baseParaPuntos(order));
     if (pts > 0) {
       const cust = customers.find(c =>
         c.id === order.clientId || c.email === order.email
@@ -4379,6 +4437,91 @@ function calcPoints(total) {
   const pesos  = cfg.pesosPerPoint || 10;
   const earned = cfg.pointsEarned  || 1;
   return Math.floor((total || 0) / pesos) * earned;
+}
+
+/* 🔴 BUILD 426b · SOBRE QUÉ MONTO SE GANAN LOS PUNTOS — decisión A del dueño
+ *
+ * EL PROBLEMA QUE ESTO ARREGLA (la «doble penalidad»):
+ *
+ * `calcPoints` recibía `order.total`, y el total ya viene REBAJADO por el
+ * canje. Un cliente con 300 pts en un pedido de RD$ 1.000 que canjea 200:
+ *
+ *     paga 800 · gasta 200 pts · gana calcPoints(800) = 80 → queda en 180
+ *     sin canjear:                gana calcPoints(1000) = 100 → queda en 400
+ *
+ * Canjear le costaba 220 puntos, no 200. El cliente que usa el beneficio
+ * salía castigado por usarlo. Con cupones el defecto ya existía; nadie lo
+ * notaba porque el canje no existía todavía.
+ *
+ * LA REGLA (decisión A): los puntos se ganan sobre lo que el cliente pagó de
+ * su bolsillo ANTES DEL ENVÍO, sin restar lo que pagó con puntos:
+ *
+ *     base = subtotal − descuento_de_cupón
+ *
+ * Y por qué cada término:
+ *
+ * · SE SUMA de vuelta `puntosDescuento` (o se parte del subtotal, que es lo
+ *   mismo): los puntos NO son un descuento comercial, son un medio de pago.
+ *   El cliente ya «pagó» esos RD$ 200 cuando acumuló los puntos. Restarlos
+ *   otra vez es cobrárselos dos veces.
+ *
+ * · SE RESTA el descuento del cupón: ese dinero NO entró a la caja y nadie lo
+ *   pagó nunca. Premiar con puntos un dinero que el supermercado regaló sería
+ *   regalar dos veces sobre lo mismo.
+ *
+ * · SE EXCLUYE el envío: es un costo de logística que se paga a un tercero,
+ *   no consumo del cliente. Coherente con la decisión 2 (los puntos no pagan
+ *   el envío), así que tampoco generan puntos.
+ *
+ * · SE EXCLUYE `ceroCentavos`: es un redondeo de céntimos, ruido contable.
+ *
+ * 🔴 POR QUÉ NO SE TOCÓ `calcPoints`: esa función convierte pesos en puntos y
+ * lo hace bien. El defecto nunca estuvo ahí, sino en QUÉ MONTO se le pasaba.
+ * Cambiarla por dentro habría escondido la regla de negocio dentro de una
+ * calculadora, y quien leyera `calcPoints(order.total)` seguiría creyendo que
+ * los puntos se ganan sobre el total. Se separa el «cuánto vale un peso en
+ * puntos» del «sobre qué monto se cuenta».
+ *
+ * 🔴 PEDIDOS VIEJOS: los de antes del 426 no tienen `puntosDescuento` (llega
+ * `undefined` → 0) y su `subtotal` ya está guardado. La fórmula les da el
+ * mismo resultado de siempre. No hay que migrar nada ni recalcular historia.
+ *
+ * 🔴 RESPALDO SI FALTA EL SUBTOTAL: alguna fila antigua puede tener `subtotal`
+ * nulo. En ese caso se reconstruye desde el total sumando lo que se le restó,
+ * en vez de devolver 0 y dejar al cliente sin sus puntos en silencio.
+ *
+ * @param   {object} order  Pedido tal como está en memoria
+ * @returns {number}        Monto en RD$ sobre el que se ganan puntos
+ */
+function baseParaPuntos(order) {
+  if (!order) return 0;
+
+  const cupon = Number(order.descuentoMonto) || 0;
+  const ptsRD = Number(order.puntosDescuento) || 0;
+  const envio = Number(order.shipping ?? order.envio) || 0;
+
+  let subtotal = Number(order.subtotal);
+
+  if (!Number.isFinite(subtotal) || subtotal <= 0) {
+    /* Pedido antiguo sin subtotal: se rehace desde el total deshaciendo lo que
+     * el checkout le restó. `descuento` es el acumulado (cupón + puntos), así
+     * que se usa ese y no `descuentoMonto` para no dejarse nada fuera. */
+    const desc  = Number(order.descuento) || 0;
+    const cero  = Number(order.ceroCentavos) || 0;
+    const total = Number(order.total) || 0;
+    subtotal = Math.max(0, total + cero + desc - envio);
+  }
+
+  /* El descuento del cupón puede venir en `descuentoMonto` (monto fijo) o solo
+   * dentro de `descuento` (porcentaje). Si el pedido tuvo canje, `descuento`
+   * es cupón + puntos, así que el cupón es la diferencia. */
+  let cuponReal = cupon;
+  if (!cuponReal) {
+    const acumulado = Number(order.descuento) || 0;
+    cuponReal = Math.max(0, acumulado - ptsRD);
+  }
+
+  return Math.max(0, subtotal - cuponReal);
 }
 
 // Añade puntos a un cliente y registra en historial
