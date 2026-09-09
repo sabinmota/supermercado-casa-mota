@@ -5299,22 +5299,49 @@ async function renderCanjePuntos() {
    * accionable — añadiendo un artículo más podría usarlos. */
   if (!_canje.puede_canjear || maxPts < minPts) {
     box.style.display = '';
-    if (ctrlEl) ctrlEl.style.display = 'none';
+
+    /* 🔴 BUILD 426f · SE OCULTA EL CARRIL ENTERO, NO SOLO EL PULGAR.
+     *
+     * El dueño reportó «el slider no aparece, solo el carril». No era un fallo
+     * del deslizador: en un pedido de RD$ 150 el 20% son RD$ 30, o sea que NO
+     * HAY NINGÚN VALOR ELEGIBLE y el control se escondía a propósito. Pero
+     * `chkCanjeControl` solo envuelve al `<input>`; el carril de fondo lo pinta
+     * el propio `<input>`, así que ocultar el contenedor dejaba… nada, y el
+     * hueco vacío del recuadro parecía un deslizador roto.
+     *
+     * Se oculta con `hidden` además del display para que ningún estilo
+     * heredado lo resucite, y se marca el bloque como informativo. */
+    if (ctrlEl) { ctrlEl.style.display = 'none'; ctrlEl.hidden = true; }
+
+    /* Cuánto le falta al carrito para que el canje sea posible. Decirle «añade
+     * un poco más» sin la cifra obliga al cliente a adivinar. */
+    const subtotalMin = Math.ceil((minPts * 100) / tope);
+    const falta       = Math.max(0, subtotalMin - subtotal);
+
     if (infoEl) {
-      infoEl.innerHTML = `Tienes <b>${saldo} puntos</b> (RD$ ${fmt$(saldo * valor)}). ` +
-        `En este pedido puedes usar hasta el <b>${tope}%</b> del subtotal, ` +
-        `y el mínimo por canje es de <b>${minPts} puntos</b>. ` +
-        `Añade un poco más al carrito para poder usarlos.`;
+      infoEl.innerHTML = `Tienes <b>${saldo} puntos</b> (RD$ ${fmt$(saldo * valor)}), ` +
+        `pero en este pedido todavía no puedes usarlos: solo se puede pagar con ` +
+        `puntos hasta el <b>${tope}%</b> de la compra, y el mínimo por canje es ` +
+        `de <b>${minPts} puntos</b>.` +
+        (falta > 0
+          ? ` Añade <b>RD$ ${fmt$(falta)}</b> más al carrito y podrás usarlos.`
+          : '');
     }
     const res = document.getElementById('chkCanjeResumen');
-    if (res) res.innerHTML = '';
+    if (res) { res.innerHTML = ''; res.style.display = 'none'; }
     _canjePuntos = 0;
     _recalcCheckoutTotals();
     return;
   }
 
   box.style.display = '';
-  if (ctrlEl) ctrlEl.style.display = '';
+
+  /* Se DESHACE el ocultado de la rama anterior. Sin esto, un cliente que
+   * abriera el checkout con un carrito pequeño y luego añadiera productos se
+   * quedaría sin deslizador: `hidden` habría sobrevivido. */
+  if (ctrlEl) { ctrlEl.style.display = ''; ctrlEl.hidden = false; }
+  const resEl = document.getElementById('chkCanjeResumen');
+  if (resEl) resEl.style.display = '';
 
   if (infoEl) {
     infoEl.innerHTML = `Tienes <b>${saldo} puntos</b>. En este pedido puedes ` +
