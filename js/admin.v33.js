@@ -724,11 +724,34 @@ async function initAdminData() {
     }
   }, 50);
 
-  // ── FASE 2: Clientes, staff, repartidores en segundo plano ──────────────────
+  /* ── FASE 2: Clientes, staff, repartidores en segundo plano ──────────────────
+   *
+   * 🔴 BUILD 427 · `Promise.all` → `Promise.allSettled`. NO ES COSMÉTICO.
+   *
+   * EL FALLO QUE ESTO CIERRA, y el dueño lo vivió entero: `Promise.all` rechaza
+   * la promesa ENTERA en cuanto UNA sola falla. Cuando `getCustomers()` empezó a
+   * dar 400 (el JS viejo pedía una columna revocada), el `await` saltó al
+   * `catch` y **las líneas de asignación no se ejecutaron nunca**: `staffList` y
+   * `drivers` se quedaron vacíos y sus tablas sin pintar.
+   *
+   * Resultado: **UN fallo en Clientes vació TRES pantallas**. Personal y
+   * Repartidores aparecían en blanco teniendo permisos perfectos y datos
+   * intactos — hasta el punto de que parecía que se habían borrado los
+   * empleados. El susto fue mucho mayor que el fallo real.
+   *
+   * Con `allSettled` cada consulta se resuelve por su cuenta: la que falla deja
+   * su pantalla vacía y avisa, y las otras dos cargan con normalidad. Un fallo
+   * se queda contenido donde ocurre.
+   *
+   * 🔴 SE CONSERVA LO ANTERIOR AL FALLO: si una lista no llega, NO se machaca
+   * con `[]` lo que ya hubiera en memoria. Borrar datos buenos porque una
+   * consulta falló es perder información por partida doble.
+   */
   setTimeout(async () => {
+    let res;
     try {
-      const [custs, stf, drvs] = await withTimeout(
-        Promise.all([
+      res = await withTimeout(
+        Promise.allSettled([
           DB.getCustomers(),
           DB.getStaff(),
           DB.getDrivers(),
@@ -736,24 +759,54 @@ async function initAdminData() {
         30000,
         'Fase2'
       );
+    } catch (e) {
+      console.warn('initAdminData fase 2 (timeout global):', e.message || e);
+      return;
+    }
 
-      customers  = custs;
-      // BUILD 395 · Antes: `stf.length > 0 ? stf : DEFAULT_STAFF`. Esa lista de
-      // ejemplo ya no existe (llevaba contraseñas en claro). Si la consulta no
-      // devuelve personal, la lista se queda vacía: es la verdad.
-      staffList  = stf;
-      drivers    = drvs;
+    const [rCust, rStaff, rDrv] = res;
+    const fallos = [];
 
+    if (rCust.status === 'fulfilled' && Array.isArray(rCust.value)) {
+      customers = rCust.value;
       _cache.customers = customers;
-      _cache.staff     = staffList;
-      _cache.drivers   = drivers;
+    } else {
+      fallos.push('Clientes');
+      console.error('[fase2] Clientes no cargó:', rCust.reason);
+    }
 
-      try { renderCustomers(); } catch(e) {}
-      try { renderStaff();     } catch(e) {}
-      try { loadCategories();  } catch(e) {}
+    // BUILD 395 · Antes: `stf.length > 0 ? stf : DEFAULT_STAFF`. Esa lista de
+    // ejemplo ya no existe (llevaba contraseñas en claro). Si la consulta no
+    // devuelve personal, la lista se queda vacía: es la verdad.
+    if (rStaff.status === 'fulfilled' && Array.isArray(rStaff.value)) {
+      staffList = rStaff.value;
+      _cache.staff = staffList;
+    } else {
+      fallos.push('Personal');
+      console.error('[fase2] Personal no cargó:', rStaff.reason);
+    }
 
-    } catch(e) {
-      console.warn('initAdminData fase 2 error:', e.message || e);
+    if (rDrv.status === 'fulfilled' && Array.isArray(rDrv.value)) {
+      drivers = rDrv.value;
+      _cache.drivers = drivers;
+    } else {
+      fallos.push('Repartidores');
+      console.error('[fase2] Repartidores no cargó:', rDrv.reason);
+    }
+
+    try { renderCustomers(); } catch(e) {}
+    try { renderStaff();     } catch(e) {}
+    try { loadCategories();  } catch(e) {}
+
+    /* 🔴 SE AVISA EN PANTALLA. Antes el fallo solo iba a consola, así que una
+     * lista vacía era indistinguible de «no hay datos» — y eso fue justo lo
+     * que hizo pensar que se habían borrado los clientes. */
+    if (fallos.length && typeof showAdminToast === 'function') {
+      showAdminToast(
+        'No se pudo cargar: ' + fallos.join(', ') +
+        '. Los datos NO se han perdido; es un fallo de lectura. Recarga la página.',
+        'error'
+      );
     }
   }, 100);
 }
@@ -4122,31 +4175,77 @@ const LOYALTY_DEFAULTS = {
 // Cache en memoria para la config de fidelización (evita llamadas repetidas)
 let _loyaltyConfigCache = null;
 
-// Lee config activa desde API (con fallback a defaults)
+/* 🔴 BUILD 427 · ESTA FUNCIÓN NUNCA LEÍA LA CONFIGURACIÓN DEL DUEÑO
+ *
+ * EL FALLO, encontrado porque el dueño revisó un pedido a mano: con la base
+ * configurada en «RD$ 100 = 1 punto», una compra de RD$ 530 acreditó 53 puntos
+ * en vez de 5. El sistema usaba RD$ 10. Diez veces de más, en TODOS los pedidos
+ * desde que existe la fidelización.
+ *
+ * Eran DOS defectos encadenados, y el primero es de los que no se ven leyendo
+ * por encima:
+ *
+ *   1. `const saved = {};` — un objeto VACÍO. Todas las lecturas `saved.x`
+ *      daban `undefined`, así que cada `??` caía en el valor por omisión.
+ *      La línea parecía «leer lo guardado» y no leía nada: el nombre de la
+ *      variable describía una intención que el código no cumplía.
+ *
+ *   2. La lectura real (`DB.getSettings().then(...)`) era ASÍNCRONA, pero la
+ *      función devolvía la caché ANTES de que llegara. Y como la primera línea
+ *      es `if (_loyaltyConfigCache) return`, ese valor equivocado quedaba
+ *      FIJADO para toda la sesión. Si el `.then()` llegaba después de que se
+ *      entregara un pedido, no servía de nada.
+ *
+ * 🔴 Y ESO EXPLICA EL «+2 pts DEL PEDIDO #11» QUE LLEVABA MESES EN EL BACKLOG:
+ * no era aleatorio ni un dato corrupto, era una CARRERA entre la lectura de
+ * settings y el cálculo de puntos. Según cuál ganara, el mismo pedido valía
+ * 10 o 100 pesos por punto.
+ *
+ * EL ARREGLO: se lee `_cache.settings`, que la fase 1a de `initAdminData`
+ * (línea ~666) ya rellena ANTES de que se pueda entregar ningún pedido. Es el
+ * mismo patrón que `_noUpdateTotals` (línea ~3755) usa para el envío, así que
+ * no se inventa un mecanismo nuevo: se usa el que el panel ya tenía.
+ *
+ * 🔴 POR QUÉ NO SE HIZO `async`: `calcPoints` se llama desde `saveOrderStatus`,
+ * que no es asíncrona. Convertirla arrastraría a media docena de funciones y
+ * este build debe tocar lo mínimo. La caché ya está poblada cuando se necesita.
+ *
+ * 🔴 LA CACHÉ SE INVALIDA al guardar la configuración (ver `_loyaltyConfigCache
+ * = null` en el guardado), para que un cambio del dueño surta efecto sin tener
+ * que recargar el panel.
+ */
 function getLoyaltyConfig() {
-  if (_loyaltyConfigCache) return _loyaltyConfigCache;
-  // Intentar leer de settings en memoria si ya está disponible
-  const saved = {};
-  _loyaltyConfigCache = {
-    pesosPerPoint: parseInt(saved.pesosPerPoint ?? LOYALTY_DEFAULTS.pesosPerPoint, 10),
-    pointsEarned:  parseInt(saved.pointsEarned  ?? LOYALTY_DEFAULTS.pointsEarned,  10),
-    pointValue:    parseInt(saved.pointValue    ?? LOYALTY_DEFAULTS.pointValue,    10),
-    expiryMonths:  parseInt(saved.expiryMonths  ?? LOYALTY_DEFAULTS.expiryMonths,  10),
+  const saved = (typeof _cache === 'object' && _cache && _cache.settings) || {};
+
+  /* Si la caché aún no tiene settings, NO se congela el resultado: se devuelve
+   * el valor por omisión pero sin guardarlo, para que la próxima llamada
+   * vuelva a intentarlo. Congelar un default fue exactamente el defecto 2. */
+  const hayConfig = saved.loyaltyPesosPerPoint != null;
+
+  if (_loyaltyConfigCache && _loyaltyConfigCache._desdeBase) {
+    return _loyaltyConfigCache;
+  }
+
+  const cfg = {
+    pesosPerPoint: parseInt(saved.loyaltyPesosPerPoint ?? LOYALTY_DEFAULTS.pesosPerPoint, 10),
+    pointsEarned:  parseInt(saved.loyaltyPointsEarned  ?? LOYALTY_DEFAULTS.pointsEarned,  10),
+    pointValue:    parseInt(saved.loyaltyPointValue    ?? LOYALTY_DEFAULTS.pointValue,    10),
+    expiryMonths:  parseInt(saved.loyaltyExpiryMonths  ?? LOYALTY_DEFAULTS.expiryMonths,  10),
     levels: LOYALTY_DEFAULTS.levels,
+    _desdeBase: hayConfig,
   };
-  // Cargar asincrono y actualizar cache
-  DB.getSettings().then(s => {
-    if (s) {
-      _loyaltyConfigCache = {
-        pesosPerPoint: parseInt(s.loyaltyPesosPerPoint ?? LOYALTY_DEFAULTS.pesosPerPoint, 10),
-        pointsEarned:  parseInt(s.loyaltyPointsEarned  ?? LOYALTY_DEFAULTS.pointsEarned,  10),
-        pointValue:    parseInt(s.loyaltyPointValue    ?? LOYALTY_DEFAULTS.pointValue,    10),
-        expiryMonths:  parseInt(s.loyaltyExpiryMonths  ?? LOYALTY_DEFAULTS.expiryMonths,  10),
-        levels: LOYALTY_DEFAULTS.levels,
-      };
-    }
-  }).catch(logFail('leer la configuración de fidelización'));
-  return _loyaltyConfigCache;
+
+  /* Un valor absurdo (0 o negativo) provocaría una división por cero y puntos
+   * infinitos. Se cae al valor por omisión y se avisa en consola. */
+  if (!Number.isFinite(cfg.pesosPerPoint) || cfg.pesosPerPoint <= 0) {
+    console.error('[fidelidad] pesosPerPoint inválido:', saved.loyaltyPesosPerPoint,
+                  '— se usa', LOYALTY_DEFAULTS.pesosPerPoint);
+    cfg.pesosPerPoint = LOYALTY_DEFAULTS.pesosPerPoint;
+    cfg._desdeBase = false;
+  }
+
+  if (hayConfig) _loyaltyConfigCache = cfg;
+  return cfg;
 }
 
 // Alias corto para todo el código existente
@@ -4263,8 +4362,26 @@ function saveLoyaltyConfig() {
     }
   }
 
-  const cfg = { pesosPerPoint: pesos, pointsEarned: earned, pointValue: value, expiryMonths: expiry, levels: newLevels };
+  /* 🔴 BUILD 427 · `_desdeBase: true` NO SOBRA.
+   * `getLoyaltyConfig` solo se queda con una caché marcada así; sin la marca
+   * la descartaría y volvería a leer `_cache.settings`, que todavía tiene los
+   * valores ANTERIORES hasta que Supabase responda. El dueño guardaría RD$ 100
+   * y el siguiente pedido seguiría calculándose con el valor viejo. */
+  const cfg = { pesosPerPoint: pesos, pointsEarned: earned, pointValue: value,
+                expiryMonths: expiry, levels: newLevels, _desdeBase: true };
   _loyaltyConfigCache = cfg;
+
+  /* La caché de settings que lee `getLoyaltyConfig` también se actualiza, para
+   * que ambas fuentes digan lo mismo desde este instante. */
+  if (typeof _cache === 'object' && _cache) {
+    _cache.settings = { ...(_cache.settings || {}),
+      loyaltyPesosPerPoint: pesos,
+      loyaltyPointsEarned:  earned,
+      loyaltyPointValue:    value,
+      loyaltyExpiryMonths:  expiry,
+    };
+  }
+
   DB.saveSettings({
     loyaltyPesosPerPoint: pesos,
     loyaltyPointsEarned:  earned,
