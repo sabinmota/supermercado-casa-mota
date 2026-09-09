@@ -3015,7 +3015,136 @@ input, select { font-family: var(--font); }
   font-weight: 800;
 }
 
+/* ── BUILD 426c · Canje de puntos en el checkout ───────────────────────
+ * Dorado, no verde: el verde de la tienda ya significa "cupón" y "envío
+ * gratis". Los puntos son del cliente, no una oferta del supermercado, y
+ * conviene que se distingan de un vistazo. */
+.chk-canje-box {
+  margin-top: 16px;
+  background: linear-gradient(135deg, #fffbea, #fff7d6);
+  border: 1.5px solid #e8cf6a;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.chk-canje-info {
+  font-size: .87rem;
+  color: #6b5800;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+.chk-canje-info b { color: #4a3d00; }
+
+.chk-canje-control { margin: 2px 0 6px; }
+
+/* Altura generosa: se maneja con el dedo en un móvil. */
+.chk-canje-slider {
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.chk-canje-slider:focus { outline: none; }
+.chk-canje-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 6px;
+  background: #f0e4b0;
+}
+.chk-canje-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 6px;
+  background: #f0e4b0;
+}
+/* 28px de pulgar: por debajo de 24 es difícil de agarrar en pantalla táctil. */
+.chk-canje-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d4a800, #b88f00);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.28);
+}
+.chk-canje-slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d4a800, #b88f00);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.28);
+}
+.chk-canje-slider:disabled { opacity: .5; cursor: not-allowed; }
+
+.chk-canje-marcas {
+  display: flex;
+  justify-content: space-between;
+  font-size: .74rem;
+  color: #9a8500;
+  font-weight: 600;
+  margin-top: -2px;
+}
+
+.chk-canje-resumen {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: #fff;
+  border: 1px solid #ecdc9a;
+  font-size: .9rem;
+  font-weight: 700;
+  color: #4a3d00;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.chk-canje-ahorro { color: #1a7c3e; font-weight: 800; }
+.chk-canje-cero   { color: #999; font-weight: 600; }
+
+/* Fila del canje dentro del desglose de totales. */
+.chk-canje-row {
+  color: #a8860b;
+  font-weight: 700;
+}
+.chk-canje-row i { margin-right: 3px; }
+
+/* Aviso de exclusión mutua sobre el campo del cupón. */
+.chk-cupon-bloqueado {
+  background: #fff4d6;
+  border: 1px solid #e8cf6a;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: .82rem;
+  color: #6b5800;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.chk-cupon-bloqueado i { color: #c9a500; margin-right: 4px; }
+
 /* ── Dark mode ──────────────────────────────────────────────────────── */
+[data-theme="dark"] .chk-canje-box {
+  background: linear-gradient(135deg, #2a2410, #221d0c);
+  border-color: #6b5a1a;
+}
+[data-theme="dark"] .chk-canje-info   { color: #d8c88a; }
+[data-theme="dark"] .chk-canje-info b { color: #f0e4b0; }
+[data-theme="dark"] .chk-canje-resumen {
+  background: #1d1908;
+  border-color: #5a4c15;
+  color: #e8dca8;
+}
+[data-theme="dark"] .chk-canje-slider::-webkit-slider-runnable-track { background: #4a3f12; }
+[data-theme="dark"] .chk-canje-slider::-moz-range-track { background: #4a3f12; }
+[data-theme="dark"] .chk-cupon-bloqueado {
+  background: #2a2410;
+  border-color: #6b5a1a;
+  color: #d8c88a;
+}
+
 [data-theme="dark"] .chk-schedule-card {
   background: #2a1e0e;
   border-color: #7a4a10;
