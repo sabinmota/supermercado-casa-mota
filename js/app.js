@@ -2928,6 +2928,7 @@ async function openCheckout() {
    * con el valor viejo y se aplicaría a un carrito distinto. */
   _canjePuntos = 0;
   _canje       = null;
+  _canjeCrudo  = 0;
   const cb = document.getElementById('chkCanjeBox');    if (cb) cb.style.display = 'none';
   const cs = document.getElementById('chkCanjeSlider'); if (cs) { cs.value = 0; cs.disabled = false; }
   const cbl = document.getElementById('chkCuponBloqueado'); if (cbl) cbl.style.display = 'none';
@@ -5245,6 +5246,11 @@ function _textoReglasPuntos() {
 let _canje       = null;
 let _canjePuntos = 0;
 
+/* Dónde estaba el dedo en el gesto anterior, SIN corregir. Necesario para
+ * saber si el cliente está subiendo o bajando: el valor corregido puede haber
+ * saltado a 0 o a 100 y ya no dice nada sobre la dirección del movimiento. */
+let _canjeCrudo  = 0;
+
 /* Pide a la base cuánto puede canjear el cliente en este carrito y dibuja el
  * deslizador. Se llama al abrir el checkout y al cambiar el carrito. */
 async function renderCanjePuntos() {
@@ -5340,21 +5346,73 @@ async function renderCanjePuntos() {
 
 /* Traduce la posición del deslizador a puntos válidos.
  *
- * 🔴 EL SALTO AL MÍNIMO NO ES UN CAPRICHO: la base exige 100 puntos como
- * mínimo. Si el deslizador dejara elegir 37, el cliente vería "ahorras RD$ 37"
- * y al confirmar recibiría MINIMO_NO_ALCANZADO. Mostrar una opción que la base
- * va a rechazar es mentirle. Entre 1 y 99 se sube a 100 automáticamente. */
+ * 🔴 LA ZONA MUERTA ENTRE 1 Y 99, Y EL FALLO QUE EL DUEÑO ENCONTRÓ
+ *
+ * La base exige un mínimo de 100 puntos. Si el deslizador dejara elegir 37, el
+ * cliente vería «Ahorras RD$ 37» y al confirmar recibiría
+ * MINIMO_NO_ALCANZADO — mostrar una opción que la base va a rechazar es
+ * mentirle. Por eso la zona 1-99 no es elegible.
+ *
+ * 🔴 MI PRIMERA VERSIÓN LO RESOLVÍA MAL: subía a 100 CUALQUIER valor entre 1 y
+ * 99, sin mirar de dónde venía el dedo. Consecuencia, y el dueño la sufrió:
+ * podía subir hasta 191 pero **al arrastrar hacia atrás quedaba ATRAPADO en
+ * 100**. Cada intento de bajar caía en la zona muerta y era devuelto arriba,
+ * así que era IMPOSIBLE arrepentirse y no usar los puntos. Un cliente que
+ * cambia de opinión no podía deshacerlo — y eso, en una pantalla de pago, es
+ * bastante peor que un detalle estético.
+ *
+ * LA CORRECCIÓN: la zona muerta se resuelve según la DIRECCIÓN del movimiento.
+ *
+ *   subiendo desde 0  → salta a 100  (quiere empezar a canjear)
+ *   bajando desde 100 → cae a 0      (quiere dejar de canjear)
+ *
+ * Así el deslizador tiene exactamente dos salidas de esa franja y ninguna es
+ * un callejón. Se compara con `_canjePuntos`, que es la posición ANTERIOR.
+ *
+ * 🔴 POR QUÉ NO SE USÓ `step="100"` NI DOS BOTONES: `step` obligaría a que el
+ * máximo fuera múltiplo de 100 (con 191 disponibles, el cliente no podría usar
+ * los 191), y unos botones fijos quitarían el control fino que el dueño pidió
+ * en la decisión 5. Esto conserva el deslizador libre y solo arregla la franja
+ * imposible. */
 function onCanjeSliderInput() {
   const slider = document.getElementById('chkCanjeSlider');
   if (!slider || !_canje) return;
 
   const minPts = Number(_canje.minimo_puntos) || 100;
   const maxPts = Number(_canje.puntos_max) || 0;
+  const previo = _canjePuntos;
+
   let v = Math.floor(Number(slider.value) || 0);
 
-  if (v > 0 && v < minPts) v = Math.min(minPts, maxPts);
   if (v > maxPts) v = maxPts;
+  if (v < 0)      v = 0;
 
+  /* 🔴 SE COMPARA CON LA POSICIÓN CRUDA ANTERIOR, NO CON EL VALOR CORREGIDO.
+   *
+   * Comparar contra `_canjePuntos` (el valor ya ajustado) provocaba un rebote:
+   * al arrastrar hacia abajo, en cuanto un punto caía a 0 el siguiente punto
+   * del mismo gesto —todavía dentro de la franja, digamos 40— resultaba MAYOR
+   * que ese 0, así que se leía como «viene subiendo» y volvía a 100. El dedo
+   * seguía bajando y el deslizador saltaba arriba y abajo.
+   *
+   * Guardando dónde estaba el dedo de verdad (`_canjeCrudo`), la dirección se
+   * mide sobre el gesto real y el recorrido es monótono. */
+  const crudo = (typeof _canjeCrudo === 'number') ? _canjeCrudo : previo;
+
+  /* Dentro de la franja imposible: se decide por dirección. */
+  if (v > 0 && v < minPts) {
+    if (v <= crudo) {
+      /* Viene bajando (o repite posición): quiere dejar de canjear. */
+      v = 0;
+    } else {
+      /* Viene subiendo: quiere empezar. Si ni el máximo llega al mínimo no se
+       * fuerza nada — se queda en 0 y el bloque ya explica que el pedido es
+       * pequeño. */
+      v = (maxPts >= minPts) ? minPts : 0;
+    }
+  }
+
+  _canjeCrudo  = Math.floor(Number(slider.value) || 0);
   _canjePuntos = v;
   slider.value = v;
 
