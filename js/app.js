@@ -2923,6 +2923,19 @@ async function openCheckout() {
   const cm = document.getElementById('chkCuponMsg');   if (cm) { cm.style.display = 'none'; cm.innerHTML = ''; }
   const dr = document.getElementById('chkDescuentoRow'); if (dr) dr.style.display = 'none';
 
+  /* BUILD 426c · Reset del canje. Es imprescindible: si el cliente abrió el
+   * checkout, movió el deslizador y lo cerró sin pagar, `_canjePuntos` seguiría
+   * con el valor viejo y se aplicaría a un carrito distinto. */
+  _canjePuntos = 0;
+  _canje       = null;
+  const cb = document.getElementById('chkCanjeBox');    if (cb) cb.style.display = 'none';
+  const cs = document.getElementById('chkCanjeSlider'); if (cs) { cs.value = 0; cs.disabled = false; }
+  const cbl = document.getElementById('chkCuponBloqueado'); if (cbl) cbl.style.display = 'none';
+
+  /* La consulta va en segundo plano: el checkout debe abrirse ya, sin esperar
+   * a la red. Cuando llega, `renderCanjePuntos` pinta el bloque y recalcula. */
+  renderCanjePuntos();
+
   // ── 2. Resetear nota, método de pago y comprobante fiscal ──
   const noteEl = document.getElementById('chkNote'); if (noteEl) noteEl.value = '';
   const firstRadio = document.querySelector('input[name="payMethod"][value="efectivo"]');
@@ -3040,6 +3053,19 @@ async function confirmOrder() {
     const cuponCodigo    = _activeCupon?.cupon?.codigo || '';
     const descuentoPct   = _activeCupon?.cupon?.tipo !== 'monto_fijo' ? (_activeCupon?.cupon?.valor || 0) : 0;
     const descuentoMonto = _activeCupon?.cupon?.tipo === 'monto_fijo' ? descuento : 0;
+    /* 🔴 BUILD 426c · EL PEDIDO NACE SIN EL DESCUENTO DE PUNTOS, A PROPÓSITO.
+     *
+     * Aquí NO se resta `_canjePuntos` ni se envía `puntosUsados`, aunque el
+     * checkout ya los muestre. Dos motivos, y los dos son de seguridad:
+     *
+     *   1. El trigger `trg_orders_puntos_limpios` (SQL 52) fuerza a CERO esas
+     *      tres columnas en todo INSERT. Mandarlas sería inútil.
+     *   2. `anon` puede crear pedidos, así que si el total llegara ya rebajado
+     *      cualquiera podría inventarse un descuento sin gastar un punto.
+     *
+     * El descuento lo aplica `cliente_canjear_puntos` DESPUÉS de crear el
+     * pedido, tras validar saldo, mínimo, tope y propiedad con la fila
+     * bloqueada. Ver el bloque del canje más abajo. */
     const totalBruto    = +Math.max(0, subtotal + envio - descuento).toFixed(2);
     const ceroCentavos  = _calcCeroCentavos(totalBruto);
     const total         = +(totalBruto - ceroCentavos).toFixed(2);
@@ -3108,6 +3134,45 @@ async function confirmOrder() {
     const numeroPedido = (pedidoCreado && pedidoCreado.order_number != null)
       ? String(pedidoCreado.order_number)
       : null;
+
+    /* ─── BUILD 426c · APLICAR EL CANJE, YA CON EL PEDIDO CREADO ──────────────
+     *
+     * 🔴 POR QUÉ AQUÍ Y NO ANTES: la base necesita el UUID del pedido para
+     * anotar cuántos puntos se gastaron en él (`puntosUsados`), y esa anotación
+     * es lo ÚNICO que permite devolverlos si el pedido se cancela. Un canje sin
+     * pedido asociado sería dinero evaporado sin rastro.
+     *
+     * 🔴 SÍ SE USA `await`, al contrario que el stock: esto mueve el saldo del
+     * cliente. Si fallara en segundo plano, el pedido quedaría con el total
+     * rebajado y los puntos SIN descontar — el cliente pagaría menos y
+     * conservaría sus puntos. Hay que saber el resultado antes de seguir.
+     *
+     * 🔴 SI FALLA, EL PEDIDO NO SE CANCELA. Ya existe y el stock ya se movió.
+     * Se corrige el total a lo que el cliente debe pagar de verdad y se le
+     * avisa. Es preferible cobrar el precio correcto y explicar por qué, a
+     * dejar un pedido con descuento que nadie pagó. */
+    if (_canjePuntos > 0 && pedidoCreado && pedidoCreado.id) {
+      try {
+        await DB.canjearPuntos(pedidoCreado.id, _canjePuntos, +(subtotal).toFixed(2));
+      } catch (e) {
+        console.error('[426c] el canje no se pudo aplicar:', e?.message || e);
+
+        const totalSinPuntos = +(Math.max(0, subtotal + envio - descuento) - ceroCentavos).toFixed(2);
+        try {
+          await DB.updateOrder(pedidoCreado.id, { total: totalSinPuntos });
+        } catch (e2) {
+          console.error('[426c] tampoco se pudo corregir el total:', e2?.message || e2);
+        }
+
+        showToast(
+          'No se pudieron aplicar tus puntos a este pedido (' +
+          (e?.message || 'error') + '). El pedido se registró SIN el descuento ' +
+          'y tus puntos siguen intactos.',
+          'error'
+        );
+        _canjePuntos = 0;
+      }
+    }
 
     // Descontar stock (fire-and-forget, no bloquea el flujo)
     DB.getProducts().then(stockActual => {
@@ -4072,7 +4137,7 @@ async function renderLoyaltyCard() {
       </div>
       <div style="margin-top:12px;background:rgba(255,255,255,.7);border-radius:8px;padding:8px 12px;font-size:.78rem;color:#555;display:flex;align-items:flex-start;gap:8px">
         <i class="fas fa-circle-info" style="color:${lvl.color};margin-top:2px;flex-shrink:0"></i>
-        <span>Ganas <b>1 punto por cada RD$ 10</b> en tus compras. Para canjear puntos, <b>comunícate con nosotros</b>. Los puntos vencen tras <b>6 meses</b> de inactividad.</span>
+        <span>${_textoReglasPuntos()}</span>
       </div>
     </div>
 
@@ -4981,6 +5046,17 @@ async function applyCupon() {
   msgEl.style.color = '#1a7c3e';
   msgEl.innerHTML = `<i class="fas fa-check-circle"></i> <strong>${result.cupon?.codigo}</strong> aplicado — Ahorras ${tipoCupon}`;
 
+  /* BUILD 426c · Al aplicar un cupón se apagan los puntos (decisión 3). La base
+   * rechaza la combinación con CUPON_Y_PUNTOS, así que dejar ambos activos solo
+   * produciría un error al confirmar, con el pedido ya creado. */
+  if (_canjePuntos > 0) {
+    _canjePuntos = 0;
+    const sl = document.getElementById('chkCanjeSlider');
+    if (sl) sl.value = 0;
+    _pintarResumenCanje();
+  }
+  _sincronizarCuponYPuntos();
+
   _recalcCheckoutTotals();
 }
 
@@ -5126,12 +5202,227 @@ function _renderHorarioEntrega(cfg) {
   `;
 }
 
+/* 🔴 BUILD 426c · EL TEXTO DE LAS REGLAS SE LEE DE LA CONFIGURACIÓN
+ *
+ * Antes decía literalmente «Ganas 1 punto por cada RD$ 10 … Para canjear
+ * puntos, comunícate con nosotros». Dos problemas:
+ *
+ *   1. El «RD$ 10» estaba escrito a mano. El dueño tiene configurado RD$ 100,
+ *      así que la tienda le mentía al cliente — el mismo defecto que el build
+ *      427 arregló en el panel, aquí en forma de texto fijo.
+ *   2. Ya no hay que comunicarse con nadie: el canje es automático.
+ *
+ * Se lee de `_checkoutSettingsCache`, que es la copia de settings que la
+ * tienda ya carga. Si aún no está, se cae a los valores por omisión. */
+function _textoReglasPuntos() {
+  const cfg   = _checkoutSettingsCache || {};
+  const pesos = parseInt(cfg.loyaltyPesosPerPoint, 10) || 100;
+  const gana  = parseInt(cfg.loyaltyPointsEarned,  10) || 1;
+  const meses = parseInt(cfg.loyaltyExpiryMonths,  10) || 6;
+  const minimo = 100;
+
+  return `Ganas <b>${gana} punto${gana !== 1 ? 's' : ''} por cada RD$ ${pesos}</b> ` +
+    `en tus compras. Puedes usarlos al pagar desde <b>${minimo} puntos</b>, ` +
+    `hasta el <b>20% de tu compra</b>. Los puntos vencen tras ` +
+    `<b>${meses} meses</b> de inactividad.`;
+}
+
+/* ─── BUILD 426c · CANJE DE PUNTOS EN EL CHECKOUT ───────────────────────────
+ *
+ * `_canje` es lo que la base autorizó para ESTE carrito, y `_canjePuntos` lo
+ * que el cliente eligió con el deslizador.
+ *
+ * 🔴 ESTOS NÚMEROS SON SOLO PARA PINTAR. El navegador es del cliente: quien
+ * quiera puede abrir la consola y poner `_canjePuntos = 99999`. Todos los
+ * límites los impone `cliente_canjear_puntos` en la base, que revalida saldo,
+ * mínimo, tope y propiedad del pedido con la fila bloqueada. Si algún día
+ * alguien "optimiza" quitando estas comprobaciones creyendo que son la regla,
+ * la base seguirá rechazando — y así debe ser.
+ *
+ * 🔴 EL CANJE SE APLICA DESPUÉS DE CREAR EL PEDIDO, no antes. La base necesita
+ * el UUID del pedido para dejar constancia de cuántos puntos se gastaron ahí,
+ * y esa constancia es lo único que permite devolverlos si se cancela. */
+let _canje       = null;
+let _canjePuntos = 0;
+
+/* Pide a la base cuánto puede canjear el cliente en este carrito y dibuja el
+ * deslizador. Se llama al abrir el checkout y al cambiar el carrito. */
+async function renderCanjePuntos() {
+  const box = document.getElementById('chkCanjeBox');
+  if (!box) return;
+
+  /* Invitado o sin sesión: ni se pregunta ni se muestra. */
+  if (!currentClient || !currentClient.id) {
+    box.style.display = 'none';
+    _canje = null; _canjePuntos = 0;
+    return;
+  }
+
+  const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
+
+  try {
+    _canje = await DB.canjeDisponible(subtotal);
+  } catch (e) {
+    /* Que falle la consulta NO debe impedir comprar. Se oculta el bloque y el
+     * cliente paga normal: perder el canje es molesto, no poder pagar es
+     * perder la venta. */
+    console.warn('[canje] no se pudo consultar:', e?.message || e);
+    box.style.display = 'none';
+    _canje = null; _canjePuntos = 0;
+    _recalcCheckoutTotals();
+    return;
+  }
+
+  if (!_canje) { box.style.display = 'none'; _canjePuntos = 0; return; }
+
+  const saldo  = Number(_canje.puntos_saldo) || 0;
+  const maxPts = Number(_canje.puntos_max) || 0;
+  const minPts = Number(_canje.minimo_puntos) || 100;
+  const valor  = Number(_canje.valor_punto) || 1;
+  const tope   = Number(_canje.tope_porcentaje) || 20;
+
+  /* Sin saldo suficiente NO se muestra nada: un bloque que diga "no puedes"
+   * en mitad del pago es ruido. La pantalla "Mis puntos" ya informa. */
+  if (saldo < minPts) {
+    box.style.display = 'none';
+    _canjePuntos = 0;
+    _recalcCheckoutTotals();
+    return;
+  }
+
+  const infoEl = document.getElementById('chkCanjeInfo');
+  const slider = document.getElementById('chkCanjeSlider');
+  const maxLbl = document.getElementById('chkCanjeMaxLbl');
+  const ctrlEl = document.getElementById('chkCanjeControl');
+
+  /* Tiene saldo pero el pedido es pequeño: aquí SÍ se explica, porque es
+   * accionable — añadiendo un artículo más podría usarlos. */
+  if (!_canje.puede_canjear || maxPts < minPts) {
+    box.style.display = '';
+    if (ctrlEl) ctrlEl.style.display = 'none';
+    if (infoEl) {
+      infoEl.innerHTML = `Tienes <b>${saldo} puntos</b> (RD$ ${fmt$(saldo * valor)}). ` +
+        `En este pedido puedes usar hasta el <b>${tope}%</b> del subtotal, ` +
+        `y el mínimo por canje es de <b>${minPts} puntos</b>. ` +
+        `Añade un poco más al carrito para poder usarlos.`;
+    }
+    const res = document.getElementById('chkCanjeResumen');
+    if (res) res.innerHTML = '';
+    _canjePuntos = 0;
+    _recalcCheckoutTotals();
+    return;
+  }
+
+  box.style.display = '';
+  if (ctrlEl) ctrlEl.style.display = '';
+
+  if (infoEl) {
+    infoEl.innerHTML = `Tienes <b>${saldo} puntos</b>. En este pedido puedes ` +
+      `usar hasta <b>${maxPts}</b> (RD$ ${fmt$(maxPts * valor)}), ` +
+      `el ${tope}% del subtotal.`;
+  }
+
+  if (slider) {
+    slider.min  = 0;
+    slider.max  = maxPts;
+    slider.step = 1;
+    /* Si el carrito cambió y el máximo bajó, se recorta la elección anterior
+     * en vez de dejar un valor imposible que la base rechazaría. */
+    if (_canjePuntos > maxPts) _canjePuntos = maxPts;
+    slider.value = _canjePuntos;
+    slider.disabled = !!_activeCupon;
+  }
+  if (maxLbl) maxLbl.textContent = String(maxPts);
+
+  _pintarResumenCanje();
+  _recalcCheckoutTotals();
+}
+
+/* Traduce la posición del deslizador a puntos válidos.
+ *
+ * 🔴 EL SALTO AL MÍNIMO NO ES UN CAPRICHO: la base exige 100 puntos como
+ * mínimo. Si el deslizador dejara elegir 37, el cliente vería "ahorras RD$ 37"
+ * y al confirmar recibiría MINIMO_NO_ALCANZADO. Mostrar una opción que la base
+ * va a rechazar es mentirle. Entre 1 y 99 se sube a 100 automáticamente. */
+function onCanjeSliderInput() {
+  const slider = document.getElementById('chkCanjeSlider');
+  if (!slider || !_canje) return;
+
+  const minPts = Number(_canje.minimo_puntos) || 100;
+  const maxPts = Number(_canje.puntos_max) || 0;
+  let v = Math.floor(Number(slider.value) || 0);
+
+  if (v > 0 && v < minPts) v = Math.min(minPts, maxPts);
+  if (v > maxPts) v = maxPts;
+
+  _canjePuntos = v;
+  slider.value = v;
+
+  _pintarResumenCanje();
+  _sincronizarCuponYPuntos();
+  _recalcCheckoutTotals();
+}
+
+function _pintarResumenCanje() {
+  const res = document.getElementById('chkCanjeResumen');
+  if (!res || !_canje) return;
+
+  const valor = Number(_canje.valor_punto) || 1;
+
+  if (_canjePuntos <= 0) {
+    res.innerHTML = `<span class="chk-canje-cero">Mueve el deslizador para usar tus puntos</span>` +
+                    `<span class="chk-canje-cero">RD$ 0.00</span>`;
+    return;
+  }
+
+  res.innerHTML =
+    `<span>Usas <b>${_canjePuntos}</b> punto${_canjePuntos !== 1 ? 's' : ''}</span>` +
+    `<span class="chk-canje-ahorro">Ahorras RD$ ${fmt$(_canjePuntos * valor)}</span>`;
+}
+
+/* Exclusión mutua entre cupón y puntos — decisión 3 del dueño.
+ *
+ * Se aplica en los DOS sentidos: con puntos activos se bloquea el cupón, y con
+ * cupón activo se bloquea el deslizador. La base rechaza la combinación con
+ * CUPON_Y_PUNTOS, así que permitir elegir ambos aquí solo llevaría a un error
+ * al confirmar, con el pedido ya creado. */
+function _sincronizarCuponYPuntos() {
+  const inputCup = document.getElementById('chkCuponInput');
+  const avisoCup = document.getElementById('chkCuponBloqueado');
+  const slider   = document.getElementById('chkCanjeSlider');
+
+  const hayPuntos = _canjePuntos > 0;
+  const hayCupon  = !!_activeCupon;
+
+  if (inputCup) {
+    inputCup.disabled = hayPuntos;
+    if (hayPuntos) inputCup.value = '';
+  }
+  if (avisoCup) avisoCup.style.display = hayPuntos ? '' : 'none';
+
+  if (slider) slider.disabled = hayCupon;
+
+  const infoEl = document.getElementById('chkCanjeInfo');
+  if (infoEl && hayCupon && _canje) {
+    infoEl.innerHTML = `Tienes <b>${Number(_canje.puntos_saldo) || 0} puntos</b>, ` +
+      `pero estás usando un cupón. Solo se puede aplicar uno de los dos: ` +
+      `quita el cupón si prefieres pagar con puntos.`;
+  }
+}
+
 function _recalcCheckoutTotals() {
   const totalItems = cart.reduce((s, c) => s + c.qty, 0);
   const subtotal   = cart.reduce((s, c) => s + c.price * c.qty, 0);
   const envio      = _calcEnvio(totalItems, subtotal);
   const descuento  = _activeCupon?.descuento || 0;
-  const totalBruto = Math.max(0, subtotal + envio - descuento);
+
+  /* BUILD 426c · El descuento por puntos se resta igual que el cupón, pero se
+   * lleva aparte: el pedido guarda `puntosDescuento` por separado para que
+   * `baseParaPuntos` (panel) sepa que ese dinero SÍ lo pagó el cliente. */
+  const valorPunto = Number(_canje?.valor_punto) || 1;
+  const descPuntos = _canjePuntos > 0 ? _canjePuntos * valorPunto : 0;
+
+  const totalBruto = Math.max(0, subtotal + envio - descuento - descPuntos);
 
   // ── Plan Cero Centavos ──
   const ceroCentavos = _calcCeroCentavos(totalBruto);
@@ -5174,6 +5465,7 @@ function _recalcCheckoutTotals() {
       <div class="chk-total-row"><span>Subtotal (${totalItems} artículo${totalItems!==1?'s':''})</span><span>RD$ ${fmt$(subtotal)}</span></div>
       <div class="chk-total-row"><span>Gastos de envío</span><span>${envioLabel}</span></div>
       ${descuento > 0 ? `<div class="chk-total-row" style="color:#1a7c3e;font-weight:600"><span><i class="fas fa-tag"></i> Cupón ${_activeCupon?.cupon?.codigo || ''}</span><span>- RD$ ${fmt$(descuento)}</span></div>` : ''}
+      ${descPuntos > 0 ? `<div class="chk-total-row chk-canje-row"><span><i class="fas fa-star"></i> Puntos usados (${_canjePuntos})</span><span>- RD$ ${fmt$(descPuntos)}</span></div>` : ''}
       ${ceroCentavosRow}
       <div class="chk-total-row total-final"><span>Total a pagar</span><span>RD$ ${fmt$(total)}</span></div>
       ${sustRow}`;

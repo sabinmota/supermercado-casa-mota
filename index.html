@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '427', KEY = 'cm_app_ver';
+        var VER = '428', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -122,7 +122,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=318" />
+  <link rel="stylesheet" href="css/style.css?v=319" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -866,11 +866,45 @@
           rows="2" onfocus="this.style.borderColor='#1a7c3e'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
       </div>
 
+      <!-- BUILD 426c · Canje de puntos.
+           Va ANTES del cupón porque es lo que el cliente ya tiene ganado; el
+           cupón es la excepción. Arranca oculto: lo muestra renderCanjePuntos()
+           solo si el cliente tiene sesión, saldo suficiente y el pedido llega
+           al mínimo. Un bloque visible que dijera "no puedes canjear" sería
+           peor que no mostrar nada. -->
+      <section id="chkCanjeBox" class="chk-canje-box" style="display:none" aria-live="polite">
+        <label class="chk-section-title" style="margin-bottom:10px;cursor:default">
+          <i class="fas fa-star" style="color:#c9a500"></i> Usar mis puntos
+        </label>
+
+        <div id="chkCanjeInfo" class="chk-canje-info"></div>
+
+        <div id="chkCanjeControl" class="chk-canje-control">
+          <input type="range" id="chkCanjeSlider" min="0" max="0" step="1" value="0"
+                 class="chk-canje-slider"
+                 aria-label="Cantidad de puntos a canjear"
+                 oninput="onCanjeSliderInput()" />
+          <div class="chk-canje-marcas">
+            <span>0</span>
+            <span id="chkCanjeMaxLbl">0</span>
+          </div>
+        </div>
+
+        <div id="chkCanjeResumen" class="chk-canje-resumen"></div>
+      </section>
+
       <!-- Cupón de descuento -->
-      <div style="margin-top:16px;background:#f7f9f4;border-radius:12px;padding:14px 16px;border:1.5px dashed #1a7c3e">
+      <div id="chkCuponBox" style="margin-top:16px;background:#f7f9f4;border-radius:12px;padding:14px 16px;border:1.5px dashed #1a7c3e">
         <label class="chk-section-title" style="margin-bottom:10px;cursor:default">
           <i class="fas fa-ticket" style="color:#1a7c3e"></i> Cupón de descuento
         </label>
+        <!-- BUILD 426c · Aviso de exclusión mutua (decisión 3 del dueño).
+             Solo se muestra cuando hay puntos en uso. -->
+        <div id="chkCuponBloqueado" class="chk-cupon-bloqueado" style="display:none">
+          <i class="fas fa-circle-info"></i>
+          Estás usando puntos en este pedido. Para aplicar un cupón, pon el
+          deslizador de puntos en 0.
+        </div>
         <div style="display:flex;gap:8px">
           <input type="text" id="chkCuponInput" placeholder="Ingresa tu código" maxlength="30"
             style="flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;font-family:inherit;outline:none;text-transform:uppercase"
@@ -1327,7 +1361,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=281"></script>
-  <script src="js/app.js?v=362"></script>
+  <script src="js/app.js?v=363"></script>
   <script src="js/location.js?v=121"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
   <!-- IA: qué modelo usa el escáner de códigos. DEBE ir antes del script
