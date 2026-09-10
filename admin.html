@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '428';
+      const VER = '429';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -2352,6 +2352,29 @@
           </div>
         </div>
 
+        <!-- BUILD 429 · Barra de selección múltiple.
+             Va FUERA de #notiList porque esa lista se reescribe entera en cada
+             render: si la casilla viviera dentro, se perdería al filtrar. -->
+        <div id="notiBarraSel" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;
+             padding:9px 12px;margin-bottom:10px;background:#f5f7fa;border:1px solid var(--border);
+             border-radius:9px">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.83rem;
+                 font-weight:600;color:var(--text-dark);user-select:none">
+            <input type="checkbox" id="notiSelTodas" onchange="toggleTodasNoti(this.checked)"
+                   style="width:17px;height:17px;cursor:pointer;accent-color:#1a7c3e">
+            Seleccionar todas
+          </label>
+
+          <span id="notiSelInfo" style="font-size:.8rem;color:var(--text-light)"></span>
+
+          <button id="notiBorrarSel" onclick="borrarNotiSeleccionadas()" disabled
+            style="margin-left:auto;background:#ffebee;color:#e53935;border:1px solid #ffcdd2;
+                   border-radius:8px;padding:7px 14px;font-weight:700;font-size:.82rem;
+                   cursor:pointer;opacity:.45">
+            <i class="fas fa-trash" style="margin-right:5px"></i>Borrar seleccionadas
+          </button>
+        </div>
+
         <div id="notiList" style="display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto">
           <div style="text-align:center;color:var(--text-light);padding:28px">
             <i class="fas fa-spinner fa-spin" style="margin-right:6px"></i>Cargando…
@@ -2953,7 +2976,7 @@
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=7"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
-  <script src="js/extras.v33.js?v=313"></script>
+  <script src="js/extras.v33.js?v=314"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=4"></script>
