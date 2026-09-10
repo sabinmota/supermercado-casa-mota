@@ -1656,6 +1656,40 @@ function _updateTorchBtn(on) {
 // ── Abrir escáner ─────────────────────────────────────────────────────────────
 
 function openBarcodeScanner() {
+  // ── BUILD 432 · ESCÁNER NATIVO ────────────────────────────────────────────
+  // Dentro de la app de iOS/Android se usa la cámara con el motor de
+  // reconocimiento del SISTEMA, no un decodificador en JavaScript.
+  //
+  // 🔴 POR QUÉ ESTE DESVÍO ESTÁ AQUÍ ARRIBA Y NO MÁS ABAJO: si se dejara
+  //    entrar en el camino web se abriría el overlay, se pediría la cámara
+  //    por getUserMedia y DESPUÉS habría que cerrarlo todo. Dos cámaras
+  //    peleando por el mismo dispositivo es exactamente cómo se consigue una
+  //    pantalla negra en iOS.
+  //
+  // 🔴 EN iOS EL CAMINO WEB NO ESCANEA DE VERDAD: cae en `_showPhotoMode()`
+  //    (más abajo en esta misma función) porque `BarcodeDetector` NO EXISTE
+  //    en Safari — lo dice el propio diagnóstico del proyecto en
+  //    test-scanner.html:174. O sea que el cliente de iPhone tiene que
+  //    ENCUADRAR Y TOMAR UNA FOTO, y luego se intenta decodificar. El
+  //    escáner nativo lee en vivo, como una pistola de supermercado.
+  //
+  // El resultado se entrega a `_onBarcodeDetected()`, la MISMA función que
+  // usa el camino web: beep, vibración, búsqueda en catálogo, recarga desde
+  // la API y apertura del modal son el código ya probado en producción.
+  // Aquí no se duplica ni una línea de eso.
+  if (window.CasaMotaNativo && window.CasaMotaNativo.escanerDisponible()) {
+    window.CasaMotaNativo.escanear().then(function (r) {
+      if (!r) return;                       // el usuario canceló: no es un fallo
+      if (r.error === 'SIN_PERMISO_CAMARA') {
+        alert('Casa Mota necesita permiso para usar la cámara.\n\n' +
+              'Vaya a Ajustes → Casa Mota → Cámara y actívela.');
+        return;
+      }
+      if (r.codigo) _onBarcodeDetected(r.codigo);
+    });
+    return;                                  // no se abre el overlay web
+  }
+
   const overlay = document.getElementById('barcodeOverlay');
   if (!overlay) return;
   _hideBarcodeResult();
@@ -2523,6 +2557,32 @@ async function _onBarcodeDetected(code) {
         product = findByBarcode(freshProds);
       }
     } catch(e) { /* ignorar error de red */ }
+  }
+
+  // ── BUILD 432 · CAMINO NATIVO ─────────────────────────────────────────────
+  // 🔴 DEFECTO ENCONTRADO AL INTEGRAR EL ESCÁNER NATIVO, Y HABRÍA SIDO UN
+  //    FALLO MUDO: las dos ramas de abajo escriben en elementos que viven
+  //    DENTRO del overlay del escáner web (`barcodeResult`, `barcodeError`,
+  //    `barcodeStatus`). En el camino nativo ese overlay NUNCA se abre, así
+  //    que un producto no encontrado no habría mostrado NADA: ni error, ni
+  //    aviso, ni pista. El cliente escanearía y creería que la app se colgó.
+  //    Y no habría dado ningún error en consola, porque `?.` se traga el
+  //    elemento ausente sin quejarse.
+  //    Se resuelve aquí, en el punto de entrega, y no duplicando la búsqueda:
+  //    localizar el producto es la parte valiosa y sigue siendo común.
+  const _viaNativa = !!(window.CasaMotaNativo &&
+                        window.CasaMotaNativo.escanerDisponible());
+  if (_viaNativa) {
+    _barcodeScanning = false;
+    if (product) {
+      if (navigator.vibrate) navigator.vibrate(300);
+      openModal(product.id);
+    } else {
+      if (navigator.vibrate) navigator.vibrate([100, 80, 100]);
+      alert('No se encontró ningún producto con el código ' + cleanCode +
+            '.\n\nPuede buscarlo por nombre.');
+    }
+    return;
   }
 
   if (product) {

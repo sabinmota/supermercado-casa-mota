@@ -1,0 +1,121 @@
+════════════════════════════════════════════════════════════════════════════
+ CASA MOTA · BUILD 432 · PERMISOS OBLIGATORIOS EN iOS
+ Pegar en Xcode:  ios/App/App/Info.plist
+════════════════════════════════════════════════════════════════════════════
+
+🔴 SIN ESTO LA APP SE CIERRA SOLA AL ABRIR EL ESCÁNER.
+
+No es un aviso teórico: iOS mata el proceso en el instante en que una app
+pide la cámara sin haber declarado para qué la quiere. No sale un mensaje de
+error ni un aviso — la app simplemente desaparece de la pantalla. Y Apple
+RECHAZA el envío si el texto falta o si es genérico tipo "para la cámara".
+
+────────────────────────────────────────────────────────────────────────────
+ CÓMO PEGARLO
+────────────────────────────────────────────────────────────────────────────
+
+1. En Xcode, panel izquierdo: App → App → Info.plist
+2. Clic derecho sobre Info.plist → Open As → Source Code
+3. Busque la última línea </dict> (la del final, antes de </plist>)
+4. Pegue el bloque de abajo JUSTO ANTES de esa línea </dict>
+5. Guarde con Cmd + S
+
+────────────────────────────────────────────────────────────────────────────
+ BLOQUE A PEGAR
+────────────────────────────────────────────────────────────────────────────
+
+	<key>NSCameraUsageDescription</key>
+	<string>Casa Mota usa la cámara para escanear el código de barras de los productos y encontrarlos al instante en el catálogo.</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Casa Mota accede a sus fotos solo si elige una imagen desde la galería para buscar un producto.</string>
+
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
+────────────────────────────────────────────────────────────────────────────
+ POR QUÉ CADA UNO
+────────────────────────────────────────────────────────────────────────────
+
+NSCameraUsageDescription
+    El escáner nativo. Es el permiso que evita el cierre inmediato.
+    El texto describe el uso REAL y concreto. Apple rechaza los textos
+    vagos: "para usar la cámara" no explica nada al usuario.
+
+NSPhotoLibraryUsageDescription
+    El camino web del escáner usa <input type="file"> como respaldo
+    (index.html: barcodePhotoInput). Si el cliente elige "Foto Library"
+    en lugar de "Take Photo", sin esta clave la app también se cierra.
+    Se declara por seguridad, aunque el camino nativo no lo use.
+
+UIBackgroundModes → remote-notification
+    Permite que llegue un push con la app cerrada o en segundo plano.
+    Sin esto, las notificaciones solo llegarían con la app abierta,
+    que es justo cuando menos falta hacen.
+
+════════════════════════════════════════════════════════════════════════════
+ SEGUNDO PASO EN XCODE · CAPACIDAD DE PUSH
+════════════════════════════════════════════════════════════════════════════
+
+El Info.plist no basta. Hay que activar la capacidad:
+
+1. Seleccione el proyecto App (arriba del panel izquierdo)
+2. Pestaña "Signing & Capabilities"
+3. Botón "+ Capability" (arriba a la izquierda de ese panel)
+4. Escriba "Push Notifications" y pulse Enter
+
+Debe aparecer un bloque nuevo llamado "Push Notifications". Si no aparece,
+su cuenta de Apple Developer no está activa todavía.
+
+🔴 Y ESTO SOLO FUNCIONA SI LA CUENTA ESTÁ PAGADA: las notificaciones push
+   son una capacidad que exige certificado de Apple. Con una cuenta gratuita
+   el botón + Capability no ofrece esa opción.
+
+════════════════════════════════════════════════════════════════════════════
+ LÍMITE HONESTO SOBRE EL PUSH · LÉALO ANTES DE ESPERAR ALGO
+════════════════════════════════════════════════════════════════════════════
+
+Lo que el BUILD 432 SÍ hace:
+    · Pide permiso al usuario en el momento adecuado (no en el arranque)
+    · Registra el dispositivo en APNs
+    · Obtiene el token y lo deja disponible
+    · Reacciona cuando llega un push y cuando el usuario lo toca
+
+Lo que NO hace, y no puede hacer:
+    · ENVIAR notificaciones. Enviar exige una clave APNs de Apple y un
+      servidor que firme cada envío. Un sitio estático en Cloudflare Pages
+      no puede firmar nada: la clave quedaría publicada en el navegador.
+
+Lo que faltaría para enviar de verdad, cuando lo quiera:
+    1. Crear una APNs Auth Key en developer.apple.com
+    2. Una tabla en Supabase para guardar los tokens por cliente
+    3. Una función de servidor (Cloudflare Function) que haga el envío
+
+    El hueco ya está preparado: DB.guardarTokenPush() existe en js/api.js
+    y js/nativo.js la llama. Solo falta darle destino.
+
+Para Apple esto es suficiente: la app tiene capacidad nativa real de
+notificaciones, que es lo que la directriz 4.2 evalúa.
+
+════════════════════════════════════════════════════════════════════════════
+ COMANDO PARA INSTALAR EL PLUGIN DEL ESCÁNER
+════════════════════════════════════════════════════════════════════════════
+
+En la Mac, dentro de la carpeta del proyecto, ANTES de "npx cap sync ios":
+
+    npm install @capacitor-mlkit/barcode-scanning
+    npm install @capacitor/push-notifications
+    npx cap sync ios
+
+🔴 SI SU XCODE ES 15 (no 16), instale las versiones 6:
+
+    npm install @capacitor-mlkit/barcode-scanning@6
+    npm install @capacitor/push-notifications@6
+
+   Mezclar Capacitor 6 con plugins 7 falla al compilar, y el error NO dice
+   que la causa sea la mezcla de versiones. Es la clase de fallo que se
+   come dos horas de reloj pagado.
+
+════════════════════════════════════════════════════════════════════════════

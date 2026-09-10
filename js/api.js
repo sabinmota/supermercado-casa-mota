@@ -1641,6 +1641,33 @@ const DB = {
   },
 
   /**
+   * BUILD 432 · Guarda el token de notificaciones push del dispositivo.
+   *
+   * 🔴 LÍMITE DECLARADO, y es la razón de que esto NO escriba en la base
+   *    todavía: guardar el token exige una columna o una tabla que HOY NO
+   *    EXISTE, y crearla es un cambio de esquema que el dueño debe aprobar
+   *    y ejecutar en Supabase. Escribir aquí un PATCH contra una columna
+   *    inexistente daría 400 en cada arranque de la app.
+   *
+   * 🔴 POR QUÉ EXISTE ESTE HUECO EN LUGAR DE NADA: `js/nativo.js` pregunta
+   *    por `DB.guardarTokenPush` y, si no está, deja el token solo en
+   *    memoria. Tener el método aquí documenta el contrato y deja el sitio
+   *    exacto donde enchufar la RPC cuando la tabla exista — en vez de que
+   *    el día que se cree haya que volver a buscar dónde iba.
+   *
+   * Lo que hace hoy: deja constancia en consola y responde sin error, para
+   * que un fallo de push nunca impida usar la tienda.
+   *
+   * @param {string} token  Token APNs (iOS) o FCM (Android)
+   */
+  async guardarTokenPush(token) {
+    if (!token) return null;
+    console.log('[api] token de push recibido, aún sin destino en la base:',
+                String(token).slice(0, 12) + '…');
+    return { guardado: false, motivo: 'FALTA_TABLA_DISPOSITIVOS' };
+  },
+
+  /**
    * Aplica el canje sobre un pedido YA CREADO.
    *
    * 🔴 EL ORDEN IMPORTA Y NO ES NEGOCIABLE: primero nace el pedido, después se

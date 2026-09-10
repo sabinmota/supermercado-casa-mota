@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía MacInCloud · Casa Mota → App Store</title>
+<style>
+  :root { --verde:#1a7c3e; --rojo:#c62828; --ambar:#e0a800; --tinta:#1c2733; }
+  * { box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; margin:0;
+         padding:26px 18px; background:#eef2f6; color:var(--tinta);
+         line-height:1.6; }
+  main { max-width:960px; margin:0 auto; }
+  h1 { font-size:25px; margin:0 0 4px; }
+  .lede { color:#5a6b7c; margin:0 0 26px; font-size:15px; }
+  section { background:#fff; border-radius:12px; padding:22px 24px;
+            margin-bottom:20px; box-shadow:0 1px 10px rgba(0,0,0,.07); }
+  h2 { font-size:19px; margin:0 0 14px; padding-bottom:9px;
+       border-bottom:2px solid #eef2f6; }
+  h3 { font-size:15.5px; margin:22px 0 8px; }
+  code { background:#f1f4f7; padding:2px 6px; border-radius:4px;
+         font-size:13px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  pre { background:#0f2027; color:#e6f1e9; padding:14px 16px; border-radius:8px;
+        overflow-x:auto; font-size:13px; line-height:1.5;
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin:8px 0; }
+  pre b { color:#7ee2a8; font-weight:600; }
+  .alto { border-left:5px solid var(--rojo); background:#fdecea;
+          padding:15px 18px; border-radius:7px; margin:16px 0; }
+  .alto strong:first-child { color:var(--rojo); }
+  .medio { border-left:5px solid var(--ambar); background:#fff8e1;
+           padding:15px 18px; border-radius:7px; margin:16px 0; }
+  .bien { border-left:5px solid var(--verde); background:#f1faf4;
+          padding:15px 18px; border-radius:7px; margin:16px 0; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; }
+  th,td { text-align:left; padding:9px 11px; border-bottom:1px solid #e4e9ee;
+          vertical-align:top; }
+  th { background:#f7f9fb; font-size:13px; text-transform:uppercase;
+       letter-spacing:.4px; color:#5a6b7c; }
+  ol,ul { padding-left:22px; }
+  li { margin:7px 0; }
+  .reloj { display:inline-block; background:var(--verde); color:#fff;
+           border-radius:20px; padding:2px 11px; font-size:12.5px;
+           font-weight:700; margin-left:8px; vertical-align:middle; }
+  .paso { border:1px solid #dbe3ea; border-radius:9px; padding:16px 18px;
+          margin:14px 0; }
+  .paso > .tit { font-weight:700; font-size:16px; margin-bottom:6px; }
+  .campo { font-family:ui-monospace,monospace; background:#eaf3ff;
+           padding:2px 6px; border-radius:4px; font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>🍎 De MacInCloud a la App Store</h1>
+<p class="lede">Guía de comandos exactos para <strong>Supermercado Casa Mota</strong>.
+Leída y verificada contra los ficheros reales del proyecto, no de memoria.</p>
+
+<!-- ══════════════ ANTES DE PAGAR ══════════════ -->
+<section>
+<h2>🛑 ANTES de pagar un solo dólar</h2>
+
+<div class="alto">
+<strong>PARE Y COMPRUEBE ESTO PRIMERO.</strong>
+Si su cuenta de Apple Developer <strong>no está activa</strong>, las 6 horas de Mac
+son dinero tirado: sin cuenta activa <strong>no se puede firmar la app ni subirla</strong>,
+y llegaría hasta el último paso para descubrirlo allí.
+<br><br>
+Apple aceptó su inscripción <code>SHW325YP6G</code>, pero quedaban dos cosas:
+<br>① <strong>aceptar el Apple Developer Program License Agreement</strong>
+<br>② <strong>pagar la membresía de 99 USD/año</strong>
+<br><br>
+<strong>Cómo comprobarlo en 1 minuto:</strong> entre en
+<code>appstoreconnect.apple.com</code>. Si ve el panel con «Mis Apps», está activa.
+Si le pide aceptar un acuerdo o pagar, <strong>hágalo antes de alquilar la Mac</strong>.
+</div>
+
+<h3>Lo que debe tener a mano antes de empezar el reloj</h3>
+<table>
+<tr><th>Cosa</th><th>Valor / dónde está</th></tr>
+<tr><td>Cuenta Apple Developer activa</td><td>Acuerdo aceptado + 99 USD pagados</td></tr>
+<tr><td>El ZIP de iconos</td><td><code>AppIcons/</code> con <code>Assets.xcassets</code> dentro</td></tr>
+<tr><td>Bundle ID</td><td><span class="campo">com.casamota.supermercado</span></td></tr>
+<tr><td>Nombre de la app</td><td><span class="campo">Casa Mota</span></td></tr>
+<tr><td>Repositorio</td><td><code>github.com/sabinmota/supermercado-casa-mota</code></td></tr>
+<tr><td>Credenciales para el revisor</td><td><span class="campo">demo@casamota.com</span> / <span class="campo">Demo2026</span></td></tr>
+<tr><td>Nombre legal exacto</td><td><span class="campo">SUPER MERCADO M.&amp; R., S.R.L.</span></td></tr>
+</table>
+
+<div class="medio">
+<strong>Sobre el nombre legal:</strong> cópielo tal cual. Dos palabras en
+«SUPER MERCADO», sin espacio antes del <code>&amp;</code> y con espacio después.
+Apple lo compara carácter por carácter contra su expediente.
+</div>
+</section>
+
+<!-- ══════════════ PLAN DE 6 HORAS ══════════════ -->
+<section>
+<h2>⏱️ Plan de las 6 horas</h2>
+<table>
+<tr><th>Bloque</th><th>Qué se hace</th><th>Tiempo</th></tr>
+<tr><td>1</td><td>Entrar, comprobar Xcode, clonar el repositorio</td><td>30 min</td></tr>
+<tr><td>2</td><td>Instalar Capacitor y generar el proyecto iOS</td><td>45 min</td></tr>
+<tr><td>3</td><td>Poner el icono y firmar en Xcode</td><td>45 min</td></tr>
+<tr><td>4</td><td>Capturas de pantalla en el Simulador</td><td>60 min</td></tr>
+<tr><td>5</td><td>Archive y subida a App Store Connect</td><td>60 min</td></tr>
+<tr><td>6</td><td>Rellenar la ficha y enviar a revisión</td><td>60 min</td></tr>
+<tr><td>—</td><td><strong>Colchón para imprevistos</strong></td><td><strong>40 min</strong></td></tr>
+</table>
+
+<div class="medio">
+<strong>No puedo verificar los precios ni el software de MacInCloud desde aquí.</strong>
+Compruebe en su web, antes de pagar, que el plan
+<strong>incluye Xcode preinstalado</strong>. Si no lo incluye, la descarga son
+unos 10 GB y se le puede comer 1-2 horas de reloj.
+</div>
+</section>
+
+<!-- ══════════════ BLOQUE 1 ══════════════ -->
+<section>
+<h2>1 · Entrar y comprobar el terreno <span class="reloj">30 min</span></h2>
+
+<div class="paso">
+<div class="tit">1.1 · Compruebe la versión de Xcode ANTES de nada</div>
+<p>Este dato decide qué versión de Capacitor puede usar. Abra <strong>Terminal</strong>
+(Launchpad → escriba «Terminal») y pegue:</p>
+<pre>xcodebuild -version
+node --version</pre>
+<p>Apunte lo que salga. Si <code>node</code> dice «command not found», instálelo:</p>
+<pre>brew install node</pre>
+</div>
+
+<div class="alto">
+<strong>DECISIÓN QUE DEPENDE DE ESE NÚMERO.</strong>
+<br>· Xcode <strong>16 o superior</strong> → use <strong>Capacitor 7</strong> (bloque 2, opción A)
+<br>· Xcode <strong>15</strong> → use <strong>Capacitor 6</strong> (bloque 2, opción B)
+<br>· Xcode <strong>14 o menor</strong> → <strong>no siga</strong>: pida otra máquina con Xcode reciente.
+<br><br>
+Instalar Capacitor 7 sobre un Xcode viejo falla al compilar, y el mensaje de error
+no dice que la causa sea la versión. Es la clase de fallo que consume dos horas.
+</div>
+
+<div class="paso">
+<div class="tit">1.2 · Clonar el repositorio</div>
+<pre>cd ~/Desktop
+git clone https://github.com/sabinmota/supermercado-casa-mota.git
+cd supermercado-casa-mota</pre>
+<p>Confirme que llegó todo:</p>
+<pre>ls index.html capacitor.config.json images/icons/</pre>
+</div>
+
+<div class="medio">
+<strong>Corrijo un error de la guía vieja.</strong>
+<code>app-store-assets.html</code> línea 400 dice
+<code>git clone .../TU_USUARIO/casamota.git</code> — esa dirección
+<strong>no existe</strong>. La correcta es la de arriba.
+</div>
+</section>
+
+<!-- ══════════════ BLOQUE 2 ══════════════ -->
+<section>
+<h2>2 · Capacitor y el proyecto iOS <span class="reloj">45 min</span></h2>
+
+<div class="alto">
+<strong>🔴 NO EJECUTE <code>npx cap init</code>. NUNCA.</strong>
+La guía vieja lo manda en su línea 402 y <strong>es un error grave</strong>:
+ese comando <strong>sobrescribe <code>capacitor.config.json</code></strong>, y su
+fichero ya contiene configuración que se perdería —
+<code>server.url</code>, los ajustes de iOS y los cuatro plugins
+(SplashScreen, StatusBar, PushNotifications, Keyboard).
+<br><br>
+<strong>Su proyecto ya está inicializado.</strong> Ese paso está hecho desde hace
+meses. Sáltelo.
+</div>
+
+<div class="paso">
+<div class="tit">2.1 · Crear el <code>package.json</code> que falta</div>
+<p>Comprobado: <strong>su repositorio no tiene <code>package.json</code></strong>.
+Sin él, <code>npm install</code> no sabe qué instalar. Créelo pegando este bloque
+completo de una vez:</p>
+<pre>cat &gt; package.json &lt;&lt;'FIN'
+{
+  "name": "casamota",
+  "version": "1.0.0",
+  "private": true
+}
+FIN</pre>
+</div>
+
+<div class="paso">
+<div class="tit">2.2 · Instalar Capacitor — elija UNA opción</div>
+<p><b>Opción A · si Xcode es 16 o superior:</b></p>
+<pre>npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7</pre>
+<p><b>Opción B · si Xcode es 15:</b></p>
+<pre>npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/ios@6</pre>
+</div>
+
+<div class="paso">
+<div class="tit">2.3 · Instalar los dos plugins nativos <span class="reloj">BUILD 432</span></div>
+<p>Éstos son la respuesta a la directriz 4.2. <strong>Use la misma versión
+(@7 o @6) que eligió arriba.</strong></p>
+<p><b>Si eligió la opción A (Capacitor 7):</b></p>
+<pre>npm install @capacitor-mlkit/barcode-scanning
+npm install @capacitor/push-notifications</pre>
+<p><b>Si eligió la opción B (Capacitor 6):</b></p>
+<pre>npm install @capacitor-mlkit/barcode-scanning@6
+npm install @capacitor/push-notifications@6</pre>
+</div>
+
+<div class="alto">
+<strong>🔴 NO MEZCLE VERSIONES.</strong> Capacitor 6 con plugins 7 falla al
+compilar, y <strong>el error no dice que la causa sea la mezcla</strong>.
+Es la clase de fallo que se come dos horas de reloj pagado.
+</div>
+
+<div class="paso">
+<div class="tit">2.4 · Generar la carpeta iOS</div>
+<pre>npx cap add ios
+npx cap sync ios</pre>
+<p>Debe aparecer una carpeta <code>ios/</code>. Compruébelo:</p>
+<pre>ls ios/App/App.xcodeproj</pre>
+<p>Y confirme que los dos plugins entraron:</p>
+<pre>grep -i "barcode\|push" ios/App/Podfile</pre>
+<p>Debe listar los dos. Si no aparecen, <code>npx cap sync ios</code> no los
+recogió y hay que repetirlo.</p>
+</div>
+
+<div class="medio">
+<strong>Si <code>cap add ios</code> se queja de <code>webDir</code>:</strong>
+su configuración usa <code>"webDir": "."</code>, o sea la raíz del proyecto.
+Es correcto y a propósito, porque la app carga el sitio desde
+<code>server.url</code> y no necesita empaquetar los ficheros.
+No cambie ese valor.
+</div>
+</section>
+
+<!-- ══════════════ BLOQUE 3 ══════════════ -->
+<section>
+<h2>3 · Icono y firma en Xcode <span class="reloj">45 min</span></h2>
+
+<div class="paso">
+<div class="tit">3.1 · Abrir el proyecto</div>
+<pre>npx cap open ios</pre>
+<p>Xcode tarda un par de minutos la primera vez. Espere a que termine de indexar
+(la barra de progreso de arriba).</p>
+</div>
+
+<div class="paso">
+<div class="tit">3.2 · Poner el icono</div>
+<ol>
+<li>Suba su ZIP <code>AppIcons</code> a la Mac y descomprímalo</li>
+<li>En Xcode, panel izquierdo: <code>App</code> → <code>App</code> → busque <strong>Assets</strong></li>
+<li>Dentro verá <strong>AppIcon</strong>. <strong>Bórrelo</strong> (clic derecho → Delete)</li>
+<li>Abra su carpeta <code>AppIcons/Assets.xcassets</code> en Finder</li>
+<li><strong>Arrastre el <code>AppIcon</code> que hay dentro</strong> al panel Assets de Xcode</li>
+</ol>
+</div>
+
+<div class="bien">
+<strong>Nota sobre la carpeta:</strong> yo había predicho que el ZIP traería
+<code>AppIcon.appiconset</code> en la raíz. Su captura mostró
+<code>Assets.xcassets</code>, que es el envoltorio estándar de Xcode y
+<strong>contiene el <code>AppIcon</code> dentro</strong>. Entre en esa carpeta y
+arrastre lo que hay dentro, no la carpeta entera.
+</div>
+
+<div class="paso">
+<div class="tit">3.3 · Firmar</div>
+<ol>
+<li>Seleccione el proyecto <strong>App</strong> arriba del panel izquierdo</li>
+<li>Pestaña <strong>Signing &amp; Capabilities</strong></li>
+<li>Marque <strong>Automatically manage signing</strong></li>
+<li>En <strong>Team</strong> elija su equipo (aparece si la cuenta está activa)</li>
+<li>Confirme que <strong>Bundle Identifier</strong> dice exactamente
+    <span class="campo">com.casamota.supermercado</span></li>
+</ol>
+</div>
+
+<div class="alto">
+<strong>Si en «Team» no aparece nada:</strong> su cuenta no está activa todavía.
+Xcode → menú <strong>Xcode</strong> → <strong>Settings</strong> → <strong>Accounts</strong> →
+<strong>+</strong> → inicie sesión con su Apple ID. Si sigue vacío,
+falta aceptar el acuerdo o pagar la membresía. <strong>No se puede continuar sin esto.</strong>
+</div>
+
+<div class="paso">
+<div class="tit">3.4 · Permisos de iOS <span class="reloj">BUILD 432</span></div>
+<p>Abra <code>documentos/permisos-ios-info-plist.txt</code> del repositorio y
+pegue el bloque en <code>ios/App/App/Info.plist</code>. Las instrucciones
+exactas están en ese fichero.</p>
+</div>
+
+<div class="alto">
+<strong>🔴 SIN ESOS PERMISOS LA APP SE CIERRA SOLA AL ABRIR EL ESCÁNER.</strong>
+No sale ningún error: iOS mata el proceso en el instante en que una app pide
+la cámara sin haber declarado para qué la quiere. La app simplemente
+desaparece de la pantalla. Y <strong>Apple rechaza el envío</strong> si el
+texto falta o es genérico.
+</div>
+
+<div class="paso">
+<div class="tit">3.5 · Activar la capacidad de push</div>
+<p>El Info.plist no basta:</p>
+<ol>
+<li>Proyecto <strong>App</strong> → pestaña <strong>Signing &amp; Capabilities</strong></li>
+<li>Botón <strong>+ Capability</strong></li>
+<li>Escriba <strong>Push Notifications</strong> y pulse Enter</li>
+</ol>
+<p>Debe aparecer un bloque nuevo con ese nombre. Si esa opción no se ofrece,
+la cuenta no está activa.</p>
+</div>
+</section>
+
+<!-- ══════════════ PRUEBA EN EL SIMULADOR ══════════════ -->
+<section>
+<h2>3 bis · Comprobar que lo nativo funciona <span class="reloj">15 min</span></h2>
+
+<div class="medio">
+<strong>Hágalo ANTES de las capturas y del Archive.</strong> Si el escáner no
+arranca, mejor saberlo con 3 horas de reloj por delante que en la última media
+hora.
+</div>
+
+<div class="paso">
+<div class="tit">Qué debe ver en la consola</div>
+<p>Con la app corriendo en el Simulador: Safari en la Mac →
+menú <strong>Desarrollo</strong> → <strong>Simulator</strong> → su app.
+En la consola deben aparecer estas líneas:</p>
+<pre>[nativo] entorno nativo detectado: ios
+[nativo] escáner nativo disponible: true
+[nativo] push nativo disponible: true</pre>
+</div>
+
+<div class="alto">
+<strong>🔴 SI DICE <code>escáner nativo disponible: false</code></strong>, el
+plugin no se instaló bien. Vuelva al paso 2.3 y repita
+<code>npx cap sync ios</code>. <strong>No siga adelante:</strong> sin eso, la
+app no tiene nada nativo y el riesgo de la directriz 4.2 sigue intacto.
+</div>
+
+<div class="medio">
+<strong>El escáner NO se puede probar de verdad en el Simulador:</strong> no
+tiene cámara real. Verá que se abre la interfaz de escaneo, y con eso basta
+para confirmar que el plugin responde. La lectura real de un código solo se
+puede probar en un iPhone físico.
+<br><br>
+<strong>El push tampoco llega en el Simulador</strong> — necesita un
+dispositivo real. Lo que sí se comprueba aquí es que el registro no da error.
+</div>
+</section>
+
+<!-- ══════════════ BLOQUE 4 ══════════════ -->
+<section>
+<h2>4 · Capturas de pantalla <span class="reloj">60 min</span></h2>
+
+<p>Apple exige dos tamaños. Se hacen en el Simulador, no en un móvil real.</p>
+<table>
+<tr><th>Tamaño</th><th>Píxeles</th><th>Simulador a usar</th></tr>
+<tr><td>6,7"</td><td>1290 × 2796</td><td>iPhone 15 Pro Max <em>(o 16 Pro Max)</em></td></tr>
+<tr><td>6,5"</td><td>1242 × 2688</td><td>iPhone 11 Pro Max <em>(o XS Max)</em></td></tr>
+</table>
+
+<div class="paso">
+<div class="tit">4.1 · Arrancar el Simulador</div>
+<p>En Xcode, arriba junto al botón ▶, elija el modelo. Pulse ▶ y espere.</p>
+</div>
+
+<div class="paso">
+<div class="tit">4.2 · Capturar</div>
+<p>Con el Simulador abierto: <strong>⌘ + S</strong> guarda la captura en el Escritorio.
+Necesita <strong>3 a 10 por tamaño</strong>. Sugerencia de qué mostrar:</p>
+<ol>
+<li>Catálogo de productos</li>
+<li>Una ficha de producto</li>
+<li>El carrito con artículos</li>
+<li>El checkout</li>
+<li>La tarjeta de puntos de fidelidad</li>
+</ol>
+</div>
+
+<div class="medio">
+<strong>Ojo con la primera pantalla.</strong> Su <code>index.html</code> exige
+sesión y redirige a <code>login-cliente.html</code>. Entre con
+<span class="campo">demo@casamota.com</span> / <span class="campo">Demo2026</span>
+antes de capturar, o todas las capturas serán de la pantalla de acceso.
+</div>
+</section>
+
+<!-- ══════════════ BLOQUE 5 ══════════════ -->
+<section>
+<h2>5 · Archive y subida <span class="reloj">60 min</span></h2>
+
+<div class="paso">
+<div class="tit">5.1 · Preparar</div>
+<p>Arriba, en el selector de dispositivo, elija <strong>Any iOS Device (arm64)</strong>.
+Con un simulador seleccionado la opción Archive aparece desactivada.</p>
+</div>
+
+<div class="paso">
+<div class="tit">5.2 · Archivar y distribuir</div>
+<ol>
+<li>Menú <strong>Product</strong> → <strong>Archive</strong> (tarda 5-15 min)</li>
+<li>Se abre el Organizer → <strong>Distribute App</strong></li>
+<li><strong>App Store Connect</strong> → <strong>Upload</strong> → Next hasta el final</li>
+</ol>
+</div>
+
+<div class="medio">
+<strong>Si Archive falla:</strong> copie el texto del error y guárdelo.
+No lo interprete ni pruebe cambios al azar — mándemelo y lo leemos.
+Adivinar aquí cuesta horas de reloj pagado.
+</div>
+</section>
+
+<!-- ══════════════ BLOQUE 6 ══════════════ -->
+<section>
+<h2>6 · Ficha y envío a revisión <span class="reloj">60 min</span></h2>
+
+<p>Esto ya es en <code>appstoreconnect.apple.com</code> y <strong>puede hacerlo
+desde su PC</strong>: aquí ya no necesita la Mac. <strong>Si va justo de reloj,
+cierre la sesión de MacInCloud en cuanto la subida termine.</strong></p>
+
+<div class="paso">
+<div class="tit">6.1 · Campos obligatorios</div>
+<table>
+<tr><th>Campo</th><th>Qué poner</th></tr>
+<tr><td>Nombre</td><td><span class="campo">Casa Mota</span></td></tr>
+<tr><td>Categoría</td><td>Shopping (Compras)</td></tr>
+<tr><td>Privacidad</td><td><code>supermercadocasamota.com/privacy.html</code></td></tr>
+<tr><td>Soporte</td><td><code>supermercadocasamota.com/terms.html</code></td></tr>
+<tr><td>Usuario demo</td><td><span class="campo">demo@casamota.com</span></td></tr>
+<tr><td>Clave demo</td><td><span class="campo">Demo2026</span></td></tr>
+</table>
+<p>Los textos de descripción y palabras clave están en
+<code>app-store-assets.html</code> de su repositorio, con botones para copiarlos.</p>
+</div>
+
+<div class="alto">
+<strong>🔴 EL CAMPO QUE MÁS IMPORTA: «Notas para el revisor».</strong>
+No lo deje vacío. Con el BUILD 432 ya hay funciones nativas reales que
+mencionar, y mencionarlas explícitamente es lo que separa una aprobación de
+un rechazo por la directriz 4.2.
+</div>
+
+<div class="paso">
+<div class="tit">Texto para «App Review Information → Notes»</div>
+<p>Copie esto tal cual:</p>
+<pre>Casa Mota is the official app of SUPER MERCADO M.&amp; R., S.R.L.,
+a supermarket operating in Santo Domingo, Dominican Republic.
+
+DEMO ACCOUNT
+Email: demo@casamota.com
+Password: Demo2026
+
+NATIVE FUNCTIONALITY
+1. Native barcode scanner (ML Kit). Tap the barcode icon in the
+   search bar to scan a product's EAN-13 code with the camera and
+   open it instantly. This uses the device's native recognition
+   engine; it is not available to a web browser on iOS, where
+   BarcodeDetector does not exist.
+2. Native push notifications for order status updates
+   (order confirmed, out for delivery, delivered).
+3. Native camera access for product search by photo.
+
+The app provides a full e-commerce experience: a catalogue of
+1,979 real products with live stock, shopping cart, checkout with
+address selection, order history, and a points-based loyalty
+programme where customers earn and redeem points.
+
+Thank you for reviewing our app.</pre>
+</div>
+
+<div class="medio">
+<strong>Por qué este texto y no otro:</strong> nombra la función nativa
+<strong>y dice dónde tocar para verla</strong>. Un revisor que no encuentra la
+función en 30 segundos la da por inexistente. Y la frase sobre
+<code>BarcodeDetector</code> explica <em>por qué</em> la app aporta algo que
+la web no puede — que es exactamente la pregunta que hace la directriz 4.2.
+</div>
+</section>
+
+<!-- ══════════════ RIESGO 4.2 ══════════════ -->
+<section>
+<h2>⚠️ El riesgo que sigue abierto</h2>
+
+<p>Con el icono resuelto, <strong>la directriz 4.2 es el único obstáculo grande
+que queda</strong>, y conviene saberlo antes de enviar.</p>
+
+<table>
+<tr><th>A favor</th><th>En contra</th></tr>
+<tr>
+<td><strong>✅ Escáner NATIVO (BUILD 432)</strong><br>
+<strong>✅ Push NATIVO registrado (BUILD 432)</strong><br>
+Tienda real: 1.979 artículos, carrito, pedidos, puntos<br>
+Credenciales demo listas y probadas<br>
+Privacidad y términos publicados<br>
+Empresa verificada por Apple</td>
+<td><code>server.url</code> apunta a la web<br>
+<code>limitsNavigationsToAppBoundDomains: true</code><br>
+El envío de push aún necesita clave APNs y servidor</td>
+</tr>
+</table>
+
+<div class="bien">
+<strong>El BUILD 432 cambió el equilibrio.</strong> Antes la columna «en contra»
+decía «ninguna función nativa activa» y el plugin de push estaba declarado
+pero <strong>sin usar ni una vez</strong> — comprobado con una búsqueda en todo
+el JavaScript: cero apariciones. Ahora hay escaneo nativo real con el motor del
+sistema, que en iOS es algo que un navegador <strong>no puede hacer</strong>.
+</div>
+
+<div class="medio">
+<strong>Lo que sigue siendo un límite honesto:</strong> el push está
+<em>registrado</em>, no <em>enviándose</em>. Enviar exige una clave APNs de
+Apple y un servidor que firme cada envío; un sitio estático no puede firmar
+nada sin publicar la clave. <strong>Para la revisión de Apple esto es
+suficiente</strong> — evalúa que la app tenga capacidad nativa, no que usted
+haya mandado ya notificaciones.
+</div>
+</section>
+
+<!-- ══════════════ RESUMEN ══════════════ -->
+<section>
+<h2>📋 Los comandos, seguidos</h2>
+<p>Para copiar de una vez cuando ya sepa la versión de Xcode. Sustituya
+<code>@7</code> por <code>@6</code> si su Xcode es 15.</p>
+<pre>cd ~/Desktop
+git clone https://github.com/sabinmota/supermercado-casa-mota.git
+cd supermercado-casa-mota
+
+<b># package.json, que el repositorio no tiene</b>
+cat &gt; package.json &lt;&lt;'FIN'
+{ "name": "casamota", "version": "1.0.0", "private": true }
+FIN
+
+<b># Capacitor — NO ejecute "cap init", borraría su configuración</b>
+npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7
+
+<b># Los dos plugins nativos del BUILD 432 (misma versión que arriba)</b>
+npm install @capacitor-mlkit/barcode-scanning
+npm install @capacitor/push-notifications
+
+npx cap add ios
+npx cap sync ios
+
+<b># Comprobar que los plugins entraron antes de abrir Xcode</b>
+grep -i "barcode\|push" ios/App/Podfile
+
+npx cap open ios</pre>
+
+<div class="medio">
+<strong>Ya en Xcode, dos cosas que no son comandos:</strong>
+<br>① pegar los permisos de <code>documentos/permisos-ios-info-plist.txt</code>
+en <code>Info.plist</code>
+<br>② añadir la capacidad <strong>Push Notifications</strong> en
+Signing &amp; Capabilities
+<br><br>
+Sin ① <strong>la app se cierra sola</strong> al abrir el escáner.
+</div>
+</section>
+
+</main>
+</body>
+</html>

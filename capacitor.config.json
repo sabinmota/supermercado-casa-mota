@@ -1,0 +1,48 @@
+{
+  "appId": "com.casamota.supermercado",
+  "appName": "Casa Mota",
+  "webDir": ".",
+  "server": {
+    "url": "https://supermercadocasamota.com",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "scrollEnabled": true,
+    "limitsNavigationsToAppBoundDomains": true,
+    "allowsLinkPreview": false,
+    "backgroundColor": "#0d1b12"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0d1b12",
+    "captureInput": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#1a7c3e",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#1a7c3e"
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "BarcodeScanner": {
+      "_nota": "BUILD 432 · @capacitor-mlkit/barcode-scanning. Escaneo nativo con el motor del sistema. Es la respuesta concreta a la directriz 4.2 de Apple: en iOS Safari BarcodeDetector NO EXISTE, asi que el camino web obliga al cliente a tomar una foto; el plugin nativo lee en vivo, como una pistola de supermercado. Se invoca desde js/nativo.js via window.Capacitor.Plugins, NO con import de npm, porque este proyecto no tiene empaquetador."
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true
+    }
+  }
+}
