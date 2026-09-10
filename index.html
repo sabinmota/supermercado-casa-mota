@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '429', KEY = 'cm_app_ver';
+        var VER = '431', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -40,7 +40,7 @@
 
   <!-- ═══ PWA META TAGS ═══════════════════════════════════════════════════ -->
   <!-- Manifest -->
-  <link rel="manifest" href="/manifest.json" />
+  <link rel="manifest" href="/manifest.json?v=431" />
 
   <!-- Theme color (barra del navegador y status bar del móvil) -->
   <meta name="theme-color" content="#1a7c3e" />
@@ -51,10 +51,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Casa Mota" />
-  <!-- iOS: apple-touch-icon generado dinámicamente desde Canvas para evitar caché -->
-  <link rel="apple-touch-icon" id="ati-default" href="images/logo-casamota.png" />
-  <link rel="apple-touch-icon" sizes="180x180" id="ati-180" href="images/logo-casamota.png" />
-  <link rel="apple-touch-icon" sizes="152x152" id="ati-152" href="images/logo-casamota.png" />
+  <!-- iOS: apple-touch-icon generado dinámicamente desde Canvas para evitar caché.
+       BUILD 431 · Apuntan a icon-192.png (32 KB) y NO al de 1024 (535 KB): estas
+       etiquetas se pintan a 180 px como máximo, así que descargar un fichero de
+       1024 para eso obligaba a cada visitante a bajar 16 veces más bytes de los
+       que su pantalla puede usar. El de 1024 existe solo para enviarlo a Apple. -->
+  <link rel="apple-touch-icon" id="ati-default" href="images/icons/icon-192.png?v=431" />
+  <link rel="apple-touch-icon" sizes="180x180" id="ati-180" href="images/icons/icon-192.png?v=431" />
+  <link rel="apple-touch-icon" sizes="152x152" id="ati-152" href="images/icons/icon-192.png?v=431" />
   <script>
     // Genera el apple-touch-icon en canvas para que iOS no use versión cacheada
     (function() {
@@ -75,7 +79,13 @@
             if (el) el.href = dataUrl;
           });
         };
-        img.src = 'images/logo-casamota.png?v=178';
+        // BUILD 431 · Antes apuntaba a logo-casamota.png, el logo CON TEXTO.
+        // Este canvas sobreescribe los tres <link rel="apple-touch-icon">, así
+        // que iOS acababa usando el logo con las letras ilegibles a 180px en
+        // lugar del icono, por muy correctas que fueran las etiquetas de arriba.
+        // Usa icon-192.png porque el lienzo mide 180 px: leer el de 1024 aquí
+        // sería descargar 535 KB para pintar 180 píxeles.
+        img.src = 'images/icons/icon-192.png?v=431';
       } catch(e) {}
     })();
   </script>
@@ -2096,7 +2106,7 @@ If you cannot clearly see a stripe barcode, return: NULL`
       window.addEventListener('load', () => {
         // Registrar SW sin forzar recargas automáticas
         // (los reloads causaban redirección al login cuando no había sesión)
-        navigator.serviceWorker.register('/sw.js?v=290')
+        navigator.serviceWorker.register('/sw.js?v=292')
           .then(reg => {
             reg.update();
           })

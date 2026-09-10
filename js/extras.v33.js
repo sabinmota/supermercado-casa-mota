@@ -1001,6 +1001,9 @@ function renderNotificaciones() {
       <i class="fas fa-bell-slash" style="font-size:1.6rem;opacity:.3;display:block;margin-bottom:8px"></i>
       No hay notificaciones
     </div>`;
+    /* Sin resultados no hay nada que seleccionar: la barra se oculta también
+     * por esta rama, que devuelve antes de llegar al final. */
+    _actualizarBarraNoti();
     return;
   }
 
@@ -1018,7 +1021,15 @@ function renderNotificaciones() {
     // Mismo fallo que en el desplegable: Number() de un texto ISO da NaN.
     const fecha  = _fechaNoti(n.created_at) || '-';
 
+    /* BUILD 429 · La casilla se pinta marcada si ese id sigue en la selección.
+     * Así sobrevive a un filtrado o a una recarga de la lista. */
+    const marcada = _notiSel.has(n.id) ? 'checked' : '';
+
     return `<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:${leido ? '#fafafa' : '#f0f7ff'};border:1px solid ${leido ? 'var(--border)' : '#bdd7f5'};cursor:pointer" onclick="markNotiRead('${n.id}')">
+      <input type="checkbox" class="noti-check" data-id="${n.id}" ${marcada}
+        onclick="event.stopPropagation();toggleNotiSel('${n.id}', this.checked)"
+        title="Seleccionar"
+        style="width:17px;height:17px;margin-top:10px;cursor:pointer;flex-shrink:0;accent-color:#1a7c3e">
       <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">
         <i class="fas ${icon}"></i>
       </div>
@@ -1040,6 +1051,11 @@ function renderNotificaciones() {
       </button>
     </div>`;
   }).join('');
+
+  /* BUILD 429 · La barra se recalcula DESPUÉS de pintar la lista, para que el
+   * contador y la casilla de cabecera reflejen lo que hay en pantalla tras
+   * filtrar, buscar o borrar. */
+  _actualizarBarraNoti();
 }
 
 /* ── Panel lateral: KPIs, distribución, recientes ─────────────── */
@@ -1155,11 +1171,152 @@ async function deleteNoti(id) {
   try {
     await _supaFetch(`notificaciones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ deleted: true }) });
     notificaciones = notificaciones.filter(n => n.id !== id);
+    _notiSel.delete(id);
     renderNotificaciones();
     _renderNotificacionesLaterales();
     updateNavBadge();
     _showAdminToast('Notificacion eliminada', 'success');
   } catch(e) {}
+}
+
+/* ═══ BUILD 429 · BORRADO MÚLTIPLE DE NOTIFICACIONES ═══════════════════════
+ *
+ * Pedido del dueño: poder seleccionar varias y borrarlas de una vez, en vez de
+ * ir una por una confirmando cada diálogo.
+ *
+ * 🔴 «SELECCIONAR TODAS» SIGNIFICA «TODAS LAS QUE SE VEN», NO TODAS LAS QUE
+ * EXISTEN. Si hay un filtro activo (búsqueda o tipo), la casilla marca solo lo
+ * filtrado. Lo contrario sería una trampa: el empleado busca «pedido #35», pulsa
+ * seleccionar todas creyendo que marca ese grupo, y borra las 300 del historial.
+ * Un borrado masivo tiene que operar sobre lo que la persona está viendo.
+ *
+ * 🔴 EL BORRADO ES LÓGICO (`deleted: true`), igual que `deleteNoti`. No se usa
+ * DELETE: las notificaciones son el rastro de lo que se comunicó a cada cliente
+ * y conviene poder recuperarlo. Y si `anon` pudiera hacer DELETE real, un fallo
+ * o un abuso vaciaría la tabla sin retorno.
+ */
+
+/* Ids marcados. Es un Set y vive fuera del render porque `renderNotificaciones`
+ * reescribe la lista entera: guardar el estado en el DOM lo perdería al filtrar. */
+let _notiSel = new Set();
+
+/* Las que el empleado está viendo ahora mismo, con los filtros aplicados.
+ * Se calcula con el MISMO criterio que `renderNotificaciones` para que no puedan
+ * discrepar: si un día cambia el filtrado, cambia en los dos sitios a la vez. */
+function _notiVisibles() {
+  const q    = document.getElementById('notiSearch')?.value || '';
+  const tipo = document.getElementById('notiFilterTipo')?.value || '';
+  return notificaciones.filter(n =>
+    _admBuscar(q, n.titulo, n.mensaje, n.destinatario_nombre) &&
+    (!tipo || n.tipo === tipo)
+  );
+}
+
+function toggleNotiSel(id, marcada) {
+  if (marcada) _notiSel.add(id); else _notiSel.delete(id);
+  _actualizarBarraNoti();
+}
+
+function toggleTodasNoti(marcar) {
+  const visibles = _notiVisibles();
+  if (marcar) visibles.forEach(n => _notiSel.add(n.id));
+  else        visibles.forEach(n => _notiSel.delete(n.id));
+
+  document.querySelectorAll('.noti-check').forEach(c => { c.checked = marcar; });
+  _actualizarBarraNoti();
+}
+
+/* Mantiene la barra coherente con la selección real. */
+function _actualizarBarraNoti() {
+  const barra = document.getElementById('notiBarraSel');
+  const info  = document.getElementById('notiSelInfo');
+  const btn   = document.getElementById('notiBorrarSel');
+  const todas = document.getElementById('notiSelTodas');
+  if (!barra) return;
+
+  const visibles = _notiVisibles();
+
+  /* Sin notificaciones no hay nada que seleccionar: la barra estorba. */
+  barra.style.display = visibles.length ? 'flex' : 'none';
+
+  /* 🔴 SOLO CUENTAN LAS SELECCIONADAS QUE SIGUEN VISIBLES. Si el empleado marca
+   * tres, luego filtra por otro tipo y pulsa borrar, se borrarían tres que ya no
+   * ve — un borrado a ciegas. */
+  const marcadasVisibles = visibles.filter(n => _notiSel.has(n.id));
+  const n = marcadasVisibles.length;
+
+  if (info) {
+    info.textContent = n === 0 ? '' :
+      (n === 1 ? '1 seleccionada' : n + ' seleccionadas');
+  }
+
+  if (btn) {
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '.45' : '1';
+    btn.style.cursor  = n === 0 ? 'not-allowed' : 'pointer';
+  }
+
+  /* La casilla de cabecera refleja el estado real, incluido el intermedio. */
+  if (todas) {
+    todas.checked       = n > 0 && n === visibles.length;
+    todas.indeterminate = n > 0 && n < visibles.length;
+  }
+}
+
+async function borrarNotiSeleccionadas() {
+  const visibles = _notiVisibles().filter(n => _notiSel.has(n.id));
+  if (!visibles.length) return;
+
+  const cuantas = visibles.length;
+  const aviso = cuantas === 1
+    ? 'Eliminar 1 notificacion?'
+    : 'Eliminar ' + cuantas + ' notificaciones? Esta accion no se puede deshacer desde el panel.';
+  if (!confirm(aviso)) return;
+
+  const btn = document.getElementById('notiBorrarSel');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:5px"></i>Borrando…';
+  }
+
+  /* 🔴 `allSettled`, NO `all`: con `Promise.all` una sola notificación que
+   * falle aborta el resto y deja el trabajo a medias sin decir cuánto se hizo.
+   * Es la misma lección del build 427 en la carga del panel. Aquí se borra todo
+   * lo que se pueda y se informa exactamente de cuántas quedaron. */
+  const res = await Promise.allSettled(
+    visibles.map(n => _supaFetch('notificaciones?id=eq.' + n.id, {
+      method: 'PATCH',
+      body: JSON.stringify({ deleted: true })
+    }))
+  );
+
+  const okIds = [];
+  res.forEach((r, i) => { if (r.status === 'fulfilled') okIds.push(visibles[i].id); });
+  const fallidas = cuantas - okIds.length;
+
+  /* Solo se quitan de la lista las que SÍ se borraron en la base. Quitarlas
+   * todas dejaría la pantalla mintiendo hasta la próxima recarga. */
+  notificaciones = notificaciones.filter(n => !okIds.includes(n.id));
+  okIds.forEach(id => _notiSel.delete(id));
+
+  if (btn) btn.innerHTML = '<i class="fas fa-trash" style="margin-right:5px"></i>Borrar seleccionadas';
+  const todas = document.getElementById('notiSelTodas');
+  if (todas) { todas.checked = false; todas.indeterminate = false; }
+
+  renderNotificaciones();
+  _renderNotificacionesLaterales();
+  updateNavBadge();
+
+  if (fallidas === 0) {
+    _showAdminToast(okIds.length === 1
+      ? 'Notificacion eliminada'
+      : okIds.length + ' notificaciones eliminadas', 'success');
+  } else if (okIds.length === 0) {
+    _showAdminToast('No se pudo eliminar ninguna. Revisa tu conexion.', 'error');
+  } else {
+    _showAdminToast('Se eliminaron ' + okIds.length + ', pero ' + fallidas +
+      ' fallaron. Intentalo de nuevo con las que quedan.', 'error');
+  }
 }
 
 /* ── Modal abrir / cerrar ──────────────────────────────────────── */

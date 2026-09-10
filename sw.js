@@ -1,11 +1,11 @@
 /**
- * SUPERMERCADO CASA MOTA — SERVICE WORKER v170
+ * SUPERMERCADO CASA MOTA — SERVICE WORKER v292
  * Estrategia: NETWORK ONLY para HTML/JS/CSS (nunca cachear código)
  * Cache SOLO para imágenes como fallback offline
  * IMPORTANTE: Supabase y APIs externas → NUNCA interceptar (causa CORS)
  */
 
-const CACHE_NAME = 'casamota-v290';
+const CACHE_NAME = 'casamota-v292';
 
 // ─── INSTALL: activar inmediatamente sin cachear nada ────────────────────────
 self.addEventListener('install', event => {
@@ -92,8 +92,15 @@ self.addEventListener('push', event => {
   const data = event.data.json();
   self.registration.showNotification(data.title || 'Casa Mota', {
     body:  data.body  || 'Tienes una notificación nueva',
+    // BUILD 430 · Antes apuntaban a icon-192.png e icon-72.png, dos ficheros
+    // que existían con 0 BYTES: las notificaciones push salían sin icono y
+    // nadie lo había notado porque un icono ausente no genera error.
+    // BUILD 431 · icon-192.png vuelve a existir, ahora CON contenido real
+    // (32 KB). Una notificación se dibuja a ~64 px, así que el de 1024 era
+    // descargar 535 KB por un icono diminuto, en el peor momento posible:
+    // el móvil acaba de despertarse y puede estar en datos móviles.
     icon:  '/images/icons/icon-192.png',
-    badge: '/images/icons/icon-72.png',
+    badge: '/images/icons/icon-192.png',
     data:  { url: data.url || '/index.html' },
   });
 });
