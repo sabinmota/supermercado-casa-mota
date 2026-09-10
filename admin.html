@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '432';
+      const VER = '433';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -34,7 +34,7 @@
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
-  <link rel="icon" type="image/png" href="images/logo-casamota.png" />
+  <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
   <link rel="stylesheet" href="css/admin.v33.css?v=259" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -105,7 +105,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo-wrap">
-        <img src="images/logo-casamota.png" alt="Casa Mota" class="sidebar-logo" />
+        <img src="images/logo-casamota.png?v=433" alt="Casa Mota" class="sidebar-logo" />
       </div>
       <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
