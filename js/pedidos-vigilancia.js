@@ -57,6 +57,9 @@
 
   const PV_INTERVALO_MS = 30_000;                 // sondeo cada 30 s
   const PV_KEY_SONIDO   = 'cm_pedidos_sonido';    // localStorage
+  // BUILD 434 · `created_at` del pedido más reciente visto en la última
+  // sesión. Permite avisar de lo que entró con el panel cerrado.
+  const PV_KEY_ULTIMO   = 'cm_pedidos_ultima_marca';
 
   let _pvTimer      = null;
   let _pvIdsVistos  = null;   // Set con los ids ya conocidos. null = sin inicializar
@@ -257,6 +260,22 @@
       // Pedidos ya está fresco.
       if (typeof orders !== 'undefined') orders = lista;
 
+      // BUILD 434 · Mover la marca de «lo último visto» en CADA sondeo.
+      //
+      // 🔴 SIN ESTO EL AVISO DE AUSENCIA SE REPETIRÍA ETERNAMENTE: la marca
+      //    solo se guardaba al arrancar, así que un pedido entrado con el
+      //    panel YA abierto no la movía. A la siguiente apertura se lo
+      //    encontraría «posterior a la marca» y volvería a anunciarlo, aunque
+      //    el empleado ya lo hubiera visto y hasta despachado.
+      //    El panel está abierto: lo que llega ahora se está viendo ahora.
+      try {
+        const masReciente = lista.reduce((max, o) => {
+          const t = String(o.created_at || '');
+          return t > max ? t : max;
+        }, '');
+        if (masReciente) localStorage.setItem(PV_KEY_ULTIMO, masReciente);
+      } catch (e) { /* localStorage lleno o bloqueado: no es crítico */ }
+
       // Repintar SOLO si hay algo que cambió y la sección visible lo muestra.
       //
       // ⚠️ CUIDADO CON EL PARPADEO — regresión corregida en v=4.
@@ -302,8 +321,25 @@
       // (o antes de un F5) nunca aparecia ahi. La sincronizacion decide con un
       // criterio duradero — si el pedido ya tiene su fila en `notificaciones` —
       // y por eso es idempotente: repetirla no duplica nada.
+      //
+      // 🔴 BUILD 434 · EL `catch (e) {}` VACÍO QUE HABÍA AQUÍ ERA EL PROBLEMA.
+      //    Se tragaba CUALQUIER fallo de la sincronización sin dejar rastro:
+      //    ni en consola, ni en pantalla, ni en ningún sitio. Al diagnosticar
+      //    «la campana no subió hasta entrar en Pedidos», `pvSondearAhora()`
+      //    devolvió SILENCIO ABSOLUTO — y ese silencio era indistinguible
+      //    entre «todo bien, nada que registrar» y «reventó y nadie se enteró».
+      //    Un `catch` mudo no protege el código: le quita la voz.
+      //    Ahora todo fallo se registra con su motivo.
       if (typeof sincronizarNotificacionesPedidos === 'function') {
-        try { await sincronizarNotificacionesPedidos(lista); } catch (e) {}
+        try {
+          await sincronizarNotificacionesPedidos(lista);
+        } catch (e) {
+          console.warn('[pedidos] la sincronización con la campana falló:',
+                       e && (e.message || e));
+        }
+      } else {
+        console.warn('[pedidos] sincronizarNotificacionesPedidos NO existe: ' +
+                     'js/extras.v33.js no se cargó o cambió de nombre.');
       }
     } catch (e) {
       // Un fallo de red no debe romper el ciclo: se reintenta al siguiente tick.
@@ -311,6 +347,32 @@
     } finally {
       _pvSondeando = false;
     }
+  }
+
+  /**
+   * BUILD 434 · Aviso de los pedidos que entraron con el panel cerrado.
+   *
+   * Distinto de `_pvAvisar()` a propósito: el mensaje dice explícitamente que
+   * llegaron «mientras el panel estaba cerrado». Un aviso idéntico al de un
+   * pedido recién entrado haría creer al empleado que acaba de llegar y que
+   * el cliente está esperando ahora mismo, cuando puede ser de anoche.
+   */
+  function _pvAvisarDeAusencia(entrados) {
+    const n = entrados.length;
+    _pvSonar();
+    _pvParpadearTitulo(n);
+
+    if (typeof showAdminToast === 'function') {
+      const cuales = entrados
+        .slice(0, 3)
+        .map(o => '#' + (o.order_number || '?'))
+        .join(', ');
+      const resto = n > 3 ? ' y ' + (n - 3) + ' más' : '';
+      showAdminToast(
+        `🔔 ${n} pedido${n === 1 ? '' : 's'} entr${n === 1 ? 'ó' : 'aron'} ` +
+        `mientras el panel estaba cerrado: ${cuales}${resto}`, 'success');
+    }
+    console.log(`[pedidos] ${n} pedido(s) entraron con el panel cerrado.`);
   }
 
   function _pvAvisar(nuevos) {
@@ -391,6 +453,50 @@
     // cuando la carga inicial acababa de terminar.
     if (typeof orders !== 'undefined' && Array.isArray(orders) && orders.length > 0) {
       _pvIdsVistos = new Set(orders.map(o => String(o.id)));
+
+      // ── BUILD 434 · AVISO DE LO ENTRADO MIENTRAS EL PANEL ESTABA CERRADO ──
+      //
+      // 🔴 EL HUECO QUE ESTO TAPA, Y CÓMO SE ENCONTRÓ: el dueño hizo un pedido
+      //    en la tienda, se pasó al panel, y no sonó nada. Su medición lo
+      //    explicó sin ambigüedad — `pvEstado()` daba `idsConocidos: 12` y el
+      //    dashboard mostraba `Pedidos totales: 12`. Los mismos doce.
+      //    O sea: al abrir el panel, la siembra de arriba metió su pedido
+      //    recién creado en la lista de «ya vistos», así que para el vigilante
+      //    NUNCA fue nuevo. No había nada roto; simplemente el pedido ya
+      //    estaba ahí cuando el panel abrió los ojos.
+      //
+      // 🔴 POR QUÉ ESTA COMPROBACIÓN Y NO «AVISAR DE TODO LO PENDIENTE»:
+      //    se valoraron las dos. Avisar de los pendientes suena cada vez que
+      //    se abre el panel si el dueño deja cinco sin atender a propósito —
+      //    una alarma que se repite es una alarma que se ignora. Esta versión
+      //    responde a la pregunta correcta: «¿entró algo mientras yo no
+      //    miraba?». Compara contra la marca de tiempo del pedido más reciente
+      //    que se vio en la última sesión, guardada en localStorage.
+      //
+      // 🔴 SE USA LA FECHA DEL PEDIDO, NO LA HORA DEL NAVEGADOR: el reloj del
+      //    PC puede ir descuadrado, y una diferencia de minutos decidiría mal.
+      //    `created_at` lo pone la base, es el mismo dato para todos.
+      try {
+        const marcaPrevia = localStorage.getItem(PV_KEY_ULTIMO) || '';
+        const masReciente = orders.reduce((max, o) => {
+          const t = String(o.created_at || '');
+          return t > max ? t : max;
+        }, '');
+
+        if (marcaPrevia && masReciente) {
+          const entrados = orders.filter(o =>
+            String(o.created_at || '') > marcaPrevia);
+          if (entrados.length > 0) {
+            // Retraso para no solaparse con la carga inicial y para que el
+            // AudioContext tenga ocasión de desbloquearse con el primer clic.
+            setTimeout(() => _pvAvisarDeAusencia(entrados), 1200);
+          }
+        }
+        if (masReciente) localStorage.setItem(PV_KEY_ULTIMO, masReciente);
+      } catch (e) {
+        console.warn('[pedidos] no se pudo comprobar lo entrado en ausencia:',
+                     e && e.message);
+      }
     }
     // Si `orders` está vacío no se siembra nada: _pvIdsVistos sigue en null y el
     // primer tick de los 30 s hará de primera pasada (memoriza, no avisa).
@@ -439,6 +545,83 @@
       audio       : _pvAudioCtx ? _pvAudioCtx.state : 'sin iniciar',
       seccion     : _pvSeccionActiva(),
     };
+  };
+
+  /**
+   * BUILD 434 · Diagnóstico paso a paso de la cadena pedido → campana.
+   *
+   * 🔴 POR QUÉ EXISTE: `pvSondearAhora()` devolvía SILENCIO, y un silencio no
+   *    distingue entre «funcionó y no había nada que hacer» y «falló callado».
+   *    Esta función recorre la misma cadena y DICE en cada paso qué encontró.
+   *    Es la regla del build 421c: cuando un fallo no da información, el
+   *    trabajo no es adivinar la causa sino conseguir información.
+   *
+   * Se ejecuta desde la consola:  await pvDiagnostico()
+   */
+  window.pvDiagnostico = async function () {
+    const r = { pasos: [] };
+    const paso = (n, ok, detalle) => {
+      r.pasos.push((ok ? '✓ ' : '✗ ') + n + (detalle ? ' → ' + detalle : ''));
+    };
+
+    paso('DB.getOrders existe', typeof DB !== 'undefined' && !!DB.getOrders);
+    paso('sincronizarNotificacionesPedidos existe',
+         typeof sincronizarNotificacionesPedidos === 'function');
+    paso('variable global `notificaciones` existe',
+         typeof notificaciones !== 'undefined',
+         typeof notificaciones !== 'undefined'
+           ? notificaciones.length + ' en memoria' : 'NO DEFINIDA');
+
+    let lista = [];
+    try {
+      lista = await DB.getOrders();
+      paso('DB.getOrders() responde', Array.isArray(lista),
+           (lista || []).length + ' pedidos');
+    } catch (e) {
+      paso('DB.getOrders() responde', false, e.message);
+      r.pasos.forEach(p => console.log(p));
+      return r;
+    }
+
+    // ¿Cuántos pedidos son de las últimas 24 h? Es el filtro que usa la
+    // sincronización, y si da 0 nunca creará ninguna notificación.
+    const desde = Date.now() - 24 * 3600 * 1000;
+    const recientes = lista.filter(o => {
+      const t = new Date(o.created_at).getTime();
+      return !isNaN(t) && t >= desde;
+    });
+    paso('pedidos de las últimas 24 h', recientes.length > 0,
+         recientes.length + ' recientes');
+    if (recientes.length) {
+      const u = recientes[0];
+      paso('  · el más reciente', true,
+           '#' + (u.order_number || '?') + ' · ' + u.created_at +
+           ' · estado ' + u.status);
+    }
+
+    // ¿Puede LEER la tabla de notificaciones? Si esto falla, la
+    // sincronización sale sin escribir nada — y sin decir por qué.
+    try {
+      const filas = await _supaFetch(
+        'notificaciones?select=pedido_id&tipo=eq.nuevo_pedido&limit=1000', {});
+      const ids = new Set((Array.isArray(filas) ? filas : [])
+        .map(f => String(f.pedido_id || '')).filter(Boolean));
+      paso('lectura de la tabla `notificaciones`', true,
+           ids.size + ' pedidos ya registrados');
+      const faltan = recientes.filter(o => !ids.has(String(o.id)));
+      paso('pedidos recientes SIN aviso en la campana', true,
+           faltan.length + (faltan.length
+             ? ' → deberían registrarse en el próximo sondeo'
+             : ' → nada pendiente, la campana está al día'));
+    } catch (e) {
+      paso('lectura de la tabla `notificaciones`', false,
+           (e && e.message) + '  ← ESTA ES LA CAUSA: sin poder leer lo ya ' +
+           'registrado, la sincronización sale SIN escribir, a propósito, ' +
+           'para no duplicar avisos cada 30 s');
+    }
+
+    r.pasos.forEach(p => console.log(p));
+    return r;
   };
 
   console.log('[pedidos] módulo de vigilancia cargado.');
