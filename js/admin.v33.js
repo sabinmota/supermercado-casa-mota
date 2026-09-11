@@ -4412,6 +4412,27 @@ function renderLoyaltyKpis() {
   el('lKpiTop',    topCount);
 }
 
+/* BUILD 436 · EL PUESTO SE MUESTRA EN NÚMERO, NO CON UNA MEDALLA.
+ *
+ * 🔴 EL DEFECTO: la posición se pintaba con una medalla de PODIO según el
+ *    puesto en la lista — oro al primero, plata al segundo, bronce al tercero.
+ *    Y los niveles de fidelidad usan LOS MISMOS TRES EMOJIS (ver
+ *    LOYALTY_LEVELS): Bronce, Plata y Oro. La etiqueta del nivel va justo al
+ *    lado, en la misma fila.
+ *    Medido en la pantalla del dueño: Carlos Manuel, con 81 pts y nivel
+ *    BRONCE, lucía una medalla de PLATA por ser el 2.º de la lista. Dos
+ *    clientes del mismo nivel con medallas distintas — y el 3.º coincidía por
+ *    pura casualidad, lo que lo hacía aún más confuso. Con tres clientes todos
+ *    en Bronce, el primero habría llevado medalla de ORO sin ser Oro.
+ *    El mismo símbolo para dos conceptos distintos en una sola fila es lo que
+ *    llevó al dueño a leer «bronce» donde la etiqueta decía «Plata».
+ *    Ahora la ÚNICA medalla de cada fila es la de su nivel real.
+ *
+ * 🔴 Y UNA LECCIÓN SOBRE DÓNDE VAN LOS COMENTARIOS: la primera versión de
+ *    este arreglo puso esta explicación DENTRO de la plantilla, como comentario
+ *    HTML. Los emojis del texto se inyectaban en cada fila: el arnés contó 25
+ *    medallas para 5 clientes. Un comentario dentro de una plantilla no es un
+ *    comentario, es contenido. Por eso vive aquí fuera. */
 function renderLoyaltyRanking() {
   const q   = document.getElementById('lSearch')?.value || '';
   const all = customers;
@@ -4441,7 +4462,7 @@ function renderLoyaltyRanking() {
     const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid #f5f5f5;${i===0?'background:#fdf3e7;border-radius:8px;':''}">
-        <div style="font-size:1.1rem;font-weight:900;color:#bbb;min-width:22px;text-align:center">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+        <div style="font-size:.95rem;font-weight:900;color:${i<3?'#7c3aed':'#bbb'};min-width:26px;text-align:center">${i+1}º</div>
         <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${lvl.color},${lvl.color}99);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.78rem;flex-shrink:0">${initials}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
