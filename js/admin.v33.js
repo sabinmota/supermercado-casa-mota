@@ -4155,9 +4155,31 @@ const LOYALTY_KEY     = 'cm_loyalty_config';
  *   Oro    600 pts = RD$  6.000
  *   VIP  1.500 pts = RD$ 15.000
  * (con la config vigente de 1 punto por cada RD$ 10). */
+/* BUILD 437 · El gris de Plata pasa a un plateado azulado.
+ *
+ * 🔴 POR QUÉ: `#888` es el gris universal de «desactivado». El dueño vio el
+ *    círculo de su único cliente Plata y lo leyó como apagado frente a los
+ *    Bronce — su frase fue «no sé por qué está más opaco que los demás».
+ *    Y tenía razón en lo que importa: el cliente de MAYOR nivel parecía el
+ *    menos importante. Un color que comunica lo contrario de lo que significa
+ *    es un defecto, aunque el código haga exactamente lo que se le pidió.
+ *
+ * 🔴 LO QUE NO SE HIZO, Y ES LA DECISIÓN DE FONDO: igualar todos los círculos.
+ *    El color del círculo ES el nivel del cliente, visible de un vistazo sin
+ *    leer la etiqueta. Pintarlos todos igual habría quitado el síntoma
+ *    borrando la información. Con clientes en Oro y VIP la diferencia se
+ *    explicará sola.
+ *
+ * 🔴 UN SOLO CAMBIO, CUATRO SITIOS ARREGLADOS: `color` alimenta el círculo
+ *    (línea ~4466), la etiqueta del nivel, la barra de progreso y la cifra de
+ *    puntos. Por eso se toca la constante y no cada uso — tocar los cuatro
+ *    por separado es como se fabrican incoherencias.
+ *
+ * `#8E9BAA` es plateado con matiz azulado: contrasta sobre blanco, se
+ * distingue del marrón de Bronce y no se lee como «inhabilitado». */
 const LOYALTY_LEVELS  = [
   { name: 'Bronce', min: 0,    max: 199,      icon: '🥉', color: '#cd7f32', bg: '#fdf3e7' },
-  { name: 'Plata',  min: 200,  max: 599,      icon: '🥈', color: '#888',    bg: '#f4f4f4' },
+  { name: 'Plata',  min: 200,  max: 599,      icon: '🥈', color: '#8E9BAA', bg: '#eef2f6' },
   { name: 'Oro',    min: 600,  max: 1499,     icon: '🥇', color: '#c9a500', bg: '#fffbea' },
   { name: 'VIP',    min: 1500, max: Infinity, icon: '💎', color: '#7c3aed', bg: '#f3eeff' },
 ];

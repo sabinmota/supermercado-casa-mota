@@ -4153,9 +4153,20 @@ async function renderLoyaltyCard() {
    * fuente de verdad. Si aquí dijeran otra cosa, el cliente vería un nivel
    * distinto del que la base le ha asignado — el mismo problema de los dos
    * criterios que este build viene a cerrar. */
+  /* 🔴 BUILD 437 · ESTA TABLA ES UN DUPLICADO DE LA DE js/admin.v33.js
+   *    (LOYALTY_LEVELS). Los dos ficheros pintan el MISMO nivel del MISMO
+   *    cliente: el panel en el ranking, y la tienda en la tarjeta de puntos.
+   *    Al cambiar el gris de Plata en el panel había que cambiarlo aquí
+   *    también, o el mismo cliente se habría visto plateado en el admin y
+   *    gris apagado en su propia cuenta — dos verdades para un solo dato.
+   *    Se detectó buscando 'Plata' en TODO el proyecto en vez de dar por
+   *    hecho que la tabla vivía en un solo sitio.
+   *    Queda anotado como deuda: estos cuatro niveles deberían leerse de un
+   *    único origen. Unificarlos hoy tocaría la tienda y el panel a la vez,
+   *    y no es lo que se pidió. */
   const levels = [
     { name:'Bronce', min:0,    max:199,       icon:'🥉', color:'#cd7f32', bg:'#fdf3e7' },
-    { name:'Plata',  min:200,  max:599,       icon:'🥈', color:'#888',    bg:'#f4f4f4' },
+    { name:'Plata',  min:200,  max:599,       icon:'🥈', color:'#8E9BAA', bg:'#eef2f6' },
     { name:'Oro',    min:600,  max:1499,      icon:'🥇', color:'#c9a500', bg:'#fffbea' },
     { name:'VIP',    min:1500, max:Infinity,  icon:'💎', color:'#7c3aed', bg:'#f3eeff' },
   ];
