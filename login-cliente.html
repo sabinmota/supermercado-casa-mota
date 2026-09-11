@@ -510,6 +510,17 @@
     .oauth-buttons {
       display: flex; flex-direction: column; gap: 11px;
     }
+    /* BUILD 435 · Aviso del respaldo de Google. Existe porque un botón que
+       cambia de aspecto sin explicación parece un fallo de la página: el
+       dueño vio aparecer un segundo botón idéntico en su móvil y lo dio por
+       defecto, con razón. */
+    .oauth-nota-respaldo {
+      margin: 0 0 8px;
+      font-size: .78rem;
+      line-height: 1.4;
+      color: #6b7a86;
+      text-align: center;
+    }
     .btn-oauth {
       width: 100%; padding: 13px 18px;
       border-radius: 50px;
@@ -997,9 +1008,41 @@
       // Disparar el One Tap / selector de cuenta nativo de Google
       // Este overlay NO abre una ventana separada → no hay conflicto COOP
       google.accounts.id.prompt((notification) => {
-        const reason = notification.getNotDisplayedReason?.() || '';
-        const skipped = notification.isSkippedMoment?.() || false;
+        const reason    = notification.getNotDisplayedReason?.() || '';
+        const skipped   = notification.isSkippedMoment?.() || false;
         const dismissed = notification.isDismissedMoment?.() || false;
+        const noSalio   = notification.isNotDisplayed?.() || false;
+
+        // ── BUILD 435 · PASO C · SABER POR QUÉ GOOGLE BLOQUEA ──────────────
+        //
+        // 🔴 ESTO NO ES ANDAMIO DE DEPURACIÓN, ES INFORMACIÓN QUE HACÍA FALTA.
+        //    `getNotDisplayedReason()` ya se leía en la línea de arriba y se
+        //    guardaba en `reason`… para NO USARLO NUNCA. La variable se
+        //    calculaba y se tiraba. Por eso, cuando el dueño vio dos botones
+        //    en su móvil, no había forma de saber si era por cookies de
+        //    terceros, por modo incógnito o porque Google había silenciado el
+        //    selector tras varios cierres.
+        //
+        // 🔴 Y ESTO IMPORTA MÁS DE LO QUE PARECE: 6 de los 9 clientes de la
+        //    tienda entran con Google. Si el bloqueo fuera general y no del
+        //    teléfono del dueño, el respaldo sería la ÚNICA vía de acceso
+        //    para la mayoría — apareciendo como si fuera un error.
+        const motivos = {
+          browser_not_supported : 'el navegador no admite One Tap',
+          invalid_client        : 'el Client ID no es válido para este dominio',
+          missing_client_id     : 'falta el Client ID',
+          opt_out_or_no_session : 'no hay sesión de Google en este navegador',
+          secure_http_required  : 'la página no está en HTTPS',
+          suppressed_by_user    : 'Google lo silenció: el usuario lo cerró varias veces',
+          unregistered_origin   : 'este dominio no está autorizado en Google Cloud',
+          unknown_reason        : 'motivo desconocido',
+        };
+        console.log('[google] prompt →',
+          'noSalio=' + noSalio,
+          '| omitido=' + skipped,
+          '| cerrado=' + dismissed,
+          '| motivo=' + (reason || '—'),
+          reason ? '(' + (motivos[reason] || reason) + ')' : '');
 
         if (dismissed || skipped) {
           // Usuario cerró el selector — restaurar botón
@@ -1007,28 +1050,67 @@
           btn.disabled = false;
         }
 
-        // Si no se mostró (bloqueado por navegador, etc.) — intentar renderButton
-        if (notification.isNotDisplayed?.()) {
-          btn.classList.remove('loading');
-          btn.disabled = false;
-          // Fallback: renderizar el botón oficial de Google como alternativa
-          _showGoogleButtonFallback();
+        // Si no se mostró (bloqueado por navegador, etc.) — pasar al respaldo
+        if (noSalio) {
+          _showGoogleButtonFallback(reason, motivos[reason] || '');
         }
       });
     }
 
-    /** Fallback: renderizar el botón oficial de Google si One Tap es bloqueado */
-    function _showGoogleButtonFallback() {
+    /**
+     * BUILD 435 · PASO B · Respaldo con UN SOLO BOTÓN VISIBLE.
+     *
+     * 🔴 EL DEFECTO QUE CORRIGE, TAL COMO LO VIO EL DUEÑO EN SU MÓVIL: al
+     *    pulsar «Continuar con Google» aparecía un SEGUNDO botón debajo con
+     *    el mismo texto y otro estilo. No era un duplicado accidental: era
+     *    este respaldo, que se inyectaba sin decir nada.
+     *
+     * 🔴 LO PEOR NO ERA LA DUPLICACIÓN, SINO QUE EL PRIMER BOTÓN SEGUÍA VIVO.
+     *    La versión anterior hacía `btn.disabled = false` justo antes de
+     *    mostrar el respaldo, o sea reactivaba un botón cuyo camino ACABABA
+     *    de comprobarse que está bloqueado. El cliente se quedaba con dos
+     *    botones idénticos: uno que nunca funcionaría y otro que sí, sin
+     *    ninguna forma de distinguirlos. Pulsar el de arriba daba el mismo
+     *    bloqueo, en bucle.
+     *
+     * Ahora: el botón propio se OCULTA, el oficial de Google ocupa su sitio,
+     * y un texto explica por qué ha cambiado. Un respaldo que no se anuncia
+     * parece un defecto.
+     */
+    function _showGoogleButtonFallback(motivo, explicacion) {
       const container = document.getElementById('googleBtnFallback');
-      if (!container || container.children.length > 0) return;
+      const btn       = document.getElementById('btnGoogleLogin');
+      if (!container) return;
+
+      // Ocultar el botón propio: su camino está bloqueado, mantenerlo visible
+      // solo serviría para que el cliente lo pulse y no pase nada.
+      if (btn) {
+        btn.classList.remove('loading');
+        btn.style.display = 'none';
+      }
+
+      if (container.children.length > 0) { container.style.display = 'block'; return; }
       container.style.display = 'block';
-      google.accounts.id.renderButton(container, {
+
+      // Aviso breve: sin esto, el cambio de botón parece un fallo de la página.
+      const nota = document.createElement('p');
+      nota.className = 'oauth-nota-respaldo';
+      nota.textContent = 'Google pide confirmar tu cuenta desde su propio botón:';
+      container.appendChild(nota);
+
+      const caja = document.createElement('div');
+      container.appendChild(caja);
+
+      google.accounts.id.renderButton(caja, {
         theme:  'outline',
         size:   'large',
         width:  '100%',
         text:   'continue_with',
         locale: 'es',
       });
+
+      console.log('[google] respaldo activado · motivo=' + (motivo || '—') +
+                  (explicacion ? ' (' + explicacion + ')' : ''));
     }
 
     /**
