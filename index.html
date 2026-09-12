@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '437', KEY = 'cm_app_ver';
+        var VER = '438', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=319" />
+  <link rel="stylesheet" href="css/style.css?v=320" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -1367,7 +1367,7 @@
        corre dentro de la app de iOS/Android. En un navegador normal no hace
        nada. DEBE ir antes de app.js, que pregunta por CasaMotaNativo dentro
        de openBarcodeScanner(). -->
-  <script src="js/nativo.js?v=1"></script>
+  <script src="js/nativo.js?v=2"></script>
   <script src="js/api.js?v=347"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
        Debe cargarse ANTES de favorites.js, app.js y chat.js. -->
@@ -1376,7 +1376,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=281"></script>
-  <script src="js/app.js?v=368"></script>
+  <script src="js/app.js?v=369"></script>
   <script src="js/location.js?v=121"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
   <!-- IA: qué modelo usa el escáner de códigos. DEBE ir antes del script
@@ -2126,6 +2126,18 @@ If you cannot clearly see a stripe barcode, return: NULL`
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();
       deferredPrompt = e;
+
+      // BUILD 438 · mismo motivo que el aviso de iOS de más abajo: dentro de
+      // la app instalada no se ofrece instalar la app. Hoy Android no dispara
+      // este suceso en un WebView de Capacitor, así que esta guarda no cambia
+      // nada AHORA MISMO — se pone porque depender de que un navegador siga
+      // absteniéndose de disparar un evento es depender de algo que no
+      // controlamos, y el coste de la guarda son dos líneas.
+      if (window.CasaMotaNativo && window.CasaMotaNativo.enApp()) {
+        console.log('[pwa] botón de instalación omitido: ya estamos dentro de la app');
+        return;
+      }
+
       // Mostrar botón de instalación personalizado
       const btn = document.getElementById('pwaInstallBtn');
       if (btn) btn.style.display = 'flex';
@@ -2155,6 +2167,30 @@ If you cannot clearly see a stripe barcode, return: NULL`
     (function checkIOS() {
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       const isInStandaloneMode = ('standalone' in window.navigator) && window.navigator.standalone;
+
+      // 🔴 BUILD 438 · NO MOSTRAR ESTE AVISO DENTRO DE LA APP INSTALADA.
+      //    Y esto no es estética: es un RIESGO DE RECHAZO DE APPLE.
+      //
+      //    Lo que ocurría, visto en una captura del iPhone del dueño: dentro
+      //    de la app descargada de la App Store aparecía el cartel «Para
+      //    instalar Casa Mota en tu iPhone: toca Compartir y luego Agregar a
+      //    pantalla de inicio». O sea, la app de Apple invitando al usuario
+      //    —posiblemente al REVISOR— a instalarse la versión web por fuera.
+      //    Además de absurdo, alimenta justo la sospecha de la directriz 4.2
+      //    («esto no es una app, es una web») que todo el BUILD 432 se dedicó
+      //    a desmontar.
+      //
+      //    CAUSA: la condición solo miraba `navigator.standalone`, que es
+      //    FALSO en una app de Capacitor (es un WKWebView, no una web añadida
+      //    a la pantalla de inicio por Safari). El mismo error de fondo que
+      //    dejaba la cabecera bajo la isla dinámica.
+      const enAppNativa = !!(window.CasaMotaNativo &&
+                             window.CasaMotaNativo.enApp());
+      if (enAppNativa) {
+        console.log('[pwa] aviso de instalación omitido: ya estamos dentro de la app');
+        return;
+      }
+
       if (isIOS && !isInStandaloneMode) {
         // Mostrar banner solo si no lo ha cerrado antes
         const closed = sessionStorage.getItem('iosBannerClosed');

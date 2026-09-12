@@ -2790,14 +2790,39 @@ function _calcSafeTop() {
   } catch(e) {}
   
   // Fallback: detectar si es standalone y aplicar valores conocidos de iOS
+  //
+  // 🔴 BUILD 438 · SE AÑADE LA APP NATIVA A ESTA COMPROBACIÓN.
+  //    Las dos condiciones de abajo son FALSAS dentro de la app de Capacitor:
+  //    `navigator.standalone` es cosa de una web añadida a la pantalla de
+  //    inicio por Safari, y el `display-mode` de un WKWebView incrustado no
+  //    es 'standalone'. Resultado medido en un iPhone 14 Pro Max: esta
+  //    función devolvía 0 dentro de la app, así que `--cart-top` valía 0 y
+  //    los paneles subían hasta debajo de la isla dinámica.
+  //    `CasaMotaNativo.enApp()` sí lo sabe: pregunta a Capacitor.
   const isStandalone = window.navigator.standalone === true ||
-                       window.matchMedia('(display-mode: standalone)').matches;
+                       window.matchMedia('(display-mode: standalone)').matches ||
+                       !!(window.CasaMotaNativo && window.CasaMotaNativo.enApp());
   if (isStandalone) {
-    // iPhones con notch/dynamic island: ~47-59px; sin notch: 20px
-    // Usar heurística basada en altura de pantalla
+    // iPhones con isla dinámica / notch; sin notch: 20px
+    //
+    // 🔴 BUILD 438 · SE AÑADE EL ESCALÓN DE LA ISLA DINÁMICA.
+    //    Antes el primer escalón era `h >= 844 → 47`, y 47 px es la altura
+    //    del NOTCH, no de la ISLA. Un iPhone 14 Pro Max mide 932 de alto y
+    //    su zona segura superior es de 59 px, así que caía en el escalón
+    //    equivocado y se quedaba 12 px corto — justo lo que hace que el
+    //    contenido roce la píldora negra en vez de despejarla.
+    //    932 = 14/15/16 Pro Max · 852 = 14/15 Pro · 844 = 12/13/14 normal.
+    //
+    //    ESTO ES UN RESPALDO, no el camino principal: arriba se mide
+    //    `env(safe-area-inset-top)` de verdad, que es exacto en cualquier
+    //    modelo incluidos los que aún no existen. Estos números solo se usan
+    //    si esa medición devuelve 0. Una tabla de modelos envejece; una
+    //    medición no. Por eso el orden es medir primero y adivinar después.
     const h = window.screen.height;
-    if (h >= 844) return 47; // iPhone 12/13/14 Pro Max y similares
-    if (h >= 812) return 44; // iPhone X/11 Pro y similares  
+    if (h >= 932) return 59; // iPhone 14/15/16 Pro Max — isla dinámica
+    if (h >= 852) return 59; // iPhone 14/15/16 Pro — isla dinámica
+    if (h >= 844) return 47; // iPhone 12/13/14 — notch
+    if (h >= 812) return 44; // iPhone X/11 Pro y similares
     return 20; // iPhones antiguos sin notch
   }
   

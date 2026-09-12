@@ -4482,6 +4482,25 @@ function renderLoyaltyRanking() {
       ? Math.min(100, Math.round((pts - lvl.min) / (nextLvl.min - lvl.min) * 100))
       : 100;
     const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    /* BUILD 436 · El PUESTO se pinta como número (1º, 2º, 3º…), no con las
+     * medallas 🥇🥈🥉 que había antes.
+     *
+     * 🔴 POR QUÉ, Y LO DESCUBRIÓ EL DUEÑO MIRANDO SU PROPIA LISTA: en esta
+     *    misma fila, dos casillas más a la derecha, está la etiqueta del
+     *    NIVEL de fidelidad — y los niveles TAMBIÉN se llaman Bronce, Plata y
+     *    Oro y TAMBIÉN usan medallas (ver LOYALTY_LEVELS, líneas 4181-4183).
+     *    Había dos medallas por fila significando cosas distintas, pegadas, y
+     *    el ojo las leía como una sola.
+     *
+     * 🔴 EL EFECTO MEDIDO EN SU PANTALLA: Carlos Manuel, con 81 pts y nivel
+     *    BRONCE, lucía una medalla de PLATA por ir segundo en la lista.
+     *    Mercasid, también Bronce, una de bronce — o sea dos clientes del
+     *    MISMO nivel con medallas DISTINTAS. Y con tres clientes todos
+     *    Bronce, el primero habría llevado ORO sin ser Oro.
+     *
+     * El puesto es una posición ordinal y cambia según quién más esté en la
+     * lista; el nivel es una categoría ganada con puntos. Un número no se
+     * confunde con una categoría. */
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid #f5f5f5;${i===0?'background:#fdf3e7;border-radius:8px;':''}">
         <div style="font-size:.95rem;font-weight:900;color:${i<3?'#7c3aed':'#bbb'};min-width:26px;text-align:center">${i+1}º</div>

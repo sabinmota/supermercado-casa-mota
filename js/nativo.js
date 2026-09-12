@@ -96,6 +96,43 @@
 
   var NOMBRE_ESCANER = 'BarcodeScanner';   // @capacitor-mlkit/barcode-scanning
 
+  /* 🔴 BUILD 438 · ESPERA PARA QUE LA VISTA NATIVA ACABE DE RETIRARSE.
+   *
+   *    DEFECTO MEDIDO POR EL DUEÑO EN SU iPhone 14 Pro Max: al leer un código
+   *    se abría la ficha del producto pero el RECUADRO BLANCO de puntería, la
+   *    X de cerrar y el botón de linterna SEGUÍAN EN PANTALLA unos instantes,
+   *    encima de la tienda. Sus capturas lo prueban: la X arriba a la
+   *    izquierda tapando la barra de búsqueda, el círculo negro de la linterna
+   *    abajo al centro y las líneas verticales del marco cruzando el texto
+   *    «Todo lo que necesitas para tu hogar».
+   *
+   *    CAUSA: `p.scan()` resuelve EN EL INSTANTE EN QUE DETECTA EL CÓDIGO, no
+   *    cuando su vista se ha ido. La retirada de un controlador de vista de
+   *    iOS es ANIMADA y esa animación la marca Apple, no este código. Así que
+   *    entregar el código de inmediato pinta el modal ENCIMA de un escáner que
+   *    todavía se está cerrando. No es un residuo visual: son dos pantallas
+   *    vivas a la vez.
+   *
+   *    POR QUÉ EL ARREGLO VIVE AQUÍ Y NO EN js/app.js: esta capa es la única
+   *    dueña de la vista nativa. `app.js` no sabe que existe una animación de
+   *    cierre y no tiene por qué saberlo; si la espera se metiera allí,
+   *    cualquier futura llamada a `escanear()` desde otro sitio volvería a
+   *    tener el defecto.
+   *
+   * 🔴 ESTE NÚMERO NO ESTÁ MEDIDO Y HAY QUE DECIRLO: no hay macOS ni iPhone en
+   *    el entorno donde se escribió esto, así que la duración real de la
+   *    animación de Apple NO SE HA CRONOMETRADO. 400 ms es la duración típica
+   *    de una transición modal de iOS con margen. Si el recuadro todavía
+   *    asoma, SUBA este número (500, 600). Si se nota una pausa molesta entre
+   *    leer y ver el producto, BÁJELO (300, 250). Es la única línea que hay
+   *    que tocar, y por eso está sola y con nombre propio.
+   */
+  var ESPERA_CIERRE_ESCANER_MS = 400;
+
+  function _esperar(ms) {
+    return new Promise(function (resolver) { global.setTimeout(resolver, ms); });
+  }
+
   /** ¿Hay escáner nativo utilizable aquí y ahora? */
   function escanerDisponible() {
     if (!esNativo()) return false;
@@ -187,6 +224,14 @@
       if (!lista.length) { log('escaneo cancelado o sin resultado'); return null; }
       var valor = lista[0].rawValue || lista[0].displayValue || '';
       log('código leído por el escáner nativo', valor);
+
+      // BUILD 438: se deja terminar la animación de cierre ANTES de devolver
+      // el código. Quien llama abre el modal del producto justo al recibirlo,
+      // así que sin esta pausa el modal aparece bajo un escáner que aún no se
+      // ha ido. Ver el comentario de ESPERA_CIERRE_ESCANER_MS arriba.
+      await _esperar(ESPERA_CIERRE_ESCANER_MS);
+      log('vista del escáner retirada; se entrega el código');
+
       return { codigo: String(valor) };
     } catch (e) {
       // Cancelar con el botón del sistema llega aquí; no es un fallo.
@@ -332,12 +377,51 @@
    *    deniega no vuelve a ver el diálogo nunca. Esperar a que haya sesión
    *    y unos segundos de uso sube muchísimo la probabilidad de un «sí».
    */
+  /* 🔴 BUILD 438 · MARCA PARA QUE EL CSS SEPA QUE ESTAMOS DENTRO DE LA APP.
+   *
+   *    DEFECTO MEDIDO: la cabecera de la tienda se metía DEBAJO de la isla
+   *    dinámica del iPhone 14 Pro Max. El logo, «Hola Apple», Favoritos y
+   *    Carrito quedaban pisados por la hora y la píldora negra del sistema.
+   *
+   *    CAUSA EXACTA: css/style.css tenía el relleno superior dentro de
+   *        @media (display-mode: standalone) { .header { padding-top: … } }
+   *    y una app de Capacitor NO ESTÁ en `display-mode: standalone` — es un
+   *    WKWebView. Esa consulta de medios NUNCA se cumplía, así que el relleno
+   *    jamás se aplicaba, y `.header` es `position:fixed; top:0`
+   *    (css/style.css:316). El mismo error estaba en `_calcSafeTop()` de
+   *    js/app.js, que preguntaba por `navigator.standalone`.
+   *
+   *    Se resuelve con una clase en <html> en lugar de intentar adivinar el
+   *    entorno desde el CSS: el CSS no puede saber si corre en Capacitor, pero
+   *    esta capa SÍ lo sabe con certeza (`Capacitor.isNativePlatform()`).
+   *
+   *    Por qué en <html> y no en <body>: `documentElement` existe desde que el
+   *    analizador lee la etiqueta <html>, mucho antes de que <body> esté
+   *    completo. Este fichero se carga dentro del cuerpo, así que la marca
+   *    queda puesta antes del primer pintado y no hay salto visible.
+   */
+  function _marcarAppNativa() {
+    try {
+      var raiz = global.document && global.document.documentElement;
+      if (!raiz) { log('no hay documentElement: no se pudo marcar la app'); return; }
+      raiz.classList.add('es-app-nativa');
+      raiz.classList.add('es-app-' + plataforma());   // es-app-ios | es-app-android
+      log('marcado <html class="es-app-nativa es-app-' + plataforma() + '">');
+    } catch (e) {
+      log('fallo al marcar la app nativa: ' + e.message);
+    }
+  }
+
+  /** ¿Estamos dentro de la app instalada? Para que app.js no repita la lógica. */
+  function enApp() { return esNativo(); }
+
   function arrancar() {
     if (!esNativo()) {
       log('entorno web: la capa nativa queda inactiva (esto es lo correcto)');
       return;
     }
     log('entorno nativo detectado: ' + plataforma());
+    _marcarAppNativa();
     log('escáner nativo disponible: ' + escanerDisponible());
     log('push nativo disponible: ' + pushDisponible());
 
@@ -364,10 +448,19 @@
    *    cualquier código que se cargue después de este fichero y pregunte
    *    enseguida cae justo en esa ventana.
    *
-   *    `arrancar()` NO TOCA EL DOM: solo lee `window.Capacitor` y
-   *    `sessionStorage`. Esperar al DOM no aportaba nada y creaba la
-   *    incoherencia. Lo único que debe esperar es la petición de permiso de
-   *    push, y ésa ya tiene su propio retraso de 8 segundos dentro.
+   *    `arrancar()` solo lee `window.Capacitor` y `sessionStorage`. Esperar al
+   *    DOM no aportaba nada y creaba la incoherencia. Lo único que debe
+   *    esperar es la petición de permiso de push, y ésa ya tiene su propio
+   *    retraso de 8 segundos dentro.
+   *
+   * 🔴 ACTUALIZADO EN BUILD 438, y se deja escrito porque este comentario
+   *    habría quedado MINTIENDO: ahora `arrancar()` SÍ toca el DOM, en
+   *    `_marcarAppNativa()`, para añadir la clase a <html>. Sigue siendo
+   *    correcto ejecutarlo de inmediato: `document.documentElement` existe
+   *    desde que se lee la etiqueta <html>, así que no necesita esperar a
+   *    DOMContentLoaded — y de hecho DEBE ir antes del primer pintado, o la
+   *    cabecera daría un salto al aplicarse el relleno. Un comentario que
+   *    describe un código que ya cambió es peor que no tener comentario.
    *
    * 🔴 POR QUÉ EL ARNÉS NO LO VIO, y es la lección del 426d por segunda vez:
    *    el arnés cargaba este fichero con `new Function(src)` cuando el
@@ -382,6 +475,7 @@
   // ─── API PÚBLICA ─────────────────────────────────────────────────────────
   global.CasaMotaNativo = {
     esNativo: esNativo,
+    enApp: enApp,                 // BUILD 438 · alias legible para quien pregunta
     plataforma: plataforma,
     escanerDisponible: escanerDisponible,
     escanear: escanear,
