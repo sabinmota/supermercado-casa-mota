@@ -96,42 +96,38 @@
 
   var NOMBRE_ESCANER = 'BarcodeScanner';   // @capacitor-mlkit/barcode-scanning
 
-  /* 🔴 BUILD 438 · ESPERA PARA QUE LA VISTA NATIVA ACABE DE RETIRARSE.
+  /* 🔴 BUILD 441 · AQUÍ HABÍA UNA ESPERA DE 400 ms Y SE HA REVERTIDO.
+   *    Se deja escrito para que nadie la reintroduzca creyendo que ayuda.
    *
-   *    DEFECTO MEDIDO POR EL DUEÑO EN SU iPhone 14 Pro Max: al leer un código
-   *    se abría la ficha del producto pero el RECUADRO BLANCO de puntería, la
-   *    X de cerrar y el botón de linterna SEGUÍAN EN PANTALLA unos instantes,
-   *    encima de la tienda. Sus capturas lo prueban: la X arriba a la
-   *    izquierda tapando la barra de búsqueda, el círculo negro de la linterna
-   *    abajo al centro y las líneas verticales del marco cruzando el texto
-   *    «Todo lo que necesitas para tu hogar».
+   *    QUÉ SE INTENTÓ (BUILD 438): el dueño reportó que, al leer un código, el
+   *    recuadro blanco de puntería seguía en pantalla unos instantes sobre la
+   *    tienda. Razoné que `p.scan()` resuelve al DETECTAR el código y no
+   *    cuando su vista se ha retirado —la retirada en iOS es animada—, así que
+   *    metí `await _esperar(400)` antes de devolver el código, para dejar
+   *    terminar la animación.
    *
-   *    CAUSA: `p.scan()` resuelve EN EL INSTANTE EN QUE DETECTA EL CÓDIGO, no
-   *    cuando su vista se ha ido. La retirada de un controlador de vista de
-   *    iOS es ANIMADA y esa animación la marca Apple, no este código. Así que
-   *    entregar el código de inmediato pinta el modal ENCIMA de un escáner que
-   *    todavía se está cerrando. No es un residuo visual: son dos pantallas
-   *    vivas a la vez.
+   * 🔴 RESULTADO MEDIDO EN EL iPhone DEL DUEÑO: EMPEORÓ. Sus palabras:
+   *    «ahora aparece antes y despues de activar el scaner». Antes se veía
+   *    solo después; con la espera, también antes. Y su diagnóstico fue el
+   *    correcto: «yo le di más tiempo, lo que hay es que quitarle tiempo».
    *
-   *    POR QUÉ EL ARREGLO VIVE AQUÍ Y NO EN js/app.js: esta capa es la única
-   *    dueña de la vista nativa. `app.js` no sabe que existe una animación de
-   *    cierre y no tiene por qué saberlo; si la espera se metiera allí,
-   *    cualquier futura llamada a `escanear()` desde otro sitio volvería a
-   *    tener el defecto.
+   * 🔴 POR QUÉ MI RAZONAMIENTO ERA MALO, y es la lección que importa:
+   *    añadir 400 ms NO acorta la vida del recuadro, la ALARGA. La vista
+   *    nativa se cierra cuando iOS decide, con espera o sin ella; lo único que
+   *    hace la espera es RETRASAR la entrega del código, y por tanto mantener
+   *    el escáner en pantalla 400 ms MÁS antes de que pase algo. Estaba
+   *    tratando un problema de «esto se queda visible demasiado tiempo»
+   *    añadiendo tiempo. Es la dirección contraria.
    *
-   * 🔴 ESTE NÚMERO NO ESTÁ MEDIDO Y HAY QUE DECIRLO: no hay macOS ni iPhone en
-   *    el entorno donde se escribió esto, así que la duración real de la
-   *    animación de Apple NO SE HA CRONOMETRADO. 400 ms es la duración típica
-   *    de una transición modal de iOS con margen. Si el recuadro todavía
-   *    asoma, SUBA este número (500, 600). Si se nota una pausa molesta entre
-   *    leer y ver el producto, BÁJELO (300, 250). Es la única línea que hay
-   *    que tocar, y por eso está sola y con nombre propio.
-   */
-  var ESPERA_CIERRE_ESCANER_MS = 400;
-
-  function _esperar(ms) {
-    return new Promise(function (resolver) { global.setTimeout(resolver, ms); });
-  }
+   *    Y hay un agravante de método: el arnés del 438 midió que la espera
+   *    OCURRÍA (401 ms cronometrados) — o sea que el código hacía lo que yo le
+   *    pedí. Lo que ningún arnés podía comprobar es si lo que yo le pedí era
+   *    lo correcto. **Un arnés verifica la implementación, no la hipótesis.**
+   *
+   *    ESTADO ACTUAL: sin espera, como antes del 438. El escáner entrega el
+   *    código en cuanto lo lee. Si el recuadro aún se ve un instante, la causa
+   *    está en otro sitio y hay que MEDIRLA antes de tocar nada — no volver a
+   *    ajustar un número a ciegas. */
 
   /** ¿Hay escáner nativo utilizable aquí y ahora? */
   function escanerDisponible() {
@@ -225,13 +221,10 @@
       var valor = lista[0].rawValue || lista[0].displayValue || '';
       log('código leído por el escáner nativo', valor);
 
-      // BUILD 438: se deja terminar la animación de cierre ANTES de devolver
-      // el código. Quien llama abre el modal del producto justo al recibirlo,
-      // así que sin esta pausa el modal aparece bajo un escáner que aún no se
-      // ha ido. Ver el comentario de ESPERA_CIERRE_ESCANER_MS arriba.
-      await _esperar(ESPERA_CIERRE_ESCANER_MS);
-      log('vista del escáner retirada; se entrega el código');
-
+      // BUILD 441: se devuelve EL CÓDIGO DE INMEDIATO, sin ninguna espera.
+      // Aquí había un `await _esperar(400)` del BUILD 438 que EMPEORÓ el
+      // síntoma en el iPhone del dueño (el recuadro pasó a verse antes Y
+      // después). Ver el comentario largo junto a NOMBRE_ESCANER.
       return { codigo: String(valor) };
     } catch (e) {
       // Cancelar con el botón del sistema llega aquí; no es un fallo.

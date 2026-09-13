@@ -1655,7 +1655,82 @@ function _updateTorchBtn(on) {
 
 // ── Abrir escáner ─────────────────────────────────────────────────────────────
 
+/* ══════════════════════════════════════════════════════════════════════════
+   BUILD 440 · DIAGNÓSTICO DEL ESCÁNER — `cmEscaner()` desde la consola
+   ══════════════════════════════════════════════════════════════════════════
+
+   🔴 POR QUÉ EXISTE ESTO, Y ES LA CORRECCIÓN DE UN ERROR DE MÉTODO MÍO:
+      dictaminé que la cámara que el dueño fotografió ERA el escáner nativo,
+      comparando siete elementos de su captura con el marcado del overlay web.
+      El razonamiento era correcto, pero seguía siendo **un razonamiento sobre
+      una imagen, no una medición del código en ejecución**.
+      Luego el dueño midió algo que NO encaja: «ahora aparece antes y después
+      de activar el scaner». Si corriera el camino nativo, `openBarcodeScanner`
+      hace `return` ANTES de abrir el overlay web, así que no podría haber
+      ningún recuadro web ni antes ni después.
+      Conclusión: **mi veredicto está en duda y no se puede dar por bueno.**
+
+   🔴 Y ESTO ES LO QUE IMPORTA: no se puede seguir pidiendo al dueño que
+      interprete lo que ve en pantalla. Dos personas mirando la misma cámara
+      pueden discrepar sobre si el recuadro es de ML Kit o del overlay web.
+      **El teléfono puede decirlo sin ambigüedad, y eso es una medición.**
+
+   USO: en la app, abrir la consola remota (o pulsar el escáner y luego mirar
+   el registro) y ejecutar `cmEscaner()`. Devuelve un objeto con el veredicto.
+   No modifica nada: solo lee. */
+function cmEscaner() {
+  var nat = window.CasaMotaNativo;
+  var info = {
+    hayCapaNativa:     !!nat,
+    dentroDeLaApp:     !!(nat && nat.enApp && nat.enApp()),
+    plataforma:        nat && nat.plataforma ? nat.plataforma() : 'desconocida',
+    escanerNativoOk:   !!(nat && nat.escanerDisponible && nat.escanerDisponible()),
+    hayPluginCapacitor: !!(window.Capacitor && window.Capacitor.Plugins),
+    pluginsPresentes:  window.Capacitor && window.Capacitor.Plugins
+                         ? Object.keys(window.Capacitor.Plugins) : [],
+    caminoQueSeUsara:  null,
+    porQue:            null,
+  };
+
+  if (info.escanerNativoOk) {
+    info.caminoQueSeUsara = 'NATIVO (ML Kit)';
+    info.porQue = 'El plugin BarcodeScanner responde y expone scan().';
+  } else if (info.dentroDeLaApp) {
+    info.caminoQueSeUsara = 'WEB dentro de la app — modo foto de iOS';
+    info.porQue = 'Se está dentro de la app PERO el plugin nativo NO responde: '
+                + 'el pod no se instaló o no se registró. El cliente verá la '
+                + 'guía de encuadre y tendrá que TOMAR UNA FOTO.';
+  } else {
+    info.caminoQueSeUsara = 'WEB en navegador';
+    info.porQue = 'No se está dentro de la app: esto es lo correcto en Safari.';
+  }
+
+  if (nat && nat.traza) { info.trazaNativa = nat.traza(); }
+
+  console.log('%c[escáner] ' + info.caminoQueSeUsara,
+              'font-weight:bold;font-size:14px');
+  console.log('[escáner] motivo:', info.porQue);
+  console.log('[escáner] detalle:', info);
+  return info;
+}
+
 function openBarcodeScanner() {
+  /* BUILD 440 · rastro de UNA línea que dice qué camino se tomó.
+     Sin esto, «se abrió una cámara» es ambiguo: la cámara del sistema de iOS
+     que abre el camino web TAMBIÉN muestra vista en vivo y control de flash,
+     así que mirar la pantalla no distingue los dos caminos. */
+  try {
+    var _nativoOk = !!(window.CasaMotaNativo &&
+                       window.CasaMotaNativo.escanerDisponible());
+    console.log('[escáner] camino elegido: ' +
+                (_nativoOk ? 'NATIVO (ML Kit)' : 'WEB') +
+                ' · enApp=' + !!(window.CasaMotaNativo &&
+                                 window.CasaMotaNativo.enApp &&
+                                 window.CasaMotaNativo.enApp()) +
+                ' · plataforma=' + (window.CasaMotaNativo
+                  ? window.CasaMotaNativo.plataforma() : 'sin capa'));
+  } catch (e) { console.warn('[escáner] no se pudo registrar el camino:', e); }
+
   // ── BUILD 432 · ESCÁNER NATIVO ────────────────────────────────────────────
   // Dentro de la app de iOS/Android se usa la cámara con el motor de
   // reconocimiento del SISTEMA, no un decodificador en JavaScript.
@@ -1765,6 +1840,15 @@ async function _refreshBarcodeProducts() {
 // Usa el input nativo de la cámara del dispositivo (siempre funciona en iOS)
 
 function _showPhotoMode() {
+  /* BUILD 441 · aquí hubo un cartel rojo de diagnóstico y SE HA QUITADO.
+     Servía para saber si el escáner caía al camino web dentro de la app; el
+     dueño confirmó que «el scanner funciona», así que el instrumento ya
+     cumplió y un cartel de depuración no puede quedarse en la tienda —menos
+     aún con una revisión de Apple pendiente. El registro en consola de
+     `openBarcodeScanner()` y la función `cmEscaner()` SÍ se conservan: no se
+     ven, no estorban, y son lo que permite diagnosticar sin volver a pedirle
+     al dueño que interprete lo que ve en pantalla. */
+
   document.getElementById('barcodeViewfinder')?.classList.add('hidden');
   const fb = document.getElementById('barcodePhotoFallback');
   if (fb) {
