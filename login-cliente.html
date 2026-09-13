@@ -808,6 +808,22 @@
 
   </div><!-- /screens-wrap -->
 
+  <!-- 🔴 BUILD 439 · js/nativo.js HACÍA FALTA AQUÍ Y NO ESTABA.
+       Esta página NO lo cargaba: solo api.js y auth.v33.js. Se cargaba
+       únicamente en index.html.
+
+       Sin este <script>, `window.CasaMotaNativo` NO EXISTE en la pantalla de
+       inicio de sesión, así que la guarda que oculta el botón de Google dentro
+       de la app daría `false` SIEMPRE, el botón seguiría apareciendo y la
+       pantalla blanca seguiría igual. Y sin un solo error en consola, porque
+       el `&&` se traga el objeto ausente sin quejarse — la misma clase de
+       fallo mudo que el `?.` del escáner en el BUILD 432.
+
+       Va ANTES de api.js, igual que en index.html: quien pregunte por la capa
+       nativa debe encontrarla ya arrancada. En un navegador normal se
+       desactiva sola («entorno web: la capa nativa queda inactiva») y no toca
+       nada más que `window.Capacitor` y `sessionStorage`. -->
+  <script src="js/nativo.js?v=2"></script>
   <script src="js/api.js?v=347"></script>
   <script src="js/auth.v33.js?v=299"></script>
   <script>
@@ -816,6 +832,97 @@
       const s = getClientSession();
       if (s) window.location.href = 'index.html';
     })();
+
+    /* ══════════════════════════════════════════════════════════════════
+       BUILD 439 · DENTRO DE LA APP, GOOGLE NO SE OFRECE
+       ══════════════════════════════════════════════════════════════════
+
+       🔴 EL FALLO QUE ESTO TAPA, MEDIDO EN EL iPhone DEL DUEÑO:
+          al pulsar «Continuar con Google» dentro de la app instalada, iOS
+          abría SAFARI FUERA DE LA APP, el cliente confirmaba su cuenta, y
+          Safari se quedaba PARA SIEMPRE en:
+              https://accounts.google.com/gsi/transform
+          Pantalla blanca congelada. Sin error, sin consola, sin salida.
+
+       🔴 POR QUÉ PASA, Y POR QUÉ NO SE ARREGLA CON UN PARÁMETRO:
+          `gsi/transform` es una página interna de Google cuyo único trabajo es
+          DEVOLVER EL TOKEN A LA VENTANA QUE LO PIDIÓ, por comunicación entre
+          ventanas del mismo proceso. Esa ventana vive en el WebView de la app;
+          Safari es OTRO PROCESO. No hay canal entre ellos, así que el token
+          no tiene destinatario y la página se queda ahí.
+          Lo agrava `capacitor.config.json:13`
+          (`limitsNavigationsToAppBoundDomains: true`), que impide al WebView
+          navegar a dominios ajenos y por tanto EMPUJA accounts.google.com a
+          Safari. Esa opción es necesaria para otras cosas.
+          Y Google PROHÍBE expresamente el OAuth dentro de un WebView
+          incrustado: la solución definitiva es un plugin nativo, y eso exige
+          recompilar en un Mac.
+
+       🔴 LA MEDICIÓN QUE CERRÓ EL DIAGNÓSTICO, y merece quedar escrita:
+          en SAFARI del iPhone el mismo login FUNCIONA. Mismo teléfono, mismo
+          iOS, mismo WebKit, mismo Client ID, mismo código, misma red. La
+          ÚNICA variable que cambia es si la página corre dentro del WebView
+          de la app o en Safari. Por eliminación: no es el navegador, no es el
+          Client ID, no es el dominio, no es el servidor, no es este código.
+          ES el salto entre procesos.
+          Consecuencia: EL CAMINO WEB NO SE TOCA. Funciona en PC y en Safari
+          de iPhone, y es por donde entran hoy 6 de los 9 clientes.
+
+       🔴 POR QUÉ SE OCULTA EL BOTÓN EN VEZ DE AVISAR AL PULSARLO:
+          un botón visible que no puede funcionar es una trampa. Y hay un
+          motivo más urgente: si un revisor de Apple lo pulsa, ve una pantalla
+          blanca congelada — eso es un rechazo por «la app no funciona», que
+          es peor y más difícil de rebatir que la directriz 4.2.
+
+       ESTO ES PROVISIONAL Y ESTÁ DECIDIDO ASÍ: la solución acordada con el
+       dueño es Google Y Apple NATIVOS, las dos opciones. Requiere plugins
+       nativos y una sesión de Mac. Hasta entonces, esto evita que nadie se
+       quede atrapado. */
+    /* Se declara como función con nombre y se llama abajo, en vez de como una
+       expresión autoejecutada. Motivo concreto: una expresión con nombre NO
+       queda accesible desde fuera, y el arnés necesita poder invocarla tras
+       simular el entorno nativo. Además permite reejecutarla a mano desde la
+       consola del iPhone si hubiera que diagnosticar algo en vivo — y es
+       idempotente a propósito (comprueba `avisoOAuthApp` antes de añadirlo). */
+    function ajustarOAuthEnApp() {
+      // Si la capa nativa no está cargada, no se toca nada: es un navegador.
+      if (!window.CasaMotaNativo || typeof window.CasaMotaNativo.enApp !== 'function') {
+        console.log('[login] capa nativa no disponible: se asume navegador web');
+        return;
+      }
+      if (!window.CasaMotaNativo.enApp()) return;   // navegador: todo normal
+
+      const btnGoogle = document.getElementById('btnGoogleLogin');
+      const btnApple  = document.getElementById('btnAppleLogin');
+      const zona      = document.querySelector('.oauth-buttons');
+      const divisor   = document.querySelector('.oauth-divider');
+
+      if (btnGoogle) btnGoogle.style.display = 'none';
+
+      /* El botón de Apple también se esconde: hoy `handleAppleLogin()` solo
+         muestra «estará disponible muy pronto». Dentro de la app, un botón que
+         no hace nada al lado de otro que ha desaparecido parece una avería. */
+      if (btnApple) btnApple.style.display = 'none';
+
+      // Sin ningún botón, el rótulo «o continúa con» no tiene sentido.
+      if (divisor) divisor.style.display = 'none';
+
+      if (zona && !document.getElementById('avisoOAuthApp')) {
+        const aviso = document.createElement('p');
+        aviso.id = 'avisoOAuthApp';
+        aviso.className = 'oauth-nota-respaldo';
+        aviso.innerHTML =
+          'Para entrar con <strong>Google</strong> desde la app, abra ' +
+          '<strong>supermercadocasamota.com</strong> en Safari. ' +
+          'Aquí puede entrar con su correo y contraseña.';
+        zona.appendChild(aviso);
+      }
+
+      console.log('[login] dentro de la app: Google y Apple ocultos ' +
+                  '(el token de Google no puede volver desde Safari)');
+    }
+
+    ajustarOAuthEnApp();
 
     // ── Navegación entre pantallas ─────────────────────────────────
     function showLoginForm() {
