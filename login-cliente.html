@@ -823,8 +823,8 @@
        nativa debe encontrarla ya arrancada. En un navegador normal se
        desactiva sola («entorno web: la capa nativa queda inactiva») y no toca
        nada más que `window.Capacitor` y `sessionStorage`. -->
-  <script src="js/nativo.js?v=3"></script>
-  <script src="js/api.js?v=347"></script>
+  <script src="js/nativo.js?v=4"></script>
+  <script src="js/api.js?v=348"></script>
   <script src="js/auth.v33.js?v=299"></script>
   <script>
     // ── Redirigir si ya hay sesión ─────────────────────────────────
@@ -892,22 +892,48 @@
       }
       if (!window.CasaMotaNativo.enApp()) return;   // navegador: todo normal
 
+      const nat       = window.CasaMotaNativo;
       const btnGoogle = document.getElementById('btnGoogleLogin');
       const btnApple  = document.getElementById('btnAppleLogin');
       const zona      = document.querySelector('.oauth-buttons');
       const divisor   = document.querySelector('.oauth-divider');
 
-      if (btnGoogle) btnGoogle.style.display = 'none';
+      /* ── BUILD 443 · ¿hay plugins nativos instalados? ──────────────────────
+         Se pregunta por CADA UNO por separado, no por «estamos en la app».
+         Motivo concreto: los pods se instalan en la sesión de Mac, y hasta que
+         eso ocurra la app seguirá sin ellos. Si se decidiera solo por el
+         entorno, entre hoy y la recompilación el botón aparecería y NO
+         funcionaría — o sea, volvería la pantalla blanca que esto vino a
+         quitar. Preguntando por el plugin, la transición es automática: el
+         botón aparece EN CUANTO existe quien lo atienda, y no antes. */
+      const googleOk = typeof nat.googleNativoDisponible === 'function' &&
+                       nat.googleNativoDisponible();
+      const appleOk  = typeof nat.appleNativoDisponible === 'function' &&
+                       nat.appleNativoDisponible();
 
-      /* El botón de Apple también se esconde: hoy `handleAppleLogin()` solo
-         muestra «estará disponible muy pronto». Dentro de la app, un botón que
-         no hace nada al lado de otro que ha desaparecido parece una avería. */
-      if (btnApple) btnApple.style.display = 'none';
+      if (btnGoogle) btnGoogle.style.display = googleOk ? '' : 'none';
+      if (btnApple)  btnApple.style.display  = appleOk  ? '' : 'none';
+      if (divisor)   divisor.style.display   = (googleOk || appleOk) ? '' : 'none';
 
-      // Sin ningún botón, el rótulo «o continúa con» no tiene sentido.
-      if (divisor) divisor.style.display = 'none';
+      /* El botón de Apple aún muestra la insignia «Pronto» en el marcado. Si
+         el plugin ya está, sobra: el botón funciona de verdad. */
+      if (appleOk && btnApple) {
+        const insignia = btnApple.querySelector('.oauth-badge, .badge, [class*="pronto"]');
+        if (insignia) insignia.style.display = 'none';
+      }
 
-      if (zona && !document.getElementById('avisoOAuthApp')) {
+      const avisoViejo = document.getElementById('avisoOAuthApp');
+
+      if (googleOk || appleOk) {
+        // Hay login nativo: fuera el aviso que mandaba al cliente a Safari.
+        if (avisoViejo) avisoViejo.remove();
+        console.log('[login] app con login nativo · google=' + googleOk +
+                    ' · apple=' + appleOk);
+        return;
+      }
+
+      // Sin plugins todavía: se mantiene el comportamiento del build 439.
+      if (zona && !avisoViejo) {
         const aviso = document.createElement('p');
         aviso.id = 'avisoOAuthApp';
         aviso.className = 'oauth-nota-respaldo';
@@ -918,11 +944,104 @@
         zona.appendChild(aviso);
       }
 
-      console.log('[login] dentro de la app: Google y Apple ocultos ' +
+      console.log('[login] app SIN plugins nativos: Google y Apple ocultos ' +
                   '(el token de Google no puede volver desde Safari)');
     }
 
     ajustarOAuthEnApp();
+
+    /* ══════════════════════════════════════════════════════════════════
+       BUILD 443 · DESVÍO AL LOGIN NATIVO
+       ══════════════════════════════════════════════════════════════════
+
+       Se envuelven los dos manejadores que ya existían. Dentro de la app con
+       plugin, se usa la hoja del sistema; en cualquier otro caso se llama al
+       manejador web original, INTACTO.
+
+       🔴 POR QUÉ SE ENVUELVE EN VEZ DE EDITAR `handleGoogleLogin()`: por ese
+          camino web entran hoy 6 de los 9 clientes, en PC y en Safari de
+          iPhone, y está PROBADO EN PRODUCCIÓN. Envolver deja ese código sin
+          tocar una línea; editarlo pondría en riesgo a la mayoría para
+          arreglar a una minoría. Si mañana hay que revertir esto, se borra
+          este bloque y todo vuelve a estar como estaba.
+
+       🔴 Y EL TOKEN SE ENTREGA A `abrirSesionGoogle()`, LA MISMA FUNCIÓN QUE
+          YA USA LA WEB: verifica la firma en /api/oauth y recibe el vale. No
+          se decodifica nada aquí. Si esta capa leyera el correo del token y se
+          lo creyera, reabriría el agujero del build 421 por el que cualquiera
+          podía entrar como otro cliente. */
+    (function instalarLoginNativo() {
+      const nat = window.CasaMotaNativo;
+      if (!nat || typeof nat.enApp !== 'function' || !nat.enApp()) return;
+
+      const webGoogle = window.handleGoogleLogin;
+      const webApple  = window.handleAppleLogin;
+
+      window.handleGoogleLogin = function () {
+        if (!nat.googleNativoDisponible()) return webGoogle.apply(this, arguments);
+        _entrarNativo('google', document.getElementById('btnGoogleLogin'));
+      };
+
+      window.handleAppleLogin = function () {
+        if (!nat.appleNativoDisponible()) return webApple.apply(this, arguments);
+        _entrarNativo('apple', document.getElementById('btnAppleLogin'));
+      };
+
+      console.log('[login] desvío nativo instalado');
+    })();
+
+    async function _entrarNativo(proveedor, btn) {
+      const nat = window.CasaMotaNativo;
+      if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+
+      function soltar() {
+        if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+      }
+
+      try {
+        const r = proveedor === 'apple'
+          ? await nat.entrarConAppleNativo()
+          : await nat.entrarConGoogleNativo();
+
+        // null = el cliente cerró la hoja. No es un fallo y no se le avisa.
+        if (!r) { soltar(); return; }
+
+        if (r.error) {
+          soltar();
+          _showOAuthToast('No se pudo iniciar sesión. Intenta de nuevo.');
+          console.warn('[login] ' + proveedor + ' nativo:', r.error, r.detalle || '');
+          return;
+        }
+
+        /* Se manda el token al servidor para que verifique la FIRMA.
+           `nombre` solo viaja con Apple, que lo entrega aparte y una sola vez;
+           el servidor lo trata como dato no verificado (solo para saludar). */
+        const { cliente } = await abrirSesionGoogle(r.credential, {
+          proveedor: r.proveedor,
+          nombre:    r.nombre,
+        });
+
+        setClientSession(cliente);
+
+        if (btn) {
+          btn.classList.remove('loading');
+          btn.innerHTML = '<i class="fas fa-check" style="color:#1a7c3e;font-size:1rem"></i>' +
+            ' <span class="oauth-label">¡Bienvenido/a ' +
+            (cliente.name || '').split(' ')[0] + '!</span>';
+          btn.style.border = '1.5px solid #1a7c3e';
+        }
+
+        setTimeout(() => { window.location.href = 'index.html'; }, 800);
+
+      } catch (err) {
+        soltar();
+        /* El servidor distingue el caso «Apple no compartió el correo» con su
+           propio mensaje, que ya explica al cliente qué hacer. Se muestra tal
+           cual en vez de taparlo con un «error genérico». */
+        _showOAuthToast(err.message || 'No se pudo iniciar sesión. Intenta de nuevo.');
+        console.error('[login] ' + proveedor + ' nativo falló:', err);
+      }
+    }
 
     // ── Navegación entre pantallas ─────────────────────────────────
     function showLoginForm() {

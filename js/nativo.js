@@ -95,6 +95,35 @@
   // ═════════════════════════════════════════════════════════════════════════
 
   var NOMBRE_ESCANER = 'BarcodeScanner';   // @capacitor-mlkit/barcode-scanning
+  var NOMBRE_GOOGLE  = 'GoogleAuth';       // @codetrix-studio/capacitor-google-auth
+  var NOMBRE_APPLE   = 'SignInWithApple';  // @capacitor-community/apple-sign-in
+
+  /* Client ID de Google Cloud. SON DOS Y CONVIVEN — no se sustituyen:
+   *   · WEB  → lo usa el navegador, y también el `initialize()` del plugin
+   *   · iOS  → identifica a la app; va en el Info.plist, invertido
+   *
+   * 🔴 MISMO PROYECTO (747300144353) PERO SUFIJO DISTINTO — `1qbi69…` frente a
+   *    `us0tof…` — y eso es exactamente lo que obligó a corregir el servidor
+   *    en el build 442: el `aud` del token de la app NO COINCIDE con el de la
+   *    web, así que la comparación antigua contra un único Client ID habría
+   *    devuelto 401 SIEMPRE dentro de la app. `audsPermitidos()` en oauth.js
+   *    acepta los dos, y esa lista es la red de seguridad de todo esto.
+   *
+   *    Están en el código y no en variables de entorno a propósito: un Client
+   *    ID NO es un secreto —viaja en cada petición y se ve en el código de
+   *    cualquier web—. El secreto es la llave de servicio, que vive solo en
+   *    Cloudflare y nunca llega al navegador.
+   *
+   * 🔴 POR QUÉ ESTAS SEIS LÍNEAS ESTÁN AQUÍ ARRIBA Y NO JUNTO AL CÓDIGO DE
+   *    LOGIN, Y ES UN DEFECTO CORREGIDO, NO UN GUSTO: `arrancar()` se ejecuta
+   *    en la línea ~498, ANTES de donde estaban declaradas (~545). Con `var`
+   *    eso no da error: da `undefined`. O sea que `initialize()` habría
+   *    recibido `clientId: undefined` y el login de Google habría fallado en
+   *    el iPhone con un mensaje que NO menciona el Client ID — un fallo mudo
+   *    que solo se diagnostica en el Mac, pagando horas. Lo destapó comprobar
+   *    el orden de declaración con Grep antes de dar el trabajo por bueno. */
+  var CLIENT_ID_WEB = '747300144353-1qbi69thi9t0sjrf3rrvddpt333fg7to.apps.googleusercontent.com';
+  var CLIENT_ID_IOS = '747300144353-us0tofvuph6i2btuai7t8gvmpqpnsf77.apps.googleusercontent.com';
 
   /* 🔴 BUILD 441 · AQUÍ HABÍA UNA ESPERA DE 400 ms Y SE HA REVERTIDO.
    *    Se deja escrito para que nadie la reintroduzca creyendo que ayuda.
@@ -415,6 +444,38 @@
     }
     log('entorno nativo detectado: ' + plataforma());
     _marcarAppNativa();
+
+    /* BUILD 443 · el plugin de Google EXIGE initialize() antes de signIn().
+     *
+     * 🔴 SIN ESTO, `signIn()` falla con un error que NO dice que falte la
+     *    inicialización: en iOS devuelve algo como «keychain error» o
+     *    simplemente no abre nada. O sea, un fallo cuyo mensaje apunta al
+     *    sitio equivocado — y diagnosticarlo tocaría hacerlo en el Mac.
+     *
+     * 🔴 EL CLIENT ID QUE VA AQUÍ ES EL **WEB**, NO EL DE iOS, Y NO ES UNA
+     *    ERRATA. El plugin usa `clientId` para pedir un idToken cuyo `aud`
+     *    sea el del servidor que lo va a verificar; el Client ID de iOS se
+     *    configura aparte, en el `Info.plist` (como REVERSED_CLIENT_ID), y es
+     *    el que identifica a la app ante Google.
+     *    El servidor acepta LOS DOS `aud` (build 442, `audsPermitidos`), así
+     *    que el login funciona con independencia de cuál acabe poniendo el
+     *    plugin. Esa lista es la red de seguridad de esta decisión.
+     */
+    try {
+      var pg = _plugin(NOMBRE_GOOGLE);
+      if (pg && typeof pg.initialize === 'function') {
+        pg.initialize({
+          clientId: CLIENT_ID_WEB,
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: false,
+        });
+        log('plugin de Google inicializado');
+      } else {
+        log('plugin de Google NO presente: el pod no se instaló todavía');
+      }
+    } catch (e) {
+      log('fallo al inicializar Google: ' + ((e && e.message) || e));
+    }
     log('escáner nativo disponible: ' + escanerDisponible());
     log('push nativo disponible: ' + pushDisponible());
 
@@ -465,11 +526,180 @@
    *    el escenario en el que ese código va a vivir. */
   arrancar();
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     BUILD 443 · INICIO DE SESIÓN NATIVO · GOOGLE Y APPLE
+     ═══════════════════════════════════════════════════════════════════════
+
+     🔴 EL FALLO QUE ESTO RESUELVE, MEDIDO EN EL iPhone DEL DUEÑO:
+        «Continuar con Google» dentro de la app abría SAFARI FUERA DE LA APP y
+        se quedaba PARA SIEMPRE en `accounts.google.com/gsi/transform`.
+        Pantalla blanca congelada, sin error y sin salida.
+
+        Causa: `gsi/transform` devuelve el token A LA VENTANA QUE LO PIDIÓ, por
+        comunicación entre ventanas del MISMO proceso. Esa ventana vive en el
+        WebView de la app; Safari es OTRO proceso. No hay canal, el token no
+        tiene destinatario, y la página se queda ahí.
+        Lo agrava `capacitor.config.json:13`
+        (`limitsNavigationsToAppBoundDomains: true`), que EMPUJA
+        accounts.google.com fuera del WebView.
+
+        Y la medición que cerró el diagnóstico: en SAFARI del iPhone el mismo
+        login FUNCIONA. Mismo teléfono, mismo iOS, mismo WebKit, mismo Client
+        ID, mismo código. La única variable que cambia es el proceso. Por
+        eliminación: es el salto entre procesos, y Google PROHÍBE expresamente
+        el OAuth dentro de un WebView incrustado.
+
+     🔴 LA SOLUCIÓN, Y POR QUÉ ES LA ÚNICA: que el inicio de sesión lo haga
+        iOS, no la web. El plugin nativo abre la hoja del sistema —la misma que
+        usan las apps de banco—, obtiene el token DENTRO del proceso de la app
+        y lo devuelve aquí. Nunca se sale de la app, así que no hay salto.
+
+     🔴 SE INVOCA POR `window.Capacitor.Plugins`, NO CON `import` DE NPM.
+        Verificado: este proyecto NO TIENE EMPAQUETADOR (no existe
+        package.json, no hay Webpack ni Vite, los scripts se cargan con
+        <script src>). Un `import { GoogleAuth } from '@codetrix-studio/...'`
+        NO funcionaría: el navegador no sabe resolver nombres de paquete npm.
+        Capacitor inyecta ese objeto en el WebView y cada plugin se registra
+        por su nombre al instalarse su pod. El paquete npm solo aporta tipos.
+        Escribir el import «porque es lo que dicen los documentos» habría dado
+        una app que compila y un login que nunca arranca.
+
+     🔴 EL TOKEN NO SE DECODIFICA AQUÍ NI SE CREE NADA DE ÉL. Se manda tal cual
+        a /api/oauth, que comprueba la FIRMA con la clave pública. Es el mismo
+        principio del build 421: el trozo del medio de un JWT es Base64, no
+        está cifrado, y cualquiera lo escribe a mano. Si esta capa leyera el
+        correo del token y se lo creyera, reabriría el agujero por el que
+        cualquiera podía entrar como otro cliente.  */
+
+  /* Los nombres de plugin y los Client ID se declaran ARRIBA, junto a
+     NOMBRE_ESCANER — no aquí. Ver el comentario de allí: `arrancar()` se
+     ejecuta antes de este punto del fichero y los necesita. */
+
+  /** ¿Hay inicio de sesión nativo de Google utilizable aquí y ahora? */
+  function googleNativoDisponible() {
+    if (!esNativo()) return false;
+    var p = _plugin(NOMBRE_GOOGLE);
+    return !!(p && typeof p.signIn === 'function');
+  }
+
+  /** ¿Y de Apple? */
+  function appleNativoDisponible() {
+    if (!esNativo()) return false;
+    if (plataforma() !== 'ios') return false;   // Apple Sign In es de iOS
+    var p = _plugin(NOMBRE_APPLE);
+    return !!(p && typeof p.authorize === 'function');
+  }
+
+  /**
+   * Abre la hoja nativa de Google y devuelve el token, o null si se canceló.
+   *
+   * Devuelve: { credential, proveedor:'google', nombre } · { error } · null
+   *
+   * 🔴 SE DEVUELVE `null` PARA LA CANCELACIÓN Y UN OBJETO CON `error` PARA EL
+   *    FALLO, y la diferencia importa: si se tratara igual, cerrar la hoja a
+   *    propósito mostraría un mensaje de error al cliente que no ha hecho
+   *    nada mal. Es el mismo criterio que ya usa `escanear()`.
+   */
+  async function entrarConGoogleNativo() {
+    if (!googleNativoDisponible()) {
+      log('entrarConGoogleNativo(): no hay plugin de Google');
+      return null;
+    }
+    var p = _plugin(NOMBRE_GOOGLE);
+    try {
+      var r = await p.signIn();
+
+      /* El plugin devuelve el idToken en sitios distintos según su versión.
+       * Se prueban los dos en vez de fiarse de uno: una actualización del
+       * plugin no debe dejar el login muerto sin decir por qué. */
+      var token = (r && r.authentication && r.authentication.idToken) ||
+                  (r && r.idToken) || '';
+
+      if (!token) {
+        log('Google nativo no devolvió idToken', r ? Object.keys(r) : r);
+        return { error: 'SIN_TOKEN' };
+      }
+
+      var nombre = (r && (r.displayName || r.name)) || '';
+      log('Google nativo entregó un token (' + token.length + ' caracteres)');
+      return { credential: token, proveedor: 'google', nombre: nombre };
+
+    } catch (e) {
+      var msg = (e && (e.message || e.code || '')) + '';
+      /* Cancelar NO es un fallo. Los plugins lo comunican con textos
+       * distintos según la versión y la plataforma, así que se reconocen
+       * varios en vez de uno. */
+      if (/cancel|canceled|cancelled|-5|popup_closed/i.test(msg)) {
+        log('el usuario canceló el inicio de sesión con Google');
+        return null;
+      }
+      log('Google nativo falló: ' + msg);
+      return { error: 'FALLO_GOOGLE', detalle: msg };
+    }
+  }
+
+  /**
+   * Abre la hoja nativa de Apple («Iniciar sesión con Apple»).
+   *
+   * 🔴 APPLE MANDA EL NOMBRE Y EL CORREO UNA SOLA VEZ, en el primerísimo
+   *    inicio de sesión de ese usuario con esta app. En los siguientes NO
+   *    vienen. Por eso el nombre se envía al servidor cuando llega, y por eso
+   *    /api/oauth responde `APPLE_SIN_CORREO` (409) cuando falta el correo:
+   *    identificar a un cliente con un correo vacío podría meterlo en la
+   *    cuenta de otro.
+   */
+  async function entrarConAppleNativo() {
+    if (!appleNativoDisponible()) {
+      log('entrarConAppleNativo(): no hay plugin de Apple');
+      return null;
+    }
+    var p = _plugin(NOMBRE_APPLE);
+    try {
+      var r = await p.authorize({
+        clientId:    'com.casamota.supermercado',
+        redirectURI: 'https://supermercadocasamota.com/login-cliente.html',
+        scopes:      'email name',
+      });
+
+      var resp  = (r && r.response) || r || {};
+      var token = resp.identityToken || '';
+
+      if (!token) {
+        log('Apple nativo no devolvió identityToken', Object.keys(resp));
+        return { error: 'SIN_TOKEN' };
+      }
+
+      /* El nombre llega partido en dos y solo la primera vez. Se une con
+       * cuidado: si faltan los dos, queda cadena vacía y el servidor usará lo
+       * que ya tenga guardado en la ficha del cliente. */
+      var nombre = [resp.givenName || '', resp.familyName || '']
+                     .join(' ').trim();
+
+      log('Apple nativo entregó un token (' + token.length + ' caracteres)' +
+          (nombre ? ' y un nombre' : ' sin nombre: no es el primer inicio'));
+      return { credential: token, proveedor: 'apple', nombre: nombre };
+
+    } catch (e) {
+      var msg = (e && (e.message || e.code || '')) + '';
+      if (/cancel|canceled|cancelled|1001|popup_closed/i.test(msg)) {
+        log('el usuario canceló el inicio de sesión con Apple');
+        return null;
+      }
+      log('Apple nativo falló: ' + msg);
+      return { error: 'FALLO_APPLE', detalle: msg };
+    }
+  }
+
   // ─── API PÚBLICA ─────────────────────────────────────────────────────────
   global.CasaMotaNativo = {
     esNativo: esNativo,
     enApp: enApp,                 // BUILD 438 · alias legible para quien pregunta
     plataforma: plataforma,
+    // BUILD 443 · inicio de sesión nativo
+    googleNativoDisponible: googleNativoDisponible,
+    appleNativoDisponible: appleNativoDisponible,
+    entrarConGoogleNativo: entrarConGoogleNativo,
+    entrarConAppleNativo: entrarConAppleNativo,
     escanerDisponible: escanerDisponible,
     escanear: escanear,
     pushDisponible: pushDisponible,

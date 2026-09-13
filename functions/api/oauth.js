@@ -1,7 +1,19 @@
 /**
- * SUPERMERCADO CASA MOTA — VERIFICACIÓN DE ACCESO CON GOOGLE
- * ----------------------------------------------------------
+ * SUPERMERCADO CASA MOTA — VERIFICACIÓN DE ACCESO CON GOOGLE Y APPLE
+ * -------------------------------------------------------------------
  * Ruta pública: POST /api/oauth
+ *
+ * Cuerpo:  { credential: "<id_token>", proveedor: "google" | "apple",
+ *            nombre: "<solo Apple, primer inicio, NO verificado>" }
+ *
+ * 🔴 BUILD 442 · SE AÑADIÓ APPLE Y SE CORRIGIÓ UN DEFECTO QUE HABRÍA HECHO
+ *    FALLAR EL LOGIN DE LA APP SIN DAR NINGUNA PISTA.
+ *    Antes se comparaba el `aud` del token contra UN único Client ID. Pero el
+ *    `aud` cambia según de dónde venga el token: el de la app de iOS es
+ *    DISTINTO del de la web. O sea que el servidor habría rechazado los tokens
+ *    de la app siendo válidos —401 siempre— y el diagnóstico habría tocado
+ *    hacerlo desde el Mac, buscando en el código nativo un fallo que estaba
+ *    aquí. Ahora se compara contra una LISTA por proveedor (`audsPermitidos`).
  *
  * 🔴 EL AGUJERO QUE ESTO CIERRA
  * ─────────────────────────────
@@ -35,12 +47,30 @@
  * que vive en las variables de entorno de Cloudflare y NUNCA se envía al
  * navegador.
  *
- * CONFIGURACIÓN REQUERIDA (una sola vez, en el panel de Cloudflare):
+ * CONFIGURACIÓN REQUERIDA (en el panel de Cloudflare):
  *   Pages → supermercado-casa-mota → Settings → Environment variables
+ *
+ *   YA EXISTENTES (no tocar):
  *     SUPABASE_URL           https://XXXX.supabase.co
  *     SUPABASE_SERVICE_KEY   eyJ...  (la llave `service_role`, marcar Encrypt)
- *     GOOGLE_CLIENT_ID       747300144353-...apps.googleusercontent.com
+ *     GOOGLE_CLIENT_ID       747300144353-...apps.googleusercontent.com   ← web
+ *
+ *   NUEVAS DEL BUILD 442:
+ *     GOOGLE_CLIENT_ID_IOS   el Client ID de tipo «iOS» de Google Cloud
+ *                            ← SIN ESTO, GOOGLE NO FUNCIONA DENTRO DE LA APP
+ *     APPLE_APP_ID           com.casamota.supermercado   ← Apple en el iPhone
+ *     APPLE_SERVICE_ID       el Services ID              ← Apple en la web
+ *                            (aún no existe; dejar sin poner hasta crearlo)
+ *
  *   Aplicar a: Production. Después: Deployments → Retry deployment.
+ *
+ * 🔴 UNA VARIABLE QUE FALTE NO SE IGNORA: CIERRA LA PUERTA. Una lista de
+ *    destinatarios vacía hace que ese proveedor rechace todo acceso, a
+ *    propósito. Antes ocurría lo contrario —si faltaba la variable, la
+ *    comprobación se DESACTIVABA— y eso habría dejado entrar tokens legítimos
+ *    de cualquier otra web que use Google. Un fallo de configuración debe
+ *    cerrar, nunca abrir.
+ *    Para comprobar qué hay puesto sin exponer valores: GET /api/oauth
  *
  * 🔴 NO escribas la llave de servicio en este archivo: acabaría en GitHub, que
  * es público, y la `service_role` puede leer y escribir TODA la base sin
@@ -54,6 +84,19 @@ const GOOGLE_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 const CACHE_MS = 60 * 60 * 1000;   // 1 hora
 let _certsCache = null;
 let _certsAt    = 0;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUILD 442 · APPLE · claves públicas, con su propia caché
+   ═══════════════════════════════════════════════════════════════════════════
+   Apple publica sus claves igual que Google y también las rota, así que
+   tampoco se pueden escribir a mano. Se usa una caché SEPARADA de la de
+   Google: compartir una sola variable obligaría a distinguir de quién es cada
+   clave al buscar por `kid`, y un `kid` de Google no sirve para un token de
+   Apple ni al contrario. Dos cachés cuestan cuatro líneas y evitan un fallo
+   intermitente imposible de reproducir. */
+const APPLE_CERTS_URL = 'https://appleid.apple.com/auth/keys';
+let _appleCache = null;
+let _appleAt    = 0;
 
 function json(datos, estado = 200) {
   return new Response(JSON.stringify(datos), {
@@ -89,6 +132,73 @@ async function traerCertsGoogle() {
   return _certsCache;
 }
 
+async function traerCertsApple() {
+  const ahora = Date.now();
+  if (_appleCache && (ahora - _appleAt) < CACHE_MS) return _appleCache;
+
+  const res = await fetch(APPLE_CERTS_URL);
+  if (!res.ok) throw new Error('No se pudieron obtener las claves de Apple');
+  const datos = await res.json();
+  _appleCache = datos.keys || [];
+  _appleAt    = ahora;
+  return _appleCache;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUILD 442 · DESTINATARIOS ACEPTADOS (`aud`) — EL DEFECTO QUE BLOQUEABA TODO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   🔴 LO QUE HABÍA Y POR QUÉ HABRÍA FALLADO EN SILENCIO:
+
+       if (clientId && cuerpo.aud !== clientId) throw new Error('DESTINATARIO_INVALIDO');
+
+   Una sola comparación contra UN solo Client ID. Pero el `aud` de un token
+   cambia según DE DÓNDE viene:
+
+     · Google en el navegador  → Client ID de tipo «Aplicación web»
+     · Google en la app iOS    → Client ID de tipo «iOS»  ← OTRO valor
+     · Apple nativo (iPhone)   → el App ID: com.casamota.supermercado
+     · Apple en la web         → el Services ID (aún no existe)
+
+   O sea que, tal cual estaba, el servidor habría **rechazado los tokens de la
+   app siendo perfectamente válidos**: un login que compila, se ve bien y
+   devuelve 401 SIEMPRE. Y el diagnóstico habría tocado hacerlo desde el Mac,
+   pagando horas, buscando en el sitio equivocado — porque el fallo no está en
+   el código nativo sino aquí, en una línea del servidor.
+
+   🔴 POR QUÉ NO SE ACEPTA CUALQUIER `aud`, QUE SERÍA LO CÓMODO:
+   el `aud` es lo que prueba que el token fue emitido PARA ESTA TIENDA. Sin esa
+   comprobación, un token legítimo de CUALQUIER otra web que use Google entraría
+   aquí y abriría sesión con el correo de su portador. Por eso se compara contra
+   una LISTA CERRADA, y una lista vacía NO se interpreta como «todo vale».
+
+   🔴 LOS VALORES VIENEN DE VARIABLES DE ENTORNO, NO DEL CÓDIGO: así se pueden
+   cambiar sin desplegar, y el repositorio (que es público) no publica la
+   configuración de la cuenta.
+*/
+function audsPermitidos(env, proveedor) {
+  const lista = [];
+
+  if (proveedor === 'google') {
+    // GOOGLE_CLIENT_ID es el que ya existía: se mantiene el nombre para no
+    // romper la configuración actual de Cloudflare.
+    if (env.GOOGLE_CLIENT_ID)     lista.push(env.GOOGLE_CLIENT_ID);
+    if (env.GOOGLE_CLIENT_ID_IOS) lista.push(env.GOOGLE_CLIENT_ID_IOS);
+  } else if (proveedor === 'apple') {
+    // Apple nativo: el App ID. Apple web: el Services ID.
+    if (env.APPLE_APP_ID)     lista.push(env.APPLE_APP_ID);
+    if (env.APPLE_SERVICE_ID) lista.push(env.APPLE_SERVICE_ID);
+  }
+
+  // Se admiten varios separados por comas, por si algún día hacen falta más
+  // (una app de personal, otra plataforma) sin tocar este fichero.
+  return lista
+    .join(',')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
 /**
  * Verifica de verdad el token de Google: firma, emisor, destinatario y
  * caducidad. Devuelve el contenido solo si TODO cuadra.
@@ -101,7 +211,7 @@ async function traerCertsGoogle() {
  *  · `iss`        → que el emisor es accounts.google.com
  *  · `exp`        → que no es un token viejo reutilizado
  */
-async function verificarTokenGoogle(idToken, clientId) {
+async function verificarTokenGoogle(idToken, audsOk) {
   const partes = String(idToken || '').split('.');
   if (partes.length !== 3) throw new Error('TOKEN_MAL_FORMADO');
 
@@ -147,7 +257,15 @@ async function verificarTokenGoogle(idToken, clientId) {
   const emisoresOk = ['accounts.google.com', 'https://accounts.google.com'];
   if (!emisoresOk.includes(cuerpo.iss)) throw new Error('EMISOR_INVALIDO');
 
-  if (clientId && cuerpo.aud !== clientId) throw new Error('DESTINATARIO_INVALIDO');
+  /* BUILD 442 · se compara contra la LISTA de destinatarios válidos.
+   *
+   * 🔴 SI LA LISTA VIENE VACÍA SE RECHAZA, no se deja pasar. Antes, con
+   *    `if (clientId && …)`, una variable de entorno ausente o mal escrita
+   *    DESACTIVABA la comprobación entera sin avisar, y entonces el token de
+   *    cualquier otra web que use Google habría entrado aquí. Un fallo de
+   *    configuración debe cerrar la puerta, nunca abrirla. */
+  if (!audsOk || !audsOk.length) throw new Error('SIN_DESTINATARIOS_CONFIGURADOS');
+  if (!audsOk.includes(cuerpo.aud)) throw new Error('DESTINATARIO_INVALIDO');
 
   const ahora = Math.floor(Date.now() / 1000);
   if (!cuerpo.exp || cuerpo.exp < ahora - 60) throw new Error('TOKEN_CADUCADO');
@@ -160,21 +278,132 @@ async function verificarTokenGoogle(idToken, clientId) {
   return cuerpo;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUILD 442 · VERIFICACIÓN DEL TOKEN DE APPLE
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Mismas cuatro comprobaciones que Google y por los mismos motivos: firma
+   (que lo emitió Apple), `iss` (que el emisor es appleid.apple.com), `aud`
+   (que fue emitido para esta app y no para otra) y `exp` (que no es un token
+   viejo reutilizado). Apple usa RS256 igual que Google, así que la mecánica
+   criptográfica es idéntica y se reutiliza el mismo `crypto.subtle`.
+
+   🔴 TRES DIFERENCIAS DE APPLE QUE NO SON EVIDENTES Y QUE, SI SE IGNORAN,
+      PRODUCEN UN LOGIN QUE FALLA SOLO PARA ALGUNOS CLIENTES:
+
+   1. **Apple manda el correo UNA SOLA VEZ**, en el primerísimo inicio de
+      sesión de ese usuario con esta app. En los siguientes, el token puede
+      llegar SIN `email`. Un cliente que ya entró una vez y borra la app
+      volvería sin correo. Por eso aquí NO se exige `email` de entrada: se
+      informa al llamador con `sinCorreo` y se decide arriba, donde se sabe si
+      hay un cliente ya creado.
+
+   2. **`email_verified` puede llegar como la CADENA "true"**, no como booleano.
+      Apple es inconsistente en esto según el flujo. Comparar con `=== true`
+      daría falso para un correo perfectamente verificado.
+
+   3. **El nombre NO viene en el token, nunca.** Apple lo entrega aparte, solo
+      en el primer inicio, y en el lado nativo. Así que el nombre llega por
+      separado desde el cliente y aquí se trata como dato NO verificado: sirve
+      para saludar, no para identificar. Quien identifica es `sub`/`email`.
+*/
+async function verificarTokenApple(idToken, audsOk) {
+  const partes = String(idToken || '').split('.');
+  if (partes.length !== 3) throw new Error('TOKEN_MAL_FORMADO');
+
+  const cabecera = b64urlAJson(partes[0]);
+  const cuerpo   = b64urlAJson(partes[1]);
+
+  if (cabecera.alg !== 'RS256') throw new Error('ALGORITMO_NO_ADMITIDO');
+
+  const certs = await traerCertsApple();
+  const jwk   = certs.find(k => k.kid === cabecera.kid);
+  if (!jwk) throw new Error('CLAVE_DESCONOCIDA');
+
+  let clave;
+  try {
+    // Se copia el JWK tal como lo manda Apple y se sobrescribe lo mínimo, por
+    // la misma razón documentada en el verificador de Google (build 421c):
+    // reconstruirlo a mano fue lo que produjo un 502 sin ninguna pista.
+    clave = await crypto.subtle.importKey(
+      'jwk',
+      { ...jwk, alg: 'RS256', ext: true, key_ops: ['verify'] },
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+  } catch (e) {
+    throw new Error('CLAVE_NO_IMPORTABLE: ' + ((e && e.message) || e));
+  }
+
+  const firmado = new TextEncoder().encode(partes[0] + '.' + partes[1]);
+  const firma   = b64urlABytes(partes[2]);
+  const valida  = await crypto.subtle.verify(
+    'RSASSA-PKCS1-v1_5', clave, firma, firmado
+  );
+  if (!valida) throw new Error('FIRMA_INVALIDA');
+
+  const emisoresOk = ['https://appleid.apple.com', 'appleid.apple.com'];
+  if (!emisoresOk.includes(cuerpo.iss)) throw new Error('EMISOR_INVALIDO');
+
+  if (!audsOk || !audsOk.length) throw new Error('SIN_DESTINATARIOS_CONFIGURADOS');
+  if (!audsOk.includes(cuerpo.aud)) throw new Error('DESTINATARIO_INVALIDO');
+
+  const ahora = Math.floor(Date.now() / 1000);
+  if (!cuerpo.exp || cuerpo.exp < ahora - 60) throw new Error('TOKEN_CADUCADO');
+
+  if (!cuerpo.sub) throw new Error('SIN_IDENTIFICADOR');
+
+  /* Diferencia 2: `email_verified` puede ser booleano o la cadena "true". */
+  const verificado = cuerpo.email_verified === true ||
+                     cuerpo.email_verified === 'true';
+  if (cuerpo.email && !verificado) throw new Error('CORREO_SIN_CONFIRMAR');
+
+  return cuerpo;
+}
+
 /** GET /api/oauth — comprobación de salud, sin exponer ninguna clave. */
 export function onRequestGet(context) {
   const env = context.env || {};
   /* `build` permite comprobar de un vistazo si el despliegue trae ESTA versión
    * o una anterior en caché. Sin esto, una prueba puede fallar por estar
    * mirando código viejo y se pierde media hora buscando en el sitio erróneo. */
+  /* BUILD 442 · se informa de CUÁNTOS destinatarios hay configurados por
+   * proveedor, pero NO de sus valores. Así el dueño puede comprobar desde el
+   * navegador si falta una variable de entorno —la causa más probable de un
+   * 401 tras configurar el login nativo— sin exponer la configuración de la
+   * cuenta a quien visite la URL.
+   *
+   * 🔴 Esto NO es un adorno: sin él, un `aud` mal puesto en Cloudflare se
+   *    manifiesta como «no pudimos verificar tu cuenta» en el teléfono, y
+   *    averiguar por qué exigiría leer los registros de Cloudflare o volver al
+   *    Mac. Con esto se ve en tres segundos desde cualquier navegador. */
+  const gAuds = audsPermitidos(env, 'google');
+  const aAuds = audsPermitidos(env, 'apple');
+
   return json({
     ok: true,
     servicio: 'vale-cliente-casamota',
-    build: '421d',
+    build: '442',
     configurado: {
       supabase_url:     Boolean(env.SUPABASE_URL),
       service_key:      Boolean(env.SUPABASE_SERVICE_KEY),
       google_client_id: Boolean(env.GOOGLE_CLIENT_ID),
+      google_ios:       Boolean(env.GOOGLE_CLIENT_ID_IOS),
+      apple_app_id:     Boolean(env.APPLE_APP_ID),
+      apple_service_id: Boolean(env.APPLE_SERVICE_ID),
     },
+    destinatarios: {
+      google: gAuds.length,
+      apple:  aAuds.length,
+    },
+    /* Aviso legible: un cero aquí significa que ese proveedor RECHAZARÁ todo
+     * intento de acceso, porque una lista vacía cierra la puerta a propósito. */
+    avisos: [
+      gAuds.length === 0 ? 'Google NO puede funcionar: falta GOOGLE_CLIENT_ID' : null,
+      !env.GOOGLE_CLIENT_ID_IOS ? 'Google en la APP no funcionará: falta GOOGLE_CLIENT_ID_IOS' : null,
+      aAuds.length === 0 ? 'Apple NO puede funcionar: falta APPLE_APP_ID' : null,
+    ].filter(Boolean),
   });
 }
 
@@ -222,17 +451,54 @@ async function manejarPost(context) {
   try { body = JSON.parse(texto); }
   catch { return json({ error: 'JSON inválido' }, 400); }
 
-  if (!body.credential) return json({ error: 'Falta el token de Google' }, 400);
+  if (!body.credential) return json({ error: 'Falta el token' }, 400);
+
+  /* BUILD 442 · el proveedor lo dice el cliente, pero NO se le cree sin más:
+   * solo sirve para elegir QUÉ claves públicas y QUÉ emisor exigir. Si alguien
+   * manda un token de Google diciendo que es de Apple, la verificación de
+   * firma o de emisor lo tumba. O sea que este campo no es una credencial:
+   * es un enrutador. */
+  const proveedor = body.proveedor === 'apple' ? 'apple' : 'google';
+  const audsOk    = audsPermitidos(env, proveedor);
 
   let perfil;
   try {
-    perfil = await verificarTokenGoogle(body.credential, env.GOOGLE_CLIENT_ID);
+    perfil = proveedor === 'apple'
+      ? await verificarTokenApple(body.credential, audsOk)
+      : await verificarTokenGoogle(body.credential, audsOk);
   } catch (e) {
     /* El motivo se registra en Cloudflare pero NO se devuelve al navegador:
      * a quien intenta suplantar a alguien no se le explica qué le falló. */
-    console.warn('[oauth] token rechazado:', e && e.message);
-    return json({ error: 'No pudimos verificar tu cuenta de Google. Intenta de nuevo.' }, 401);
+    console.warn('[oauth] token de ' + proveedor + ' rechazado:', e && e.message);
+    const nombre = proveedor === 'apple' ? 'Apple' : 'Google';
+    return json({ error: 'No pudimos verificar tu cuenta de ' + nombre + '. Intenta de nuevo.' }, 401);
   }
+
+  /* ── APPLE SIN CORREO ─────────────────────────────────────────────────────
+   * 🔴 Apple entrega el correo SOLO en el primer inicio de sesión de cada
+   *    usuario. Si un cliente ya entró antes, borró la app y vuelve, el token
+   *    llega sin `email` — y la tienda identifica a sus clientes POR CORREO
+   *    (`cliente_abrir_sesion_oauth` recibe `p_email`).
+   *
+   *    Se responde con un error EXPLÍCITO y distinto en vez de dejar que la
+   *    base falle con un correo vacío, porque un correo vacío podría colisionar
+   *    con otro registro incompleto y meter a un cliente en la cuenta de otro.
+   *    Preferimos negar el acceso a arriesgar eso.
+   *
+   *    Solución definitiva pendiente (requiere SQL, así que no se hace hoy):
+   *    guardar el `sub` de Apple en la ficha del cliente la primera vez y
+   *    buscar por `sub` cuando no llegue correo. Queda anotado en el documento
+   *    de estado, no olvidado. */
+  if (proveedor === 'apple' && !perfil.email) {
+    console.warn('[oauth] Apple sin correo · sub=' + String(perfil.sub).slice(0, 12) + '…');
+    return json({
+      error: 'Apple no compartió tu correo esta vez. Entra con tu correo y ' +
+             'contraseña, o usa «Continuar con Google».',
+      codigo: 'APPLE_SIN_CORREO',
+    }, 409);
+  }
+
+  if (!perfil.email) return json({ error: 'No recibimos tu correo.' }, 400);
 
   const url = env.SUPABASE_URL.replace(/\/+$/, '') + '/rest/v1/rpc/cliente_abrir_sesion_oauth';
   let res, filas;
@@ -244,9 +510,16 @@ async function manejarPost(context) {
         'apikey':        env.SUPABASE_SERVICE_KEY,
         'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY,
       },
+      /* BUILD 442 · el nombre puede venir de dos sitios y NINGUNO es de fiar
+       * para identificar:
+       *  · Google lo pone en el token (`name`), ya verificado por Google.
+       *  · Apple NO lo pone en el token NUNCA. Lo entrega aparte y solo en el
+       *    primer inicio, así que llega en `body.nombre` desde el cliente.
+       * Por eso se recorta a 80 caracteres y se usa solo para saludar. Quien
+       * identifica al cliente es el correo del token verificado, no esto. */
       body: JSON.stringify({
         p_email:  perfil.email,
-        p_nombre: perfil.name || '',
+        p_nombre: (perfil.name || body.nombre || '').toString().slice(0, 80).trim(),
         p_avatar: perfil.picture || '',
       }),
     });
@@ -285,7 +558,7 @@ async function manejarPost(context) {
       phone:        fila.phone   || '',
       address:      fila.address || '',
       city:         fila.city    || '',
-      authProvider: 'google',
+      authProvider: proveedor,          // BUILD 442 · ya no está fijado a Google
       avatar:       perfil.picture || '',
     },
     vale:   fila.vale,

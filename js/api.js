@@ -2344,15 +2344,38 @@ const DBCached = {
  * cuando algo va mal. Ya nos pasó con el `Fallback: si RPC no existe aún,
  * comparar directo (temporal)` de `auth.v33.js`, que dejó a los clientes sin
  * poder entrar durante builds enteros. */
-async function abrirSesionGoogle(credential) {
-  if (!credential) throw new Error('Google no devolvió ningún token.');
+/* 🔴 BUILD 443 · SEGUNDO PARÁMETRO `opciones`, Y SIN ÉL EL LOGIN DE APPLE NO
+ *    PODRÍA FUNCIONAR NUNCA. Esta función enviaba solo `{ credential }`, así
+ *    que el servidor —que elige las claves públicas y el emisor según
+ *    `proveedor`— habría intentado verificar un token de APPLE contra las
+ *    claves de GOOGLE. Resultado: `CLAVE_DESCONOCIDA` y un 401, con el
+ *    diagnóstico apuntando al código nativo cuando el fallo estaría aquí.
+ *
+ *    `opciones` es opcional a propósito: las cuatro llamadas que ya existen en
+ *    la web siguen funcionando sin tocarlas, y el servidor interpreta la
+ *    ausencia de `proveedor` como 'google' (build 442). Añadir un parámetro
+ *    con valor por defecto es compatible hacia atrás; cambiar la firma
+ *    obligaría a revisar cada llamada y a arriesgar el camino por el que hoy
+ *    entran 6 de los 9 clientes.
+ *
+ *    El nombre conserva «Google» aunque ya sirva para Apple: renombrarla
+ *    obligaría a tocar sus llamadas en varias páginas sin ganar nada
+ *    funcional, y cada una de esas ediciones es una ocasión de romper algo
+ *    que funciona. Queda anotado como deuda de nombre, no de comportamiento. */
+async function abrirSesionGoogle(credential, opciones) {
+  if (!credential) throw new Error('No se recibió ningún token.');
 
+  const extra = opciones || {};
   let res, datos;
   try {
     res = await fetch('/api/oauth', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ credential }),
+      body:    JSON.stringify({
+        credential,
+        proveedor: extra.proveedor || 'google',
+        nombre:    extra.nombre || '',
+      }),
     });
   } catch (e) {
     throw new Error('No se pudo conectar para verificar tu cuenta. Revisa tu conexión.');
