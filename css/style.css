@@ -3280,6 +3280,47 @@ input, select { font-family: var(--font); }
   .header { padding-top: env(safe-area-inset-top); }
 }
 
+/* ============================================================
+   BUILD 438 · APP NATIVA (Capacitor) — MISMO RELLENO SUPERIOR
+   ============================================================
+
+   🔴 DEFECTO MEDIDO EN UN iPhone 14 Pro Max REAL: la cabecera de la tienda
+      se metía DEBAJO de la isla dinámica. El logo, el saludo «Hola …»,
+      Favoritos y el Carrito quedaban pisados por la hora y la píldora negra
+      del sistema.
+
+   🔴 CAUSA, Y ES LA PARTE QUE IMPORTA: el relleno de arriba existía, pero
+      SOLO dentro de `@media (display-mode: standalone)`. Una app de
+      Capacitor NO ESTÁ en `display-mode: standalone` — es un WKWebView
+      incrustado en una app nativa. Esa consulta de medios no se cumplía
+      nunca dentro de la app, así que la regla no se aplicaba jamás, y
+      `.header` es `position: fixed; top: 0` (línea 316 de este fichero).
+      O sea: el arreglo del notch llevaba meses escrito y muerto para el
+      único caso en el que Apple lo mira.
+
+   🔴 POR QUÉ UNA CLASE Y NO OTRA CONSULTA DE MEDIOS: el CSS no tiene forma
+      de preguntar «¿corro dentro de Capacitor?». No existe ese descriptor.
+      Quien sí lo sabe con certeza es js/nativo.js, mediante
+      `Capacitor.isNativePlatform()`, y por eso marca
+      <html class="es-app-nativa">. Inventar aquí una heurística por tamaño
+      de pantalla o por user-agent sería adivinar; esto es leer un dato.
+
+   Se repite la declaración en vez de agrupar los dos selectores porque un
+   `@media` y una clase no se pueden unir en una sola lista de selectores sin
+   perder el `@media`. Duplicar tres líneas es más barato que un arreglo
+   ingenioso que nadie entienda en seis meses. */
+html.es-app-nativa .header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+html.es-app-nativa body {
+  overscroll-behavior: none;
+}
+
+/* El carrito y los paneles laterales ya leen la variable --cart-top, que
+   js/app.js calcula en _calcSafeTop(). Esa función también se corrigió en el
+   BUILD 438 porque preguntaba por `navigator.standalone`, falso en la app. */
+
 /* Botón instalar PWA */
 .pwa-install-btn {
   animation: pwa-pulse 2s ease-in-out infinite;
