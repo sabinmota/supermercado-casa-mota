@@ -144,6 +144,21 @@
   var CLIENT_ID_WEB = '747300144353-1qbi69thi9t0sjrf3rrvddpt333fg7to.apps.googleusercontent.com';
   var CLIENT_ID_IOS = '747300144353-us0tofvuph6i2btuai7t8gvmpqpnsf77.apps.googleusercontent.com';
 
+  /* BUILD 446 · ESTADO DE LA INICIALIZACIÓN DE `SocialLogin`.
+   *
+   * 🔴 SE DECLARAN AQUÍ ARRIBA A PROPÓSITO, JUNTO A LOS CLIENT ID, Y POR EL
+   *    MISMO MOTIVO QUE ELLOS: `arrancar()` corre en la línea ~500 y las usa.
+   *    Declararlas más abajo con `var` NO daría error — daría `undefined`,
+   *    que es el fallo mudo que ya mordió una vez en este mismo fichero
+   *    (ver el bloque de arriba sobre el orden de declaración).
+   *
+   * `_iniGoogle`    · la PROMESA de initialize(), para poder esperarla
+   * `_iniGoogleOk`  · true solo si initialize() resolvió bien
+   * `_iniGoogleErr` · el motivo del fallo, para enseñarlo en el teléfono */
+  var _iniGoogle    = null;
+  var _iniGoogleOk  = false;
+  var _iniGoogleErr = '';
+
   /* 🔴 BUILD 441 · AQUÍ HABÍA UNA ESPERA DE 400 ms Y SE HA REVERTIDO.
    *    Se deja escrito para que nadie la reintroduzca creyendo que ayuda.
    *
@@ -517,14 +532,56 @@
         /* initialize() devuelve una promesa. Se engancha el fallo para que no
          * quede como rechazo sin capturar: un `catch` alrededor de la llamada
          * NO atrapa un rechazo asíncrono. */
-        pg.initialize(cfg)
-          .then(function () { log('SocialLogin inicializado (google' +
-                                  (cfg.apple ? ' + apple' : '') + ')'); })
+        /* 🔴🔴 BUILD 446 · SE GUARDA LA PROMESA, NO SE TIRA.
+         *
+         * SÍNTOMA QUE LO DESTAPÓ, en el iPhone del dueño con la build 1.0 (2):
+         * «Continuar con Google» devolvía **«Missing provider or options»** —
+         * mensaje del propio plugin, no nuestro— mientras **Apple funcionaba
+         * perfectamente** en la misma pantalla.
+         *
+         * 🔴 POR QUÉ APPLE SÍ Y GOOGLE NO, Y ES LA CLAVE DEL DIAGNÓSTICO: son
+         *    DOS PLUGINS DISTINTOS. Apple va por `SignInWithApple`
+         *    (@capacitor-community), que **no necesita `initialize()`**;
+         *    Google va por `SocialLogin` (@capgo), que **lo exige**. Que Apple
+         *    funcione demostró que los pods estaban bien instalados y que el
+         *    fallo era exclusivamente de la inicialización de Google.
+         *
+         * EL DEFECTO DE DISEÑO QUE HABÍA AQUÍ: `initialize()` es ASÍNCRONO y
+         * su resultado se descartaba en un `.catch()` que solo escribía en el
+         * registro. Consecuencia en cadena:
+         *   1. `arrancar()` termina sin esperar a que `initialize()` acabe.
+         *   2. `googleNativoDisponible()` solo mira si existe `login`, así que
+         *      devuelve `true` **aunque la inicialización haya fallado o ni
+         *      siquiera haya terminado**.
+         *   3. El botón se muestra, el cliente lo pulsa y `login()` falla con
+         *      «Missing provider or options» — un mensaje que apunta al
+         *      proveedor cuando la causa es que nadie esperó a `initialize()`.
+         *
+         * 🔴 Y HABÍA UNA CARRERA REAL, no solo un fallo silenciado: entre que
+         *    la pantalla se pinta y el cliente pulsa el botón pueden pasar
+         *    décimas de segundo. Si `initialize()` aún no ha resuelto, `login()`
+         *    llega antes. Eso explicaría por qué el error parece caprichoso.
+         *
+         * ARREGLO: la promesa se GUARDA en `_iniGoogle`, y `entrarConGoogleNativo`
+         * la ESPERA antes de llamar a `login()`. Así el orden deja de depender
+         * de la suerte. Se guarda además el motivo del fallo en `_iniGoogleErr`
+         * para poder mostrarlo en el teléfono — que es la única vía de
+         * diagnóstico disponible, porque el Mac es remoto y el iPhone no se
+         * puede conectar por cable. */
+        _iniGoogle = pg.initialize(cfg)
+          .then(function () {
+            _iniGoogleOk = true;
+            log('SocialLogin inicializado (google' +
+                (cfg.apple ? ' + apple' : '') + ')');
+          })
           .catch(function (e) {
-            log('SocialLogin NO se pudo inicializar: ' +
-                ((e && e.message) || e));
+            _iniGoogleErr = (e && (e.message || e.code)) || String(e);
+            log('SocialLogin NO se pudo inicializar: ' + _iniGoogleErr);
+            /* No se relanza: un rechazo sin atrapar rompería otras cosas. El
+             * estado queda registrado y lo consulta quien lo necesite. */
           });
       } else {
+        _iniGoogleErr = 'PLUGIN_AUSENTE';
         log('plugin SocialLogin NO presente: el pod no se instaló todavía');
       }
     } catch (e) {
@@ -667,6 +724,30 @@
     }
     var p = _plugin(NOMBRE_GOOGLE);
     try {
+      /* 🔴 BUILD 446 · SE ESPERA A `initialize()` ANTES DE `login()`.
+       *
+       * Esta es la línea que arregla el «Missing provider or options» del
+       * iPhone. Antes, `login()` podía ejecutarse mientras `initialize()`
+       * seguía en curso —o después de que hubiera fallado sin que nadie se
+       * enterara—, y el plugin respondía que le faltaba el proveedor.
+       *
+       * `await` sobre una promesa ya resuelta es inmediato, así que esto NO
+       * añade espera perceptible en el caso normal: solo ordena los dos pasos.
+       * Y si `initialize()` no llegó a lanzarse (plugin ausente), `_iniGoogle`
+       * es `null` y el `await` de un valor nulo también es inmediato. */
+      if (_iniGoogle) { await _iniGoogle; }
+
+      /* Si la inicialización falló, se devuelve ESE motivo y no se llama a
+       * `login()`. Llamarlo daría «Missing provider or options», que apunta al
+       * sitio equivocado y fue justo lo que costó una ronda de diagnóstico.
+       * Aquí el cliente ve la causa real en la pantalla del teléfono — la
+       * única vía posible, porque el Mac es remoto y no hay cable. */
+      if (!_iniGoogleOk) {
+        log('Google nativo: initialize() no completó · ' + _iniGoogleErr);
+        return { error: 'SIN_INICIALIZAR',
+                 detalle: _iniGoogleErr || 'initialize() no completó' };
+      }
+
       var r = await p.login({ provider: 'google' });
 
       /* 🔴 EL TOKEN VIENE ANIDADO EN `result`, NO EN LA RAÍZ. Leído de la
@@ -771,6 +852,19 @@
     appleNativoDisponible: appleNativoDisponible,
     entrarConGoogleNativo: entrarConGoogleNativo,
     entrarConAppleNativo: entrarConAppleNativo,
+    /* BUILD 446 · estado de la inicialización de Google, legible desde fuera.
+     * Sirve para que una pantalla de la app pueda mostrar el motivo real sin
+     * necesidad de consola — el iPhone no se puede conectar al Mac remoto. */
+    estadoGoogle: function () {
+      return {
+        plugin_presente: !!_plugin(NOMBRE_GOOGLE),
+        tiene_login:     typeof (_plugin(NOMBRE_GOOGLE) || {}).login === 'function',
+        initialize_ok:   _iniGoogleOk,
+        initialize_err:  _iniGoogleErr || '(ninguno)',
+        client_id_ios:   CLIENT_ID_IOS.slice(0, 28) + '…',
+        client_id_web:   CLIENT_ID_WEB.slice(0, 28) + '…'
+      };
+    },
     escanerDisponible: escanerDisponible,
     escanear: escanear,
     pushDisponible: pushDisponible,
