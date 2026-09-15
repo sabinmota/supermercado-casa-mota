@@ -915,10 +915,28 @@
       if (btnApple)  btnApple.style.display  = appleOk  ? '' : 'none';
       if (divisor)   divisor.style.display   = (googleOk || appleOk) ? '' : 'none';
 
-      /* El botón de Apple aún muestra la insignia «Pronto» en el marcado. Si
-         el plugin ya está, sobra: el botón funciona de verdad. */
+      /* El botón de Apple lleva en el marcado una insignia «Pronto». Si el
+         plugin ya está, sobra: el botón funciona de verdad.
+
+         🔴 BUILD 446 · AQUÍ HABÍA UN DEFECTO MÍO, VISTO EN EL IPHONE DEL DUEÑO:
+            el selector era `'.oauth-badge, .badge, [class*="pronto"]'` y
+            NINGUNO DE LOS TRES existe. La clase real es `apple-coming-soon`
+            (línea 800). Los dos primeros me los inventé; el tercero es el
+            instructivo: `[class*="pronto"]` busca esa palabra **en el atributo
+            `class`**, no en el texto visible — y «Pronto» es el CONTENIDO del
+            span, mientras la clase está en inglés.
+            **Escribí tres selectores plausibles sin abrir el marcado**, que es
+            el mismo defecto de método que ya costó cuatro veces en este
+            proyecto: afirmar el contenido de algo sin leerlo.
+            Es cosmético (el botón funcionaba igual), pero decía «Pronto» sobre
+            una función ya disponible.
+            Se deja `.apple-coming-soon` como selector principal y se conservan
+            los otros dos por si el marcado cambia; NO es un remiendo: son
+            alternativas del mismo `querySelector`, no un respaldo que pueda
+            reintroducir el fallo. */
       if (appleOk && btnApple) {
-        const insignia = btnApple.querySelector('.oauth-badge, .badge, [class*="pronto"]');
+        const insignia = btnApple.querySelector(
+          '.apple-coming-soon, .oauth-badge, .badge');
         if (insignia) insignia.style.display = 'none';
       }
 
@@ -1008,7 +1026,20 @@
 
         if (r.error) {
           soltar();
-          _showOAuthToast('No se pudo iniciar sesión. Intenta de nuevo.');
+          /* 🔴 BUILD 446 · EL MENSAJE AHORA LLEVA EL MOTIVO.
+             Antes decía solo «No se pudo iniciar sesión. Intenta de nuevo.», y
+             eso obligó a pedirle al dueño que conectara el iPhone al Mac con
+             un cable para leer la consola — porque ESE MISMO TEXTO sale
+             también desde el `catch` de abajo, que es un fallo del SERVIDOR y
+             no del plugin. Dos causas distintas, un solo mensaje, y cada una
+             se arregla en un sitio diferente.
+             Con el motivo a la vista, el dueño puede leerlo del propio
+             teléfono. **Cuando un fallo no da información, el trabajo no es
+             adivinar la causa: es conseguir información** (regla del 421c,
+             donde instrumentar el servidor dio la causa en UNA ronda). */
+          const _motivo = String(r.detalle || r.error || '').slice(0, 90);
+          _showOAuthToast('No se pudo iniciar sesión. ' +
+                          (_motivo ? '(' + _motivo + ')' : 'Intenta de nuevo.'));
           console.warn('[login] ' + proveedor + ' nativo:', r.error, r.detalle || '');
           return;
         }
