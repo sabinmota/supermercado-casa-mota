@@ -95,8 +95,27 @@
   // ═════════════════════════════════════════════════════════════════════════
 
   var NOMBRE_ESCANER = 'BarcodeScanner';   // @capacitor-mlkit/barcode-scanning
-  var NOMBRE_GOOGLE  = 'GoogleAuth';       // @codetrix-studio/capacitor-google-auth
-  var NOMBRE_APPLE   = 'SignInWithApple';  // @capacitor-community/apple-sign-in
+  /* 🔴 BUILD 444 · EL PLUGIN DE GOOGLE CAMBIÓ, Y LA HISTORIA IMPORTA PORQUE
+   *    EVITA REPETIR EL ERROR.
+   *
+   *    Recomendé primero `@codetrix-studio/capacitor-google-auth` y después
+   *    `@capgo/capacitor-social-login` (última). Los DOS fallaron al instalar:
+   *      · codetrix  → pide @capacitor/core ^6.0.0 · el proyecto tiene 7.6.9
+   *      · capgo 8.x → pide @capacitor/core >=8.0.0 · el proyecto tiene 7.6.9
+   *    Dos incompatibilidades opuestas, y el error fue mío por recomendar
+   *    «el paquete que dicen los documentos» sin comprobar qué versión de
+   *    Capacitor pedía. Se midió con `npm view <paquete> peerDependencies` y
+   *    resultó que la rama 7.x de capgo pide `>=7.0.0`: instalada la 7.20.0.
+   *
+   * 🔴 LO QUE SALVÓ EL TRABAJO FUE NO USAR `--force` NI `--legacy-peer-deps`.
+   *    npm los ofrecía y avisaba «potentially broken». Forzarlo habría dado
+   *    una app que COMPILA y un login que falla en el teléfono con un mensaje
+   *    sin relación con la causa — diagnóstico caro, con el Mac abierto.
+   *
+   *    REGLA: antes de recomendar un plugin, `npm view X peerDependencies`.
+   */
+  var NOMBRE_GOOGLE  = 'SocialLogin';      // @capgo/capacitor-social-login@7
+  var NOMBRE_APPLE   = 'SignInWithApple';  // @capacitor-community/apple-sign-in@7
 
   /* Client ID de Google Cloud. SON DOS Y CONVIVEN — no se sustituyen:
    *   · WEB  → lo usa el navegador, y también el `initialize()` del plugin
@@ -445,9 +464,9 @@
     log('entorno nativo detectado: ' + plataforma());
     _marcarAppNativa();
 
-    /* BUILD 443 · el plugin de Google EXIGE initialize() antes de signIn().
+    /* BUILD 443/444 · el plugin de Google EXIGE initialize() antes de login().
      *
-     * 🔴 SIN ESTO, `signIn()` falla con un error que NO dice que falte la
+     * 🔴 SIN ESTO, `login()` falla con un error que NO dice que falte la
      *    inicialización: en iOS devuelve algo como «keychain error» o
      *    simplemente no abre nada. O sea, un fallo cuyo mensaje apunta al
      *    sitio equivocado — y diagnosticarlo tocaría hacerlo en el Mac.
@@ -464,14 +483,49 @@
     try {
       var pg = _plugin(NOMBRE_GOOGLE);
       if (pg && typeof pg.initialize === 'function') {
-        pg.initialize({
-          clientId: CLIENT_ID_WEB,
-          scopes: ['profile', 'email'],
-          grantOfflineAccess: false,
-        });
-        log('plugin de Google inicializado');
+        /* Los nombres de estas claves se LEYERON del fichero de definiciones
+         * del plugin en el Mac (`definitions.d.ts`, líneas 48-70), no de
+         * memoria ni de una documentación: `iOSClientId`, `iOSServerClientId`
+         * y `mode` dentro de un objeto `google`.
+         *
+         * 🔴 `iOSServerClientId` LLEVA EL CLIENT ID **WEB**, Y NO ES UNA
+         *    ERRATA: la línea 58 del propio fichero dice «Should be the same
+         *    value as webClientId». Es lo que hace que el `aud` del token sea
+         *    el que /api/oauth espera. Aun si se equivocara, el servidor
+         *    acepta LOS DOS aud (build 442, `audsPermitidos`) — esa lista es
+         *    la red de seguridad.
+         *
+         * 🔴 `mode: 'online'` ES OBLIGATORIO Y ESTÁ PUESTO EXPLÍCITAMENTE.
+         *    El propio fichero advierte (líneas 82-85) que en modo `offline`
+         *    «only login() works, returning serverAuthCode only». Nuestro
+         *    servidor VERIFICA UNA FIRMA RS256 de un idToken; con un
+         *    serverAuthCode devolvería 401 y el fallo parecería del servidor
+         *    cuando sería del modo. Es el valor por omisión, pero se escribe
+         *    a mano: depender de un valor por omisión que decide otro es
+         *    exactamente cómo se fabrica un fallo inexplicable. */
+        var cfg = {
+          google: {
+            iOSClientId:       CLIENT_ID_IOS,
+            iOSServerClientId: CLIENT_ID_WEB,
+            mode:              'online',
+          },
+        };
+        if (plataforma() === 'ios') {
+          cfg.apple = { clientId: 'com.casamota.supermercado' };
+        }
+
+        /* initialize() devuelve una promesa. Se engancha el fallo para que no
+         * quede como rechazo sin capturar: un `catch` alrededor de la llamada
+         * NO atrapa un rechazo asíncrono. */
+        pg.initialize(cfg)
+          .then(function () { log('SocialLogin inicializado (google' +
+                                  (cfg.apple ? ' + apple' : '') + ')'); })
+          .catch(function (e) {
+            log('SocialLogin NO se pudo inicializar: ' +
+                ((e && e.message) || e));
+          });
       } else {
-        log('plugin de Google NO presente: el pod no se instaló todavía');
+        log('plugin SocialLogin NO presente: el pod no se instaló todavía');
       }
     } catch (e) {
       log('fallo al inicializar Google: ' + ((e && e.message) || e));
@@ -575,11 +629,17 @@
      NOMBRE_ESCANER — no aquí. Ver el comentario de allí: `arrancar()` se
      ejecuta antes de este punto del fichero y los necesita. */
 
-  /** ¿Hay inicio de sesión nativo de Google utilizable aquí y ahora? */
+  /** ¿Hay inicio de sesión nativo de Google utilizable aquí y ahora?
+   *
+   *  Se comprueba `login`, no `signIn`: el plugin de capgo expone `login()`.
+   *  Preguntar por el método equivocado devolvería `false` con el plugin
+   *  perfectamente instalado, y el síntoma sería «el botón no aparece» — un
+   *  fallo mudo, porque el código oculta el botón a propósito cuando no hay
+   *  plugin. Verificado en `definitions.d.ts:545`. */
   function googleNativoDisponible() {
     if (!esNativo()) return false;
     var p = _plugin(NOMBRE_GOOGLE);
-    return !!(p && typeof p.signIn === 'function');
+    return !!(p && typeof p.login === 'function');
   }
 
   /** ¿Y de Apple? */
@@ -607,20 +667,31 @@
     }
     var p = _plugin(NOMBRE_GOOGLE);
     try {
-      var r = await p.signIn();
+      var r = await p.login({ provider: 'google' });
 
-      /* El plugin devuelve el idToken en sitios distintos según su versión.
-       * Se prueban los dos en vez de fiarse de uno: una actualización del
-       * plugin no debe dejar el login muerto sin decir por qué. */
-      var token = (r && r.authentication && r.authentication.idToken) ||
-                  (r && r.idToken) || '';
+      /* 🔴 EL TOKEN VIENE ANIDADO EN `result`, NO EN LA RAÍZ. Leído de la
+       *    firma real del plugin (`definitions.d.ts:545-551`):
+       *        login(...): Promise<{ provider: T, result: ProviderResponseMap[T] }>
+       *    y `GoogleLoginResponseOnline` (línea 296) tiene `idToken`.
+       *    Buscarlo en la raíz habría devuelto SIEMPRE cadena vacía → un
+       *    401 del servidor que parecería un fallo del servidor.
+       *
+       *    Se aceptan además las dos formas antiguas: si algún día se cambia
+       *    de plugin otra vez, esto no se queda muerto en silencio. */
+      var res   = (r && r.result) || r || {};
+      var token = res.idToken ||
+                  (res.authentication && res.authentication.idToken) || '';
 
       if (!token) {
-        log('Google nativo no devolvió idToken', r ? Object.keys(r) : r);
+        log('Google nativo no devolvió idToken; claves recibidas:',
+            Object.keys(res));
         return { error: 'SIN_TOKEN' };
       }
 
-      var nombre = (r && (r.displayName || r.name)) || '';
+      var perfil = res.profile || {};
+      var nombre = perfil.name ||
+                   [perfil.givenName || '', perfil.familyName || '']
+                     .join(' ').trim();
       log('Google nativo entregó un token (' + token.length + ' caracteres)');
       return { credential: token, proveedor: 'google', nombre: nombre };
 
