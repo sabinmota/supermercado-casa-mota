@@ -384,7 +384,11 @@ export function onRequestGet(context) {
   return json({
     ok: true,
     servicio: 'vale-cliente-casamota',
-    build: '442',
+    /* 🔴 SUBIR ESTE NÚMERO EN CADA CAMBIO DEL FICHERO. Es la única forma de
+     *    comprobar desde un navegador si el despliegue trae ESTA versión, y
+     *    ya evitó un diagnóstico ciego en el build 421c. Si `GET /api/oauth`
+     *    devuelve 442, el arreglo de APPLE_SIN_CORREO NO está desplegado. */
+    build: '445',
     configurado: {
       supabase_url:     Boolean(env.SUPABASE_URL),
       service_key:      Boolean(env.SUPABASE_SERVICE_KEY),
@@ -474,31 +478,42 @@ async function manejarPost(context) {
     return json({ error: 'No pudimos verificar tu cuenta de ' + nombre + '. Intenta de nuevo.' }, 401);
   }
 
-  /* ── APPLE SIN CORREO ─────────────────────────────────────────────────────
-   * 🔴 Apple entrega el correo SOLO en el primer inicio de sesión de cada
-   *    usuario. Si un cliente ya entró antes, borró la app y vuelve, el token
-   *    llega sin `email` — y la tienda identifica a sus clientes POR CORREO
-   *    (`cliente_abrir_sesion_oauth` recibe `p_email`).
+  /* ── APPLE SIN CORREO · RESUELTO EN EL BUILD 445 ──────────────────────────
+   * 🔴 Apple entrega el correo SOLO en la primera autorización de cada Apple
+   *    ID. En un SEGUNDO dispositivo, o tras reinstalar, el token llega sin
+   *    `email`. Hasta el build 444 esto se rechazaba con 409, porque la tienda
+   *    identificaba a sus clientes ÚNICAMENTE por correo.
    *
-   *    Se responde con un error EXPLÍCITO y distinto en vez de dejar que la
-   *    base falle con un correo vacío, porque un correo vacío podría colisionar
-   *    con otro registro incompleto y meter a un cliente en la cuenta de otro.
-   *    Preferimos negar el acceso a arriesgar eso.
+   * 🔴 POR QUÉ HUBO QUE ARREGLARLO AHORA: un revisor de Apple prueba el botón
+   *    si existe. La primera vez entra; en un segundo dispositivo con el mismo
+   *    Apple ID veía un ERROR donde debía entrar. Eso no es la directriz 4.2,
+   *    es «la app no funciona» → rechazo.
    *
-   *    Solución definitiva pendiente (requiere SQL, así que no se hace hoy):
-   *    guardar el `sub` de Apple en la ficha del cliente la primera vez y
-   *    buscar por `sub` cuando no llegue correo. Queda anotado en el documento
-   *    de estado, no olvidado. */
-  if (proveedor === 'apple' && !perfil.email) {
-    console.warn('[oauth] Apple sin correo · sub=' + String(perfil.sub).slice(0, 12) + '…');
-    return json({
-      error: 'Apple no compartió tu correo esta vez. Entra con tu correo y ' +
-             'contraseña, o usa «Continuar con Google».',
-      codigo: 'APPLE_SIN_CORREO',
-    }, 409);
+   *    AHORA el `sub` viaja a la base, que lo guarda la primera vez y busca
+   *    por él cuando no llega correo (`seguridad/55-apple-sub.sql`). El `sub`
+   *    es un identificador ESTABLE emitido por Apple para esta app.
+   *
+   * 🔴 EL RECHAZO NO DESAPARECE, SE ESTRECHA — y esta distinción es la que
+   *    evita reabrir un agujero. Sigue habiendo un caso imposible de atender:
+   *    primera vez de un Apple ID en esta tienda Y sin correo (ocurre si el
+   *    usuario ya había autorizado la app y revocó el permiso). Sin correo no
+   *    se puede crear una ficha utilizable —el panel identifica por correo, y
+   *    la recuperación de cuenta también—, y aceptar un correo vacío podría
+   *    emparejar con otro registro incompleto y METER A UN CLIENTE EN LA
+   *    CUENTA DE OTRO. Ese caso lo rechaza ahora la BASE con el mismo código
+   *    `APPLE_SIN_CORREO`, así que el mensaje al cliente no cambia.
+   *
+   *    Se comprueba en `55-verificar.sql`: E5 entra sin correo con un `sub`
+   *    YA CONOCIDO (debe funcionar) y C2 lo intenta con un `sub` NUEVO (debe
+   *    rechazarse). Las dos filas son necesarias: sin C2, un arreglo que
+   *    aceptara cualquier cosa daría verde en E5 igualmente. */
+  if (!perfil.email && proveedor !== 'apple') {
+    return json({ error: 'No recibimos tu correo.' }, 400);
   }
-
-  if (!perfil.email) return json({ error: 'No recibimos tu correo.' }, 400);
+  if (!perfil.email) {
+    console.warn('[oauth] Apple sin correo · se intentará por sub=' +
+                 String(perfil.sub || '').slice(0, 12) + '…');
+  }
 
   const url = env.SUPABASE_URL.replace(/\/+$/, '') + '/rest/v1/rpc/cliente_abrir_sesion_oauth';
   let res, filas;
@@ -518,9 +533,31 @@ async function manejarPost(context) {
        * Por eso se recorta a 80 caracteres y se usa solo para saludar. Quien
        * identifica al cliente es el correo del token verificado, no esto. */
       body: JSON.stringify({
-        p_email:  perfil.email,
+        p_email:  perfil.email || null,
         p_nombre: (perfil.name || body.nombre || '').toString().slice(0, 80).trim(),
         p_avatar: perfil.picture || '',
+        /* BUILD 445 · los dos parámetros nuevos.
+         *
+         * `p_proveedor` corrige un defecto que NADIE HABÍA REPORTADO: la base
+         * escribía `authProvider = 'google'` SIEMPRE, también entrando con
+         * Apple (medido en el cuerpo de la función: el INSERT llevaba el
+         * literal 'google'). El comentario de más abajo decía «ya no está
+         * fijado a Google» y era falso a medias: el BUILD 442 arregló esta
+         * respuesta JSON pero NO la escritura en la base. Un cliente de Apple
+         * veía «google» en su perfil.
+         *
+         * `p_sub` es lo que permite reconocer al cliente cuando Apple no manda
+         * correo. Se manda SIEMPRE que exista, también con Google: cuesta lo
+         * mismo y la base decide si lo usa.
+         *
+         * 🔴 LOS DOS LLEVAN `DEFAULT NULL` EN LA FUNCIÓN, y eso es deliberado:
+         *    la base nueva atiende también las llamadas de 3 argumentos de la
+         *    versión anterior de este fichero. Así **el orden de despliegue no
+         *    importa** y no hay ventana en la que el login quede roto — la
+         *    ventana que en el BUILD 424 obligó a invertir el orden y que en
+         *    el 426 dejó cinco diagnósticos falsos. Verificado en E7. */
+        p_proveedor: proveedor,
+        p_sub:       perfil.sub || null,
       }),
     });
     const cuerpo = await res.text();
@@ -528,6 +565,28 @@ async function manejarPost(context) {
       console.error('[oauth] la base rechazó la sesión:', res.status, cuerpo);
       if (cuerpo.includes('CUENTA_DESACTIVADA')) {
         return json({ error: 'Tu cuenta está desactivada. Contacta al supermercado.' }, 403);
+      }
+      /* BUILD 445 · el rechazo por falta de correo AHORA LO LANZA LA BASE, así
+       * que hay que traducirlo aquí o el cliente vería el 502 genérico «No se
+       * pudo abrir tu sesión», que no le dice qué hacer.
+       *
+       * 🔴 ESTO ERA UN DEFECTO REAL DE ESTE MISMO BUILD, detectado al leer los
+       *    llamadores en vez de dar por bueno el cambio: al mover la
+       *    comprobación del correo de este fichero a la función SQL, el
+       *    mensaje útil se habría perdido en silencio. El código y el número
+       *    (409) son EXACTAMENTE los de antes, así que para `login-cliente.html`
+       *    nada cambia. */
+      if (cuerpo.includes('APPLE_SIN_CORREO')) {
+        return json({
+          error: 'Apple no compartió tu correo esta vez. Entra con tu correo y ' +
+                 'contraseña, o usa «Continuar con Google».',
+          codigo: 'APPLE_SIN_CORREO',
+        }, 409);
+      }
+      /* Un token sin correo y sin `sub` utilizable no debe dar 502: no es un
+       * fallo del servidor, es una petición que no identifica a nadie. */
+      if (cuerpo.includes('SIN_IDENTIFICADOR') || cuerpo.includes('CORREO_INVALIDO')) {
+        return json({ error: 'No pudimos identificar tu cuenta. Intenta de nuevo.' }, 400);
       }
       return json({ error: 'No se pudo abrir tu sesión. Intenta de nuevo.' }, 502);
     }
