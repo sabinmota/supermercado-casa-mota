@@ -2956,6 +2956,57 @@ input, select, textarea { font-family: var(--font); }
 }
 .vp-barcode-row i { color: var(--text-light); }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   BUILD 452b · AVISO 18+ EN LA VISTA DE DETALLE DEL PANEL
+
+   🔴 POR QUÉ ESTAS REGLAS ESTÁN AQUÍ Y NO EN `css/style.css`:
+      `admin.html` carga ÚNICAMENTE `admin.v33.css`. Comprobado con Grep, no
+      supuesto. En el primer intento se reutilizaron las clases
+      `.aviso-edad*` de `style.css` dando por hecho que el panel también lo
+      cargaba: **el aviso habría aparecido SIN NINGÚN ESTILO** — texto suelto
+      y un «18+» sin círculo — y no habría dado ningún error.
+
+      Es el mismo fallo mudo que ya salió tres veces en este proyecto:
+      `.cart-sidebar` inventado (451), `[class*="pronto"]` mirando el atributo
+      equivocado (446) y el slug `whiskys_rones` que no existía (452). Un
+      selector o un fichero que no está no protesta: simplemente no se aplica.
+
+   ⚠️ Los valores se mantienen IGUALES a los de `style.css` a propósito, para
+      que el panel y la tienda muestren el mismo aviso. Si se cambia el color
+      o el tamaño en un sitio, hay que cambiarlo en el otro. */
+.aviso-edad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: #fff8f8;
+  border: 1px solid #f3c9c9;
+  border-radius: 10px;
+}
+
+.aviso-edad__sello {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #d32f2f;
+  border-radius: 50%;
+  color: #d32f2f;
+  font-weight: 800;
+  font-size: .74rem;
+  letter-spacing: -.02em;
+}
+
+.aviso-edad__texto {
+  color: #5a2020;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 /* Botones de acción dentro del modal */
 .vp-actions {
   display: flex; gap: 10px; padding-top: 4px;

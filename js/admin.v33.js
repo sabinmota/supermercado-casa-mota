@@ -1806,6 +1806,27 @@ function viewProduct(id) {
     bcEl.style.opacity = p.barcode ? '1' : '0.45';
   }
 
+  /* BUILD 452b · Aviso 18+ en la vista de detalle.
+   *
+   * Faltaba: la casilla se añadió al formulario de EDICIÓN, pero la vista de
+   * detalle es otro modal distinto y se quedó sin el aviso. Lo detectó el
+   * dueño comparando el panel con la tienda.
+   *
+   * 🔴 Se usa EXACTAMENTE la misma regla que la tienda (categoría 100 % de
+   * alcohol O casilla marcada). Escribir aquí otra condición —por ejemplo
+   * mirar solo `p.es_alcohol`— haría que el panel y la tienda discreparan: un
+   * ron de `whiskys_y_rones` con la casilla en false mostraría el aviso en la
+   * tienda y no en el panel, y el dueño no tendría forma de saber cuál de los
+   * dos miente. */
+  const avisoEl = document.getElementById('vpAvisoEdad');
+  if (avisoEl) {
+    const _marcado = (p.es_alcohol === true || p.es_alcohol === 'true' ||
+                      p.es_alcohol === 1);
+    const _esAlcohol = _marcado ||
+                       CATEGORIAS_ALCOHOL_ADM.includes(String(p.category || ''));
+    avisoEl.style.display = _esAlcohol ? 'flex' : 'none';
+  }
+
   const editBtn = document.getElementById('vpEditBtn');
   if (editBtn) editBtn.onclick = () => { closeViewProduct(); openProductModal(p.id); };
 
