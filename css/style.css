@@ -99,7 +99,23 @@
   animation: road-dash .4s linear infinite;
 }
 
-@keyframes road-dash { to { background-position-x: 36px; } }
+/* 🔴 BUILD 449 · EL SIGNO DECIDE HACIA DÓNDE PARECE IR LA MOTO.
+ *
+ * Aquí había `36px` (POSITIVO), que desplaza el patrón de rayas **hacia la
+ * derecha**. La moto apunta a la derecha, así que la carretera corriendo en su
+ * misma dirección producía el efecto de **marcha atrás** — lo detectó el dueño
+ * y lo señaló con dos flechas en una captura.
+ *
+ * Con `-36px` las rayas van **hacia la izquierda**, que es lo que ve alguien
+ * que avanza: el suelo se va hacia atrás. Es el mismo principio que el paisaje
+ * visto desde la ventanilla de un coche.
+ *
+ * `36px` es exactamente UN ciclo del patrón (`#fff 0→18px` + `transparent
+ * 18px→36px` en el `repeating-linear-gradient` de arriba), así que al terminar
+ * la animación el dibujo coincide consigo mismo y el bucle NO da salto. Si se
+ * cambiara este número habría que cambiar también el del degradado, o el
+ * movimiento se vería a tirones. */
+@keyframes road-dash { to { background-position-x: -36px; } }
 
 /* Wrap: recorta padding transparente inferior + anima bounce */
 .delivery-loader__moto-wrap {
