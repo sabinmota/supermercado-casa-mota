@@ -38,6 +38,55 @@
       background: #27a35a;
     }
 
+    /* 🔴🔴 BUILD 451 · LA FRANJA NEGRA DEL BORDE — CAUSA REAL Y ARREGLO REAL.
+     *
+     * HISTORIA CORTA, porque costó dos intentos fallidos: la franja la producía
+     * `"contentInset": "automatic"` en `capacitor.config.json`. iOS reservaba
+     * la zona segura inferior y **la dejaba FUERA del WebView**, dejando ver el
+     * fondo de la vista NATIVA (`#0d1b12`). 
+     *
+     * 🔴 POR QUÉ NINGÚN CSS PODÍA ARREGLARLO, Y LA PRUEBA LA DIO EL DUEÑO:
+     *    **la franja ya estaba ANTES de que la web cargara**, en la pantalla de
+     *    arranque. Si aparece antes que el CSS, no es CSS. Esa sola observación
+     *    descartó dos diagnósticos míos —y el segundo ya iba desplegado— y
+     *    evitó un tercer despliegue inútil. **Cuando un arreglo de estilos no
+     *    cambia nada dos veces seguidas, la pregunta correcta no es "¿qué otra
+     *    regla escribo?" sino "¿esto es siquiera de la página?".**
+     *
+     * AHORA con `"never"` el WebView ocupa la pantalla entera: la franja
+     * desaparece de raíz. A cambio, el contenido pasa por debajo del notch y
+     * del indicador de inicio, y eso lo gestionan los `env(safe-area-inset-*)`
+     * que estas pantallas YA tenían — por eso el trabajo del 450 no se tira:
+     * era la mitad que faltaba, solo que aplicada al problema equivocado. */
+    html.es-app-nativa,
+    html.es-app-nativa body {
+      background-color: #27a35a;
+    }
+
+    /* 🔴 PERO EL COLOR DEL LIENZO NO BASTA, Y ESTE FICHERO LO DEMUESTRA: son
+     *    DOS pantallas con fondos DISTINTOS. `.welcome-screen` acaba en verde
+     *    `#27a35a`, pero `.login-screen` es **BLANCA** (`background: #fff`).
+     *    Con un lienzo verde, la pantalla del formulario mostraría una franja
+     *    VERDE bajo un fondo blanco: se cambiaría el color del defecto, no se
+     *    quitaría. Lo detectó leer las dos reglas en vez de dar por hecho que
+     *    compartían fondo.
+     *
+     * Por eso cada pantalla estira SU PROPIO fondo hasta el borde físico. El
+     * `padding-bottom` con `env(safe-area-inset-bottom)` que ya tenían sigue
+     * manteniendo el contenido por encima del indicador de inicio; lo que se
+     * añade aquí es que el FONDO llegue más abajo que el contenido. */
+    html.es-app-nativa .screen {
+      min-height: 100%;
+    }
+
+    html.es-app-nativa .welcome-screen { background-color: #27a35a; }
+    html.es-app-nativa .login-screen   { background-color: #fff;    }
+
+    /* El contenedor de las dos pantallas también, por si el deslizamiento
+     * dejara un hueco durante la transición de .42s: sin esto se vería la
+     * franja del contenedor nativo justo mientras se cambia de pantalla. */
+    html.es-app-nativa .screens-wrap { min-height: 100%; }
+
     /* ══════════════════════════════════════════
        CONTENEDOR DESLIZANTE (2 pantallas)
     ══════════════════════════════════════════ */

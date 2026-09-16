@@ -3387,13 +3387,91 @@ html.es-app-nativa body {
   --fondo-borde-app: #0f1f14;   /* el mismo #0f1f14 de .footer */
 }
 
-/* 🔴 Y ADEMÁS HAY QUE GARANTIZAR QUE ALGO PINTE AHÍ ABAJO. El color del
-   documento cubre el lienzo, pero si el último elemento de la página termina
-   antes, entre él y el borde queda el color del documento — que ahora sí es el
-   correcto. Se refuerza dando al pie el relleno de la zona segura, para que su
-   propio fondo llegue al final y no dependa solo del lienzo. */
-html.es-app-nativa .footer {
+/* ════════════════════════════════════════════════════════════════════
+   BUILD 451 · `contentInset: "never"` — EL WEBVIEW YA OCUPA TODA LA PANTALLA
+   ════════════════════════════════════════════════════════════════════
+
+   🔴 QUÉ CAMBIÓ Y POR QUÉ ESTE BLOQUE ES AHORA OBLIGATORIO.
+      Hasta el build 450, `capacitor.config.json` tenía
+      `"contentInset": "automatic"`: iOS reservaba la zona segura inferior y
+      **la dejaba FUERA del WebView**, dejando ver el fondo de la vista nativa
+      (`#0d1b12`) como una franja negra. Se intentó taparla dos veces desde el
+      CSS y **fue imposible, porque esa franja NO PERTENECÍA A LA PÁGINA**.
+
+   🔴 LA PRUEBA QUE LO ZANJÓ, y la dio el dueño: **la franja ya estaba ANTES de
+      que la web cargara**, en la pantalla de arranque. Si aparece antes que el
+      CSS, ningún CSS puede quitarla. **Esa sola observación descartó dos
+      diagnósticos míos y ahorró un tercer despliegue inútil.**
+
+   AHORA con `"never"` el WebView ocupa la pantalla ENTERA, así que la franja
+   desaparece de raíz… **y el contenido pasa a meterse DEBAJO del notch y del
+   indicador de inicio.** Gestionar eso es responsabilidad del CSS, y de eso va
+   todo lo que sigue. Sin estas reglas, el arreglo cambiaría un defecto
+   estético por uno FUNCIONAL: botones inalcanzables.
+
+   ⚠️ NO se usa `viewport-fit=cover` en el `<meta>` porque con `"never"` el
+      WebView ya es de pantalla completa y `env(safe-area-inset-*)` devuelve
+      valores reales. Añadirlo no haría daño, pero tampoco hace falta. */
+
+/* 1 · EL CUERPO RESPIRA POR ABAJO. `padding` y no `margin`: el fondo del body
+      debe seguir cubriendo esa zona, o volvería a verse el color de la vista
+      nativa. */
+html.es-app-nativa body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 2 · EL PIE LLEGA AL BORDE FÍSICO, y su texto se queda por encima del
+      indicador de inicio. Se usa `calc` sobre el relleno que ya tenía para no
+      perderlo. */
+html.es-app-nativa .footer {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+/* 3 · 🔴 LOS ELEMENTOS PEGADOS AL BORDE INFERIOR — LOS QUE DE VERDAD PODRÍAN
+      QUEDAR TAPADOS. Se localizaron con Grep buscando `position: fixed` con
+      `bottom: 0`, no de memoria:
+        · `.cat-modal`      (línea ~1022) el panel de categorías
+        · el pie de acciones de modales (línea ~1657)
+      Sin esto, el botón de «Aplicar» o «Cerrar» de esos paneles quedaría
+      DEBAJO de la barra del indicador de inicio y el cliente no podría
+      pulsarlo. **Ese sí sería un defecto que Apple penaliza.** */
+html.es-app-nativa .cat-modal {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 5 · 🔴 LOS PANELES LATERALES QUE LLEGAN A `bottom: 0` — Y ESTE ES EL CASO
+      MÁS GRAVE DE TODOS: el CARRITO. Su botón de pagar vive al final del
+      panel, así que con `"never"` quedaría DEBAJO de la barra del indicador de
+      inicio. **Un cliente que no puede pulsar «Pagar» no es una molestia
+      estética: es una venta perdida**, y es justo el tipo de defecto por el
+      que Apple sí rechaza.
+      Localizados con Grep buscando `bottom: 0` (líneas ~1455, ~2200, ~2510);
+      los tres ya leían `--cart-top` para la zona segura de ARRIBA desde el
+      build 438, pero **nadie les había dado la de abajo** — el mismo descuido
+      por el otro extremo que este build viene a cerrar.
+
+      ⚠️ LOS NOMBRES ESTÁN LEÍDOS DEL FICHERO, NO SUPUESTOS. En el primer
+      intento escribí `.cart-sidebar`, `.fav-sidebar` y `.acc-sidebar`: **las
+      TRES me las inventé y ninguna existe.** Las reales son
+      `.account-panel` (1449), `.favorites-panel` (~2200) y `.cart-panel`
+      (~2510). Un selector inventado no da error: simplemente no se aplica, y
+      el botón de pagar habría seguido tapado **con el CSS aparentemente
+      arreglado**. Es la misma clase de fallo mudo que la insignia «Pronto» del
+      build 446, donde `[class*="pronto"]` buscaba en el atributo `class` una
+      palabra que estaba en el texto visible. */
+html.es-app-nativa .cart-panel,
+html.es-app-nativa .favorites-panel,
+html.es-app-nativa .account-panel {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 4 · LA CABECERA FIJA. Ya tenía `padding-top` del build 438, pero ahora es
+      imprescindible: con `"never"` el WebView empieza en el píxel 0 y sin esto
+      el logo y el carrito se meterían bajo la isla dinámica. Se repite aquí a
+      propósito, junto al resto del ajuste, para que quien lea este bloque vea
+      el conjunto y no lo rompa por mirar solo una mitad. */
+html.es-app-nativa .header {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* El carrito y los paneles laterales ya leen la variable --cart-top, que
