@@ -1123,6 +1123,156 @@ function buildCategoryNav(cats, prods) {
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * BUILD 452 · ALCOHOL Y VERIFICACIÓN DE EDAD
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Casa Mota vende alcohol. Las Directrices de Revisión de la App Store
+ * (1.4.3 / 5.6) exigen verificar la edad del comprador. El patrón implantado
+ * es el mismo que usa Mercadona en la App Store:
+ *
+ *    1. Aviso «18+» en el detalle del producto  →  _avisoAlcoholHTML()
+ *    2. Confirmación de edad antes de pagar     →  confirmarMayoriaEdad()
+ *
+ * NO se bloquea añadir al carrito: se avisa y se confirma al final. Decisión
+ * explícita del dueño, y es el comportamiento que ya pasó revisión en apps
+ * equivalentes.
+ *
+ * ── Por qué la regla tiene DOS partes ──────────────────────────────────────
+ * Estas tres categorías son 100 % alcohol, siempre:
+ *
+ *      vinos_licores · whiskys_rones · cervezas
+ *
+ * Pero la categoría `bebidas` es MIXTA: agua, jugos y refrescos conviviendo
+ * con unos 50 productos alcohólicos. Por eso no basta la categoría y existe
+ * la columna `products.es_alcohol`, que el dueño controla con una casilla en
+ * el panel (seguridad/56-alcohol.sql la creó y pre-marcó).
+ *
+ * 🔴 Las dos partes son necesarias y ninguna sobra:
+ *    · Solo categorías  → una cerveza dentro de `bebidas` no pediría edad
+ *    · Solo la columna   → un producto nuevo en `cervezas` que nadie marcó
+ *                          quedaría sin aviso
+ * Con el OR, una categoría de alcohol queda protegida aunque nadie toque la
+ * casilla, y un caso suelto en `bebidas` se resuelve marcándolo.
+ *
+ * 🔴 Y NO se detecta por palabras del nombre. Eso se evaluó y se descartó:
+ * fallaría en silencio el día que entre un producto con otro nombre. El
+ * script SQL sí usó palabras, pero UNA SOLA VEZ para no marcar 50 productos a
+ * mano; desde ese momento el único criterio es este.
+ */
+
+/** Categorías que son alcohol por definición, sin depender de la casilla. */
+const CATEGORIAS_ALCOHOL = ['vinos_licores', 'whiskys_rones', 'cervezas'];
+
+/**
+ * ¿Este producto exige verificación de edad?
+ * Acepta tanto un producto del catálogo como una línea del carrito, porque
+ * ambos arrastran `category` y `es_alcohol`.
+ */
+function esAlcohol(p) {
+  if (!p) return false;
+  // La columna puede llegar como true, 'true' o 1 según el camino (REST,
+  // caché de localStorage, línea de carrito serializada). Se normaliza.
+  const marcado = p.es_alcohol === true ||
+                  p.es_alcohol === 'true' ||
+                  p.es_alcohol === 1;
+  return marcado || CATEGORIAS_ALCOHOL.includes(String(p.category || ''));
+}
+
+/** ¿Hay algo con alcohol en el carrito? */
+function carritoTieneAlcohol() {
+  return Array.isArray(cart) && cart.some(esAlcohol);
+}
+
+/**
+ * El aviso «18+» del modal de detalle. Devuelve '' si el producto no lleva
+ * alcohol, así se puede interpolar sin condicionales en el sitio de uso.
+ */
+function _avisoAlcoholHTML(p) {
+  if (!esAlcohol(p)) return '';
+  return `
+      <div class="aviso-edad" role="note">
+        <span class="aviso-edad__sello" aria-hidden="true">18+</span>
+        <span class="aviso-edad__texto">
+          Pedido restringido a mayores de 18 años.
+        </span>
+      </div>`;
+}
+
+/**
+ * Diálogo de mayoría de edad. Devuelve una Promise<boolean>.
+ *
+ * Se construye por DOM (createElement) y NO con innerHTML de una plantilla
+ * grande: así no hay riesgo de romper el script si algún día el texto lleva
+ * comillas o caracteres raros, y los listeners se enganchan directamente sin
+ * `onclick=` en cadena de texto.
+ *
+ * Resuelve `false` también al pulsar Escape o el fondo, porque cualquier
+ * salida que no sea el botón afirmativo debe tratarse como «no confirmado».
+ */
+function confirmarMayoriaEdad() {
+  return new Promise(resolve => {
+    // Si ya hay uno abierto (doble tap), no apilar otro.
+    if (document.getElementById('modalEdad')) { resolve(false); return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'edad-overlay';
+    overlay.id        = 'modalEdad';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'edadTitulo');
+
+    const caja = document.createElement('div');
+    caja.className = 'edad-modal';
+
+    const sello = document.createElement('div');
+    sello.className = 'edad-modal__sello';
+    sello.textContent = '18+';
+    sello.setAttribute('aria-hidden', 'true');
+
+    const titulo = document.createElement('h2');
+    titulo.className = 'edad-modal__titulo';
+    titulo.id        = 'edadTitulo';
+    titulo.textContent = '¿Eres mayor de edad?';
+
+    const texto = document.createElement('p');
+    texto.className = 'edad-modal__texto';
+    texto.textContent = 'Tu pedido contiene algún producto que requiere ser ' +
+                        'mayor de 18 años.';
+
+    const btnSi = document.createElement('button');
+    btnSi.className   = 'edad-modal__si';
+    btnSi.textContent = 'Sí, soy mayor de 18 años';
+
+    const btnNo = document.createElement('button');
+    btnNo.className   = 'edad-modal__no';
+    btnNo.textContent = 'No, revisar carrito';
+
+    caja.append(sello, titulo, texto, btnSi, btnNo);
+    overlay.appendChild(caja);
+    document.body.appendChild(overlay);
+
+    // Un solo camino de salida, para no dejar listeners ni el scroll bloqueado.
+    const cerrar = (valor) => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      resolve(valor);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') cerrar(false); };
+
+    btnSi.addEventListener('click', () => cerrar(true));
+    btnNo.addEventListener('click', () => cerrar(false));
+    // Tocar el fondo = cancelar. Solo el fondo, no la caja.
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cerrar(false);
+    });
+    document.addEventListener('keydown', onKey);
+
+    // Foco en el botón afirmativo: lector de pantalla y teclado.
+    requestAnimationFrame(() => btnSi.focus());
+  });
+}
+
 function catLabel(cat) {
   // Intentar con categorías dinámicas (slug o id)
   if (_dynamicCategories.length > 0) {
@@ -3060,6 +3210,20 @@ async function checkout() {
       showToast(`<i class="fas fa-triangle-exclamation"></i> Stock insuficiente:<br>${sinStock.join('<br>')}`, 'error');
       return;
     }
+
+    /* BUILD 452 · Verificación de edad (App Store 1.4.3).
+     *
+     * Va DESPUÉS del stock y ANTES de openCheckout() a propósito: no tiene
+     * sentido preguntar la edad para un pedido que no se puede completar, y
+     * preguntarla después de abrir el pago dejaría dos modales encima.
+     *
+     * `await` dentro del try: el `finally` restaura el botón igual si el
+     * cliente cancela, así que no se queda en «Verificando…» para siempre. */
+    if (carritoTieneAlcohol()) {
+      const mayorDeEdad = await confirmarMayoriaEdad();
+      if (!mayorDeEdad) return;   // «No, revisar carrito» → el finally limpia
+    }
+
     openCheckout();
   } finally {
     // Restaurar el botón siempre, tanto en éxito como en error
@@ -3532,6 +3696,7 @@ function openModal(productId) {
       <button class="modal-add-btn" onclick="addToCart('${p.id}', modalQty); closeModal();">
         <i class="fas fa-cart-plus"></i> Agregar al carrito · RD$ ${fmt$(p.price)}
       </button>
+      ${_avisoAlcoholHTML(p)}
     </div>`;
 
   document.getElementById('modalOverlay').classList.remove('hidden');

@@ -3478,6 +3478,164 @@ html.es-app-nativa .header {
    js/app.js calcula en _calcSafeTop(). Esa función también se corrigió en el
    BUILD 438 porque preguntaba por `navigator.standalone`, falso en la app. */
 
+/* ══════════════════════════════════════════════════════════════════════════
+   BUILD 452 · VERIFICACIÓN DE EDAD PARA BEBIDAS ALCOHÓLICAS
+   ══════════════════════════════════════════════════════════════════════════
+
+   Casa Mota vende alcohol, así que las Directrices de la App Store
+   (1.4.3 / 5.6) exigen verificar la edad. Son dos piezas:
+
+     · `.aviso-edad`  → el sello «18+» bajo el botón del modal de detalle
+     · `.edad-*`      → el diálogo de confirmación antes de pagar
+
+   🔴 EL DIÁLOGO RESPETA LA ZONA SEGURA. En la app nativa el WebView ocupa la
+      pantalla entera desde el build 451 (`contentInset: "never"`), así que un
+      elemento centrado con `position: fixed` puede quedar parcialmente bajo la
+      isla dinámica o el indicador de inicio. El `padding` con `env(...)` del
+      overlay lo evita. Sin esto, el botón «No, revisar carrito» podría quedar
+      tapado en pantallas pequeñas — el mismo defecto funcional que el build
+      451 vino a cerrar en el carrito. */
+
+.aviso-edad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fff8f8;
+  border: 1px solid #f3c9c9;
+  border-radius: 10px;
+}
+
+.aviso-edad__sello {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #d32f2f;
+  border-radius: 50%;
+  color: #d32f2f;
+  font-weight: 800;
+  font-size: .74rem;
+  letter-spacing: -.02em;
+}
+
+.aviso-edad__texto {
+  color: #5a2020;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* ── Diálogo de confirmación ─────────────────────────────────────────────── */
+
+.edad-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;          /* por encima del panel del carrito */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .55);
+  /* Zona segura: ver la nota del encabezado de este bloque. */
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 20px
+           calc(env(safe-area-inset-bottom, 0px) + 20px);
+  animation: edad-fade .18s ease-out;
+}
+
+.edad-modal {
+  width: 100%;
+  max-width: 340px;
+  max-height: 100%;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 24px 22px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+  animation: edad-pop .22s cubic-bezier(.2, .9, .3, 1.1);
+}
+
+.edad-modal__sello {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  border: 3px solid #d32f2f;
+  border-radius: 50%;
+  color: #d32f2f;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.edad-modal__titulo {
+  margin: 0 0 8px;
+  color: #1a1a2e;
+  font-size: 1.22rem;
+  font-weight: 800;
+}
+
+.edad-modal__texto {
+  margin: 0 0 22px;
+  color: #555;
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+/* min-height 48px: objetivo táctil mínimo recomendado por Apple (44 pt). */
+.edad-modal__si,
+.edad-modal__no {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: .95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter .15s, background .15s;
+}
+
+.edad-modal__si {
+  margin-bottom: 10px;
+  background: #1a7c3e;
+  color: #fff;
+}
+
+.edad-modal__si:hover  { filter: brightness(1.08); }
+.edad-modal__si:active { filter: brightness(.94);  }
+
+.edad-modal__no {
+  background: transparent;
+  color: #1a7c3e;
+}
+
+.edad-modal__no:hover { background: #f0faf4; }
+
+.edad-modal__si:focus-visible,
+.edad-modal__no:focus-visible {
+  outline: 3px solid rgba(26, 124, 62, .45);
+  outline-offset: 2px;
+}
+
+@keyframes edad-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes edad-pop {
+  from { opacity: 0; transform: scale(.92) translateY(10px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);    }
+}
+
+/* Respeta a quien pidió menos animación en los ajustes del sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .edad-overlay,
+  .edad-modal { animation: none; }
+}
+
 /* Botón instalar PWA */
 .pwa-install-btn {
   animation: pwa-pulse 2s ease-in-out infinite;

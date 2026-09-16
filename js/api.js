@@ -92,7 +92,12 @@ const _SELECT_FIELDS = {
   // abrir el modal de producto (js/app.js, openModal). Tenerlo en la fase 1 obligaba
   // a TODOS los visitantes a esperar 7 MB por un carrusel que la mayoría nunca abre.
   // Ahora se pide bajo demanda con DB.getProductExtraImages(id).
-  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,barcode,isNew,deleted,description',
+  // BUILD 452 · `es_alcohol` va en la fase 1 a propósito. Es un boolean (1 byte)
+  // y la tienda lo necesita para pintar el aviso «18+» en la tarjeta y en el
+  // modal, y para decidir si el checkout pide confirmar la edad. Si llegara
+  // tarde (bajo demanda) habría un instante en el que una cerveza se vería sin
+  // aviso, que es exactamente lo que la directriz 1.4.3 no permite.
+  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,barcode,isNew,deleted,description,es_alcohol',
   // Tienda fase 2 — solo image para actualizar imágenes
   products_imgs:  'id,image',
   orders:    '*',
