@@ -1161,8 +1161,29 @@ function buildCategoryNav(cats, prods) {
  * mano; desde ese momento el único criterio es este.
  */
 
-/** Categorías que son alcohol por definición, sin depender de la casilla. */
-const CATEGORIAS_ALCOHOL = ['vinos_licores', 'whiskys_rones', 'cervezas'];
+/* Categorías que son alcohol por definición, sin depender de la casilla.
+ *
+ * 🔴 ESTOS SLUGS ESTÁN LEÍDOS DEL CENSO REAL DE LA BASE, NO DEL MAPA DE
+ *    ETIQUETAS DE `catLabel()`. En el primer intento se escribieron
+ *    `whiskys_rones` y `vinos_licores` copiándolos de ese mapa:
+ *
+ *      · `whiskys_rones`  → el slug real es `whiskys_y_rones`, CON `_y_`
+ *      · `vinos_licores`  → NO EXISTE. Los vinos viven en `bodega`
+ *
+ *    Con esos nombres, los 34 rones y whiskys del catálogo (Brugal, Barceló,
+ *    Johnnie Walker, Old Parr…) NO habrían mostrado el aviso ni pedido la
+ *    edad, y NO habría salido ningún error: un slug que no existe simplemente
+ *    no coincide con nada. Es la misma familia de fallo mudo que el selector
+ *    inventado `.cart-sidebar` del build 451 y que `[class*="pronto"]` del
+ *    446: un criterio que parece preciso pero no apunta a nada.
+ *
+ *    REGLA: los slugs se comprueban contra la base (`SELECT DISTINCT
+ *    category FROM products`), nunca contra una lista de nombres bonitos.
+ *
+ * ⚠️ `bodega` NO está aquí a propósito, aunque guarde los vinos: tiene 29
+ *    productos y solo 19 llevan alcohol. Es MIXTA, igual que `bebidas`, así
+ *    que se resuelve con la casilla `es_alcohol` producto a producto. */
+const CATEGORIAS_ALCOHOL = ['whiskys_y_rones', 'cervezas'];
 
 /**
  * ¿Este producto exige verificación de edad?

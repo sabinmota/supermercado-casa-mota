@@ -511,6 +511,48 @@ function _validateEAN(code) {
   return { valid: true, type: validLengths[len], error: '' };
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * BUILD 452 · CASILLA «CONTIENE ALCOHOL»
+ * ════════════════════════════════════════════════════════════════════════════
+ * Casa Mota vende alcohol, y las Directrices de la App Store (1.4.3 / 5.6)
+ * exigen verificar la edad. La tienda decide con esta regla:
+ *
+ *      es alcohol  SI  categoría ∈ CATEGORIAS_ALCOHOL_ADM  O  es_alcohol
+ *
+ * La casilla existe porque `bebidas` es una categoría MIXTA: agua y jugos
+ * conviviendo con unos 50 productos alcohólicos. Las tres categorías que son
+ * 100 % alcohol quedan protegidas solas, aunque nadie marque nada.
+ *
+ * ⚠️ Esta lista debe coincidir con CATEGORIAS_ALCOHOL de js/app.js. Están
+ *    duplicadas porque el panel y la tienda no comparten ficheros — si algún
+ *    día se añade una categoría de alcohol, hay que tocar LOS DOS sitios.
+ */
+/* 🔴 Slugs leídos del censo REAL de la base. Ver la nota extensa en
+ * js/app.js → CATEGORIAS_ALCOHOL: los nombres `whiskys_rones` y
+ * `vinos_licores` del primer intento NO EXISTÍAN (el real es
+ * `whiskys_y_rones`, y los vinos están en `bodega`), lo que habría dejado 34
+ * rones y whiskys sin aviso de edad y sin ningún error visible.
+ *
+ * ⚠️ `bodega` es MIXTA (29 productos, 19 con alcohol) → va por casilla. */
+const CATEGORIAS_ALCOHOL_ADM = ['whiskys_y_rones', 'cervezas'];
+
+/**
+ * Muestra el aviso «esta categoría es alcohol siempre» cuando corresponde.
+ *
+ * No desactiva ni fuerza la casilla a propósito: un campo deshabilitado que
+ * se marca solo confunde, y forzarla haría creer que el dato guardado es lo
+ * único que protege al producto. La tienda aplica el OR, así que el producto
+ * está cubierto por la categoría aunque la casilla quede desmarcada; el aviso
+ * está solo para que el dueño lo SEPA y no piense que falta marcar algo.
+ */
+function _syncAvisoAlcohol() {
+  const aviso = document.getElementById('pEsAlcoholAuto');
+  const cat   = document.getElementById('pCategory');
+  if (!aviso || !cat) return;
+  const esCatAlcohol = CATEGORIAS_ALCOHOL_ADM.includes(String(cat.value || ''));
+  aviso.style.display = esCatAlcohol ? 'block' : 'none';
+}
+
 /**
  * Validación en tiempo real del campo pBarcode:
  * - Verifica formato EAN/UPC
@@ -1536,6 +1578,17 @@ function openProductModal(id = null) {
     document.getElementById('pBarcode').value       = p.barcode || '';
     _checkBarcodeUnique(p.barcode || '', p.id);
 
+    /* BUILD 452 · Casilla «Contiene alcohol».
+     * El valor puede llegar como true o 'true' según el camino (REST devuelve
+     * boolean, la caché de localStorage lo serializa a texto). Se normaliza
+     * igual que en la tienda (js/app.js → esAlcohol). */
+    const _alcEl = document.getElementById('pEsAlcohol');
+    if (_alcEl) {
+      _alcEl.checked = (p.es_alcohol === true || p.es_alcohol === 'true' ||
+                        p.es_alcohol === 1);
+    }
+    _syncAvisoAlcohol();
+
     /* ─── BUILD 382 · Categoría al abrir para editar ──────────────────────────
      * Antes se hacía `pCategory.value = p.category` a secas. Si la categoría del
      * producto ya no existe entre las <option>, el navegador NO da error: deja
@@ -1574,6 +1627,12 @@ function openProductModal(id = null) {
   } else {
     ['pName','pPrice','pOriginalPrice','pUnit','pStock','pRating','pDescription','pImage','pBarcode']
       .forEach(id => document.getElementById(id).value = '');
+    /* BUILD 452 · La casilla es un checkbox, no un input de texto: no se limpia
+     * con `.value = ''` (eso la dejaría marcada con el estado del producto
+     * anterior). Hay que poner `.checked = false` explícitamente. */
+    const _alcNuevo = document.getElementById('pEsAlcohol');
+    if (_alcNuevo) _alcNuevo.checked = false;
+    _syncAvisoAlcohol();
     // BUILD 382: retirar la <option> huérfana que pudiera haber dejado una
     // edición anterior, para que no se ofrezca al crear un producto nuevo.
     document.getElementById('pCategory')
@@ -2483,6 +2542,12 @@ function saveProduct() {
     barcode:       barcodeVal || null,
     reviews:       0,
     isNew:         false,
+    /* BUILD 452 · Se guarda SIEMPRE el estado de la casilla, también cuando la
+     * categoría ya es de alcohol. Así el dato queda explícito en la base y no
+     * depende de que la tienda recuerde la lista de categorías. La tienda
+     * aplica `categoría ∈ (las tres) OR es_alcohol`, de modo que desmarcar la
+     * casilla en una categoría de alcohol NO desprotege el producto. */
+    es_alcohol:    !!document.getElementById('pEsAlcohol')?.checked,
   };
 
   // ── El bloqueo y _unlock ya están definidos al inicio de la función ──────────
