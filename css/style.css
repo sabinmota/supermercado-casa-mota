@@ -3333,6 +3333,69 @@ html.es-app-nativa body {
   overscroll-behavior: none;
 }
 
+/* ============================================================
+   BUILD 450 · LA BANDA NEGRA DE ABAJO — EL 438 ARREGLÓ ARRIBA Y NADIE MIRÓ ABAJO
+   ============================================================
+
+   🔴 SÍNTOMA, reportado con dos capturas y un vídeo desde un iPhone 14 Pro Max:
+      una franja NEGRA fija en el borde inferior, con la línea del indicador de
+      inicio dentro, y el contenido cortado justo encima. Aparece tanto en la
+      pantalla de bienvenida/login como en la tienda.
+
+   🔴 CAUSA MEDIDA, y NO es que falte relleno: `capacitor.config.json:11` tiene
+      `"contentInset": "automatic"`, así que iOS reserva la zona segura inferior
+      y **deja esa franja fuera del WebView**. Lo que se ve ahí NO es la página:
+      es el `backgroundColor` del contenedor nativo, `#0d1b12` (línea 15 del
+      mismo fichero) — el verde casi negro de las capturas.
+
+   🔴 LA PISTA QUE LO DEMUESTRA, y evitó «arreglar» algo que ya estaba bien:
+      `login-cliente.html:69` YA usa `calc(env(safe-area-inset-bottom) + 40px)`
+      como relleno… y la banda seguía negra igual. **Si el relleno ya estaba y
+      no bastaba, el problema no era el relleno: era que el FONDO no llegaba
+      hasta ahí.** Añadir más `padding-bottom` habría empujado el contenido sin
+      pintar un solo píxel más.
+
+   🔴 ES EL DEFECTO DEL BUILD 438 POR EL OTRO EXTREMO. Allí la cabecera se metía
+      bajo la isla dinámica porque la regla vivía en `@media (display-mode:
+      standalone)`, que NUNCA se cumple en un WKWebView de Capacitor. Se
+      resolvió con la clase `html.es-app-nativa`. Pero **solo se corrigió
+      ARRIBA**: no existía ninguna regla equivalente para abajo. Verificado con
+      Grep: había tres usos de `safe-area-inset-bottom` (carrito y modales) y
+      **ninguno para el cuerpo de la página**.
+
+   SOLUCIÓN (opción A, decidida por el dueño): no se toca el binario — el
+   `contentInset` se queda en `automatic`. Se pinta el fondo del documento para
+   que la franja deje de ser negra y se integre con la página.
+
+   🔴 POR QUÉ EN `html` Y NO EN `body`: el `body` de la tienda tiene
+      `padding-top` y su fondo termina donde termina el contenido; el color del
+      elemento raíz es el que iOS usa para el «lienzo» del WebView, que es
+      justo la zona que queda al descubierto. Pintar `body` no habría llegado.
+
+   🔴 POR QUÉ NO SE FIJA UN COLOR ÚNICO: la tienda acaba en el pie oscuro
+      (`.footer` → `#0f1f14`) y el login en el verde de su degradado
+      (`#27a35a`). Un solo color acertaría en una pantalla y desentonaría en la
+      otra. Por eso hay una variable con valor por omisión, y cada página la
+      ajusta. */
+html.es-app-nativa,
+html.es-app-nativa body {
+  background-color: var(--fondo-borde-app, #0f1f14);
+}
+
+/* La tienda: el pie es lo último que se ve, así que la franja lo continúa. */
+html.es-app-nativa body {
+  --fondo-borde-app: #0f1f14;   /* el mismo #0f1f14 de .footer */
+}
+
+/* 🔴 Y ADEMÁS HAY QUE GARANTIZAR QUE ALGO PINTE AHÍ ABAJO. El color del
+   documento cubre el lienzo, pero si el último elemento de la página termina
+   antes, entre él y el borde queda el color del documento — que ahora sí es el
+   correcto. Se refuerza dando al pie el relleno de la zona segura, para que su
+   propio fondo llegue al final y no dependa solo del lienzo. */
+html.es-app-nativa .footer {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* El carrito y los paneles laterales ya leen la variable --cart-top, que
    js/app.js calcula en _calcSafeTop(). Esa función también se corrigió en el
    BUILD 438 porque preguntaba por `navigator.standalone`, falso en la app. */
