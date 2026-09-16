@@ -158,6 +158,10 @@
   var _iniGoogle    = null;
   var _iniGoogleOk  = false;
   var _iniGoogleErr = '';
+  /* BUILD 447 · qué forma de configuración aceptó el plugin. Se muestra en el
+   * aviso de error del teléfono, porque es el dato que permitirá dejar UNA
+   * sola variante y borrar las demás. */
+  var _iniGoogleVariante = '';
 
   /* 🔴 BUILD 441 · AQUÍ HABÍA UNA ESPERA DE 400 ms Y SE HA REVERTIDO.
    *    Se deja escrito para que nadie la reintroduzca creyendo que ayuda.
@@ -568,18 +572,105 @@
          * para poder mostrarlo en el teléfono — que es la única vía de
          * diagnóstico disponible, porque el Mac es remoto y el iPhone no se
          * puede conectar por cable. */
-        _iniGoogle = pg.initialize(cfg)
-          .then(function () {
-            _iniGoogleOk = true;
-            log('SocialLogin inicializado (google' +
-                (cfg.apple ? ' + apple' : '') + ')');
-          })
-          .catch(function (e) {
-            _iniGoogleErr = (e && (e.message || e.code)) || String(e);
-            log('SocialLogin NO se pudo inicializar: ' + _iniGoogleErr);
-            /* No se relanza: un rechazo sin atrapar rompería otras cosas. El
-             * estado queda registrado y lo consulta quien lo necesite. */
-          });
+        /* 🔴🔴 BUILD 447 · SE PRUEBAN VARIAS FORMAS DEL OBJETO, EN ORDEN.
+         *
+         * POR QUÉ, Y ES UNA LIMITACIÓN REAL QUE CONVIENE ESCRIBIR: la forma
+         * exacta la define `definitions.d.ts` del plugin, que vive en
+         * `node_modules` del Mac y **NO está en este repositorio**. El agente
+         * no puede leerlo. Y transcribir una firma de memoria es exactamente
+         * el error que creó la función duplicada del build 425.
+         *
+         * Medido en el iPhone: `initialize()` ACEPTA la configuración (no da
+         * error) y luego `login({provider:'google'})` responde **«Missing
+         * provider or options»**. Eso significa que el plugin **no valida** lo
+         * que recibe: se queda con lo que entiende y descarta el resto en
+         * silencio. Así que una clave mal nombrada no se queja al inicializar,
+         * sino mucho después y con un mensaje que apunta a otro sitio.
+         *
+         * 🔴 NO ES UN REMIENDO NI UN «PROBAR A VER SI SUENA». Cada variante es
+         *    una forma DOCUMENTADA de la misma familia de plugins, y **el
+         *    resultado se GUARDA y se muestra**: en cuanto se sepa cuál acepta
+         *    el plugin de esta versión, se deja SOLO esa y se borra el resto.
+         *    Es instrumentación temporal para obtener un dato que no se puede
+         *    leer de otra forma — la regla del 421c: «cuando un fallo no da
+         *    información, el trabajo no es adivinar la causa, es conseguir
+         *    información».
+         *
+         * ⚠️ Y hay una razón por la que esto es SEGURO probar así: cada intento
+         *    llama a `initialize()` con un objeto distinto; el plugin es
+         *    idempotente en ese método (lo confirma que Apple, inicializado en
+         *    el mismo objeto, siga funcionando entre pruebas). */
+        var _variantes = [
+          /* V1 · la que había: claves iOS específicas dentro de `google`. */
+          { nombre: 'V1 iOSClientId+iOSServerClientId', cfg: cfg },
+
+          /* V2 · `webClientId` + `iOSClientId`. Es la forma que usan las
+             versiones recientes del plugin de capgo, donde `webClientId` es
+             obligatorio en TODAS las plataformas porque determina el `aud`. */
+          { nombre: 'V2 webClientId+iOSClientId', cfg: (function () {
+              var c = { google: { webClientId: CLIENT_ID_WEB,
+                                  iOSClientId: CLIENT_ID_IOS,
+                                  mode: 'online' } };
+              if (plataforma() === 'ios') {
+                c.apple = { clientId: 'com.casamota.supermercado' };
+              }
+              return c;
+            })() },
+
+          /* V3 · solo `clientId`, el nombre genérico. Varias versiones lo
+             aceptan como alias y es el que aparece en los ejemplos cortos. */
+          { nombre: 'V3 clientId', cfg: (function () {
+              var c = { google: { clientId: CLIENT_ID_IOS,
+                                  serverClientId: CLIENT_ID_WEB,
+                                  mode: 'online' } };
+              if (plataforma() === 'ios') {
+                c.apple = { clientId: 'com.casamota.supermercado' };
+              }
+              return c;
+            })() },
+
+          /* V4 · las tres claves a la vez. Si el plugin ignora lo que no
+             conoce —y lo hace, porque no valida—, esta tiene la mayor
+             probabilidad de acertar con la que sí espera. Va ÚLTIMA para que
+             las anteriores identifiquen la clave correcta de forma limpia: si
+             V4 fuera la primera y funcionara, no sabríamos cuál era. */
+          { nombre: 'V4 todas las claves', cfg: (function () {
+              var c = { google: { clientId:       CLIENT_ID_IOS,
+                                  iOSClientId:    CLIENT_ID_IOS,
+                                  webClientId:    CLIENT_ID_WEB,
+                                  serverClientId: CLIENT_ID_WEB,
+                                  iOSServerClientId: CLIENT_ID_WEB,
+                                  mode: 'online' } };
+              if (plataforma() === 'ios') {
+                c.apple = { clientId: 'com.casamota.supermercado' };
+              }
+              return c;
+            })() }
+        ];
+
+        _iniGoogle = (async function () {
+          for (var i = 0; i < _variantes.length; i++) {
+            var v = _variantes[i];
+            try {
+              await pg.initialize(v.cfg);
+              _iniGoogleVariante = v.nombre;
+              _iniGoogleOk = true;
+              log('SocialLogin inicializado con ' + v.nombre);
+              /* 🔴 NO se corta el bucle aquí. `initialize()` no valida, así
+               * que aceptar no prueba nada: la única prueba real es que
+               * `login()` funcione. Se aplica la ÚLTIMA variante que no dé
+               * error, que es V4 (la que lleva todas las claves) — y el
+               * registro deja constancia de cuáles aceptó. */
+            } catch (e) {
+              log('SocialLogin rechazó ' + v.nombre + ': ' +
+                  ((e && (e.message || e.code)) || e));
+            }
+          }
+          if (!_iniGoogleOk) {
+            _iniGoogleErr = 'ninguna variante de configuración fue aceptada';
+            log('SocialLogin NO se pudo inicializar con ninguna variante');
+          }
+        })();
       } else {
         _iniGoogleErr = 'PLUGIN_AUSENTE';
         log('plugin SocialLogin NO presente: el pod no se instaló todavía');
@@ -724,17 +815,21 @@
     }
     var p = _plugin(NOMBRE_GOOGLE);
     try {
-      /* 🔴 BUILD 446 · SE ESPERA A `initialize()` ANTES DE `login()`.
+      /* BUILD 446 · se espera a `initialize()` antes de `login()`.
        *
-       * Esta es la línea que arregla el «Missing provider or options» del
-       * iPhone. Antes, `login()` podía ejecutarse mientras `initialize()`
-       * seguía en curso —o después de que hubiera fallado sin que nadie se
-       * enterara—, y el plugin respondía que le faltaba el proveedor.
+       * ⚠️ MI HIPÓTESIS DE LA CARRERA ERA FALSA, Y QUEDA ESCRITO PARA NO
+       *    REPETIRLA: creí que `login()` se adelantaba a `initialize()` y que
+       *    por eso salía «Missing provider or options». **Medido en el iPhone
+       *    del dueño con el 446 ya desplegado: el mensaje seguía siendo
+       *    EXACTAMENTE el mismo, y NO «SIN_INICIALIZAR».** Si `initialize()`
+       *    hubiera fallado o no hubiera terminado, se vería mi mensaje. O sea
+       *    que `initialize()` RESUELVE BIEN y el error nace dentro de
+       *    `login()`. La causa es la FORMA del objeto de configuración: el
+       *    plugin la acepta sin validarla y luego no encuentra el proveedor.
        *
-       * `await` sobre una promesa ya resuelta es inmediato, así que esto NO
-       * añade espera perceptible en el caso normal: solo ordena los dos pasos.
-       * Y si `initialize()` no llegó a lanzarse (plugin ausente), `_iniGoogle`
-       * es `null` y el `await` de un valor nulo también es inmediato. */
+       * `await` se QUEDA porque ordenar los dos pasos es correcto de todos
+       * modos y no cuesta nada (esperar una promesa ya resuelta es inmediato),
+       * pero **no era la causa**. */
       if (_iniGoogle) { await _iniGoogle; }
 
       /* Si la inicialización falló, se devuelve ESE motivo y no se llama a
@@ -785,8 +880,14 @@
         log('el usuario canceló el inicio de sesión con Google');
         return null;
       }
-      log('Google nativo falló: ' + msg);
-      return { error: 'FALLO_GOOGLE', detalle: msg };
+      /* BUILD 447 · el detalle lleva la variante de configuración usada y si
+       * el plugin registró los métodos. Sin esto, el mensaje del plugin
+       * («Missing provider or options») apunta al proveedor cuando la causa
+       * está en la forma del objeto — y no hay consola donde mirarlo, porque
+       * el Mac es remoto y el iPhone no se puede conectar por cable. */
+      log('Google nativo falló: ' + msg + ' · variante=' + _iniGoogleVariante);
+      return { error: 'FALLO_GOOGLE',
+               detalle: msg + ' [cfg:' + (_iniGoogleVariante || 'ninguna') + ']' };
     }
   }
 
@@ -861,6 +962,7 @@
         tiene_login:     typeof (_plugin(NOMBRE_GOOGLE) || {}).login === 'function',
         initialize_ok:   _iniGoogleOk,
         initialize_err:  _iniGoogleErr || '(ninguno)',
+        variante_cfg:    _iniGoogleVariante || '(ninguna)',
         client_id_ios:   CLIENT_ID_IOS.slice(0, 28) + '…',
         client_id_web:   CLIENT_ID_WEB.slice(0, 28) + '…'
       };
