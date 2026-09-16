@@ -8,11 +8,11 @@
     "androidScheme": "https"
   },
   "ios": {
-    "contentInset": "automatic",
+    "contentInset": "never",
     "scrollEnabled": true,
     "limitsNavigationsToAppBoundDomains": true,
     "allowsLinkPreview": false,
-    "backgroundColor": "#0d1b12"
+    "backgroundColor": "#ffffff"
   },
   "android": {
     "allowMixedContent": false,
