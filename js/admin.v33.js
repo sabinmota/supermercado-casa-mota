@@ -2693,7 +2693,24 @@ function deleteProduct(id) {
       renderInventory();
       showAdminToast('Producto eliminado', 'info');
     })
-    .catch(() => showAdminToast('Error al eliminar el producto', 'error'));
+    /* 🔴 BUILD 453 · ANTES ESTE `catch` ERA `.catch(() => …)` — DESCARTABA EL
+     * ERROR Y MOSTRABA SIEMPRE «Error al eliminar el producto».
+     *
+     * Eso es exactamente el defecto que el build 416 corrigió en `_rpcStaff`:
+     * un manejador que oculta la causa no protege al usuario, le impide
+     * arreglar el problema. Con el 401 de la clave `anon` en pantalla salía un
+     * mensaje genérico mientras la consola tenía el motivo real, y hubo que ir
+     * a leer la consola para saber qué pasaba.
+     *
+     * Ahora los mensajes de `_ERRORES_PRODUCTO` («Tu sesión caducó. Vuelve a
+     * entrar al panel.») llegan al aviso, que es donde mira el empleado. */
+    .catch(err => {
+      console.error('[Casa Mota] Fallo al eliminar producto:', err);
+      showAdminToast(
+        (err && err.message) ? err.message : 'Error al eliminar el producto',
+        'error'
+      );
+    });
 }
 
 // saveAdminProducts() ya no hace falta (sustituida por DB.saveProduct)

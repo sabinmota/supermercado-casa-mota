@@ -768,6 +768,24 @@ const _ERRORES_CANJE = {
   FALTA_PEDIDO:        'Falta indicar el pedido.',
 };
 
+/* BUILD 453 · Mensajes de `admin_borrar_producto`.
+ *
+ * Hereda los tres de sesión porque la RPC valida con `admin_sesion_basica`,
+ * la misma función que usan los pedidos desde el build 39.
+ *
+ * POR QUÉ UN DICCIONARIO PROPIO Y NO SE REUTILIZA `_ERRORES_STAFF`:
+ * el código `FALTA_ID` significa cosas distintas según la RPC —allí es un
+ * empleado, aquí un producto—, y un mensaje que nombra lo que no es le hace
+ * perder el tiempo a quien lo lee. `PRODUCTO_NO_EXISTE` no existe en ningún
+ * otro diccionario. */
+const _ERRORES_PRODUCTO = {
+  SESION_INVALIDA:     'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:     'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA:  'Tu cuenta ya no está activa.',
+  FALTA_ID:            'Falta indicar el producto.',
+  PRODUCTO_NO_EXISTE:  'Ese producto ya no existe.',
+};
+
 /* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
  * la RPC llama a `admin_sesion_basica` igual que las de clientes. */
 const _ERRORES_PUNTOS = {
@@ -1181,8 +1199,57 @@ const DB = {
     return await res.json();
   },
 
+  /**
+   * BUILD 453 · Borrar un producto.
+   *
+   * EL SÍNTOMA QUE ARREGLA
+   * ──────────────────────
+   * El botón de la papelera en Admin → Productos daba 401:
+   *     DELETE .../rest/v1/products?id=eq.… 401 (Unauthorized)
+   *
+   * LA CAUSA, MEDIDA
+   * ────────────────
+   * Antes esto llamaba a `_apiDelete('products', id)`, que va con
+   * `_SB_WRITE_HEADERS`, o sea con la clave `anon` PUBLICADA en la línea 22 de
+   * este mismo fichero. Y `seguridad/39-cerrar-escritura-anonima.sql:263`
+   * revocó ese permiso el 14 de agosto:
+   *     REVOKE DELETE ON public.products FROM anon, authenticated;
+   *
+   * O sea que llevaba roto casi cinco semanas y nadie lo había notado porque
+   * borrar un producto es una operación poco frecuente. **Un permiso revocado
+   * no avisa al código que lo usaba: simplemente responde 401 el día que
+   * alguien lo intenta.**
+   *
+   * 🔴 POR QUÉ NO SE ARREGLÓ DEVOLVIENDO EL PERMISO
+   * ───────────────────────────────────────────────
+   * Un `GRANT DELETE ON public.products TO anon` habría hecho funcionar el
+   * botón en una línea, y habría dejado que cualquier visitante borrase los
+   * 2.062 artículos desde la consola del navegador con la clave que está en el
+   * código fuente de la web. Es el remiendo que la regla del dueño prohíbe:
+   * arregla lo que se ve y abre lo que no.
+   *
+   * EL CAMINO ES EL QUE YA EXISTÍA PARA LOS PEDIDOS
+   * ───────────────────────────────────────────────
+   * El mismo fichero 39 que revocó este DELETE resolvió el caso idéntico de
+   * `orders` con `admin_borrar_pedido(p_vale, p_id)` (su línea 116). Ahora los
+   * productos usan su gemela, `admin_borrar_producto`, con la misma firma y el
+   * mismo validador `admin_sesion_basica`. **La puerta ya no es el permiso de
+   * tabla, es el vale**: solo un empleado con sesión abierta en el panel borra.
+   *
+   * `_rpcStaff` exige `p_vale` y lanza «Tu sesión caducó» si falta, así que no
+   * hace falta comprobarlo aquí — comprobarlo dos veces en sitios distintos es
+   * lo que produce mensajes que se contradicen.
+   *
+   * Requiere `seguridad/59-borrar-producto.sql` ejecutado.
+   *
+   * @param {string} id  UUID del producto.
+   */
   async deleteProduct(id) {
-    return _apiDelete('products', id);
+    return _rpcStaff(
+      'admin_borrar_producto',
+      { p_vale: _valeAdmin(), p_id: id },
+      _ERRORES_PRODUCTO
+    );
   },
 
   // ── Pedidos ────────────────────────────────────────────────────────────────
