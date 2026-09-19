@@ -1050,21 +1050,56 @@ function filtrarDashboard(vista, btn) {
     }
   }
 
-  // 3 · Desplazar hasta la zona correspondiente.
-  /* En «Ventas» el destino es el panel recién abierto, no el dónut: llevar al
-   * dónut dejaría fuera de pantalla justo lo que se acaba de desplegar. */
-  const DESTINOS = {
-    resumen:   'dashKpiGrid',
-    ventas:    'panelRitmoVentas',
-    operacion: 'topProducts',
-  };
-  const destino = document.getElementById(DESTINOS[vista] || 'dashKpiGrid');
-  if (!destino) return;   // el id no existe: no se hace nada, no se rompe nada
-
-  // `closest('.card')` sube hasta la tarjeta contenedora para que el título
-  // quede a la vista y no solo el lienzo de la gráfica.
-  const caja = destino.closest('.card') || destino;
-  caja.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /* ─── BUILD 464 · AQUÍ NO SE DESPLAZA LA PÁGINA. NUNCA. ──────────────────
+   *
+   * 🔴 ESTA AUSENCIA ES LA FUNCIÓN. No es que falte código: es que el código
+   * que había SOBRABA y hacía daño. Se retiró un `scrollIntoView({behavior:
+   * 'smooth'})` que llevaba la vista hasta la zona de cada pestaña.
+   *
+   * POR QUÉ ERA UN DEFECTO, en palabras del dueño: «cuando se mueve, si yo
+   * le tengo que dar clic a otro botón, tengo que subir la página de nuevo
+   * hacia arriba, y eso es una molestia». Tenía razón, y el fallo es de
+   * diseño, no de ejecución: **al desplazar la vista, las pestañas se van
+   * fuera de la pantalla, así que el control que acabas de usar desaparece
+   * justo cuando querrías volver a usarlo.** Cada cambio de pestaña costaba
+   * un viaje de vuelta con la rueda del ratón.
+   *
+   * Verificado en la grabación del diseño de referencia que mandó el dueño:
+   * al pulsar «Ventas» (0:03.9) el panel se despliega y **el encabezado y la
+   * fila de pestañas no se mueven ni un píxel**; al pulsar «Resumen»
+   * (0:06.2) se repliega y el contenido de abajo vuelve a subir solo. La
+   * barra de desplazamiento no cambia de posición en ningún momento. Es un
+   * acordeón dentro de una vista quieta.
+   *
+   * ⚠️ NO se sustituye por `scrollIntoView({block:'nearest'})` ni por
+   * ninguna variante «suave»: cualquiera de ellas desplaza en ALGÚN caso —
+   * justo cuando el panel abierto no cabe entero, que es el caso más
+   * frecuente— y el síntoma volvería de forma intermitente. Un defecto que
+   * aparece a veces es más difícil de encontrar que uno que aparece
+   * siempre. La única forma de garantizar que la fila de pestañas no se
+   * mueve es **no llamar a nada que desplace**.
+   *
+   * Tampoco se toca `document.activeElement`: el navegador deja el foco en
+   * la pestaña pulsada, que es justo donde debe quedarse para poder pasar a
+   * la siguiente con el tabulador.
+   *
+   * El contenido de abajo SÍ se recoloca, y eso es correcto y esperado: al
+   * abrirse el panel empuja lo que tiene debajo, exactamente como en la
+   * grabación. Empujar el contenido no es desplazar la vista.
+   *
+   * ⚠️⚠️ DEUDA CONOCIDA Y DECLARADA, NO UN DESCUIDO:
+   * al retirar el desplazamiento, **«Resumen» y «Operación» quedan haciendo
+   * lo MISMO** — ambas cierran el panel de ventas. Antes se distinguían
+   * porque cada una llevaba la vista a un sitio distinto, y esa distinción
+   * se ha ido con el scroll.
+   *
+   * NO se ha inventado aquí un panel para «Operación» por dos motivos:
+   * (1) el dueño pidió expresamente que al arreglar una cosa no se cambie
+   * otra que no pidió; (2) el diseño de referencia SÍ tiene un contenedor
+   * propio para esa pestaña (`editorialOperation`), así que lo correcto es
+   * llenarlo con datos de operación de verdad, y eso es un trabajo aparte
+   * que hay que acordar, no improvisar.
+   * **Queda dicho para que nadie lo descubra como sorpresa.** */
 }
 
 /* ─── BUILD 462 · «STOCK BAJO» LLEVA A INVENTARIO **YA FILTRADO** ───────────
@@ -1529,12 +1564,61 @@ function renderSalesChart() {
       catTotals[label] = (catTotals[label] || 0) + importe;
     });
   });
-  const labels = Object.keys(catTotals);
-  const data   = Object.values(catTotals);
+  /* ══════════════════════════════════════════════════════════════════════
+     BUILD 463 · LAS CINCO PRIMERAS + «OTRAS CATEGORÍAS»
+
+     Lo pidió el dueño mirando su propio panel, y los números le daban la
+     razón: la tienda tiene 14 categorías con ventas y la leyenda las
+     listaba TODAS, una línea cada una. **Cinco de ellas marcaban 0 %** —
+     ocupaban su renglón para no decir nada— y la tarjeta tenía que crecer
+     a lo alto para caber, que es la razón de que el cuadro saliera tan
+     grande. El diseño de referencia ya lo resolvía así; su propio
+     comentario decía «at most five categories + others».
+
+     🔴 «OTRAS» NO ES UN REDONDEO NI UN DESCARTE: es la SUMA EXACTA de
+     todo lo que no entra en el top 5. El total del centro del anillo no
+     cambia ni un peso, y los porcentajes siguen sumando 100. Si se
+     descartara la cola, el importe central bajaría y el dueño vería
+     menos ventas de las que hizo — un dato equivocado que parece
+     correcto, justo lo que este proyecto lleva builds evitando.
+
+     ⚠️ El nombre lleva la CUENTA («Otras (9 categorías)») a propósito.
+     Un «Otras · 8 %» a secas no dice si esconde dos categorías o veinte,
+     y el dueño no podría juzgar si vale la pena mirarlas. Con la cuenta,
+     el resumen es honesto sobre lo que resume.
+
+     Solo se agrupa si SOBRAN al menos dos: con seis categorías, meter la
+     sexta en un cajón llamado «Otras (1 categoría)» ocuparía la misma
+     línea y encima ocultaría su nombre. Agrupar una sola no simplifica
+     nada, solo esconde.
+     ══════════════════════════════════════════════════════════════════════ */
+  const TOPE_CATEGORIAS = 5;
+
+  // De mayor a menor importe: «las cinco primeras» debe significar las cinco
+  // que más venden, no las cinco que el recorrido encontró antes.
+  const ordenadas = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+
+  let labels, data;
+  if (ordenadas.length > TOPE_CATEGORIAS + 1) {
+    const cabeza = ordenadas.slice(0, TOPE_CATEGORIAS);
+    const cola   = ordenadas.slice(TOPE_CATEGORIAS);
+    const sumaCola = cola.reduce((s, [, v]) => s + v, 0);
+    labels = [...cabeza.map(([k]) => k),
+              `Otras (${cola.length} categorías)`];
+    data   = [...cabeza.map(([, v]) => v), sumaCola];
+  } else {
+    labels = ordenadas.map(([k]) => k);
+    data   = ordenadas.map(([, v]) => v);
+  }
+
   /* BUILD 455b · Paleta del rediseño: verdes, terracota y arenas, en vez de
    * los primarios saturados de antes (azul #1565c0, rojo #e53935, morado).
    * Los seis primeros son los del diseño; los dos últimos amplían la serie
-   * por si aparecen más categorías, en el mismo registro cromático. */
+   * por si aparecen más categorías, en el mismo registro cromático.
+   * BUILD 463 · Ahora son como mucho SEIS porciones (5 + «Otras»), así que
+   * los seis primeros bastan siempre y el gris #D1D5DB cae de forma natural
+   * en «Otras»: es el color neutro de la paleta y se lee como «el resto»
+   * sin competir con las categorías reales. */
   const colors = ['#1B4D3E','#7A9A7C','#C4593B','#D4AF8B','#DFDCAC','#D1D5DB','#4E7C64','#A8703E'];
 
   // ── ANTIPARPADEO 1: no dibujar un gráfico vacío ─────────────────────────────
