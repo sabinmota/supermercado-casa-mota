@@ -1,0 +1,963 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   SUPERMERCADO CASA MOTA · PANEL 2026  —  css/panel-2026.css
+   ══════════════════════════════════════════════════════════════════════════
+
+   QUÉ ES ESTE FICHERO Y POR QUÉ EXISTE
+   ────────────────────────────────────
+   Hoja INDEPENDIENTE con el rediseño del panel: la BARRA LATERAL, la BARRA
+   SUPERIOR y el DASHBOARD. Se carga DESPUÉS de `admin.v33.css` y usa un
+   prefijo propio: `dsh-`.
+
+   🔴 POR QUÉ UNA HOJA NUEVA Y NO MÁS REGLAS EN `admin.v33.css`:
+   Ese fichero tiene 710 selectores para las ~20 pantallas del panel, y el
+   dashboard comparte con ellas `.card`, `.kpi-*`, `.data-table`. Reescribir
+   esas clases habría cambiado Productos, Pedidos, Clientes e Inventario sin
+   haberlos mirado siquiera.
+
+   Y la razón de fondo: el intento anterior fue apilar cinco bloques de
+   correcciones (455, 455b, 455c, 455d, 455e) al final de aquel fichero. El
+   resultado fue que **una capa mía pisó otra capa mía**: el círculo del icono
+   KPI quedó del mismo color que el fondo que otra regla acababa de ponerle, y
+   se volvió invisible sin que nada fallara. Cinco remiendos apilados no son
+   un diseño. Esos bloques se han RETIRADO por completo — `admin.v33.css`
+   vuelve a estar como lo entregó su autor.
+
+   REGLAS DE ESTE FICHERO
+   ──────────────────────
+   1. Todo va con prefijo `dsh-`. Ninguna clase compartida con otras
+      pantallas, así que es IMPOSIBLE romperlas desde aquí.
+   2. Cada valor sale de MEDIR el diseño de referencia, no de aproximar.
+   3. Una sola declaración por propiedad. Si algo hay que cambiar, se cambia
+      donde está escrito; no se añade una regla nueva que lo pise.
+   4. Borrando la etiqueta <link> de este fichero, el dashboard vuelve
+      exactamente a como estaba. Reversible en una línea.
+
+   🔴 ALCANCE: ESTE PANEL ES DE ESCRITORIO — DECISIÓN DEL DUEÑO (2026-09-19)
+   ─────────────────────────────────────────────────────────────────────────
+   El panel administrativo se usa desde la computadora de la tienda. NO se
+   mantiene una versión para teléfono y NO se consideran fallo los defectos
+   que solo aparezcan por debajo de ~1000 px de ancho.
+
+   Consecuencia práctica, para no perder tiempo en otra sesión: al ver la
+   barra lateral desplegada tapando el contenido en una pantalla estrecha,
+   ESO NO ES UN ERROR QUE HAYA QUE ARREGLAR. Yo mismo lo persiguí como fallo
+   antes de que el dueño lo aclarara.
+
+   Lo que sí sigue vigente:
+   · Las reglas de móvil heredadas de `admin.v33.css` (l. 1838-1852) se
+     dejan INTACTAS. Funcionan, no molestan en escritorio y borrarlas sería
+     trabajo con riesgo y sin beneficio.
+   · El ancho se cambia en la VARIABLE `--sidebar-w` (más abajo), nunca con
+     un `width` sobre `.sidebar`: eso anularía esas reglas heredadas.
+   · La TIENDA PÚBLICA (`index.html`) sí es móvil y la usan los clientes
+     desde el teléfono. Este fichero no la toca en absoluto: solo lo carga
+     `admin.html`. No confundir un panel de escritorio con la tienda.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   1 · FICHA DE DISEÑO
+   Todos los valores del sistema, en un solo sitio. Con prefijo `--dsh-`
+   para no chocar con las variables de `admin.v33.css`.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Superficies */
+  --dsh-bg:            #faf9f6;   /* fondo de página, crema cálido        */
+  --dsh-surface:       #ffffff;   /* tarjetas                             */
+  --dsh-surface-tint:  #eef3ec;   /* tarjeta destacada (Ventas del mes)   */
+  --dsh-border:        #e8e9e3;   /* borde fino de tarjeta                */
+  --dsh-border-tint:   #dbe5d6;   /* borde de la tarjeta destacada        */
+
+  /* Verdes de marca */
+  --dsh-green:         #1b4d3e;
+  --dsh-green-deep:    #123b2e;
+  --dsh-green-soft:    #dce8d9;   /* círculos e insignias                 */
+  --dsh-sidebar:       #0e3c2e;   /* verde de la barra lateral            */
+
+  /* Texto */
+  --dsh-ink:           #16241d;   /* titulares y cifras                   */
+  --dsh-ink-mid:       #5c6660;   /* etiquetas                            */
+  --dsh-ink-soft:      #8b948e;   /* pies y notas                         */
+
+  /* Acentos de la gráfica */
+  --dsh-c1: #1b4d3e;
+  --dsh-c2: #7a9a7c;
+  --dsh-c3: #c4593b;
+  --dsh-c4: #d4af8b;
+  --dsh-c5: #dfdcac;
+  --dsh-c6: #d1d5db;
+
+  /* Forma y ritmo */
+  --dsh-r-card: 18px;
+  --dsh-r-pill: 999px;
+  --dsh-pad:    22px;
+  --dsh-gap:    16px;
+
+  /* Tipografía
+   * 🔴 Playfair Display SOLO para titulares y títulos de tarjeta.
+   * NO para las cifras: su signo «$» lleva las barras sobresaliendo del
+   * óvalo y su avance horizontal es menor que su dibujo real, así que en
+   * «RD$ 80,860.00» la D y el $ se solapan. Se midió con tres valores de
+   * `letter-spacing` (-.025em, -.01em, 0) y se solapaban en los tres: no era
+   * el espaciado, era la fuente. Las cifras van en Inter, que además tiene
+   * cifras tabulares. */
+  --dsh-serif: 'Playfair Display', Georgia, serif;
+  --dsh-sans:  'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   2 · LIENZO
+   ───────────────────────────────────────────────────────────────────────── */
+#sec-dashboard {
+  background: var(--dsh-bg);
+  font-family: var(--dsh-sans);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   2b · BARRA LATERAL
+   ═════════════════════════════════════════════════════════════════════════
+   Reescribe el aspecto de `.sidebar`, que ya existe en `admin.v33.css`.
+
+   🔴 POR QUÉ AQUÍ SE TOCAN CLASES EXISTENTES Y EN EL DASHBOARD NO:
+   la barra lateral es UNA SOLA en todo el panel, así que no hay riesgo de
+   afectar a otra pantalla: es la misma en todas. El dashboard, en cambio,
+   compartía `.card` y `.data-table` con otras 19 pantallas — por eso allí
+   se crearon clases `dsh-` nuevas y aquí no hace falta.
+
+   Se redefine SOLO lo visual (color, forma, espaciado). El plegado, el
+   `position` móvil y el `z-index` los sigue gobernando `admin.v33.css`:
+   ahí está la lógica que ya funciona y que no hay motivo para reescribir.
+   ───────────────────────────────────────────────────────────────────────── */
+/* 🔴 EL ANCHO SE CAMBIA EN LA VARIABLE, NO CON UN `width` EN `.sidebar`.
+ *
+ * Mi primera versión ponía `width: 258px` sobre `.sidebar`. Eso rompía algo
+ * EN ESCRITORIO, que es lo que aquí importa: `.main-content` se separa con
+ * `margin-left: var(--sidebar-w)` (admin.v33.css:136, 240 px). Al ensanchar
+ * la barra a 258 sin tocar la variable quedaban 18 px de barra asomando por
+ * debajo del contenido. Ningún error en consola: solo una franja verde.
+ *
+ * Y de paso anulaba las reglas heredadas de pantalla estrecha
+ * (admin.v33.css:1839), porque esta hoja se carga después.
+ *
+ * Con la VARIABLE, el ancho se propaga solo al margen del contenido, al
+ * estado plegado (`.sidebar.collapsed`) y al `calc(100% - ...)` del ancho:
+ * un valor en un sitio en lugar de tres reglas que hay que mantener de
+ * acuerdo entre sí. Si mañana la barra debe medir otra cosa, se cambia
+ * ESTE número y nada más. */
+:root { --sidebar-w: 258px; }
+
+.sidebar {
+  background: var(--dsh-sidebar);
+  border-right: none;
+  font-family: var(--dsh-sans);
+}
+
+/* Barra flotante con esquinas redondeadas.
+ * Solo de 1025 px hacia arriba: por debajo, `admin.v33.css` la pone en
+ * `position:fixed` desplegable sobre el contenido, y un margen ahí dejaría
+ * una franja del fondo asomando al abrirla. */
+@media (min-width: 1025px) {
+  .sidebar {
+    margin: 12px 0 12px 12px;
+    height: calc(100vh - 24px);
+    border-radius: 22px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ── Cabecera: logotipo, marca y lema ──────────────────────────────────── */
+.sidebar-header {
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 18px 18px;
+  border-bottom: none;
+  text-align: center;
+}
+.sidebar-logo-wrap { margin: 0 auto; }
+.sidebar-logo { width: 58px; height: auto; }
+
+.dsh-brand {
+  font-size: 1.06rem;
+  font-weight: 800;
+  letter-spacing: .6px;
+  color: #fff;
+  line-height: 1.1;
+}
+.dsh-brand__tag {
+  display: block;
+  margin-top: 3px;
+  font-size: .715rem;
+  font-weight: 400;
+  color: rgba(255,255,255,.62);
+  letter-spacing: .1px;
+}
+.sidebar.collapsed .dsh-brand { display: none; }
+
+/* El botón de plegar se sitúa sobre la esquina, para no partir el bloque
+ * centrado de la marca. */
+.sidebar-header .sidebar-toggle {
+  position: absolute;
+  top: 14px; right: 12px;
+}
+.sidebar-header { position: relative; }
+
+/* ── Navegación ────────────────────────────────────────────────────────── */
+.sidebar-nav { padding: 6px 14px 14px; }
+.sidebar-nav ul { list-style: none; margin: 0; padding: 0; }
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-bottom: 3px;
+  border-radius: 13px;
+  font-size: .875rem;
+  font-weight: 500;
+  color: rgba(255,255,255,.80);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .16s, color .16s;
+}
+.nav-link i { width: 20px; font-size: 1rem; text-align: center; flex-shrink: 0; }
+.nav-link:hover { background: rgba(255,255,255,.085); color: #fff; }
+
+.nav-link.active {
+  background: #f3f5f2;
+  color: var(--dsh-sidebar);
+  font-weight: 600;
+}
+.nav-link.active i { color: var(--dsh-sidebar); }
+
+/* Separador entre bloques del menú. Una clase en el <li>, sin reordenar
+ * nada ni tocar showSection(). */
+.dsh-sep {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255,255,255,.14);
+}
+
+/* Fila «Más», con su flecha a la derecha. */
+.dsh-more__chevron { margin-left: auto; font-size: .7rem; transition: transform .2s; }
+.dsh-more[aria-expanded="true"] .dsh-more__chevron { transform: rotate(180deg); }
+
+/* ── Pie: ilustración y lema ───────────────────────────────────────────── */
+.dsh-plant {
+  margin-top: auto;
+  padding: 14px 20px 22px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.dsh-plant svg { width: 44px; height: auto; flex-shrink: 0; }
+.dsh-plant__txt {
+  font-size: .73rem;
+  line-height: 1.32;
+  color: rgba(255,255,255,.52);
+}
+.sidebar.collapsed .dsh-plant { display: none; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   2c · BARRA SUPERIOR
+   ═════════════════════════════════════════════════════════════════════════ */
+.topbar {
+  background: var(--dsh-bg);
+  border-bottom: none;
+  padding: 14px 26px;
+}
+.topbar-search {
+  background: #fff;
+  border: 1px solid var(--dsh-border);
+  border-radius: var(--dsh-r-pill);
+  padding: 9px 16px;
+}
+.topbar-search input { font-size: .84rem; }
+
+.main-content { background: var(--dsh-bg); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3 · CABECERA
+   Saludo · titular serif · frase con la fecha destacada · lema manuscrito.
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.dsh-head__eyebrow {
+  margin: 0 0 6px;
+  font-size: .64rem;
+  font-weight: 700;
+  letter-spacing: 1.7px;
+  text-transform: uppercase;
+  color: var(--dsh-ink-mid);
+}
+
+.dsh-head__title {
+  margin: 0;
+  font-family: var(--dsh-serif);
+  font-size: clamp(2.2rem, 3.1vw, 3.1rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -.022em;
+  color: var(--dsh-ink);
+}
+
+.dsh-head__lead {
+  margin: 9px 0 0;
+  font-size: .92rem;
+  line-height: 1.5;
+  color: var(--dsh-ink-soft);
+}
+.dsh-head__lead strong { color: var(--dsh-ink); font-weight: 700; }
+
+/* Lema manuscrito. Se retira bajo 1100 px: compite con el titular y en
+ * pantallas medianas no cabe sin encabalgarse. */
+.dsh-head__script {
+  margin: 4px 0 0;
+  font-family: 'Caveat', 'Segoe Script', cursive;
+  font-size: 1.5rem;
+  line-height: 1.12;
+  text-align: right;
+  color: var(--dsh-c3);
+  transform: rotate(-3.5deg);
+  max-width: 240px;
+  user-select: none;
+  pointer-events: none;
+}
+@media (max-width: 1100px) { .dsh-head__script { display: none; } }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   4 · PESTAÑAS + INDICADOR «EN VIVO»
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.dsh-tab {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--dsh-r-pill);
+  background: transparent;
+  font-family: inherit;
+  font-size: .855rem;
+  font-weight: 600;
+  color: var(--dsh-ink-mid);
+  cursor: pointer;
+  transition: background .18s, color .18s;
+}
+.dsh-tab:hover        { background: rgba(0,0,0,.045); color: var(--dsh-ink); }
+.dsh-tab[aria-selected="true"] { background: var(--dsh-green); color: #fff; }
+
+.dsh-live {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .765rem;
+  color: var(--dsh-ink-soft);
+}
+/* `display:block` por el mismo motivo que en `.dsh-legend__dot`: es un
+ * <span>, o sea `inline`, y sin esto `width`/`height` no se aplican.
+ * Aquí el padre es `flex`, que ya lo trata como bloque, así que hoy se ve
+ * bien POR CASUALIDAD — si alguien cambiara el padre a `display:block` el
+ * punto se encogería y el texto se le montaría, igual que pasó en la
+ * leyenda. Se declara explícito para que no dependa del vecino.
+ * CUARTO caso de esta familia en la misma hoja; lo encontró una búsqueda
+ * sistemática, no la vista. */
+.dsh-live__dot {
+  display: block;
+  flex: 0 0 7px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: dsh-pulse 2s ease-in-out infinite;
+}
+@keyframes dsh-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: .38; transform: scale(.78); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dsh-live__dot { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   4b · FOCO DE TECLADO VISIBLE
+   Idea tomada de la propuesta «Editorial cálido» (2026-09-19). Se adopta
+   porque resuelve un problema real, no por estética.
+
+   🔴 QUÉ ARREGLA: quien navegue el panel con el tabulador —por costumbre o
+   por necesidad— no veía dónde estaba parado en los controles nuevos. El
+   navegador dibuja un contorno por omisión, pero sobre fondos oscuros como
+   la barra lateral casi no se distingue, y en los botones con fondo propio
+   se pierde del todo.
+
+   Se usa `:focus-visible` y NO `:focus`: con `:focus` el contorno saldría
+   también al hacer clic con el ratón, que es justo el ruido visual por el
+   que mucha gente acaba escribiendo `outline:none` y dejando la página
+   inservible con teclado. `:focus-visible` solo se activa cuando el
+   navegador estima que hace falta — teclado sí, ratón no.
+
+   El color ámbar contrasta tanto sobre el verde de la barra como sobre el
+   crema del contenido; un contorno verde se perdería sobre la barra. */
+.dsh-kpi:focus-visible,
+.dsh-tab:focus-visible,
+.dsh-rowmenu:focus-visible,
+.dsh-kpi__go:focus-visible,
+.sidebar .nav-link:focus-visible {
+  outline: 3px solid #d9a441;
+  outline-offset: 2px;
+  border-radius: var(--dsh-r-card);
+}
+/* Dentro de la barra el contorno va HACIA DENTRO: la barra recorta su
+ * contenido (`overflow:hidden`) y con desplazamiento positivo el borde
+ * quedaría cortado justo en el lado que hay que ver. */
+.sidebar .nav-link:focus-visible { outline-offset: -3px; border-radius: 9px; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5 · TARJETAS DE INDICADOR
+   Círculo con icono · tres líneas de texto · botón redondo.
+   ───────────────────────────────────────────────────────────────────────── */
+/* `auto-fit` con un mínimo de 232 px en vez de un número fijo de columnas.
+ * Motivo concreto: el panel tiene CINCO tarjetas (las cuatro del diseño más
+ * «Notificaciones», que es funcional). Con `repeat(4, 1fr)` la quinta caería
+ * sola en una segunda fila ocupando un cuarto del ancho, descuadrada. Así el
+ * navegador reparte las que quepan y el bloque queda siempre equilibrado,
+ * tanto si algún día son cuatro como si son seis. */
+/* 🔴 El mínimo NO es una preferencia estética: es el ancho medido en el que
+ * «RD$ 486,250» entra entero. Con 232 px el navegador metía cuatro columnas
+ * de ~236 px y la cifra se cortaba en la pantalla real del dueño. Con 268 px
+ * caben tres holgadas y la cuarta baja de fila, que es lo correcto: antes
+ * cuatro tarjetas apretadas mintiendo que tres legíbles. */
+.dsh-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+  gap: var(--dsh-gap);
+  margin-bottom: 20px;
+}
+@media (max-width: 560px) { .dsh-kpis { grid-template-columns: 1fr; } }
+
+.dsh-kpi {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px var(--dsh-pad);
+  background: var(--dsh-surface);
+  border: 1px solid var(--dsh-border);
+  border-radius: var(--dsh-r-card);
+  transition: box-shadow .22s, transform .22s;
+}
+.dsh-kpi:hover {
+  box-shadow: 0 10px 26px rgba(22,36,29,.07);
+  transform: translateY(-2px);
+}
+
+/* La primera tarjeta va tintada.
+ * 🔴 Su círculo pasa a BLANCO. Si conservara el verde suave sería del mismo
+ * color que el fondo tintado y desaparecería — exactamente el fallo del
+ * intento anterior: el círculo seguía existiendo, con su tamaño correcto,
+ * pero camuflado contra su propio fondo. Nada falla, nada avisa. */
+.dsh-kpi--feature {
+  background: var(--dsh-surface-tint);
+  border-color: var(--dsh-border-tint);
+}
+.dsh-kpi--feature .dsh-kpi__icon { background: #fff; }
+
+.dsh-kpi__icon {
+  flex: 0 0 auto;
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--dsh-green-soft);
+  color: var(--dsh-green);
+  font-size: 1.16rem;
+}
+/* Variantes de color por tipo de indicador. */
+.dsh-kpi--warn  .dsh-kpi__icon { background: #f7e3dd; color: var(--dsh-c3); }
+.dsh-kpi--sand  .dsh-kpi__icon { background: #f4e9d9; color: #a9713a; }
+
+.dsh-kpi__body { flex: 1; min-width: 0; }
+
+.dsh-kpi__label {
+  display: block;
+  font-size: .795rem;
+  font-weight: 500;
+  color: var(--dsh-ink-mid);
+  line-height: 1.3;
+}
+
+/* 🔴 LA CIFRA NUNCA SE PUEDE RECORTAR.
+ *
+ * Medido en el panel real (documentos/_verif/medir.js), tarjeta de 303 px:
+ * la caja daba 150 px y «RD$ 486,250» pedía 157. Faltaban SIETE píxeles, y
+ * con `text-overflow: ellipsis` el navegador resolvía el conflicto cortando
+ * el número y poniendo puntos suspensivos. Un pedido truncado se nota; una
+ * CIFRA truncada se lee como si fuera el importe. El panel mentiría sin que
+ * nada fallara ni avisara.
+ *
+ * Por qué el `clamp` anterior no salvaba nada: era
+ * `clamp(1.55rem, 1.9vw, 1.9rem)`. A 1280 px, 1.9vw = 24,3 px, por debajo
+ * del suelo de 1.55rem = 24,8 px, así que el término flexible quedaba
+ * SIEMPRE descartado y la letra no encogía jamás. Además `vw` mide la
+ * VENTANA, y aquí quien aprieta es el ancho de la TARJETA: con la barra
+ * lateral desplegada la ventana no cambia y la tarjeta sí.
+ *
+ * Solución: `cqi` — 1% del ancho del propio contenedor. La tarjeta se
+ * declara `container-type: inline-size` y la cifra se mide contra ELLA.
+ * A 303 px de tarjeta salen ~26 px de letra, y al estrecharse baja sola
+ * hasta 1.3rem. Se retira `text-overflow`, de modo que si algún día una
+ * cifra desmesurada no cupiera, se vería desbordar: un fallo VISIBLE es
+ * infinitamente preferible a un número recortado que parece correcto.
+ * `@supports` deja el respaldo para navegadores sin consultas de contenedor
+ * (Safari < 16); ahí se usa un tamaño fijo prudente que ya cabía. */
+.dsh-kpi { container-type: inline-size; }
+
+.dsh-kpi__value {
+  display: block;
+  margin: 1px 0 3px;
+  font-family: var(--dsh-sans);      /* Inter, no Playfair — ver la ficha */
+  font-size: 1.5rem;                 /* respaldo sin consultas de contenedor */
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -.012em;
+  color: var(--dsh-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* Sin `overflow:hidden` ni `text-overflow`: que un exceso se VEA. */
+}
+
+@supports (font-size: 1cqi) {
+  .dsh-kpi__value { font-size: clamp(1.18rem, 8.2cqi, 1.9rem); }
+}
+
+/* 🔴 TARJETA ESTRECHA · el espacio se GANA, no se roba a la letra.
+ *
+ * Medido: con la tarjeta a 232-272 px la caja de la cifra bajaba a 87-119 px,
+ * porque el icono (50), la flecha (27), el hueco (15) y el relleno (22×2) se
+ * llevan ~136 px antes de que el número escriba un dígito. Encoger la fuente
+ * hasta que «RD$ 486,250» quepa en 87 px daría una cifra de ~11 px: cabría,
+ * y sería ilegible. Aprobaría la prueba y le fallaría al dueño.
+ * Por eso cede el adorno: icono más pequeño y flecha —decorativa,
+ * `aria-hidden`— fuera. El dato manda sobre el ornamento.
+ *
+ * ⚠️ DOS ERRORES QUE COMETÍ AQUÍ, anotados para no repetirlos:
+ *  1. Puse el bloque ANTES de las reglas base de `.dsh-kpi__go`. Con igual
+ *     especificidad gana la última: `display:none` no se aplicaba y la
+ *     medición seguía dando `flecha=flex`. Ahora va DESPUÉS, al final.
+ *  2. Metí `.dsh-kpi` dentro del `@container` cuando la propia `.dsh-kpi` ES
+ *     el contenedor: un elemento no puede consultarse a sí mismo, así que su
+ *     `padding` nunca cambió (`padTarjeta=22px` en el diagnóstico) sin que
+ *     nada avisara. El relleno se ajusta ahora por `@media`, que sí puede.
+ * El bloque efectivo está AL FINAL de esta sección, tras `.dsh-kpi__go`. */
+@media (max-width: 1180px) {
+  .dsh-kpi { gap: 12px; padding: 16px 16px; }
+}
+
+.dsh-kpi__foot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .715rem;
+  color: var(--dsh-ink-soft);
+  line-height: 1.3;
+}
+.dsh-kpi__foot i { color: var(--dsh-green); font-size: .68rem; }
+
+.dsh-kpi__go {
+  flex: 0 0 auto;
+  width: 27px; height: 27px;
+  border-radius: 50%;
+  border: 1px solid var(--dsh-border);
+  background: #fff;
+  color: var(--dsh-ink-soft);
+  font-size: .6rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .18s, color .18s, border-color .18s;
+}
+.dsh-kpi:hover .dsh-kpi__go {
+  background: var(--dsh-green);
+  border-color: var(--dsh-green);
+  color: #fff;
+}
+/* En tarjetas estrechas el botón es lo primero que sobra: la cifra manda. */
+@media (max-width: 760px) { .dsh-kpi__go { display: none; } }
+
+/* 🔴 AJUSTE DE TARJETA ESTRECHA · va AQUÍ, al final de la sección, y no junto
+ * a `.dsh-kpi__value` donde lo escribí primero. Con la misma especificidad
+ * gana la regla que aparece la última, así que allí arriba el
+ * `display:none` de la flecha quedaba anulado por las reglas base de
+ * `.dsh-kpi__go` (línea ~498) y la medición seguía diciendo `flecha=flex`.
+ * El orden en CSS no es cosmético: es parte de la lógica. */
+@container (max-width: 300px) {
+  .dsh-kpi__icon { width: 40px; height: 40px; font-size: 1rem; }
+  .dsh-kpi__go   { display: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   6 · PANEL GENÉRICO
+   Contenedor de las tarjetas grandes: cabecera con icono, título, subtítulo
+   y una acción a la derecha.
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-panel {
+  background: var(--dsh-surface);
+  border: 1px solid var(--dsh-border);
+  border-radius: var(--dsh-r-card);
+  overflow: hidden;
+}
+
+.dsh-panel__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 17px var(--dsh-pad) 13px;
+}
+.dsh-panel__icon { font-size: 1.05rem; line-height: 1.5; flex: 0 0 auto; }
+.dsh-panel__icon--green { color: var(--dsh-green); }
+.dsh-panel__icon--clay  { color: var(--dsh-c3); }
+
+.dsh-panel__titles { flex: 1; min-width: 0; }
+.dsh-panel__title {
+  margin: 0;
+  font-family: var(--dsh-serif);
+  font-size: 1.22rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -.012em;
+  color: var(--dsh-ink);
+}
+.dsh-panel__sub {
+  display: block;
+  margin-top: 1px;
+  font-size: .755rem;
+  font-weight: 400;
+  color: var(--dsh-ink-soft);
+}
+
+.dsh-panel__action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .775rem;
+  font-weight: 600;
+  color: var(--dsh-green);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dsh-panel__action:hover { text-decoration: underline; }
+
+.dsh-panel__note {
+  display: block;
+  padding: 0 var(--dsh-pad) 13px;
+  text-align: right;
+  font-size: .695rem;
+  font-style: italic;
+  color: var(--dsh-ink-soft);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   7 · FILA DE DOS PANELES
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--dsh-gap);
+  margin-bottom: var(--dsh-gap);
+}
+@media (max-width: 1080px) { .dsh-row2 { grid-template-columns: 1fr; } }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   8 · GRÁFICA DE ANILLO + LEYENDA
+   🔴 La leyenda NO es la de Chart.js: la suya coloca marcador y texto en una
+   línea corrida y no admite una tercera columna alineada a la derecha, que
+   es justo lo que pide el diseño («Bebidas ....... 28%»). Se apaga la
+   integrada y se pinta en HTML, donde una rejilla de tres columnas lo
+   resuelve de forma exacta con cualquier longitud de nombre.
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-chart {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 2px var(--dsh-pad) 10px;
+}
+.dsh-chart__canvas {
+  flex: 1 1 56%;
+  min-width: 0;
+  height: 232px;
+  position: relative;
+}
+.dsh-chart__legend {
+  flex: 0 0 auto;
+  min-width: 186px;
+  margin: 0; padding: 0;
+  list-style: none;
+}
+/* BUILD 460 · DOS columnas, no tres: el porcentaje salió de la leyenda y
+ * vive ahora solo sobre su porción del anillo (ver `_pintarLeyendaVentas`).
+ * Dejar `auto 1fr auto` con la tercera vacía reservaría un hueco a la
+ * derecha que empujaría los nombres sin que nada lo justificara.
+ * `padding` de 6→7 px: el diseño de referencia espacia más las filas, y al
+ * quitar una columna la lista quedaba visualmente apretada. */
+.dsh-legend__row {
+  display: grid;
+  grid-template-columns: auto 1fr;        /* punto · nombre */
+  align-items: center;
+  gap: 11px;
+  padding: 7px 0;
+  font-size: .82rem;
+}
+/* 🔴 `display:block` NO es adorno: SIN ESTO EL TEXTO SE MONTA ENCIMA.
+ *
+ * Lo cazó la muestra del build 459: la leyenda mostraba «Láeos» en vez de
+ * «Lácteos» y «Ca es» en vez de «Carnes» — el punto de color pisaba las
+ * primeras letras. Causa: el marcador es un <span>, y un <span> es `inline`
+ * por omisión, así que **ignora `width` y `height`**. Al no tener anchura
+ * real, la columna `auto` de la rejilla se calculaba casi a cero y el
+ * nombre empezaba debajo del círculo.
+ *
+ * Es el TERCER sitio de esta hoja donde muerde el mismo asunto: ya pasó con
+ * `.dsh-top__bar` y `.dsh-top__fill` (barras del top 5) y con
+ * `.dsh-top__thumb--none` (la inicial del producto sin foto). Queda anotado
+ * porque el síntoma nunca es «no se ve el elemento» —el color sí se
+ * pintaba— sino que **el vecino aparece descolocado**, y eso despista.
+ *
+ * `flex: 0 0 10px` además impide que la rejilla lo encoja si el nombre es
+ * largo: sin ello, un nombre de categoría muy largo podría aplastar el
+ * punto hasta volverlo un óvalo. */
+.dsh-legend__dot {
+  display: block;
+  flex: 0 0 10px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+.dsh-legend__name {
+  color: var(--dsh-ink-mid);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* NOTA · Aquí vivía `.dsh-legend__pct`, la columna de porcentajes de la
+ * leyenda. SE RETIRÓ en el build 460 junto con el `<span>` que la usaba: el
+ * porcentaje ya se escribe sobre su porción del anillo, y repetirlo al lado
+ * del nombre lo decía dos veces. Se borra la regla en vez de dejarla «por
+ * si acaso» — un selector sin un solo elemento que lo use (verificado con
+ * `Grep` en todo el proyecto: cero apariciones fuera de este fichero) es
+ * peso muerto que el siguiente tiene que descartar a mano. */
+
+/* LA LEYENDA A DOS COLUMNAS SOLO SI DE VERDAD CABEN DOS.
+ *
+ * 🔴 AVISO DE MÉTODO, porque aquí me equivoqué dos veces seguidas.
+ * Un análisis visual de la captura dijo que el punto de color tapaba las
+ * primeras letras («Láeos», «Ca es»). Hice DOS arreglos dando esa causa por
+ * buena sin medirla. Al medir de verdad —posiciones reales de cada caja en
+ * la propia muestra— salió que **no había solape ni recorte**: las cinco
+ * filas daban `ok`, con 380 px de caja para nombres de 8 letras. Una
+ * ampliación al 240 % lo confirmó: la D, la L, la C y la P se ven enteras.
+ * **El defecto no existía; era un falso positivo del análisis de imagen.**
+ * Lección: una captura describe, no diagnostica. Medir antes de tocar.
+ *
+ * Lo que SÍ quedó arreglado de paso, y era real aunque no fuera el síntoma:
+ * el umbral de dos columnas miraba el ancho de la VENTANA (1240 px) cuando
+ * quien aprieta es el PANEL. Con la barra lateral y el dashboard a dos
+ * columnas, ese panel mide ~380 px aunque la ventana tenga 1280 — y a ese
+ * ancho, partir la leyenda en dos sí habría recortado los nombres. Con
+ * `@container` se mide el contenedor real, así que las dos columnas
+ * aparecen solo cuando hay 520 px de verdad. Es prevención, no remedio. */
+@media (max-width: 1240px) {
+  .dsh-chart { flex-direction: column; align-items: stretch; }
+  .dsh-chart__canvas { width: 100%; height: 210px; }
+  .dsh-chart__legend { min-width: 0; }
+}
+
+.dsh-panel { container-type: inline-size; }
+
+/* Solo se aplica cuando la leyenda va debajo del gráfico (por debajo de
+ * 1240 px de ventana), que es cuando tiene el ancho del panel entero para
+ * repartir. Encima de ese umbral va al lado del dónut en una sola columna,
+ * como pide el diseño.
+ * ⚠️ El `@media` por dentro NO sobra: sin él, a 1300 px de ventana con un
+ * panel ancho la leyenda se partiría en dos columnas al lado del gráfico,
+ * que no es lo diseñado. Las dos condiciones tienen que darse. */
+@container (min-width: 520px) {
+  @media (max-width: 1240px) {
+    .dsh-chart__legend {
+      display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px;
+    }
+  }
+}
+/* Respaldo para navegadores sin consultas de contenedor (Safari < 16): una
+ * sola columna. Nunca recorta un nombre; solo ocupa algo más de alto. */
+@supports not (container-type: inline-size) {
+  .dsh-chart__legend { display: block; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   9 · LISTA DE PRODUCTOS MÁS VENDIDOS
+   Insignia numerada · miniatura · nombre · barra de progreso.
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-top {
+  margin: 0;
+  padding: 0 var(--dsh-pad) 14px;
+  list-style: none;
+}
+.dsh-top__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.dsh-top__rank {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--dsh-green-soft);
+  color: var(--dsh-green-deep);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .74rem; font-weight: 700;
+}
+/* Miniatura del producto.
+ * `object-fit: contain` y NO `cover`: las fotos del catálogo son envases de
+ * proporciones muy distintas (una botella de ron y una lata de Gatorade), y
+ * `cover` recortaría la botella por arriba y por abajo dejando solo la
+ * etiqueta central. Mejor verla entera con aire a los lados.
+ * Se le da un fondo tenue porque muchas fotos llegan con fondo transparente
+ * y sin él quedarían flotando sin forma definida. */
+.dsh-top__thumb {
+  flex: 0 0 auto;
+  width: 34px; height: 38px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #f4f6f2;
+  border: 1px solid var(--dsh-border);
+}
+
+/* 🔴 PRODUCTO SIN FOTO · inicial, NUNCA el logo.
+ *
+ * El logo repetido en las cinco filas fue justo el fallo que reportó el
+ * dueño: al ser idéntico en todas, se lee como un icono decorativo del
+ * diseño y NO como «a estos productos les falta la foto». Una inicial
+ * distinta por producto sí comunica que ahí falta algo, y le sirve para
+ * saber qué fichas tiene que completar.
+ *
+ * Es un <span>, así que necesita `display:flex` explícito para centrar: un
+ * <span> es `inline` y no obedece `height` ni alinea su contenido — el mismo
+ * motivo por el que las barras del top necesitaron `display:block`. */
+.dsh-top__thumb--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dsh-green-soft);
+  border-color: var(--dsh-border-tint);
+  color: var(--dsh-green-deep);
+  font-family: var(--dsh-sans);
+  font-size: .82rem;
+  font-weight: 700;
+  /* `object-fit` no aplica a un <span>; se declara igualmente inofensivo por
+   * si la clase se reutiliza sobre un <img> en el futuro. */
+}
+.dsh-top__name {
+  flex: 1; min-width: 0;
+  font-size: .82rem;
+  color: var(--dsh-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 🔴 `display:block` NO es decorativo aquí: la barra y su relleno son
+ * <span>, y un <span> es `inline` por omisión — ignora `height` y `width`.
+ * Sin esto el carril se dibuja (porque el `flex` del padre le da caja) pero
+ * el relleno verde NO, y la barra se ve gris entera. Se detectó en la
+ * captura: el análisis dijo «las barras son beige, no verdes». */
+.dsh-top__bar {
+  display: block;
+  flex: 0 0 34%;
+  height: 7px;
+  border-radius: var(--dsh-r-pill);
+  background: #ecefe9;
+  overflow: hidden;
+}
+.dsh-top__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--dsh-r-pill);
+  background: var(--dsh-green);
+  transition: width .7s cubic-bezier(.22,.61,.36,1);
+}
+/* Valoración media a la derecha de la barra. */
+.dsh-top__sales {
+  flex: 0 0 auto;
+  min-width: 50px;
+  text-align: right;
+  font-size: .755rem;
+  font-weight: 600;
+  color: var(--dsh-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bajo 900 px la barra estrangula el nombre del producto, que importa más. */
+@media (max-width: 900px) { .dsh-top__bar { display: none; } }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   10 · TABLA DE PEDIDOS RECIENTES
+   ───────────────────────────────────────────────────────────────────────── */
+.dsh-tablewrap { overflow-x: auto; }
+
+.dsh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+.dsh-table thead th {
+  padding: 10px var(--dsh-pad);
+  background: #f6f6f1;
+  border-top: 1px solid var(--dsh-border);
+  border-bottom: 1px solid var(--dsh-border);
+  text-align: left;
+  font-size: .665rem;
+  font-weight: 700;
+  letter-spacing: .9px;
+  text-transform: uppercase;
+  color: var(--dsh-ink-soft);
+  white-space: nowrap;
+}
+.dsh-table tbody td {
+  padding: 13px var(--dsh-pad);
+  border-bottom: 1px solid #f1f2ed;
+  color: var(--dsh-ink);
+  vertical-align: middle;
+}
+.dsh-table tbody tr:last-child td { border-bottom: none; }
+.dsh-table tbody tr:hover { background: #fbfbf8; }
+.dsh-table .is-num { font-variant-numeric: tabular-nums; }
+.dsh-table .is-soft { color: var(--dsh-ink-soft); }
+
+.dsh-chip {
+  display: inline-block;
+  padding: 4px 13px;
+  border-radius: var(--dsh-r-pill);
+  font-size: .715rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dsh-chip--wait { background: #fbeccd; color: #8a6414; }
+.dsh-chip--done { background: #dcebdb; color: #1f6340; }
+.dsh-chip--road { background: #d9e6f0; color: #1f4f70; }
+.dsh-chip--void { background: #f4dcd7; color: #8f3521; }
+
+.dsh-rowmenu {
+  border: none;
+  background: transparent;
+  color: var(--dsh-ink-soft);
+  font-size: .95rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.dsh-rowmenu:hover { background: #f0f1ec; color: var(--dsh-ink); }

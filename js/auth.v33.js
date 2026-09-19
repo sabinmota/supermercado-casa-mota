@@ -388,6 +388,24 @@ function applyPermissions(session) {
     nameEl.textContent = fullName;
   }
 
+  /* BUILD 455b · Saludo del dashboard: «BIENVENIDO, SABIN».
+   *
+   * Se resuelve AQUÍ y no en `admin.v33.js` porque este bloque ya tiene la
+   * sesión resuelta y ya calcula el nombre completo con sus dos variantes
+   * (`name` o `firstName`+`lastName`). Duplicar esa lógica en otro fichero
+   * es exactamente cómo nacen los datos que discrepan entre dos pantallas
+   * —el defecto del ranking en el build 423e—.
+   *
+   * Solo el PRIMER nombre: «BIENVENIDO, SABIN EUSEBIO MOTA» ocuparía dos
+   * líneas y rompería la cabecera. Si no hay sesión, el HTML ya trae
+   * «BIENVENIDO» a secas, así que no se toca y nunca queda un hueco. */
+  const saludoEl = document.getElementById('dashSaludo');
+  if (saludoEl) {
+    const fullName = session.name || ((session.firstName || '') + ' ' + (session.lastName || '')).trim() || '';
+    const primer   = String(fullName).trim().split(/\s+/)[0] || '';
+    saludoEl.textContent = primer ? ('BIENVENIDO, ' + primer.toUpperCase()) : 'BIENVENIDO';
+  }
+
   // Avatar en topbar
   const avatarEl = document.getElementById('topbarAvatar');
   if (avatarEl) {

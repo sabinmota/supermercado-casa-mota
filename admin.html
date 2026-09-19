@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '454';
+      const VER = '461';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -32,10 +32,22 @@
   <meta name="apple-mobile-web-app-title" content="Casa Mota Admin" />
   <link rel="apple-touch-icon" href="images/icons/touch-icon-casamota.png" />
   <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- BUILD 455 · Se añaden Playfair Display (titulares) y Caveat (lema
+       manuscrito) a la MISMA petición que Inter: Google Fonts admite varias
+       familias en una sola URL, así que no supone una descarga extra.
+       🔴 NO se usa @import en el CSS a propósito: un @import bloquea el
+       renderizado de la hoja entera hasta que la fuente responde, y esta hoja
+       pinta el panel completo. -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Caveat:wght@600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
   <link rel="stylesheet" href="css/admin.v33.css?v=260" />
+  <!-- BUILD 456 · Rediseño del panel (barra lateral, barra superior y
+       dashboard). Hoja INDEPENDIENTE: se carga DESPUÉS de admin.v33.css y
+       usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
+       pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
+       estaba: el rediseño es reversible sin deshacer nada. -->
+  <link rel="stylesheet" href="css/panel-2026.css?v=5" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -107,6 +119,11 @@
       <div class="sidebar-logo-wrap">
         <img src="images/logo-casamota.png?v=433" alt="Casa Mota" class="sidebar-logo" />
       </div>
+      <!-- BUILD 456 · Marca y lema bajo el logotipo, como en el diseño.
+           Las clases `dsh-` viven en css/panel-2026.css. -->
+      <div class="dsh-brand">CASA MOTA
+        <span class="dsh-brand__tag">Tu barrio, siempre contigo</span>
+      </div>
       <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
       </button>
@@ -116,72 +133,76 @@
       <ul>
         <li>
           <a href="#" class="nav-link active" data-section="dashboard" onclick="showSection('dashboard',this)">
-            <span style="font-size:1.1rem;line-height:1">📊</span><span>Dashboard</span>
+            <i class="fa-regular fa-compass"></i><span>Dashboard</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="products" onclick="showSection('products',this)">
-            <span style="font-size:1.1rem;line-height:1">📦</span><span>Productos</span>
+            <i class="fa-solid fa-cube"></i><span>Productos</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="orders" onclick="showSection('orders',this)">
-            <span style="font-size:1.1rem;line-height:1">🛒</span><span>Pedidos</span>
+            <i class="fa-solid fa-cart-shopping"></i><span>Pedidos</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="inventory" onclick="showSection('inventory',this)">
-            <span style="font-size:1.1rem;line-height:1">📋</span><span>Inventario</span>
+            <i class="fa-solid fa-database"></i><span>Inventario</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="customers" onclick="showSection('customers',this)">
-            <span style="font-size:1.1rem;line-height:1">👥</span><span>Clientes</span>
+            <i class="fa-solid fa-user-group"></i><span>Clientes</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="staff" onclick="showSection('staff',this)">
-            <span style="font-size:1.1rem;line-height:1">👤</span><span>Personal</span>
+            <i class="fa-regular fa-user"></i><span>Personal</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="drivers" onclick="showSection('drivers',this)">
-            <span style="font-size:1.1rem;line-height:1">🏍️</span><span>Repartidores</span>
+            <i class="fa-solid fa-truck"></i><span>Repartidores</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="loyalty" onclick="showSection('loyalty',this)">
-            <span style="font-size:1.1rem;line-height:1">⭐</span><span>Fidelización</span>
+            <i class="fa-regular fa-heart"></i><span>Fidelización</span>
           </a>
         </li>
-        <li>
+        <!-- BUILD 456 · `dsh-sep` abre aquí el segundo bloque del menú
+             (Reportes / Categorías / Cupones…), separado del operativo por
+             una línea tenue. Es solo una clase en el <li>: no reordena nada
+             ni toca showSection(). -->
+        <li class="dsh-sep">
           <a href="#" class="nav-link" data-section="reportes" onclick="showSection('reportes',this)">
-            <span style="font-size:1.1rem;line-height:1">📈</span><span>Reportes</span>
+            <i class="fa-solid fa-chart-simple"></i><span>Reportes</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="categories" onclick="showSection('categories',this)">
-            <span style="font-size:1.1rem;line-height:1">🏷️</span><span>Categorías</span>
+            <i class="fa-solid fa-tag"></i><span>Categorías</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="cupones" onclick="showSection('cupones',this)">
-            <span style="font-size:1.1rem;line-height:1">🎟️</span><span>Cupones</span>
+            <i class="fa-solid fa-ticket"></i><span>Cupones</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="notificaciones" onclick="showSection('notificaciones',this)">
-            <span style="font-size:1.1rem;line-height:1">🔔</span><span>Notificaciones</span>
+            <i class="fa-regular fa-bell"></i><span>Notificaciones</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="settings" onclick="showSection('settings',this)">
-            <span style="font-size:1.1rem;line-height:1">⚙️</span><span>Configuración</span>
+            <i class="fa-solid fa-gear"></i><span>Configuración</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link nav-link-respaldo" data-section="respaldo" onclick="showSection('respaldo',this)">
-            <span style="font-size:1.1rem;line-height:1">🛡️</span><span>Respaldo</span>
+            <i class="fa-regular fa-shield"></i><span>Respaldo</span>
           </a>
         </li>
       </ul>
@@ -189,8 +210,27 @@
 
     <div class="sidebar-footer">
       <a href="index.html" class="nav-link" target="_blank">
-        <span style="font-size:1.1rem;line-height:1">🏪</span><span>Ver tienda</span>
+        <i class="fa-solid fa-store"></i><span>Ver tienda</span>
       </a>
+    </div>
+
+    <!-- BUILD 456 · Ilustración de la planta + lema, al pie de la barra.
+         SVG EN LÍNEA a propósito: no añade ninguna descarga y hereda el color
+         del texto, así que sigue al tema sin mantener un PNG aparte. Con
+         `aria-hidden` porque es decorativo: un lector de pantalla no debe
+         anunciarlo. Se oculta solo al plegar la barra (regla en el CSS). -->
+    <div class="dsh-plant">
+      <svg viewBox="0 0 48 70" fill="none" stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round"
+           style="color:rgba(255,255,255,.45)" aria-hidden="true">
+        <path d="M22 68C22 50 20 36 14 26" />
+        <path d="M26 68c0-14 3-26 9-34" />
+        <path d="M14 26c-7-3-11-9-11-17 8 0 13 5 14 13" />
+        <path d="M17 40c-6-1-10-6-10-13 7 1 11 6 11 12" />
+        <path d="M35 34c6-4 9-10 8-18-7 2-11 8-11 15" />
+        <path d="M32 48c5-2 8-7 8-13-6 1-9 6-9 12" />
+      </svg>
+      <span class="dsh-plant__txt">Buenos<br>productos,<br>mejores vecinos.</span>
     </div>
   </aside>
 
@@ -247,98 +287,199 @@
 
     <!-- ─── DASHBOARD ─────────────────────────────── -->
     <section class="section-content active" id="sec-dashboard">
-      <div class="page-header">
-        <h1>Dashboard</h1>
-        <p><span class="live-dot"></span>En vivo · Resumen general de la tienda — <span id="dashDate"></span></p>
-      </div>
+      <!-- BUILD 456 · Cabecera. Saludo, titular serif, frase con la fecha en
+           negrita y el lema manuscrito a la derecha (oculto bajo 1100 px). -->
+      <header class="dsh-head">
+        <div>
+          <!-- El saludo lo rellena `auth.v33.js` con el nombre de quien entró;
+               si no hay sesión se queda «BIENVENIDO» y nunca deja un hueco. -->
+          <p class="dsh-head__eyebrow" id="dashSaludo">BIENVENIDO</p>
+          <h1 class="dsh-head__title">Resumen de tu tienda</h1>
+          <!-- 🔴 `dashDate` conserva su id: lo rellena admin.v33.js:864. Si se
+               lo cambiara, la fecha dejaría de escribirse y nada protestaría. -->
+          <p class="dsh-head__lead">
+            Hoy es <strong id="dashDate"></strong>.
+            Todo en orden para seguir creciendo.
+          </p>
+        </div>
+        <p class="dsh-head__script" aria-hidden="true">Más que una tienda,<br>una comunidad</p>
+      </header>
 
-      <!-- KPI Cards -->
-      <div class="kpi-grid kpi-grid-5" id="dashKpiGrid">
-        <div class="kpi-card kpi-green">
-          <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
-          <div class="kpi-info">
-            <span class="kpi-label">Ventas del mes</span>
-            <span class="kpi-value" id="kpiSales">—</span>
+      <!-- BUILD 456 · Pestañas.
+           🔴 Son NAVEGACIÓN VISUAL, no filtros: no cambian los datos.
+           `filtrarDashboard()` mueve el estado activo y desplaza la vista a la
+           zona elegida. Montar tres vistas con datos distintos es otro
+           trabajo; dejar pestañas que PARECEN filtrar sin hacerlo sería peor
+           que no tenerlas. -->
+      <nav class="dsh-tabs" role="tablist" aria-label="Vistas del resumen">
+        <button type="button" class="dsh-tab" role="tab" aria-selected="true"
+                onclick="filtrarDashboard('resumen', this)">Resumen</button>
+        <button type="button" class="dsh-tab" role="tab" aria-selected="false"
+                onclick="filtrarDashboard('ventas', this)">Ventas</button>
+        <button type="button" class="dsh-tab" role="tab" aria-selected="false"
+                onclick="filtrarDashboard('operacion', this)">Operación</button>
+        <span class="dsh-live">
+          <span class="dsh-live__dot" aria-hidden="true"></span>
+          En vivo · Resumen general de la tienda
+        </span>
+      </nav>
+
+      <!-- BUILD 456 · Tarjetas de indicador.
+           ⚠️ SON CINCO, no cuatro como el diseño de referencia: la quinta
+           («Notificaciones») es FUNCIONAL —abre esa sección al pulsarla— y
+           quitarla para parecerse más al boceto le habría restado un acceso
+           que el dueño ya usa. El diseño manda en lo visual, no en lo que la
+           herramienta sabe hacer.
+           Los `id` (kpiSales, kpiOrders, kpiProducts, kpiLowStock,
+           kpiNotiNoLeidas) NO se tocan: los rellena renderDashboardKpis(). -->
+      <div class="dsh-kpis" id="dashKpiGrid">
+        <article class="dsh-kpi dsh-kpi--feature">
+          <span class="dsh-kpi__icon"><i class="fa-solid fa-chart-simple"></i></span>
+          <div class="dsh-kpi__body">
+            <span class="dsh-kpi__label">Ventas del mes</span>
+            <span class="dsh-kpi__value" id="kpiSales">—</span>
+            <span class="dsh-kpi__foot"><i class="fa-solid fa-leaf"></i>Un mes de buenas ventas</span>
           </div>
-        </div>
-        <div class="kpi-card kpi-blue">
-          <div class="kpi-icon"><i class="fas fa-receipt"></i></div>
-          <div class="kpi-info">
-            <span class="kpi-label">Pedidos totales</span>
-            <span class="kpi-value" id="kpiOrders">—</span>
+          <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+        </article>
+
+        <article class="dsh-kpi">
+          <span class="dsh-kpi__icon"><i class="fa-solid fa-cart-shopping"></i></span>
+          <div class="dsh-kpi__body">
+            <span class="dsh-kpi__label">Pedidos totales</span>
+            <span class="dsh-kpi__value" id="kpiOrders">—</span>
+            <span class="dsh-kpi__foot">Pedidos registrados</span>
           </div>
-        </div>
-        <div class="kpi-card kpi-orange">
-          <div class="kpi-icon"><i class="fas fa-box-open"></i></div>
-          <div class="kpi-info">
-            <span class="kpi-label">Productos activos</span>
-            <span class="kpi-value" id="kpiProducts">—</span>
+          <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+        </article>
+
+        <article class="dsh-kpi dsh-kpi--sand">
+          <span class="dsh-kpi__icon"><i class="fa-solid fa-box"></i></span>
+          <div class="dsh-kpi__body">
+            <span class="dsh-kpi__label">Productos activos</span>
+            <span class="dsh-kpi__value" id="kpiProducts">—</span>
+            <span class="dsh-kpi__foot">En catálogo</span>
           </div>
-        </div>
-        <div class="kpi-card kpi-red">
-          <div class="kpi-icon"><i class="fas fa-triangle-exclamation"></i></div>
-          <div class="kpi-info">
-            <span class="kpi-label">Stock bajo</span>
-            <span class="kpi-value" id="kpiLowStock">—</span>
+          <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+        </article>
+
+        <article class="dsh-kpi dsh-kpi--warn">
+          <span class="dsh-kpi__icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+          <div class="dsh-kpi__body">
+            <span class="dsh-kpi__label">Stock bajo</span>
+            <span class="dsh-kpi__value" id="kpiLowStock">—</span>
+            <span class="dsh-kpi__foot">Requiere atención</span>
           </div>
-        </div>
-        <div class="kpi-card kpi-purple" onclick="showSection('notificaciones', document.querySelector('[data-section=notificaciones]'))" style="cursor:pointer">
-          <div class="kpi-icon"><i class="fas fa-bell"></i></div>
-          <div class="kpi-info">
-            <span class="kpi-label">Notificaciones</span>
-            <span class="kpi-value" id="kpiNotiNoLeidas">—</span>
-            <span class="kpi-sublabel" id="kpiNotiSublabel" style="font-size:.72rem;color:var(--text-light);margin-top:1px">sin leer</span>
+          <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+        </article>
+
+        <article class="dsh-kpi" style="cursor:pointer"
+                 onclick="showSection('notificaciones', document.querySelector('[data-section=notificaciones]'))">
+          <span class="dsh-kpi__icon"><i class="fa-regular fa-bell"></i></span>
+          <div class="dsh-kpi__body">
+            <span class="dsh-kpi__label">Notificaciones</span>
+            <span class="dsh-kpi__value" id="kpiNotiNoLeidas">—</span>
+            <span class="dsh-kpi__foot" id="kpiNotiSublabel">sin leer</span>
           </div>
-        </div>
+          <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+        </article>
       </div>
 
       <!-- Gráfico + Top productos -->
-      <div class="dash-grid">
-        <div class="card">
-          <div class="card-header">
-            <h3>Ventas por categoría</h3>
-            <span class="card-subtitle">Este mes</span>
+      <div class="dsh-row2">
+        <section class="dsh-panel">
+          <div class="dsh-panel__head">
+            <i class="fa-solid fa-chart-simple dsh-panel__icon dsh-panel__icon--green" aria-hidden="true"></i>
+            <div class="dsh-panel__titles">
+              <h3 class="dsh-panel__title">Ventas por categoría</h3>
+              <span class="dsh-panel__sub">Distribución de ventas de este mes</span>
+            </div>
           </div>
-          <div class="chart-wrap" style="height:270px;position:relative;">
-            <!-- Skeleton encima del canvas con z-index, canvas siempre visible abajo -->
-            <canvas id="salesChart"></canvas>
-            <div id="salesChartSkeleton" class="skeleton skeleton-chart" style="position:absolute;inset:0;border-radius:8px;z-index:3"></div>
+          <!-- BUILD 456 · La leyenda ya NO la dibuja Chart.js.
+               🔴 MOTIVO: su leyenda integrada coloca marcador y etiqueta en
+               una línea de texto corrida y NO admite una tercera columna
+               alineada a la derecha — que es justo lo que pide el diseño
+               («Bebidas ....... 28%»). No hay opción que lo consiga;
+               intentarlo con `generateLabels` daría un apaño con espacios
+               que se desalinea en cuanto cambie el nombre de una categoría.
+               Se apaga `legend` y se pinta en HTML, donde una rejilla de
+               tres columnas lo resuelve de forma exacta. La rellena
+               `renderSalesChart()` con los MISMOS datos y colores del
+               gráfico, así que no pueden discrepar. -->
+          <div class="dsh-chart">
+            <div class="dsh-chart__canvas">
+              <!-- El skeleton va encima del canvas con z-index; el canvas
+                   permanece siempre debajo, nunca se destruye. -->
+              <canvas id="salesChart"></canvas>
+              <div id="salesChartSkeleton" class="skeleton skeleton-chart" style="position:absolute;inset:0;border-radius:8px;z-index:3"></div>
+            </div>
+            <ul class="dsh-chart__legend" id="salesLegend"></ul>
           </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3>Productos más vendidos</h3>
-            <span class="card-subtitle">Top 5</span>
+          <!-- Advertencia honesta: esta gráfica es una ESTIMACIÓN calculada
+               desde el precio de catálogo, NO son ventas reales (lo advierte
+               el propio comentario de renderSalesChart desde hace builds).
+               Sin este aviso, alguien podría decidir con una cifra que no
+               mide lo que parece medir. -->
+          <!-- BUILD 459 · Antes decía «Datos estimados desde el catálogo», y era
+               verdad: el gráfico inventaba las cifras. Ahora suma las líneas de
+               los pedidos no cancelados, así que la advertencia ya NO aplica y
+               dejarla sería mentir en sentido contrario: haría desconfiar de un
+               dato que ahora sí es real. -->
+          <span class="dsh-panel__note">Facturado en pedidos no cancelados</span>
+        </section>
+
+        <section class="dsh-panel">
+          <div class="dsh-panel__head">
+            <i class="fa-solid fa-crown dsh-panel__icon dsh-panel__icon--clay" aria-hidden="true"></i>
+            <div class="dsh-panel__titles">
+              <h3 class="dsh-panel__title">Productos más vendidos</h3>
+              <!-- BUILD 459 · «por unidades vendidas» es ahora literal: la lista
+                   se ordena por unidades reales de los pedidos. Antes ordenaba
+                   por VALORACIÓN, así que el título «más vendidos» no describía
+                   lo que la lista mostraba. -->
+              <span class="dsh-panel__sub">Top 5 por unidades vendidas</span>
+            </div>
+            <a class="dsh-panel__action" href="#"
+               onclick="showSection('products', document.querySelector('[data-section=products]'));return false;">
+              Ver todos <i class="fa-solid fa-arrow-right"></i>
+            </a>
           </div>
-          <ul class="top-list" id="topProducts">
-            <li style="padding:8px 16px"><span class="skeleton skeleton-row"></span></li>
-            <li style="padding:8px 16px"><span class="skeleton skeleton-row"></span></li>
-            <li style="padding:8px 16px"><span class="skeleton skeleton-row"></span></li>
-            <li style="padding:8px 16px"><span class="skeleton skeleton-row"></span></li>
-            <li style="padding:8px 16px"><span class="skeleton skeleton-row"></span></li>
+          <ul class="dsh-top" id="topProducts">
+            <li class="dsh-top__row"><span class="skeleton skeleton-row"></span></li>
+            <li class="dsh-top__row"><span class="skeleton skeleton-row"></span></li>
+            <li class="dsh-top__row"><span class="skeleton skeleton-row"></span></li>
+            <li class="dsh-top__row"><span class="skeleton skeleton-row"></span></li>
+            <li class="dsh-top__row"><span class="skeleton skeleton-row"></span></li>
           </ul>
-        </div>
+        </section>
       </div>
 
       <!-- Pedidos recientes -->
-      <div class="card mt-20">
-        <div class="card-header">
-          <h3>Pedidos recientes</h3>
-          <button class="btn-link" onclick="showSection('orders', document.querySelector('[data-section=orders]'))">Ver todos <i class="fas fa-arrow-right"></i></button>
+      <section class="dsh-panel">
+        <div class="dsh-panel__head">
+          <i class="fa-regular fa-file-lines dsh-panel__icon dsh-panel__icon--green" aria-hidden="true"></i>
+          <div class="dsh-panel__titles">
+            <h3 class="dsh-panel__title">Pedidos recientes</h3>
+            <span class="dsh-panel__sub">Últimos pedidos registrados en la tienda</span>
+          </div>
+          <a class="dsh-panel__action" href="#"
+             onclick="showSection('orders', document.querySelector('[data-section=orders]'));return false;">
+            Ver todos <i class="fa-solid fa-arrow-right"></i>
+          </a>
         </div>
-        <div class="table-wrap">
-          <table class="data-table" id="recentOrdersTable">
+        <div class="dsh-tablewrap">
+          <table class="dsh-table" id="recentOrdersTable">
             <thead>
               <tr><th>Número</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Estado</th><th>Fecha</th></tr>
             </thead>
             <tbody id="recentOrdersTbody">
-              <tr><td colspan="6" style="padding:12px 16px"><span class="skeleton skeleton-row"></span></td></tr>
-              <tr><td colspan="6" style="padding:4px 16px"><span class="skeleton skeleton-row"></span></td></tr>
-              <tr><td colspan="6" style="padding:4px 16px"><span class="skeleton skeleton-row"></span></td></tr>
+              <tr><td colspan="6" style="padding:12px 22px"><span class="skeleton skeleton-row"></span></td></tr>
+              <tr><td colspan="6" style="padding:4px 22px"><span class="skeleton skeleton-row"></span></td></tr>
+              <tr><td colspan="6" style="padding:4px 22px"><span class="skeleton skeleton-row"></span></td></tr>
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </section>
 
     <!-- ─── PRODUCTOS ─────────────────────────────── -->
@@ -3007,15 +3148,15 @@
        El panel lo necesita porque chat.js (Maya) lee los favoritos del
        cliente. Debe cargarse ANTES de chat.js. -->
   <script src="js/almacen-cliente.js?v=1"></script>
-  <script src="js/auth.v33.js?v=299"></script>
+  <script src="js/auth.v33.js?v=300"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=396"></script>
+  <script src="js/admin.v33.js?v=402"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
-  <script src="js/extras.v33.js?v=314"></script>
+  <script src="js/extras.v33.js?v=315"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=4"></script>

@@ -608,6 +608,22 @@ let cupones = [];
 let _cpnChart = null;
 let _editingCuponId = null;
 
+/* BUILD 461 · Mensajes para los errores que lanzan las RPC de cupones.
+ * Mismo patrón que `_ERRORES_PRODUCTO` en api.js (build 453): la base lanza
+ * una etiqueta corta en mayúsculas y aquí se traduce a algo que un empleado
+ * entienda. Sin este diccionario, el panel mostraría el texto crudo de
+ * PostgREST, que menciona funciones y tipos de dato y no ayuda a nadie. */
+const _ERRORES_CUPON = {
+  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA: 'Tu cuenta ya no está activa.',
+  FALTA_CODIGO:       'El código del cupón es obligatorio.',
+  VALOR_INVALIDO:     'El valor del descuento debe ser mayor que 0.',
+  CODIGO_DUPLICADO:   'Ya existe otro cupón con ese código.',
+  CUPON_NO_EXISTE:    'Ese cupón ya no existe.',
+  FALTA_ID:           'Falta indicar el cupón.',
+};
+
 /* ── Carga desde la API ────────────────────────────────────────── */
 async function loadCupones() {
   try {
@@ -841,28 +857,45 @@ async function saveCupon() {
     usos_actuales : 0,
   };
 
-  const id = document.getElementById('cuponId')?.value;
+  const id = document.getElementById('cuponId')?.value || null;
   try {
-    if (id) {
-      const existing = cupones.find(c => c.id === id);
-      payload.usos_actuales = existing?.usos_actuales || 0;
-      await _supaFetch(`cupones?id=eq.${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload)
-      });
-    } else {
-      const dup = cupones.find(c => c.codigo === codigo);
-      if (dup) { alert(`Ya existe un cupon con el codigo "${codigo}".`); return; }
-      await _supaFetch('cupones', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-    }
+    /* ══════════════════════════════════════════════════════════════════════
+       BUILD 461 · SE GUARDA POR RPC, NO CON UN PATCH DIRECTO.
+
+       🔴 POR QUÉ NO FUNCIONABA, Y POR QUÉ NO HABÍA NINGÚN ERROR:
+       la tabla `cupones` tiene RLS activo con la política
+       `cupones_escritura_admin`, que NO deja pasar al rol `anon` — el que
+       usa el navegador. Medido con `seguridad/60-diagnostico-cupones.sql`:
+       como `postgres` el UPDATE afectaba a 1 fila; como `anon`, a CERO.
+
+       Y cuando RLS oculta la fila, PostgREST **no devuelve error**: responde
+       200 OK con un array vacío. El `await` no lanzaba, el `catch` no
+       entraba, se cerraba el modal y se recargaba la lista. Todo parecía
+       correcto salvo que en la base no había cambiado nada.
+       Mismo patrón de fallo mudo que el slug del 452 y el logo del 457.
+
+       ⚠️ NO se «abrió» la política para arreglarlo: la clave `anon` está
+       PUBLICADA en `js/api.js:22`, así que permitir escritura con ella
+       dejaría que cualquiera alterase los cupones desde la consola de su
+       navegador. Se usa el mismo patrón que `admin_borrar_producto` (build
+       453): una RPC `SECURITY DEFINER` que primero valida el vale de sesión.
+       ══════════════════════════════════════════════════════════════════════ */
+    await _rpcStaff('admin_guardar_cupon', {
+      p_vale:  _valeAdmin(),
+      p_id:    id,
+      p_datos: payload,
+    }, _ERRORES_CUPON);
+
     closeCuponModal();
     await loadCupones();
     _showAdminToast(id ? 'Cupon actualizado' : 'Cupon creado', 'success');
   } catch(e) {
-    alert('Error al guardar el cupon. Intenta de nuevo.');
+    /* 🔴 `catch(e)` y se USA el mensaje. Antes decía `catch(e)` y mostraba un
+     * texto genérico, descartando la causa — el mismo defecto que el build
+     * 453 corrigió en `deleteProduct`. Un aviso que no dice qué pasó obliga
+     * a adivinar. */
+    _showAdminToast(e.message || 'No se pudo guardar el cupón.', 'error');
+    console.error('[cupones] guardar:', e);
   }
 }
 
@@ -871,11 +904,21 @@ async function deleteCupon(id) {
   const c = cupones.find(x => x.id === id);
   if (!confirm(`Eliminar el cupon "${c?.codigo || id}"? Esta accion no se puede deshacer.`)) return;
   try {
-    await _supaFetch(`cupones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ deleted: true }) });
+    /* BUILD 461 · Por RPC, por el mismo motivo que `saveCupon`: el PATCH
+     * directo afectaba a CERO filas por el RLS, sin dar ningún error.
+     * Sigue siendo un borrado LÓGICO (marca `deleted`), no un DELETE: los
+     * pedidos cerrados guardan `cuponId`, y borrar la fila dejaría esa
+     * referencia huérfana en el historial de ventas. */
+    await _rpcStaff('admin_borrar_cupon', {
+      p_vale: _valeAdmin(),
+      p_id:   id,
+    }, _ERRORES_CUPON);
+
     await loadCupones();
     _showAdminToast('Cupon eliminado', 'success');
   } catch(e) {
-    alert('Error al eliminar el cupon.');
+    _showAdminToast(e.message || 'No se pudo eliminar el cupón.', 'error');
+    console.error('[cupones] borrar:', e);
   }
 }
 
@@ -896,15 +939,50 @@ async function validateCupon(codigo, subtotal) {
   return { valid: true, cupon: c, descuento: Math.round(descuento * 100) / 100 };
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   BUILD 461 · CONTAR EL USO DE UN CUPÓN · el más grave de los tres
+
+   🔴 QUÉ ESTABA PASANDO, y es una pérdida de dinero, no un defecto visual:
+   esta función la llama LA TIENDA (`js/app.js:3562`) cuando un cliente
+   cierra un pedido con cupón. Hacía un PATCH directo, que el RLS dejaba en
+   CERO filas — igual que guardar y borrar. Y su `catch` estaba VACÍO
+   (`catch(e) {}`), así que no quedaba ni rastro en consola.
+
+   Resultado: `usos_actuales` NUNCA subía. Y como `validateCupon` comprueba
+   `usos_actuales >= usos_maximos`, siempre comparaba contra 0: **un cupón
+   limitado a 20 usos se podía canjear sin límite**.
+
+   ⚠️ NO lleva vale de empleado: quien la llama es un cliente, que no tiene
+   sesión de personal. Su seguridad es distinta — la RPC solo puede SUMAR 1
+   al contador de un cupón activo; no puede cambiar el importe, ni el
+   código, ni revivir uno vencido.
+
+   Y ahora suma EN LA BASE (`usos_actuales + 1`), no con el número que
+   tuviera el navegador en memoria. Antes enviaba `(c.usos_actuales||0)+1`
+   calculado desde su copia local: con dos clientes usando el mismo cupón a
+   la vez, los dos leían 5 y los dos escribían 6, perdiéndose un uso.
+   ══════════════════════════════════════════════════════════════════════════ */
 async function incrementCuponUso(id) {
+  if (!id) return;
+  /* Sin `try/catch` que se lo trague: quien llama es
+   * `app.js:3563 .catch(logFail('incrementar el uso del cupón'))`, que sí
+   * registra el fallo. Tragarse el error aquí fue justo lo que mantuvo este
+   * defecto invisible durante meses. */
+  const res = await fetch(`${_SB_URL}/rpc/cliente_usar_cupon`, {
+    method:  'POST',
+    headers: _SB_HEADERS,
+    body:    JSON.stringify({ p_id: id }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`No se pudo contar el uso del cupón (${res.status}): ${txt.slice(0, 200)}`);
+  }
+  // Refrescar la copia en memoria para que la comprobación de agotado use
+  // el número real y no el anterior.
+  const nuevo = Number(await res.text());
   const c = cupones.find(x => x.id === id);
-  if (!c) return;
-  try {
-    await _supaFetch(`cupones?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ usos_actuales: (c.usos_actuales || 0) + 1 })
-    });
-  } catch(e) {}
+  if (c && Number.isFinite(nuevo)) c.usos_actuales = nuevo;
+  return nuevo;
 }
 
 /* ── Toast helper (reutiliza el de admin si existe) ────────────── */

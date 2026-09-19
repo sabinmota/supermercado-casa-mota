@@ -989,6 +989,51 @@ function _setKpi(id, val, animate = true) {
   }
 }
 
+/* ─── BUILD 455 · PESTAÑAS DEL DASHBOARD ────────────────────────────────────
+ *
+ * QUÉ HACEN Y QUÉ NO, dicho sin rodeos: son **navegación visual**, no filtros.
+ * Mueven la clase `active` y desplazan la vista hasta la zona elegida. **No
+ * cambian ni un dato.**
+ *
+ * 🔴 POR QUÉ NO FILTRAN, Y ES UNA DECISIÓN, NO UNA CARENCIA:
+ * filtrar de verdad significaría tres conjuntos de datos distintos con sus
+ * consultas, y eso es otro trabajo. Lo que NO se podía hacer es dejar unas
+ * pestañas que PARECEN filtrar y no filtran: sería el defecto del build 423b
+ * —«un dato equivocado que acierta por casualidad es peor que uno vacío»—
+ * porque el dueño creería estar viendo solo ventas y estaría viendo todo.
+ * Desplazar es honesto: hace algo visible y coherente con su nombre.
+ *
+ * Si más adelante se quieren filtros reales, este es el sitio donde van.
+ *
+ * @param {string} vista  'resumen' | 'ventas' | 'operacion'
+ * @param {HTMLElement} btn  la pestaña pulsada
+ */
+function filtrarDashboard(vista, btn) {
+  /* 1 · Mover el estado activo.
+   * 🔴 BUILD 456 · El estilo de la pestaña activa lo decide `aria-selected`,
+   * no una clase `.active`. Es deliberado: así el aspecto y lo que anuncia un
+   * lector de pantalla salen del MISMO atributo y no pueden discrepar. Con dos
+   * marcas separadas bastaba olvidar una para que la pestaña se viera activa
+   * pero se anunciara como no seleccionada — un fallo que nadie ve. */
+  document.querySelectorAll('.dsh-tab').forEach(t => {
+    t.setAttribute('aria-selected', t === btn ? 'true' : 'false');
+  });
+
+  // 2 · Desplazar hasta la zona correspondiente.
+  const DESTINOS = {
+    resumen:   'dashKpiGrid',
+    ventas:    'salesChart',
+    operacion: 'topProducts',
+  };
+  const destino = document.getElementById(DESTINOS[vista] || 'dashKpiGrid');
+  if (!destino) return;   // el id no existe: no se hace nada, no se rompe nada
+
+  // `closest('.card')` sube hasta la tarjeta contenedora para que el título
+  // quede a la vista y no solo el lienzo de la gráfica.
+  const caja = destino.closest('.card') || destino;
+  caja.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderDashboardKpis() {
   // Usa los datos YA cargados en memoria — sin llamadas HTTP adicionales
   const totalSales = orders.reduce((s,o) => s + (o.status !== 'cancelado' ? (Number(o.total) || 0) : 0), 0);
@@ -1056,6 +1101,38 @@ function _showDashboardRetry() {
     </li>`;
 }
 
+/* BUILD 457 · Escape de texto para plantillas HTML.
+ *
+ * 🔴 NO EXISTÍA EN ESTE FICHERO. Lo comprobé con `Grep` antes de darlo por
+ * hecho: cero apariciones de `_escapeHtml`, `_escapeAttr` o similar en las
+ * ~8.000 líneas. Si las hubiera usado suponiendo que estaban, la lista de
+ * productos habría lanzado `_escapeAttr is not defined` y el widget entero
+ * se habría quedado vacío.
+ *
+ * Y de paso cubre un riesgo que ya estaba ahí: `${name}` se inyectaba CRUDO
+ * en la plantilla. Un producto llamado, por ejemplo, `Ron <b>Barceló</b>`
+ * pintaría etiquetas de verdad en lugar de texto. Nombre y URL de imagen
+ * salen de la base, así que quien pueda editar productos podía inyectar
+ * marcado en el panel. No es una vulnerabilidad remota grave —hay que ser
+ * personal autorizado para escribir ahí— pero es gratis cerrarla. */
+function _escapeHtml(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+/* Para valores que van DENTRO de un atributo entre comillas dobles: además de
+ * lo anterior hay que neutralizar la comilla, o el valor cierra el atributo
+ * antes de tiempo y lo que siga se interpreta como más atributos. */
+function _escapeAttr(v) {
+  return _escapeHtml(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* NOTA · Aquí había una función `_miniaturaSinFoto(img)` global, pensada para
+ * invocarse desde `onerror="_miniaturaSinFoto(this)"`.
+ * SE RETIRÓ: el respaldo se engancha ahora con `addEventListener` dentro de
+ * `renderTopProducts()`, que no depende del ámbito global. Se borra en lugar
+ * de dejarla «por si acaso»: una función sin llamadores es código muerto que
+ * el siguiente que lea el fichero tiene que descartar a mano. */
+
 function renderTopProducts() {
   const el = document.getElementById('topProducts');
   if (!el) return;
@@ -1067,62 +1144,236 @@ function renderTopProducts() {
     return;
   }
 
-  // ── Agrupar por nombre: calcular rating promedio
-  const map = {};
-  adminProducts.forEach(p => {
-    if (!p || !p.name) return;
-    const r = Number(p.rating) || 0;
-    if (!map[p.name]) map[p.name] = { sum: 0, count: 0 };
-    map[p.name].sum   += r;
-    map[p.name].count += 1;
+  /* ══════════════════════════════════════════════════════════════════════
+     BUILD 459 · «MÁS VENDIDOS» AHORA MIDE VENTAS DE VERDAD
+
+     🔴 LO QUE HACÍA ANTES, Y POR QUÉ ERA UN DATO FALSO:
+     agrupaba por nombre y ordenaba por `rating` — la VALORACIÓN. O sea que
+     un producto con 5 estrellas y CERO ventas encabezaba la lista de «más
+     vendidos», y uno que se vende a diario pero sin reseñas no aparecía.
+     El título decía una cosa y la cifra medía otra.
+
+     No daba ningún error: la lista salía, con cinco productos y sus barras.
+     Por eso llevaba tanto tiempo ahí. **Un dato equivocado que se ve
+     correcto es peor que un hueco vacío** (misma lección que el 423b y el
+     logo del 457).
+
+     AHORA: unidades realmente vendidas, contadas desde `productLines` de
+     los pedidos, excluyendo los cancelados —un pedido cancelado no es una
+     venta y su stock ya se repuso (`restoreStock`, l. 3827)—.
+
+     ⚠️ NOMBRES DE CAMPO VERIFICADOS EN EL CÓDIGO, NO SUPUESTOS:
+     la línea de pedido usa `productId` y **`cantidad`** (en español), según
+     `restoreStock` (l. 3835-3837) y el guardado (l. 4546). Un `quantity` en
+     inglés habría contado CERO en todos los productos y la lista habría
+     salido vacía sin un solo error. */
+  const ventas = new Map();
+  (orders || []).forEach(o => {
+    if (!o || o.status === 'cancelado') return;
+    const lineas = Array.isArray(o.productLines) ? o.productLines : [];
+    lineas.forEach(l => {
+      if (!l) return;
+      const uds = Number(l.cantidad) || 0;
+      if (uds <= 0) return;
+      // Se agrupa por id cuando lo hay; si no, por nombre. Agrupar solo por
+      // nombre mezclaría dos productos distintos que se llamen igual.
+      const prod  = adminProducts.find(p => String(p.id) === String(l.productId));
+      const clave = l.productId ? 'id:' + l.productId : 'nom:' + (l.nombre || l.name || '');
+      const nombre = (prod && prod.name) || l.nombre || l.name || 'Producto';
+      if (!nombre) return;
+      const fila = ventas.get(clave) || { name: nombre, uds: 0 };
+      fila.uds += uds;
+      ventas.set(clave, fila);
+    });
   });
 
-  // ── Ordenar por rating promedio desc, top 5
-  const sorted = Object.entries(map)
-    .map(([name, d]) => [name, d.count > 0 ? d.sum / d.count : 0])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const sorted = [...ventas.values()]
+    .sort((a, b) => b.uds - a.uds || a.name.localeCompare(b.name, 'es'))
+    .slice(0, 5)
+    .map(f => [f.name, f.uds]);
 
   if (!sorted.length) {
-    el.innerHTML = '<li style="color:var(--text-light);font-size:.84rem;padding:12px 0">Sin productos registrados</li>';
+    /* Mensaje HONESTO: no es que no haya productos, es que no hay ventas
+       todavía. Decir «sin productos registrados» cuando el catálogo tiene
+       2.000 artículos mandaría a buscar un fallo donde no lo hay. */
+    el.innerHTML = '<li style="color:var(--text-light);font-size:.84rem;padding:12px 0">' +
+      'Todavía no hay ventas registradas en los pedidos.</li>';
     return;
   }
 
-  const max = sorted[0][1] || 5; // evita división por cero
+  const max = sorted[0][1] || 1; // evita división por cero
 
-  el.innerHTML = sorted.map(([name, avg], i) => {
-    const pct   = Math.max(8, Math.round(((avg || 0) / max) * 100));
-    const label = avg > 0 ? '★ ' + avg.toFixed(1) : 'Sin rating';
+  /* BUILD 457 · MINIATURA REAL DEL PRODUCTO.
+   *
+   * 🔴 LA CAUSA REAL, Y NO ES LA QUE YO SUPUSE PRIMERO.
+   * El dueño mandó una captura con el mismo iconito de tienda repetido en las
+   * cinco filas. Mi primera hipótesis fue que al panel no le llegaba la
+   * columna `image`. **La comprobé y era FALSA:** el panel carga con
+   * `DB.getProducts({full:true})`, que pide `*` (`js/api.js:1113`), así que
+   * `image` sí llega. Los productos de la captura tampoco están en ningún
+   * fichero local —lo verifiqué con `Grep`— o sea que vienen de la base.
+   *
+   * La causa está en el GUARDADO, en la línea ~3010 de este mismo fichero:
+   *     image: document.getElementById('pImage').value.trim()
+   *            || 'images/logo-casamota.png'
+   * Cuando se guarda un producto sin foto, **se escribe la ruta del logo en
+   * la base de datos como si fuera su imagen**. Así que no falta el dato: el
+   * dato ES el logo. Por eso se ve idéntico en todas las filas y por eso no
+   * hay ningún error — la imagen carga perfectamente, solo que es el logo.
+   *
+   * Es la misma familia de fallo que el 454 (guardar con la subida en vuelo
+   * metía el logo) y que el slug de alcohol del 452: **un valor por omisión
+   * que se guarda como si fuera un dato real y luego nadie distingue uno de
+   * otro.**
+   *
+   * ARREGLO AQUÍ: se trata el logo como «sin foto», no como una foto. No se
+   * toca la base de datos ni el guardado desde este build — corregir las
+   * fichas ya guardadas es otra tarea (queda anotada como deuda) y tocar el
+   * guardado sin medir cuántos productos dependen de ese valor sería
+   * arriesgado. Esto hace que el panel diga la verdad de inmediato.
+   *
+   * ⚠️ Y NO se añade `image` al select de la tienda: eso no era el problema,
+   * y habría hecho esperar 7 MB a todos los clientes por nada. */
+  const LOGO_RESPALDO = 'images/logo-casamota.png';
+
+  const _imagenDe = (nombre) => {
+    const p = adminProducts.find(x => x && x.name === nombre);
+    const img = (p && typeof p.image === 'string') ? p.image.trim() : '';
+    if (!img) return null;
+    // El logo guardado como imagen NO es una foto del producto: se descarta
+    // para que salga la inicial y el dueño pueda ver a qué fichas les falta.
+    if (img === LOGO_RESPALDO || /logo-casamota/i.test(img)) return null;
+    return img;
+  };
+
+  /* Celda de la miniatura.
+   * Si el producto no tiene foto NO se pone el logo: se pone una inicial
+   * sobre un círculo tenue. Motivo concreto: el logo repetido cinco veces
+   * es indistinguible de un icono decorativo, y el dueño no puede saber que
+   * a ESE producto le falta la foto. Una inicial distinta por producto sí
+   * se lee como «aquí falta algo», que es información útil para él. */
+  const _inicialDe = (nombre) =>
+    (String(nombre || '?').trim().charAt(0) || '?').toUpperCase();
+
+  const _miniatura = (nombre) => {
+    const src = _imagenDe(nombre);
+    const ini = _escapeAttr(_inicialDe(nombre));
+    if (src) {
+      /* `onerror` llama a una función NOMBRADA en vez de llevar el código
+       * dentro del atributo. Mi primera versión metía un `Object.assign` de
+       * varias líneas ahí: con comillas anidadas dentro de un atributo que
+       * ya va entre comillas, es de las cosas más fáciles de romper del
+       * lenguaje, y el fallo solo se vería cuando una imagen fallara —o sea
+       * casi nunca en pruebas, y justo cuando importa en producción. */
+      /* Sin `onerror=` en el atributo. Se marca con `data-ini` y el listener
+       * se engancha DESPUÉS de insertar el HTML (ver más abajo).
+       *
+       * 🔴 POR QUÉ NO USO EL ATRIBUTO: el código de un `onerror="..."` se
+       * evalúa en el ÁMBITO GLOBAL. Mi verificación lo demostró en vivo —
+       * la consola soltó «_miniaturaSinFoto is not defined» dos veces— y una
+       * imagen rota se quedó a la vista en lugar de caer a la inicial.
+       * En `admin.html` la función SÍ es global (comprobado: el script se
+       * carga con `<script src>` clásico, sin `type="module"`), así que ahí
+       * habría funcionado... hasta el día que alguien envuelva el fichero o
+       * lo cargue como módulo, y entonces fallaría justo cuando una foto no
+       * carga: el caso menos probado y más visible. Un listener no depende
+       * del ámbito y no puede romperse por eso. */
+      return `<img class="dsh-top__thumb" src="${_escapeAttr(src)}"
+                   alt="" loading="lazy" decoding="async"
+                   data-ini="${ini}">`;
+    }
+    return `<span class="dsh-top__thumb dsh-top__thumb--none"
+                  title="Este producto no tiene foto">${_escapeHtml(_inicialDe(nombre))}</span>`;
+  };
+
+  el.innerHTML = sorted.map(([name, uds], i) => {
+    const pct = Math.max(8, Math.round(((uds || 0) / max) * 100));
+    /* BUILD 459 · La etiqueta dice UNIDADES, no estrellas. Antes ponía
+     * «★ 4.8», que era coherente con el orden por valoración pero no con el
+     * título del panel. Si la cifra y el título no miden lo mismo, uno de
+     * los dos engaña. */
+    const label = uds === 1 ? '1 ud.' : uds.toLocaleString('es-DO') + ' uds.';
+    /* BUILD 457 · La miniatura la construye `_miniatura()`, que decide entre
+     * la foto real y la inicial. El nombre va por `_escapeHtml` y el título
+     * completo en `title=` para poder leerlo cuando el nombre es largo y la
+     * columna lo recorta con puntos suspensivos. */
     return `
-    <li style="animation-delay:${.08 + i * .09}s">
-      <span class="top-rank">${i + 1}</span>
-      <span class="top-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
-      <div class="top-bar-wrap" style="width:80px;flex-shrink:0">
-        <div class="top-bar-fill" data-pct="${pct}"></div>
-      </div>
-      <span class="top-sales" style="min-width:52px;text-align:right">${label}</span>
+    <li class="dsh-top__row" style="animation-delay:${.08 + i * .09}s">
+      <span class="dsh-top__rank">${i + 1}</span>
+      ${_miniatura(name)}
+      <span class="dsh-top__name" title="${_escapeAttr(name)}">${_escapeHtml(name)}</span>
+      <span class="dsh-top__bar"><span class="dsh-top__fill" data-pct="${pct}"></span></span>
+      <span class="dsh-top__sales">${label}</span>
     </li>`;
   }).join('');
 
-  // ── Animar barras de progreso con pequeño delay
+  /* ── BUILD 457 · Respaldo de las fotos que no cargan ─────────────────────
+   * Se engancha AQUÍ, justo tras escribir el HTML, y no con un `onerror=` en
+   * el atributo (ver el motivo en `_miniatura`).
+   *
+   * 🔴 SE COMPRUEBA `complete && naturalWidth === 0` ADEMÁS DE ESCUCHAR EL
+   * EVENTO. Motivo: si la imagen ya había fallado antes de que este código
+   * corra —está en caché como error, o el HTML se insertó hace un instante y
+   * la descarga murió al momento— el evento `error` YA PASÓ y nunca se vuelve
+   * a emitir. El listener solo no bastaría y quedaría el icono de imagen
+   * rota, que es precisamente lo que hay que evitar. */
+  el.querySelectorAll('img.dsh-top__thumb').forEach(img => {
+    const caer = () => {
+      img.onerror = null;
+      const span = document.createElement('span');
+      span.className = 'dsh-top__thumb dsh-top__thumb--none';
+      span.title = 'La foto de este producto no se pudo cargar';
+      span.textContent = (img.dataset && img.dataset.ini) || '?';
+      if (img.parentNode) img.replaceWith(span);
+    };
+    img.addEventListener('error', caer, { once: true });
+    if (img.complete && img.naturalWidth === 0) caer();
+  });
+
+  /* ── Animar las barras ───────────────────────────────────────────────────
+   * 🔴 BUILD 456 · Este selector decía `.top-bar-fill`, la clase ANTIGUA.
+   * Al renombrar la plantilla a `.dsh-top__fill` habría dejado de encontrar
+   * nada: las barras se quedarían a anchura 0 —invisibles— y **no habría
+   * ningún error**, porque `querySelectorAll` sin resultados devuelve una
+   * lista vacía y el `forEach` no se ejecuta.
+   * Es el mismo fallo mudo que el slug de alcohol del 452: lo que no existe
+   * no protesta, simplemente no se aplica. Lo encontró revisar los
+   * llamadores tras renombrar, no una prueba. */
   requestAnimationFrame(() => {
-    document.querySelectorAll('#topProducts .top-bar-fill').forEach(bar => {
+    document.querySelectorAll('#topProducts .dsh-top__fill').forEach(bar => {
       const pct = bar.dataset.pct || '0';
       setTimeout(() => { bar.style.width = pct + '%'; }, 150);
     });
   });
 }
 
+/* BUILD 456 · Traduce el estado de un pedido a la píldora del rediseño.
+ * Se hace con un mapa explícito y no concatenando `dsh-chip--${estado}`:
+ * así un estado nuevo o mal escrito cae en el gris neutro en vez de quedarse
+ * SIN clase y pintarse como texto suelto — el fallo mudo de siempre. */
+function _chipPedido(estado) {
+  const MAPA = {
+    pendiente:  'wait',
+    preparando: 'road',
+    enviado:    'road',
+    camino:     'road',
+    entregado:  'done',
+    completado: 'done',
+    cancelado:  'void',
+  };
+  return 'dsh-chip dsh-chip--' + (MAPA[String(estado || '').toLowerCase()] || 'wait');
+}
+
 function renderRecentOrders() {
   const recent = [...orders].sort((a,b) => b.id - a.id).slice(0,6);
   document.getElementById('recentOrdersTbody').innerHTML = recent.map((o,i) => `
     <tr class="anim-row" style="animation-delay:${.05 + i * .07}s">
-      <td><strong>#${o.order_number || o.id}</strong></td>
+      <td class="is-num"><strong>#${o.order_number || o.id}</strong></td>
       <td>${o.customer}</td>
-      <td>${o.items} productos</td>
-      <td><strong>RD$ ${fmt$(o.total)}</strong></td>
-      <td><span class="status-pill status-${o.status}">${ucFirst(o.status)}</span></td>
-      <td>${o.date}</td>
+      <td class="is-soft">${o.items} productos</td>
+      <td class="is-num"><strong>RD$ ${fmt$(o.total)}</strong></td>
+      <td><span class="${_chipPedido(o.status)}">${ucFirst(o.status)}</span></td>
+      <td class="is-soft is-num">${o.date}</td>
     </tr>`).join('');
 }
 
@@ -1158,26 +1409,53 @@ function renderSalesChart() {
     (adminCategories || []).map(c => c.slug || c.id).filter(Boolean)
   );
 
+  /* ══════════════════════════════════════════════════════════════════════
+     BUILD 459 · AHORA SON VENTAS REALES, NO UNA ESTIMACIÓN
+
+     🔴 LO QUE HABÍA ANTES lo confesaba su propio comentario: «este gráfico
+     NO son ventas reales. Es una ESTIMACIÓN a partir del precio de
+     catálogo». Multiplicaba el precio por un peso sacado de la suma de los
+     códigos de carácter del id (5-24). Un número inventado, estable entre
+     repintados —eso ya se arregló en su día, antes era `Math.random()` y
+     cambiaba solo— pero inventado igual.
+
+     El panel presentaba ese número bajo el título «Ventas por categoría».
+     Nadie puede decidir nada con eso, y peor: parece que sí se puede.
+
+     AHORA: importe realmente facturado por categoría, sumando las líneas de
+     los pedidos NO cancelados. Mismo criterio que el KPI «Ventas del mes»
+     (l. 1039), así que las dos cifras por fin concuerdan — antes el KPI
+     usaba pedidos reales y el gráfico una estimación, y no cuadraban.
+
+     ⚠️ CAMPOS VERIFICADOS EN EL CÓDIGO: la línea usa `productId`,
+     `cantidad` y `precio` (español), según `restoreStock` (l. 3835) y el
+     guardado del pedido. Si la línea no trae precio se usa el del catálogo.
+     La categoría se toma del PRODUCTO, no de la línea: la línea guarda lo
+     que se vendió, no en qué categoría estaba. */
   const catTotals = {};
-  adminProducts.forEach(p => {
-    // Solo incluir productos cuya categoría exista actualmente en la BD
-    if (!validSlugs.has(p.category)) return;
-    const label = catLabel(p.category);
-    // ⚠️ ATENCIÓN: este gráfico NO son ventas reales. Es una ESTIMACIÓN a partir
-    // del precio de catálogo (no hay datos de ventas por categoría todavía).
-    //
-    // Antes el multiplicador era Math.random(), así que las cifras CAMBIABAN en
-    // cada repintado — el mismo gráfico mostraba números distintos un segundo
-    // después. Sustituido por un peso derivado del propio producto: sigue siendo
-    // una estimación, pero al menos es ESTABLE entre repintados.
-    const semilla = String(p.id || p.name || '')
-      .split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    const peso = (semilla % 20) + 5;   // 5-24, igual rango que antes
-    catTotals[label] = (catTotals[label] || 0) + (Number(p.price) || 0) * peso;
+  (orders || []).forEach(o => {
+    if (!o || o.status === 'cancelado') return;
+    const lineas = Array.isArray(o.productLines) ? o.productLines : [];
+    lineas.forEach(l => {
+      if (!l) return;
+      const prod = adminProducts.find(p => String(p.id) === String(l.productId));
+      if (!prod) return;                       // producto borrado del catálogo
+      if (!validSlugs.has(prod.category)) return;
+      const uds     = Number(l.cantidad) || 0;
+      const precio  = Number(l.precio) || Number(prod.price) || 0;
+      const importe = uds * precio;
+      if (importe <= 0) return;
+      const label = catLabel(prod.category);
+      catTotals[label] = (catTotals[label] || 0) + importe;
+    });
   });
   const labels = Object.keys(catTotals);
   const data   = Object.values(catTotals);
-  const colors = ['#1a7c3e','#27a35a','#1565c0','#f57c00','#e53935','#6a1b9a','#00838f','#f9a825'];
+  /* BUILD 455b · Paleta del rediseño: verdes, terracota y arenas, en vez de
+   * los primarios saturados de antes (azul #1565c0, rojo #e53935, morado).
+   * Los seis primeros son los del diseño; los dos últimos amplían la serie
+   * por si aparecen más categorías, en el mismo registro cromático. */
+  const colors = ['#1B4D3E','#7A9A7C','#C4593B','#D4AF8B','#DFDCAC','#D1D5DB','#4E7C64','#A8703E'];
 
   // ── ANTIPARPADEO 1: no dibujar un gráfico vacío ─────────────────────────────
   // initAdminData() llama aquí dos veces: primero al llegar los pedidos (fase
@@ -1221,6 +1499,75 @@ function renderSalesChart() {
   const ctx = canvasEl.getContext('2d');
   if (!ctx) return;
 
+  /* ─── BUILD 455b · DOS COMPLEMENTOS DIBUJADOS A MANO ──────────────────────
+   * El diseño pide dos cosas que Chart.js no trae de serie:
+   *   (a) el porcentaje escrito ENCIMA de cada segmento
+   *   (b) el total en el centro del agujero
+   *
+   * 🔴 NO se añade la librería `chartjs-plugin-datalabels`: son ~15 KB más y
+   * otra dependencia de CDN que puede caerse, para algo que son veinte líneas
+   * de canvas. Se registran como complementos locales de ESTE gráfico —no con
+   * `Chart.register`, que los aplicaría a TODOS los gráficos del panel,
+   * incluidos los de Reportes, que no los quieren.
+   *
+   * El color del texto se decide por el brillo del propio segmento: sobre el
+   * verde oscuro hace falta texto blanco y sobre la arena clara, oscuro.
+   * Fijar un solo color dejaría la mitad de las cifras ilegibles. */
+  const _pctSobreSegmento = {
+    id: 'pctSobreSegmento',
+    afterDatasetsDraw(chart) {
+      const { ctx: c } = chart;
+      const meta  = chart.getDatasetMeta(0);
+      const total = data.reduce((s, v) => s + v, 0) || 1;
+      c.save();
+      c.font = '600 12px Inter, system-ui, sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      meta.data.forEach((arco, i) => {
+        const pct = (data[i] / total) * 100;
+        if (pct < 5) return;            // cabría encima de la porción vecina
+        const { x, y } = arco.tooltipPosition();
+        // Luminancia aproximada del relleno (fórmula estándar ITU-R BT.601).
+        const hex = colors[i % colors.length].replace('#', '');
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const luz = (r * 299 + g * 587 + b * 114) / 1000;
+        c.fillStyle = luz > 150 ? '#3d4a42' : '#ffffff';
+        c.fillText(Math.round(pct) + '%', x, y);
+      });
+      c.restore();
+    }
+  };
+
+  const _totalEnElCentro = {
+    id: 'totalEnElCentro',
+    afterDraw(chart) {
+      const { ctx: c } = chart;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta.data.length) return;
+      const { x, y } = meta.data[0];     // centro del anillo
+      const total = data.reduce((s, v) => s + v, 0);
+      c.save();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      /* BUILD 460 · Cifra más grande y subtítulo corregido.
+       * · 15px → 19px: con el anillo más fino hay más sitio dentro, y en el
+       *   diseño de referencia la cifra es claramente el elemento dominante.
+       * · «Total estimado» → «Ventas en productos»: además de ser el texto
+       *   del diseño, la palabra ESTIMADO ya era FALSA desde el build 459.
+       *   El gráfico dejó de estimar: suma las líneas de los pedidos no
+       *   cancelados. Dejarla haría desconfiar de un dato que ahora es real. */
+      c.fillStyle = '#101f29';
+      c.font = '700 19px Inter, system-ui, sans-serif';
+      c.fillText('RD$ ' + fmt$(total), x, y - 7);
+      c.fillStyle = '#8a918c';
+      c.font = '400 10.5px Inter, system-ui, sans-serif';
+      c.fillText('Ventas en productos', x, y + 13);
+      c.restore();
+    }
+  };
+
   salesChartInstance = new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -1232,9 +1579,18 @@ function renderSalesChart() {
         borderColor: '#fff'
       }]
     },
+    // Complementos SOLO de este gráfico, no globales.
+    plugins: [_pctSobreSegmento, _totalEnElCentro],
     options: {
+      /* BUILD 460 · Anillo MÁS FINO: 62 % → 72 % de hueco.
+       * El dueño comparó el diseño de referencia con el panel y pidió el
+       * círculo del primero. Medido sobre esa imagen, el hueco central
+       * ocupa ~70-75 % del radio; con 62 % el anillo salía grueso y el
+       * texto del centro quedaba apretado contra los segmentos. */
+      cutout: '72%',
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 4, bottom: 4 } },
       animation: {
         duration: 1100,
         easing: 'easeInOutQuart',
@@ -1243,20 +1599,67 @@ function renderSalesChart() {
         onComplete: () => _ocultarSkeletonGrafico()
       },
       plugins: {
-        legend: {
-          position: 'right',
-          labels: {
-            font: { family: 'Inter', size: 11 },
-            padding: 12,
-            boxWidth: 12
-          }
-        },
+        /* BUILD 455d · Leyenda interna APAGADA. Se pinta en HTML justo
+         * debajo, porque la de Chart.js no admite una columna de
+         * porcentajes alineada a la derecha. */
+        legend: { display: false },
         tooltip: {
           callbacks: { label: c => ` RD$ ${fmt$(c.parsed)}` }
         }
       }
     }
   });
+
+  _pintarLeyendaVentas(labels, data, colors);
+}
+
+/* ─── BUILD 455d · LEYENDA DEL GRÁFICO, EN HTML ─────────────────────────────
+ *
+ * Reproduce la del diseño: círculo de color · nombre de la categoría ·
+ * porcentaje alineado a la derecha, en columna.
+ *
+ * 🔴 RECIBE los mismos `labels`, `data` y `colors` que se le pasaron al
+ * gráfico, en vez de recalcularlos. Si los recalculase por su cuenta, el día
+ * que cambie la fórmula de `catTotals` la leyenda y el gráfico dirían cosas
+ * distintas — que es exactamente el defecto del ranking del build 423e: dos
+ * sitios calculando el mismo dato y discrepando.
+ *
+ * Los porcentajes se redondean para mostrar, así que pueden sumar 99 o 101.
+ * Es lo normal en cualquier gráfico circular y el diseño hace lo mismo; no se
+ * fuerza el cuadre porque falsearía alguna categoría.
+ */
+function _pintarLeyendaVentas(labels, data, colors) {
+  const ul = document.getElementById('salesLegend');
+  if (!ul) return;                       // el id no existe: no se rompe nada
+
+  const total = data.reduce((s, v) => s + (Number(v) || 0), 0) || 1;
+
+  /* BUILD 460 · SIN la columna de porcentajes.
+   *
+   * 🔴 Es un cambio a MENOS, y es deliberado. El porcentaje ya está escrito
+   * ENCIMA de su porción en el propio anillo (`_pctSobreSegmento`), así que
+   * repetirlo al lado del nombre lo decía dos veces y obligaba a estrechar
+   * la columna del nombre. El diseño de referencia lista solo los nombres.
+   *
+   * El dato NO se pierde: sigue en el anillo, y el `title` de cada fila da
+   * el importe exacto al pasar el ratón — que es más útil que el redondeo,
+   * porque cinco porcentajes redondeados rara vez suman 100 exacto.
+   *
+   * ⚠️ Las porciones por debajo del 5 % no llevan número en el anillo (no
+   * cabría sin pisar la vecina). Para esas, el `title` es la única vía de
+   * saber su valor; por eso se pone en TODAS las filas, no solo en unas. */
+  ul.innerHTML = labels.map((etiqueta, i) => {
+    const pct   = Math.round((data[i] / total) * 100);
+    const color = colors[i % colors.length];
+    // `textContent` no vale aquí porque se arma una cadena; las etiquetas
+    // salen de `catLabel()`, que devuelve nombres del catálogo propio, no
+    // texto escrito por un visitante.
+    return `
+      <li class="dsh-legend__row" title="${etiqueta}: RD$ ${fmt$(data[i])} · ${pct}%">
+        <span class="dsh-legend__dot" style="background:${color}"></span>
+        <span class="dsh-legend__name">${etiqueta}</span>
+      </li>`;
+  }).join('');
 }
 
 // ─── PRODUCTOS TABLE ──────────────────────────────────────────────────────────
@@ -1574,7 +1977,15 @@ function openProductModal(id = null) {
     document.getElementById('pBadge').value         = p.badge || '';
     document.getElementById('pRating').value        = p.rating;
     document.getElementById('pDescription').value   = p.description;
-    document.getElementById('pImage').value         = p.image;
+    /* 🔴 `|| ''` OBLIGATORIO desde el build 458. Un producto sin foto guarda
+     * ahora `null`, y asignar `null` a un `<input>` escribe literalmente la
+     * palabra «null» en el campo. Al guardar, esa palabra se convertiría en
+     * la URL de la imagen: un dato corrupto que además NO daría ningún error
+     * —el campo tendría texto, así que el `|| null` de saveProduct ni se
+     * activaría—. Es el único punto del panel que el cambio a `null` rompía;
+     * lo encontré revisando los consumidores de `image` antes de tocar nada,
+     * no después. */
+    document.getElementById('pImage').value         = p.image || '';
     document.getElementById('pBarcode').value       = p.barcode || '';
     _checkBarcodeUnique(p.barcode || '', p.id);
 
@@ -2724,7 +3135,36 @@ function saveProduct() {
     badge:         document.getElementById('pBadge').value || null,
     rating:        Math.min(5, Math.max(1, parseFloat(document.getElementById('pRating').value) || 4.5)),
     description:   document.getElementById('pDescription').value.trim(),
-    image:         document.getElementById('pImage').value.trim() || 'images/logo-casamota.png',
+    /* 🔴 BUILD 458 · SIN FOTO SE GUARDA `null`, NO EL LOGO.
+     *
+     * Antes decía `|| 'images/logo-casamota.png'`. Eso escribía la ruta del
+     * logo en la base COMO SI FUERA la imagen del producto, y de ahí salió
+     * lo que reportó el dueño en el build 457: el top 5 con el mismo iconito
+     * repetido cinco veces. No faltaba el dato — el dato ERA el logo, así
+     * que cargaba sin un solo error y nadie podía distinguir «este producto
+     * no tiene foto» de «este producto tiene el logo por foto».
+     *
+     * `null` dice la verdad: no hay imagen. Y permite contarlos con un
+     * `WHERE image IS NULL`, cosa que con el logo era imposible.
+     *
+     * ⚠️ NO CONFUNDIR CON EL ARREGLO DEL 454. Aquel cerró la VENTANA DE
+     * TIEMPO en la que se guardaba con una subida en vuelo (bandera
+     * `_subiendoImagen`, justo arriba). Cubría el caso «sí hay foto pero aún
+     * no ha llegado». Este cubre el otro: «de verdad no hay foto». Son dos
+     * fallos distintos sobre la misma línea; el 454 no tocó el `||`.
+     *
+     * MEDIDO ANTES DE CAMBIARLO, que era la deuda que dejé anotada:
+     *  · La TIENDA (`js/app.js`) ya lo soporta: sus accesos son `if (p.image)`
+     *    y `p.image || ''` (líneas 218, 272, 321, 949, 2002). Un nulo no la
+     *    rompe; de hecho la línea 321 ya trata el logo como «sin foto».
+     *  · Los 5 `<img src="${...image}">` del panel (1850, 3336, 3383, 4242,
+     *    4316) llevan todos `onerror` que cae al logo, así que un nulo enseña
+     *    el logo en vez de un icono roto.
+     *  · El ÚNICO punto que sí se rompía era `pImage.value = p.image`
+     *    (línea ~1893): con `null` habría escrito el texto «null» en el
+     *    campo y al guardar esa palabra se habría convertido en la URL de la
+     *    imagen. Corregido ahí con `|| ''`. */
+    image:         document.getElementById('pImage').value.trim() || null,
     images:        _extraImages.length > 0 ? [..._extraImages] : [],
     barcode:       barcodeVal || null,
     reviews:       0,
