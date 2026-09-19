@@ -2202,6 +2202,46 @@ function _dataUrlToBlob(dataUrl) {
 /**
  * Sube una imagen a R2 y devuelve su URL pública del CDN.
  * Lanza excepción si falla, para que quien llama pueda caer en base64.
+ *
+ * ─── BUILD 454 · UN SOLO INTENTO NO BASTA: EL WORKER SE DUERME ──────────────
+ *
+ * SÍNTOMA QUE REPORTÓ EL DUEÑO, y es el dato que resolvió el caso:
+ * subió un JPG, salió «⚠️ R2 no disponible»; canceló, volvió a editar, subió
+ * EL MISMO fichero y **a la segunda lo aceptó**.
+ *
+ * 🔴 DOS TEORÍAS MÍAS FUERON REFUTADAS POR ESE DATO, Y NO DEBEN VOLVER:
+ *
+ *   (1) «Es una carrera: se pulsa Guardar antes de que termine la subida.»
+ *       Falso. El texto de estado decía «⚠️ R2 no disponible» ANTES de
+ *       guardar, o sea que la subida ya había terminado — mal, pero terminado.
+ *
+ *   (2) «El base64 se sale del tope de 180 KB y por eso lo rechaza.»
+ *       Falso, y el propio síntoma lo demuestra: **el mismo fichero pesa lo
+ *       mismo en los dos intentos.** Si el tamaño fuera la causa, fallaría
+ *       siempre, no una vez de cada dos. Además el PNG que sí funcionó pesaba
+ *       31 KB y el bucle de calidad ni se activa a ese tamaño.
+ *
+ * CAUSA REAL: **arranque en frío del Worker de Cloudflare.**
+ * `r2-proxy-casamota` es un Worker propio, y los Workers se DUERMEN cuando no
+ * reciben tráfico. La primera petición tras un rato de inactividad tiene que
+ * despertarlo, y si ese arranque tropieza (o excede el tiempo), responde con
+ * error. La segunda petición lo encuentra ya caliente y funciona.
+ *
+ * Por eso el PNG «funcionó desde el principio»: fue el primero que se subió y
+ * despertó al Worker. El JPG llegó más tarde, cuando ya se había vuelto a
+ * dormir. **El formato era una coincidencia, no la causa** — y es justo el tipo
+ * de correlación falsa que habría llevado a «arreglar» la compresión de JPEG,
+ * que estaba perfectamente bien.
+ *
+ * ARREGLO: reintentar, que es exactamente lo que el dueño hacía a mano.
+ * Tres intentos con espera creciente (0 · 800 ms · 2000 ms). Un fallo
+ * transitorio deja de ser visible; uno permanente sigue avisando igual.
+ *
+ * 🔴 QUÉ NO SE REINTENTA, Y ES LO QUE HACE ÚTIL ESTA FUNCIÓN:
+ * el 401 sale del bucle en el PRIMER intento. Un token mal configurado no se
+ * arregla esperando, así que insistir solo retrasaría el aviso 2,8 segundos y
+ * ocultaría la diferencia entre «Cloudflare estaba dormido» y «el token está
+ * mal». Distinguir esas dos cosas es justo lo que permite arreglar la segunda.
  */
 async function _uploadToR2(dataUrl) {
   const blob = _dataUrlToBlob(dataUrl);
@@ -2210,38 +2250,85 @@ async function _uploadToR2(dataUrl) {
     : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const key  = `productos/${uuid}.jpg`;
 
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 30000);
-  let res;
-  try {
-    res = await fetch(`${_R2_WORKER}/put/${key}`, {
-      method:  'PUT',
-      headers: {
-        'Content-Type':   blob.type || 'image/jpeg',
-        'x-upload-token': _R2_TOKEN,
-      },
-      body:    blob,
-      signal:  ctrl.signal,
-    });
-  } finally {
-    clearTimeout(timer);
+  // Esperas antes de cada intento. La primera es 0: el camino normal no se
+  // penaliza con ningún retraso.
+  const ESPERAS = [0, 800, 2000];
+  let ultimoError = null;
+
+  for (let intento = 0; intento < ESPERAS.length; intento++) {
+    if (ESPERAS[intento] > 0) {
+      await new Promise(r => setTimeout(r, ESPERAS[intento]));
+    }
+
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    let res;
+    try {
+      res = await fetch(`${_R2_WORKER}/put/${key}`, {
+        method:  'PUT',
+        headers: {
+          'Content-Type':   blob.type || 'image/jpeg',
+          'x-upload-token': _R2_TOKEN,
+        },
+        body:    blob,
+        signal:  ctrl.signal,
+      });
+    } catch (e) {
+      // Red caída o abortado por tiempo: son los casos que MÁS se benefician
+      // del reintento, así que se registra y se sigue.
+      ultimoError = new Error(`R2 no respondió (${e && e.name === 'AbortError' ? 'tiempo agotado' : (e && e.message) || 'error de red'})`);
+      console.warn(`⚠️ [Casa Mota] R2 intento ${intento + 1}/${ESPERAS.length} falló:`, ultimoError.message);
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // 401 = el Worker no reconoce el token. Suele significar que se cambió en
+    // Cloudflare y no aquí, o al contrario. Merece un mensaje propio: si no, el
+    // panel cae en base64 sin decir por qué y el problema pasa desapercibido.
+    // 🔴 NO SE REINTENTA: esperar no arregla un token equivocado.
+    if (res.status === 401) {
+      throw new Error('R2 rechazó el token de subida (revisar UPLOAD_TOKEN en Cloudflare)');
+    }
+
+    if (!res.ok) {
+      ultimoError = new Error(`R2 respondió ${res.status}`);
+      console.warn(`⚠️ [Casa Mota] R2 intento ${intento + 1}/${ESPERAS.length} falló: HTTP ${res.status}`);
+      continue;
+    }
+
+    let json;
+    try {
+      json = await res.json();
+    } catch (e) {
+      ultimoError = new Error('R2 devolvió una respuesta ilegible');
+      console.warn(`⚠️ [Casa Mota] R2 intento ${intento + 1}/${ESPERAS.length}: respuesta no es JSON`);
+      continue;
+    }
+
+    if (!json.ok) {
+      ultimoError = new Error(json.error || 'R2 rechazó la subida');
+      console.warn(`⚠️ [Casa Mota] R2 intento ${intento + 1}/${ESPERAS.length} falló:`, ultimoError.message);
+      continue;
+    }
+
+    // Comprobar que el objeto se guardó de verdad. El Worker ha devuelto
+    // ok:true con size:0 en pruebas, así que no basta con confiar en la
+    // respuesta. Un objeto vacío SÍ merece reintento: es el patrón típico de
+    // un arranque en frío que contestó antes de escribir el cuerpo.
+    if (!json.size) {
+      ultimoError = new Error('R2 guardó un objeto vacío');
+      console.warn(`⚠️ [Casa Mota] R2 intento ${intento + 1}/${ESPERAS.length}: objeto vacío`);
+      continue;
+    }
+
+    if (intento > 0) {
+      console.log(`✅ [Casa Mota] R2 aceptó la imagen en el intento ${intento + 1}.`);
+    }
+    return `${_R2_CDN}/${key}`;
   }
 
-  // 401 = el Worker no reconoce el token. Suele significar que se cambió en
-  // Cloudflare y no aquí, o al contrario. Merece un mensaje propio: si no, el
-  // panel cae en base64 sin decir por qué y el problema pasa desapercibido.
-  if (res.status === 401) {
-    throw new Error('R2 rechazó el token de subida (revisar UPLOAD_TOKEN en Cloudflare)');
-  }
-  if (!res.ok) throw new Error(`R2 respondió ${res.status}`);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'R2 rechazó la subida');
-
-  // Comprobar que el objeto se guardó de verdad. El Worker ha devuelto
-  // ok:true con size:0 en pruebas, así que no basta con confiar en la respuesta.
-  if (!json.size) throw new Error('R2 guardó un objeto vacío');
-
-  return `${_R2_CDN}/${key}`;
+  throw ultimoError || new Error('R2 no aceptó la imagen tras 3 intentos');
 }
 
 /**
@@ -2283,6 +2370,28 @@ function _compressImage(file, maxKB = 180) {
   });
 }
 
+/* ─── BUILD 454 · «¿HAY UNA IMAGEN EN CAMINO AHORA MISMO?» ──────────────────
+ *
+ * Existe porque `saveProduct` (línea ~2561) lee el campo así:
+ *     image: document.getElementById('pImage').value.trim() || 'images/logo-casamota.png'
+ *
+ * Ese `||` es correcto cuando el empleado NO puso imagen. Pero `handleImgFile`
+ * es asíncrono —comprime y luego sube—, así que mientras la subida está en
+ * curso el campo está VACÍO, y pulsar «Guardar» en ese momento guardaba **el
+ * logo de Casa Mota** en lugar de la foto del producto.
+ *
+ * 🔴 Y NO DABA NINGÚN ERROR, porque nada falló: el valor por omisión hizo su
+ * trabajo. Es el mismo patrón de «fallo mudo» del build 452 —lo que no existe
+ * no protesta— pero aquí con un agravante: **el dato equivocado parece
+ * correcto**, porque en la tabla se ve una imagen, solo que es la del logo.
+ * Un dato falso que se ve bien es peor que un hueco vacío (lección del 423b).
+ *
+ * Con el reintento de `_uploadToR2` la ventana pasa de ~1 s a hasta ~3,8 s, o
+ * sea que el riesgo AUMENTA justo al arreglar lo otro. Por eso los dos
+ * arreglos van en el mismo build: uno sin el otro empeora esto.
+ */
+let _subiendoImagen = false;
+
 // Cargar imagen desde archivo local → comprimir → preview
 function handleImgFile(input) {
   const file = input.files[0];
@@ -2296,6 +2405,7 @@ function handleImgFile(input) {
   }
   const status = document.getElementById('imgUploadStatus');
   if (status) status.textContent = '⏳ Comprimiendo imagen…';
+  _subiendoImagen = true;
 
   _compressImage(file, 180)
     .then(async base64 => {
@@ -2311,11 +2421,15 @@ function handleImgFile(input) {
         document.getElementById('pImage').value = url;
         setImgPreview(base64, `✅ ${file.name} · ${sizeKB} KB · en R2 (CDN)`);
       } catch (e) {
-        // R2 no disponible: guardar base64 como antes. El producto se guarda
-        // igual; solo pierde la ventaja del CDN. Preferible a bloquear al usuario.
+        // R2 no disponible tras los 3 intentos: guardar base64. El producto se
+        // guarda igual; solo pierde la ventaja del CDN. Preferible a bloquear.
         console.warn('⚠️ [Casa Mota] Falló la subida a R2, se guarda base64:', e && e.message);
         document.getElementById('pImage').value = base64;
         setImgPreview(base64, `⚠️ ${file.name} · ${sizeKB} KB · guardada en la BD (R2 no disponible)`);
+      } finally {
+        // BUILD 454 · Se baja en `finally`: por los dos caminos el campo
+        // #pImage ya tiene valor (URL o base64), así que guardar es seguro.
+        _subiendoImagen = false;
       }
     })
     .catch(() => {
@@ -2324,12 +2438,42 @@ function handleImgFile(input) {
       reader.onload = function(ev) {
         document.getElementById('pImage').value = ev.target.result;
         setImgPreview(ev.target.result, `✅ ${file.name} (sin comprimir)`);
+        _subiendoImagen = false;
+      };
+      /* BUILD 454 · `onerror` TAMBIÉN baja la bandera. Sin esto, un fichero
+       * ilegible la dejaría en `true` para siempre y el botón «Guardar»
+       * quedaría bloqueado el resto de la sesión — habríamos cambiado una
+       * imagen perdida por un panel que no guarda nada. */
+      reader.onerror = function() {
+        console.warn('⚠️ [Casa Mota] No se pudo leer el fichero de imagen.');
+        showAdminToast('No se pudo leer ese archivo de imagen.', 'error');
+        _subiendoImagen = false;
       };
       reader.readAsDataURL(file);
     });
 }
 
-// Drag & drop sobre la zona
+/* ─── Drag & drop sobre la zona ─────────────────────────────────────────────
+ *
+ * 🔴 BUILD 454 · TERCER DEFECTO, ENCONTRADO AL LEER ESTA FUNCIÓN COMPLETA:
+ * **arrastrar una imagen NUNCA la subía a R2.** Esta función comprimía y
+ * guardaba el base64 directamente, sin llamar a `_uploadToR2`, así que cada
+ * imagen arrastrada metía **~180 KB en la columna `image`** de la base en vez
+ * de una URL de ~60 bytes. Tres mil veces más grande, y el producto pierde el
+ * CDN. **Nadie lo había notado porque el resultado se VE bien**: la imagen
+ * aparece en la tabla, solo que vive en el sitio equivocado.
+ *
+ * Y además no tocaba `_subiendoImagen`, con lo que el arreglo de la bandera no
+ * la habría cubierto: quedaría media función protegida y media no — el patrón
+ * exacto del 452b, donde el aviso 18+ se puso en el formulario de edición y se
+ * olvidó el modal de vista.
+ *
+ * ARREGLO: delega en `handleImgFile` mediante un `DataTransfer`, en vez de
+ * duplicar el flujo. **Duplicar era lo que había causado el defecto**: dos
+ * caminos para la misma tarea y solo uno mantenido. Ahora hay UN solo camino,
+ * así que compresión, subida a R2 con reintento, bandera y mensajes son
+ * necesariamente idénticos.
+ */
 function handleImgDrop(e) {
   e.preventDefault();
   document.getElementById('imgUploadZone').classList.remove('drag-over');
@@ -2337,16 +2481,25 @@ function handleImgDrop(e) {
   if (!file || !file.type.startsWith('image/')) {
     showAdminToast('Solo se aceptan archivos de imagen.', 'error'); return;
   }
-  // Comprimir directamente sin pasar por el input file
-  const status = document.getElementById('imgUploadStatus');
-  if (status) status.textContent = '⏳ Comprimiendo imagen…';
-  _compressImage(file, 180)
-    .then(base64 => {
-      document.getElementById('pImage').value = base64;
-      const sizeKB = Math.round(base64.length * 0.75 / 1024);
-      setImgPreview(base64, `✅ ${file.name} · ${sizeKB} KB (comprimida)`);
-    })
-    .catch(() => showAdminToast('Error al procesar la imagen.', 'error'));
+
+  const input = document.getElementById('pImageFile');
+  // `DataTransfer` permite rellenar un <input type="file"> por código. Así
+  // `handleImgFile` recibe el fichero por su vía normal y el <input> queda
+  // coherente con lo que se ve en pantalla (antes se quedaba vacío).
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    handleImgFile(input);
+    return;
+  } catch (err) {
+    /* Navegador que no permite escribir `input.files`. Se pasa un objeto con
+     * la misma forma que `handleImgFile` espera (`.files[0]`), de modo que
+     * sigue habiendo UN solo flujo: no se reimplanta la compresión ni la
+     * subida. El <input> se queda vacío, que es lo único que se pierde. */
+    console.warn('⚠️ [Casa Mota] DataTransfer no disponible, se delega directo:', err && err.message);
+    handleImgFile({ files: [file] });
+  }
 }
 
 // Preview al escribir URL manualmente
@@ -2418,6 +2571,19 @@ function saveProduct() {
     _savingProduct = false;
     if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-save"></i> Guardar producto'; }
   };
+
+  /* ─── BUILD 454 · NO GUARDAR CON UNA IMAGEN A MEDIO SUBIR ─────────────────
+   * Si la subida sigue en curso, `#pImage` está vacío y la línea ~2600 pondría
+   * `images/logo-casamota.png` — el producto quedaría con el logo en vez de su
+   * foto, **sin un solo error**. Se avisa y se deja el formulario intacto para
+   * que el empleado solo tenga que volver a pulsar.
+   *
+   * Va ANTES de la validación de permisos a propósito: es lo único que puede
+   * corromper el dato guardado, y no depende del rol de quien guarda. */
+  if (_subiendoImagen) {
+    showAdminToast('⏳ La imagen aún se está subiendo. Espera a que diga «en R2» y vuelve a guardar.', 'error');
+    _unlock(); return;
+  }
 
   // Validar permisos
   if (currentSession) {
