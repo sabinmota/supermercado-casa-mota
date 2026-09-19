@@ -971,6 +971,53 @@
   color: var(--dsh-ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* 🔴 BUILD 465 · NEUTRALIZAR EL <button> DEL NOMBRE.
+ *
+ * El nombre del producto pasa a ser un <button> que abre su ficha. Sin este
+ * bloque NO se ve «igual pero pulsable»: se ve MAL. Un <button> trae de
+ * fábrica `font: 400 13.33px Arial` (no hereda Inter), fondo gris, borde
+ * biselado, `text-align:center` y relleno propio — la fila quedaría con un
+ * botón de formulario en medio en lugar de un nombre.
+ * Es el mismo bloque que ya hizo falta en `.dsh-kpi` (build 462): cuando un
+ * elemento pasa a ser <button>, la neutralización no es limpieza opcional.
+ *
+ * `text-align:left` es imprescindible aquí además por otro motivo: la celda
+ * es `flex:1`, o sea ANCHA, y sin él el nombre saldría centrado en mitad de
+ * la fila mientras los demás van pegados a la izquierda. */
+.dsh-top__name--link {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: .82rem;
+  text-align: left;
+  color: var(--dsh-ink);
+  cursor: pointer;
+  /* Heredado de `.dsh-top__name`, se repite porque `font: inherit` de arriba
+   * reinicia propiedades tipográficas y el recorte depende de ellas. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color .16s;
+}
+/* Señal de que se puede pulsar. Se usa subrayado Y cambio de color, no solo
+ * color: distinguir un enlace ÚNICAMENTE por el color deja fuera a quien no
+ * distingue bien el verde del gris oscuro. */
+.dsh-top__name--link:hover {
+  color: var(--dsh-green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* `:focus-visible` y no `:focus`: así el recuadro sale con el tabulador pero
+ * no al hacer clic con el ratón. No se pone `outline:none` sin sustituto —
+ * dejaría la lista inservible con teclado sin que nada lo delate. */
+.dsh-top__name--link:focus-visible {
+  outline: 2px solid var(--dsh-green);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
 /* 🔴 `display:block` NO es decorativo aquí: la barra y su relleno son
  * <span>, y un <span> es `inline` por omisión — ignora `height` y `width`.
  * Sin esto el carril se dibuja (porque el `flex` del padre le da caja) pero

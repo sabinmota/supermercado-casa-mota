@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '464';
+      const VER = '466';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=6" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=7" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -302,7 +302,15 @@
             Todo en orden para seguir creciendo.
           </p>
         </div>
-        <p class="dsh-head__script" aria-hidden="true">Más que una tienda,<br>una comunidad</p>
+        <!-- BUILD 466 · «tienda» → «supermercado», a petición del dueño.
+             ⚠️ SE MIDIÓ, no se supuso: la palabra nueva tiene el DOBLE de
+             letras (12 frente a 6) y este lema está limitado a
+             `max-width: 240px` en `.dsh-head__script`. Con la fuente Caveat
+             ya cargada, la línea larga pide 216 px de los 240 disponibles
+             —sobran 24— y el lema se mantiene en DOS líneas, como antes.
+             Si algún día se alarga más, «supermercado,» bajaría de renglón
+             y quedaría en tres: se vería torcido, aunque no rompe nada. -->
+        <p class="dsh-head__script" aria-hidden="true">Más que un supermercado,<br>una comunidad</p>
       </header>
 
       <!-- BUILD 456 · Pestañas.
@@ -3213,7 +3221,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=405"></script>
+  <script src="js/admin.v33.js?v=406"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

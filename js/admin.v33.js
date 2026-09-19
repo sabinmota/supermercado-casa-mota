@@ -1296,8 +1296,24 @@ function renderTopProducts() {
       const clave = l.productId ? 'id:' + l.productId : 'nom:' + (l.nombre || l.name || '');
       const nombre = (prod && prod.name) || l.nombre || l.name || 'Producto';
       if (!nombre) return;
-      const fila = ventas.get(clave) || { name: nombre, uds: 0 };
+      /* BUILD 465 · Se arrastra el ID DEL PRODUCTO, no solo el nombre.
+       *
+       * 🔴 Es el cambio que hace posible abrir la ficha al pulsar. Antes la
+       * lista se quedaba en `[nombre, unidades]` y el id se perdía aquí
+       * mismo; sin él, para saber a qué producto corresponde una fila había
+       * que buscarlo POR NOMBRE, y dos productos que se llamen igual son
+       * indistinguibles: se abriría la ficha equivocada sin dar ningún
+       * error. Con el id no hay ambigüedad posible.
+       *
+       * ⚠️ `prod` puede ser `null` (producto borrado del catálogo, o línea
+       * antigua sin `productId`). En ese caso se guarda `id: null` A
+       * PROPÓSITO, y más abajo esa fila se pinta SIN enlace: es preferible
+       * una fila que no invita a pulsar que un enlace que no lleva a
+       * ninguna parte. */
+      const fila = ventas.get(clave) || { name: nombre, uds: 0, id: (prod ? prod.id : null) };
       fila.uds += uds;
+      // Si una línea posterior sí encuentra el producto, se aprovecha el id.
+      if (fila.id == null && prod) fila.id = prod.id;
       ventas.set(clave, fila);
     });
   });
@@ -1305,7 +1321,7 @@ function renderTopProducts() {
   const sorted = [...ventas.values()]
     .sort((a, b) => b.uds - a.uds || a.name.localeCompare(b.name, 'es'))
     .slice(0, 5)
-    .map(f => [f.name, f.uds]);
+    .map(f => [f.name, f.uds, f.id]);
 
   if (!sorted.length) {
     /* Mensaje HONESTO: no es que no haya productos, es que no hay ventas
@@ -1401,13 +1417,47 @@ function renderTopProducts() {
                   title="Este producto no tiene foto">${_escapeHtml(_inicialDe(nombre))}</span>`;
   };
 
-  el.innerHTML = sorted.map(([name, uds], i) => {
+  el.innerHTML = sorted.map(([name, uds, pid], i) => {
     const pct = Math.max(8, Math.round(((uds || 0) / max) * 100));
     /* BUILD 459 · La etiqueta dice UNIDADES, no estrellas. Antes ponía
      * «★ 4.8», que era coherente con el orden por valoración pero no con el
      * título del panel. Si la cifra y el título no miden lo mismo, uno de
      * los dos engaña. */
     const label = uds === 1 ? '1 ud.' : uds.toLocaleString('es-DO') + ' uds.';
+
+    /* ── BUILD 465 · EL NOMBRE ABRE LA FICHA DEL PRODUCTO ─────────────────
+     * Lo pidió el dueño comparando con el diseño original: «si le doy clic
+     * a cualquiera de los productos me sale de una vez el modal del detalle
+     * con solo darle un clic».
+     *
+     * 🔴 SE REUTILIZA `viewProduct(id)`, QUE YA EXISTE (l. ~2470) y es
+     * exactamente el modal de su captura: foto, categoría, precio, stock,
+     * unidad, valoración, descripción, código de barras y el botón «Editar
+     * producto». **No se escribe un modal nuevo.** Duplicarlo habría creado
+     * dos fichas que enseñan lo mismo y que el día de mañana se
+     * desincronizan: se corrige una y la otra se queda vieja.
+     *
+     * 🔴 ES UN <button>, NO UN <span onclick>. Mismo motivo que en las
+     * tarjetas del build 462: un `onclick` sobre un `<span>` no se alcanza
+     * con el tabulador ni se anuncia como control, así que quien no use
+     * ratón no puede abrirlo.
+     *
+     * 🔴 Y SOLO SE PONE ENLACE SI HAY ID. Si el producto se borró del
+     * catálogo (o la línea del pedido es antigua y no guardó `productId`),
+     * `pid` es nulo: la fila se pinta como texto normal. **Un botón que al
+     * pulsarlo no hace nada es peor que no tener botón** — el dueño
+     * pulsaría dos o tres veces pensando que la página se ha colgado. Aquí
+     * ni siquiera parece pulsable, que es la verdad.
+     *
+     * El id va por `_escapeAttr` aunque venga de la base: es un UUID, pero
+     * escapar en el borde es la regla, no una excepción que haya que
+     * justificar cada vez. */
+    const nombreHtml = (pid != null && pid !== '')
+      ? `<button type="button" class="dsh-top__name dsh-top__name--link"
+                 onclick="viewProduct('${_escapeAttr(pid)}')"
+                 title="Ver la ficha de ${_escapeAttr(name)}">${_escapeHtml(name)}</button>`
+      : `<span class="dsh-top__name" title="${_escapeAttr(name)}">${_escapeHtml(name)}</span>`;
+
     /* BUILD 457 · La miniatura la construye `_miniatura()`, que decide entre
      * la foto real y la inicial. El nombre va por `_escapeHtml` y el título
      * completo en `title=` para poder leerlo cuando el nombre es largo y la
@@ -1416,7 +1466,7 @@ function renderTopProducts() {
     <li class="dsh-top__row" style="animation-delay:${.08 + i * .09}s">
       <span class="dsh-top__rank">${i + 1}</span>
       ${_miniatura(name)}
-      <span class="dsh-top__name" title="${_escapeAttr(name)}">${_escapeHtml(name)}</span>
+      ${nombreHtml}
       <span class="dsh-top__bar"><span class="dsh-top__fill" data-pct="${pct}"></span></span>
       <span class="dsh-top__sales">${label}</span>
     </li>`;
