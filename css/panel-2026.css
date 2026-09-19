@@ -143,7 +143,15 @@
  * un valor en un sitio en lugar de tres reglas que hay que mantener de
  * acuerdo entre sí. Si mañana la barra debe medir otra cosa, se cambia
  * ESTE número y nada más. */
-:root { --sidebar-w: 258px; }
+/* 🔴 BUILD 462 · 258 → 208 px. El dueño la vio «muy ancha», y tenía razón
+ * con una medida al lado: el diseño de referencia
+ * (documentos/_verif/ref.css:13) declara exactamente `--sidebar-w: 208px`.
+ * Yo había puesto 258 por criterio propio, no por medición — 50 px de más
+ * que se los quitaba al contenido en cada pantalla del panel.
+ * Los 50 px recuperados van al área de trabajo, que es donde se leen los
+ * datos. El menú no pierde nada: la entrada más larga («Notificaciones»,
+ * 14 caracteres) cabe de sobra en 208 − 36 de relleno = 172 px útiles. */
+:root { --sidebar-w: 208px; }
 
 .sidebar {
   background: var(--dsh-sidebar);
@@ -446,7 +454,30 @@
 }
 @media (max-width: 560px) { .dsh-kpis { grid-template-columns: 1fr; } }
 
+/* 🔴 BUILD 462 · LAS CINCO TARJETAS SON AHORA <button>, Y ESO OBLIGA A ESTE
+ * BLOQUE DE NEUTRALIZACIÓN. No es limpieza opcional: sin él la tarjeta se
+ * ve MAL, no simplemente distinta. Un <button> trae de fábrica, en todos los
+ * navegadores:
+ *   · `font: 400 13.33px Arial` — NO hereda la tipografía de la página, así
+ *     que las etiquetas saldrían en Arial pequeño en vez de Inter;
+ *   · `text-align: center` — etiqueta, cifra y pie centrados;
+ *   · `width: auto` con encogimiento al contenido — las cinco tarjetas
+ *     dejarían de llenar su columna de la rejilla y quedarían desiguales;
+ *   · en Safari, un aspecto nativo (`-webkit-appearance: button`) que pisa
+ *     el fondo y el borde que declaramos aquí.
+ * Ninguna de esas cuatro cosas avisa de nada: la tarjeta simplemente se ve
+ * descolocada. Por eso van explícitas y juntas. */
 .dsh-kpi {
+  /* — neutralización del <button> — */
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 100%;
+  font: inherit;                 /* hereda Inter y su tamaño, no Arial 13px */
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* — aspecto de tarjeta — */
   display: flex;
   align-items: center;
   gap: 15px;
@@ -459,6 +490,15 @@
 .dsh-kpi:hover {
   box-shadow: 0 10px 26px rgba(22,36,29,.07);
   transform: translateY(-2px);
+}
+/* `:focus-visible` y NO `:focus`: con `:focus` el recuadro aparecería también
+ * al hacer clic con el ratón, que es ruido visual. Así solo lo ve quien
+ * navega con el tabulador, que es quien lo necesita para saber dónde está.
+ * 🔴 NO se pone `outline: none` sin sustituto: dejaría el panel inutilizable
+ * con teclado sin que nada lo delate. */
+.dsh-kpi:focus-visible {
+  outline: 2px solid var(--dsh-green);
+  outline-offset: 2px;
 }
 
 /* La primera tarjeta va tintada.
@@ -685,37 +725,66 @@
    integrada y se pinta en HTML, donde una rejilla de tres columnas lo
    resuelve de forma exacta con cualquier longitud de nombre.
    ───────────────────────────────────────────────────────────────────────── */
+/* 🔴 BUILD 462 · REJILLA, NO FLEX — Y EL ANILLO CON TOPE DE ANCHO.
+ *
+ * El dueño: «el cuadro de ventas por categoría, muy ancho, mucho espacio en
+ * blanco». La causa era medible y estaba aquí: el lienzo se declaraba
+ * `flex: 1 1 56%`, o sea que se estiraba con la tarjeta, mientras su altura
+ * quedaba fija en 232 px. Un dónut es CIRCULAR: su diámetro lo manda el lado
+ * MENOR, así que por ancho que se hiciera el lienzo el círculo seguía
+ * midiendo 232 px y todo lo demás se convertía en aire a izquierda y derecha.
+ * Cuanto más ancha la pantalla, más hueco vacío. No era una impresión suya.
+ *
+ * Medidas tomadas del diseño de referencia (documentos/_verif/ref.css:183-184),
+ * no estimadas:
+ *   · rejilla `minmax(165px,1.1fr) minmax(145px,1fr)` con 18 px de hueco
+ *   · `max-width: 248px` en el anillo  ← esto es lo que mata el espacio muerto
+ *   · `min-height: 236px` para que la tarjeta no dé saltos al recargar
+ *
+ * `justify-self: center` centra el anillo dentro de su columna en vez de
+ * pegarlo a la izquierda cuando sobra sitio. */
 .dsh-chart {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(165px, 1.1fr) minmax(145px, 1fr);
+  gap: 18px;
   align-items: center;
-  gap: 20px;
-  padding: 2px var(--dsh-pad) 10px;
+  min-height: 236px;
+  padding: 9px var(--dsh-pad) 0;
 }
 .dsh-chart__canvas {
-  flex: 1 1 56%;
+  width: 100%;
+  max-width: 248px;
   min-width: 0;
   height: 232px;
+  justify-self: center;
   position: relative;
 }
 .dsh-chart__legend {
-  flex: 0 0 auto;
-  min-width: 186px;
+  min-width: 0;
   margin: 0; padding: 0;
   list-style: none;
 }
-/* BUILD 460 · DOS columnas, no tres: el porcentaje salió de la leyenda y
- * vive ahora solo sobre su porción del anillo (ver `_pintarLeyendaVentas`).
- * Dejar `auto 1fr auto` con la tercera vacía reservaría un hueco a la
- * derecha que empujaría los nombres sin que nada lo justificara.
- * `padding` de 6→7 px: el diseño de referencia espacia más las filas, y al
- * quitar una columna la lista quedaba visualmente apretada. */
+/* 🔴 BUILD 462 · VUELVE LA COLUMNA DE PORCENTAJES. Corrijo una decisión mía
+ * del build 460.
+ *
+ * En el 460 la quité razonando que el porcentaje ya estaba escrito sobre su
+ * porción del anillo y repetirlo sobraba. El razonamiento tenía un agujero
+ * que se ve al mirar el diseño de referencia y la propia captura del dueño:
+ * las porciones POR DEBAJO DEL 5 % no llevan número en el anillo, porque no
+ * cabría sin pisar a la vecina. De esas categorías el porcentaje no se veía
+ * en ninguna parte — solo al pasar el ratón, que en una captura o de un
+ * vistazo no existe. La referencia (ref.css:189, `14px minmax(0,1fr) auto`)
+ * lista los seis porcentajes alineados a la derecha, y así es como debe ir.
+ *
+ * Medidas de la referencia: punto de 14 px, 10 px de separación entre
+ * columnas, 12 px entre filas, texto de 11 px. */
 .dsh-legend__row {
   display: grid;
-  grid-template-columns: auto 1fr;        /* punto · nombre */
+  grid-template-columns: 14px minmax(0, 1fr) auto;   /* punto · nombre · % */
   align-items: center;
-  gap: 11px;
-  padding: 7px 0;
-  font-size: .82rem;
+  column-gap: 10px;
+  padding: 6px 0;
+  font-size: .8rem;
 }
 /* 🔴 `display:block` NO es adorno: SIN ESTO EL TEXTO SE MONTA ENCIMA.
  *
@@ -737,21 +806,23 @@
  * punto hasta volverlo un óvalo. */
 .dsh-legend__dot {
   display: block;
-  flex: 0 0 10px;
-  width: 10px; height: 10px;
+  flex: 0 0 14px;
+  width: 14px; height: 14px;
   border-radius: 50%;
 }
 .dsh-legend__name {
   color: var(--dsh-ink-mid);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* NOTA · Aquí vivía `.dsh-legend__pct`, la columna de porcentajes de la
- * leyenda. SE RETIRÓ en el build 460 junto con el `<span>` que la usaba: el
- * porcentaje ya se escribe sobre su porción del anillo, y repetirlo al lado
- * del nombre lo decía dos veces. Se borra la regla en vez de dejarla «por
- * si acaso» — un selector sin un solo elemento que lo use (verificado con
- * `Grep` en todo el proyecto: cero apariciones fuera de este fichero) es
- * peso muerto que el siguiente tiene que descartar a mano. */
+/* La cifra, alineada a la derecha y en cifras tabulares para que la columna
+ * quede a plomo: sin `tabular-nums`, «9%» y «12%» tienen anchos de dígito
+ * distintos y los símbolos de porcentaje bailan entre filas. */
+.dsh-legend__pct {
+  font-weight: 500;
+  color: var(--dsh-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* LA LEYENDA A DOS COLUMNAS SOLO SI DE VERDAD CABEN DOS.
  *
@@ -772,10 +843,14 @@
  * ancho, partir la leyenda en dos sí habría recortado los nombres. Con
  * `@container` se mide el contenedor real, así que las dos columnas
  * aparecen solo cuando hay 520 px de verdad. Es prevención, no remedio. */
+/* 🔴 BUILD 462 · `flex-direction: column` YA NO SIRVE AQUÍ, y este es
+ * exactamente el fallo mudo de siempre: `.dsh-chart` pasó a `display:grid`
+ * arriba, y una propiedad de flex sobre una rejilla NO da error — el
+ * navegador la descarta en silencio y la maqueta se queda como estaba. El
+ * equivalente en rejilla es apilar las columnas en una sola. */
 @media (max-width: 1240px) {
-  .dsh-chart { flex-direction: column; align-items: stretch; }
-  .dsh-chart__canvas { width: 100%; height: 210px; }
-  .dsh-chart__legend { min-width: 0; }
+  .dsh-chart { grid-template-columns: 1fr; min-height: 0; padding-bottom: 8px; }
+  .dsh-chart__canvas { max-width: 230px; height: 210px; }
 }
 
 .dsh-panel { container-type: inline-size; }
@@ -798,6 +873,32 @@
  * sola columna. Nunca recorta un nombre; solo ocupa algo más de alto. */
 @supports not (container-type: inline-size) {
   .dsh-chart__legend { display: block; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   8b · BUILD 462 · «EL RITMO DE TUS VENTAS»
+   Panel desplegable con la gráfica de línea. Arranca cerrado con el atributo
+   `hidden` del HTML y lo abre la pestaña «Ventas».
+
+   🔴 EL ALTO VA EN EL CONTENEDOR, NO EN EL <canvas>. Chart.js con
+   `maintainAspectRatio:false` toma el tamaño del elemento padre; si el alto
+   se declarase sobre el canvas, la librería lo sobrescribiría en cada
+   repintado y la gráfica crecería sola en cada redibujo — el defecto clásico
+   del «canvas que se estira hasta el infinito». 246 px salen del diseño de
+   referencia (ref.css:236).
+
+   ⚠️ NO se añade `display:` a `.dsh-trend`. El atributo `hidden` equivale a
+   `display:none` en la hoja del navegador, y CUALQUIER `display` declarado
+   en una hoja de autor lo pisa: el panel se vería SIEMPRE, abierto o no, sin
+   un solo error. Es el motivo de que las reglas de abajo solo toquen
+   márgenes y relleno. */
+.dsh-trend {
+  margin-bottom: var(--dsh-gap);
+}
+.dsh-trend__wrap {
+  height: 246px;
+  padding: 6px var(--dsh-pad) 4px;
+  position: relative;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

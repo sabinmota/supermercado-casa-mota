@@ -196,6 +196,12 @@ let editingStaffId    = null;
 let deleteStaffId     = null;
 let sidebarCollapsed  = false;
 let salesChartInstance = null;
+/* BUILD 462 · Instancia del gráfico «El ritmo de tus ventas». Se guarda por
+ * el mismo motivo que la del dónut: Chart.js NO permite dos gráficos sobre el
+ * mismo <canvas>, y crear uno nuevo sin destruir el anterior deja al viejo
+ * escuchando el ratón por debajo — el cursor muestra datos fantasma de una
+ * gráfica que ya no se ve. Con la referencia se puede destruir o actualizar. */
+let trendChartInstance = null;
 let _dashboardLoaded  = false; // evita doble render en init
 let currentSession    = null;
 
@@ -1019,10 +1025,37 @@ function filtrarDashboard(vista, btn) {
     t.setAttribute('aria-selected', t === btn ? 'true' : 'false');
   });
 
-  // 2 · Desplazar hasta la zona correspondiente.
+  /* 2 · BUILD 462 · Abrir o cerrar «El ritmo de tus ventas».
+   *
+   * Esto es lo ÚNICO del panel que sí cambia contenido, y por eso vive solo
+   * en la pestaña «Ventas»: es la que promete ventas y ahora entrega una
+   * gráfica que antes no existía.
+   *
+   * 🔴 EL ORDEN IMPORTA Y NO ES CAPRICHO: primero se quita el `hidden`, y
+   * SOLO DESPUÉS se pinta. Un <canvas> dentro de un elemento oculto mide
+   * 0×0, y Chart.js dibujaría sobre un lienzo de tamaño cero: ni error, ni
+   * aviso, ni gráfica. Es el mismo fallo mudo que ya obligó a poner el
+   * reintento por `offsetWidth === 0` en renderSalesChart (l. 1399).
+   *
+   * Se usa la propiedad `.hidden` y no `style.display` para que el CSS
+   * mande sobre cómo se muestra el panel y los lectores de pantalla lo
+   * salten mientras está cerrado. */
+  const panelRitmo = document.getElementById('panelRitmoVentas');
+  if (panelRitmo) {
+    if (vista === 'ventas') {
+      panelRitmo.hidden = false;
+      renderTrendChart();
+    } else {
+      panelRitmo.hidden = true;
+    }
+  }
+
+  // 3 · Desplazar hasta la zona correspondiente.
+  /* En «Ventas» el destino es el panel recién abierto, no el dónut: llevar al
+   * dónut dejaría fuera de pantalla justo lo que se acaba de desplegar. */
   const DESTINOS = {
     resumen:   'dashKpiGrid',
-    ventas:    'salesChart',
+    ventas:    'panelRitmoVentas',
     operacion: 'topProducts',
   };
   const destino = document.getElementById(DESTINOS[vista] || 'dashKpiGrid');
@@ -1032,6 +1065,45 @@ function filtrarDashboard(vista, btn) {
   // quede a la vista y no solo el lienzo de la gráfica.
   const caja = destino.closest('.card') || destino;
   caja.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ─── BUILD 462 · «STOCK BAJO» LLEVA A INVENTARIO **YA FILTRADO** ───────────
+ *
+ * 🔴 NAVEGAR NO BASTA. Si la tarjeta dice «Stock bajo · 18» y al pulsarla
+ * abriera Inventario con los 1.900 productos, el dueño tendría que buscar a
+ * mano esos 18. El botón habría cumplido literalmente y fallado de hecho.
+ *
+ * No se inventa ningún filtro nuevo: se REUTILIZA el que ya existe en el
+ * desplegable `invStockFilter` (admin.html:695), cuya opción `low` aplica
+ * `stock < 20` — exactamente el mismo umbral con el que renderDashboardKpis
+ * (l. 1040) cuenta la cifra de la tarjeta. Al usar el mismo criterio, el
+ * número de la tarjeta y el de filas listadas NO pueden discrepar. Si mañana
+ * se cambia el umbral, se cambia en un sitio.
+ *
+ * ⚠️ COMPROBACIÓN DEL VALOR, no por manía: asignar `sel.value = 'low'` cuando
+ * esa <option> no existe NO lanza ningún error — el navegador deja el select
+ * vacío en silencio y se mostraría el inventario entero como si nada. Por eso
+ * se relee el valor después de escribirlo.
+ */
+function irAStockBajo() {
+  const enlace = document.querySelector('.nav-link[data-section="inventory"]');
+
+  // showSection devuelve false cuando el rol no tiene permiso; en ese caso ya
+  // ha avisado con su propio aviso y aquí no hay nada más que hacer.
+  if (showSection('inventory', enlace) === false) return;
+
+  const sel = document.getElementById('invStockFilter');
+  if (!sel) return;                       // sin desplegable: queda en Inventario
+
+  sel.value = 'low';
+  if (sel.value !== 'low') {              // la opción no existe → no fingir
+    console.warn('[irAStockBajo] El filtro «low» no existe en invStockFilter; '
+               + 'se muestra el inventario completo.');
+    return;
+  }
+
+  _pages.inventory = 1;                   // empezar por la primera página
+  renderInventory();
 }
 
 function renderDashboardKpis() {
@@ -1073,6 +1145,14 @@ async function loadDashboard() {
     renderDashboardKpis();
     renderTopProducts();
     renderRecentOrders();
+    /* BUILD 462 · Repintar «El ritmo de tus ventas» SOLO si está abierto.
+     * Sin esto, quien lo deja desplegado y pulsa recargar seguiría viendo
+     * los pedidos de antes mientras el resto del panel ya muestra los
+     * nuevos: dos verdades distintas en la misma pantalla.
+     * La condición evita pintar sobre un lienzo oculto (mide 0×0 y Chart.js
+     * no protestaría; simplemente no dibujaría nada). */
+    const pr = document.getElementById('panelRitmoVentas');
+    if (pr && !pr.hidden) renderTrendChart();
 
   } catch(e) {
     console.warn('loadDashboard: error al refrescar desde API', e);
@@ -1520,12 +1600,19 @@ function renderSalesChart() {
       const meta  = chart.getDatasetMeta(0);
       const total = data.reduce((s, v) => s + v, 0) || 1;
       c.save();
-      c.font = '600 12px Inter, system-ui, sans-serif';
+      c.font = '600 11.5px Inter, system-ui, sans-serif';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       meta.data.forEach((arco, i) => {
         const pct = (data[i] / total) * 100;
-        if (pct < 5) return;            // cabría encima de la porción vecina
+        /* BUILD 462 · Umbral 5 % → 4 %. Con el anillo algo más grueso (68 %
+         * de hueco en vez de 72 %) el número dispone de ~37 px de banda en
+         * lugar de 32, y una porción del 4 % ya lo admite sin pisar a la
+         * vecina. No se baja más: por debajo del 4 % el arco es más estrecho
+         * que el propio texto y se solaparían. Las que quedan fuera SÍ
+         * muestran su cifra en la leyenda, que volvió a tener la columna de
+         * porcentajes en este mismo build. */
+        if (pct < 4) return;
         const { x, y } = arco.tooltipPosition();
         // Luminancia aproximada del relleno (fórmula estándar ITU-R BT.601).
         const hex = colors[i % colors.length].replace('#', '');
@@ -1558,12 +1645,18 @@ function renderSalesChart() {
        *   del diseño, la palabra ESTIMADO ya era FALSA desde el build 459.
        *   El gráfico dejó de estimar: suma las líneas de los pedidos no
        *   cancelados. Dejarla haría desconfiar de un dato que ahora es real. */
-      c.fillStyle = '#101f29';
-      c.font = '700 19px Inter, system-ui, sans-serif';
-      c.fillText('RD$ ' + fmt$(total), x, y - 7);
-      c.fillStyle = '#8a918c';
-      c.font = '400 10.5px Inter, system-ui, sans-serif';
-      c.fillText('Ventas en productos', x, y + 13);
+      /* BUILD 462 · Se reajusta a la referencia medida (ref.css:186-187):
+       * cifra de 15-16 px y subtítulo de 9-10 px. En el 460 la subí a 19 px
+       * razonando que «con el anillo más fino hay más sitio dentro», pero el
+       * hueco se estrechó al limitar el anillo a 248 px de ancho en este
+       * build, y 19 px rozaban los bordes. Con el importe en el centro y sin
+       * decimales, 16 px es legible y deja aire. */
+      c.fillStyle = '#20352a';
+      c.font = '700 16px Inter, system-ui, sans-serif';
+      c.fillText('RD$ ' + fmt$(total), x, y - 6);
+      c.fillStyle = '#7d8276';
+      c.font = '400 9.5px Inter, system-ui, sans-serif';
+      c.fillText('Ventas en productos', x, y + 11);
       c.restore();
     }
   };
@@ -1575,19 +1668,34 @@ function renderSalesChart() {
       datasets: [{
         data,
         backgroundColor: colors.slice(0, labels.length),
-        borderWidth: 2,
-        borderColor: '#fff'
+        /* BUILD 462 · El borde blanco pasa de 2 a 3 px y se añade
+         * `spacing: 1`. Es lo que da el aire entre porciones del diseño de
+         * referencia: sin separación, dos verdes contiguos de la paleta
+         * (#1B4D3E y #7A9A7C, o #7A9A7C y #4E7C64) se leen como una sola
+         * porción y el anillo parece «sucio». Con el corte blanco cada
+         * categoría se distingue aunque los colores sean vecinos. */
+        borderWidth: 3,
+        borderColor: '#fff',
+        spacing: 1,
+        /* Al pasar el ratón la porción se separa un poco en vez de cambiar
+         * de color: se ve cuál se está mirando sin falsear la paleta. */
+        hoverOffset: 6,
+        hoverBorderColor: '#fff',
       }]
     },
     // Complementos SOLO de este gráfico, no globales.
     plugins: [_pctSobreSegmento, _totalEnElCentro],
     options: {
-      /* BUILD 460 · Anillo MÁS FINO: 62 % → 72 % de hueco.
-       * El dueño comparó el diseño de referencia con el panel y pidió el
-       * círculo del primero. Medido sobre esa imagen, el hueco central
-       * ocupa ~70-75 % del radio; con 62 % el anillo salía grueso y el
-       * texto del centro quedaba apretado contra los segmentos. */
-      cutout: '72%',
+      /* BUILD 462 · Anillo de 72 % → 68 % de hueco.
+       *
+       * Corrijo un exceso mío del build 460, donde pasé de 62 a 72 % para
+       * afinarlo. Medido sobre la propia captura del dueño y sobre el diseño
+       * de referencia, el hueco está en el entorno del 65-70 %: con 72 % la
+       * banda de color quedaba tan delgada que los porcentajes escritos
+       * encima casi la desbordaban — que es parte de lo que el dueño llamó
+       * «un poco mediocre». 68 % deja banda suficiente para el número y
+       * sigue siendo un anillo fino, no el grueso de antes del 460. */
+      cutout: '68%',
       responsive: true,
       maintainAspectRatio: false,
       layout: { padding: { top: 4, bottom: 4 } },
@@ -1634,20 +1742,22 @@ function _pintarLeyendaVentas(labels, data, colors) {
 
   const total = data.reduce((s, v) => s + (Number(v) || 0), 0) || 1;
 
-  /* BUILD 460 · SIN la columna de porcentajes.
+  /* 🔴 BUILD 462 · VUELVE EL PORCENTAJE A LA LEYENDA. Deshago lo que hice en
+   * el build 460, donde lo quité argumentando que ya estaba escrito sobre su
+   * porción del anillo y repetirlo sobraba.
    *
-   * 🔴 Es un cambio a MENOS, y es deliberado. El porcentaje ya está escrito
-   * ENCIMA de su porción en el propio anillo (`_pctSobreSegmento`), así que
-   * repetirlo al lado del nombre lo decía dos veces y obligaba a estrechar
-   * la columna del nombre. El diseño de referencia lista solo los nombres.
+   * El argumento era falso para las categorías pequeñas: `_pctSobreSegmento`
+   * SALTA las porciones por debajo del 5 % (l. 1528) porque su número no
+   * cabría sin pisar a la vecina. De esas, el porcentaje no se veía en
+   * ninguna parte salvo pasando el ratón — y una cifra que solo existe al
+   * pasar el ratón no existe en una captura, en una impresión, ni para quien
+   * navega con teclado. El diseño de referencia (ref.css:189) las lista
+   * todas, alineadas a la derecha.
    *
-   * El dato NO se pierde: sigue en el anillo, y el `title` de cada fila da
-   * el importe exacto al pasar el ratón — que es más útil que el redondeo,
-   * porque cinco porcentajes redondeados rara vez suman 100 exacto.
-   *
-   * ⚠️ Las porciones por debajo del 5 % no llevan número en el anillo (no
-   * cabría sin pisar la vecina). Para esas, el `title` es la única vía de
-   * saber su valor; por eso se pone en TODAS las filas, no solo en unas. */
+   * Los porcentajes se redondean para mostrar, así que pueden sumar 99 o
+   * 101. Es lo normal en cualquier gráfico circular y no se fuerza el cuadre
+   * porque eso falsearía alguna categoría. El `title` sigue dando el importe
+   * exacto en pesos, que es el dato sin redondear. */
   ul.innerHTML = labels.map((etiqueta, i) => {
     const pct   = Math.round((data[i] / total) * 100);
     const color = colors[i % colors.length];
@@ -1658,8 +1768,198 @@ function _pintarLeyendaVentas(labels, data, colors) {
       <li class="dsh-legend__row" title="${etiqueta}: RD$ ${fmt$(data[i])} · ${pct}%">
         <span class="dsh-legend__dot" style="background:${color}"></span>
         <span class="dsh-legend__name">${etiqueta}</span>
+        <span class="dsh-legend__pct">${pct}%</span>
       </li>`;
   }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUILD 462 · «EL RITMO DE TUS VENTAS» · gráfica de línea, día a día
+   ───────────────────────────────────────────────────────────────────────────
+   Es el panel que el dueño echó en falta del diseño de referencia. Se abre
+   desde la pestaña «Ventas» o desde la tarjeta «Ventas del mes».
+
+   🔴 SUMA `o.total`, EL MISMO CAMPO QUE EL INDICADOR «Ventas del mes»
+   (renderDashboardKpis, l. 1039), y con el mismo criterio: fuera los
+   cancelados. Es deliberado. La tentación era sumar las líneas de producto
+   —como hace el dónut— pero el total del pedido incluye envío y descuentos y
+   las líneas no. Si esta gráfica sumara líneas, al sumar sus puntos NO daría
+   la cifra de la tarjeta de arriba, y el dueño vería dos números distintos
+   para lo mismo en la MISMA pantalla, sin saber cuál creer. Que el dónut
+   difiera es correcto y está dicho: él mide «ventas EN PRODUCTOS», y así lo
+   escribe en su centro.
+
+   🔴 EL CALENDARIO SE RELLENA ENTERO, incluidos los días sin una sola venta.
+   Si solo se pintaran los días con pedidos, una línea entre el día 3 y el
+   día 11 parecería una semana de ventas sostenidas cuando fueron ocho días
+   cerrados. El hueco tiene que verse como lo que es: un cero.
+
+   Ventana: 30 días. Si en los últimos 30 no hay ningún pedido pero sí los
+   hay más atrás (base de pruebas, tienda recién parada), la ventana se
+   desplaza hasta el último pedido y el pie lo DICE. Preferible a enseñar una
+   línea plana en cero que haría pensar que se perdieron las ventas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const _DIAS_RITMO = 30;
+
+/** Fecha → 'aaaa-mm-dd' en hora local. No se usa `toISOString()`: ese
+ *  convierte a UTC y en República Dominicana (UTC−4) manda un pedido de las
+ *  21:30 al día siguiente. La gráfica quedaría corrida un día sin avisar. */
+function _claveDia(ms) {
+  const d = new Date(ms);
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+function _etiquetaDia(ms) {
+  return new Date(ms).toLocaleDateString('es-DO', { day: 'numeric', month: 'short' });
+}
+
+function renderTrendChart() {
+  const canvasEl = document.getElementById('trendChart');
+  if (!canvasEl) return;
+  const nota = document.getElementById('trendNote');
+
+  /* Si el lienzo aún mide cero, esperar. Ocurre en el instante en que se
+   * quita el `hidden`: el navegador todavía no ha recalculado la maqueta.
+   * Sin esto, Chart.js dibujaría sobre 0×0 — sin error y sin gráfica. */
+  if (canvasEl.offsetWidth === 0 || canvasEl.offsetHeight === 0) {
+    requestAnimationFrame(() => setTimeout(renderTrendChart, 120));
+    return;
+  }
+
+  // ── Datos ──────────────────────────────────────────────────────────────
+  const validos = (orders || []).filter(o => o && o.status !== 'cancelado');
+
+  if (!validos.length) {
+    if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
+    if (nota) nota.textContent = 'Todavía no hay pedidos que dibujar.';
+    return;
+  }
+
+  // Importe por día, en una sola pasada.
+  const porDia = new Map();
+  let ultimoMs = 0;
+  validos.forEach(o => {
+    const ms = _orderTime(o);          // entiende ISO y «dd/mm/aaaa HH:MM»
+    if (!ms) return;                   // fecha ilegible: no se inventa una
+    if (ms > ultimoMs) ultimoMs = ms;
+    const k = _claveDia(ms);
+    porDia.set(k, (porDia.get(k) || 0) + (Number(o.total) || 0));
+  });
+
+  if (!porDia.size) {
+    if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
+    if (nota) nota.textContent = 'Los pedidos no traen una fecha legible.';
+    return;
+  }
+
+  // ── Ventana de 30 días ─────────────────────────────────────────────────
+  const hoy = new Date(); hoy.setHours(12, 0, 0, 0);   // mediodía: inmune al horario de verano
+  let finMs = hoy.getTime();
+
+  // ¿Hay algo en los últimos 30 días? Si no, la ventana se muda al último pedido.
+  const inicioNormal = finMs - (_DIAS_RITMO - 1) * 86400000;
+  const hayReciente  = ultimoMs >= inicioNormal;
+  let desplazada = false;
+  if (!hayReciente) {
+    const u = new Date(ultimoMs); u.setHours(12, 0, 0, 0);
+    finMs = u.getTime();
+    desplazada = true;
+  }
+
+  const etiquetas = [];
+  const importes  = [];
+  for (let i = _DIAS_RITMO - 1; i >= 0; i--) {
+    const ms = finMs - i * 86400000;
+    etiquetas.push(_etiquetaDia(ms));
+    importes.push(porDia.get(_claveDia(ms)) || 0);   // día sin ventas = 0, no hueco
+  }
+
+  if (nota) {
+    nota.textContent = desplazada
+      ? `Sin pedidos en los últimos 30 días · se muestran los 30 días hasta el ${_etiquetaDia(finMs)}`
+      : 'Últimos 30 días · importe de pedidos no cancelados';
+  }
+
+  // ── Pintar ─────────────────────────────────────────────────────────────
+  const ctx = canvasEl.getContext('2d');
+  if (!ctx) return;
+
+  /* Si ya existe, se ACTUALIZA en vez de destruir y recrear: volver a crearlo
+   * relanza la animación entera cada vez que se abre la pestaña, y eso es lo
+   * que en el dónut se percibía como «se recarga sola varias veces». */
+  if (trendChartInstance) {
+    trendChartInstance.data.labels = etiquetas;
+    trendChartInstance.data.datasets[0].data = importes;
+    trendChartInstance.update('none');
+    return;
+  }
+
+  // Degradado del relleno. Se crea con la altura REAL del lienzo; con una
+  // altura fija el degradado se cortaría a media gráfica en otra pantalla.
+  const alto = canvasEl.height || 246;
+  const relleno = ctx.createLinearGradient(0, 0, 0, alto);
+  relleno.addColorStop(0,   'rgba(46,93,70,.26)');
+  relleno.addColorStop(1,   'rgba(46,93,70,.02)');
+
+  trendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: etiquetas,
+      datasets: [{
+        label: 'Ventas',
+        data: importes,
+        borderColor: '#2E5D46',
+        borderWidth: 2,
+        backgroundColor: relleno,
+        fill: true,
+        tension: .35,                 // curva suave, como el diseño
+        pointRadius: 3,
+        pointBackgroundColor: '#fff',
+        pointBorderColor: '#2E5D46',
+        pointBorderWidth: 1.6,
+        pointHoverRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },   // una sola serie: la leyenda sobra
+        tooltip: {
+          callbacks: {
+            label: c => ` RD$ ${fmt$(c.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { color: '#e6e8e0' },
+          ticks: {
+            color: '#8a918c',
+            font: { size: 10, family: 'Inter, system-ui, sans-serif' },
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 10,
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: '#eff0ea' },
+          border: { display: false },
+          ticks: {
+            color: '#8a918c',
+            font: { size: 10, family: 'Inter, system-ui, sans-serif' },
+            maxTicksLimit: 6,
+            callback: v => 'RD$ ' + fmt$(v),
+          }
+        }
+      }
+    }
+  });
 }
 
 // ─── PRODUCTOS TABLE ──────────────────────────────────────────────────────────

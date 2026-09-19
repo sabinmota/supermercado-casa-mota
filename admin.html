@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '461';
+      const VER = '462';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=5" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=6" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -311,18 +311,50 @@
            zona elegida. Montar tres vistas con datos distintos es otro
            trabajo; dejar pestañas que PARECEN filtrar sin hacerlo sería peor
            que no tenerlas. -->
+      <!-- BUILD 462 · `data-vista` es NECESARIO, no decorativo: la tarjeta
+           «Ventas del mes» busca su pestaña con
+           `.dsh-tab[data-vista=ventas]`. Sin este atributo el selector no
+           encontraría nada, `filtrarDashboard` recibiría `null` y el panel
+           no se abriría — y sin un solo error en consola, porque
+           `querySelector` sin resultado devuelve `null` en silencio. -->
       <nav class="dsh-tabs" role="tablist" aria-label="Vistas del resumen">
         <button type="button" class="dsh-tab" role="tab" aria-selected="true"
-                onclick="filtrarDashboard('resumen', this)">Resumen</button>
+                data-vista="resumen" onclick="filtrarDashboard('resumen', this)">Resumen</button>
         <button type="button" class="dsh-tab" role="tab" aria-selected="false"
-                onclick="filtrarDashboard('ventas', this)">Ventas</button>
+                data-vista="ventas" onclick="filtrarDashboard('ventas', this)">Ventas</button>
         <button type="button" class="dsh-tab" role="tab" aria-selected="false"
-                onclick="filtrarDashboard('operacion', this)">Operación</button>
+                data-vista="operacion" onclick="filtrarDashboard('operacion', this)">Operación</button>
         <span class="dsh-live">
           <span class="dsh-live__dot" aria-hidden="true"></span>
           En vivo · Resumen general de la tienda
         </span>
       </nav>
+
+      <!-- BUILD 462 · EL RITMO DE TUS VENTAS · panel desplegable.
+           Arranca OCULTO (`hidden`) y lo abre la pestaña «Ventas» o la
+           tarjeta «Ventas del mes». Es el panel que el dueño echó en falta
+           del diseño de referencia.
+           🔴 `hidden` de HTML, no `style="display:none"`: así el CSS puede
+           cambiar cómo se muestra sin pelearse con un estilo en línea, y
+           los lectores de pantalla lo saltan mientras esté cerrado. -->
+      <section class="dsh-panel dsh-trend" id="panelRitmoVentas" hidden>
+        <div class="dsh-panel__head">
+          <i class="fa-solid fa-chart-line dsh-panel__icon dsh-panel__icon--green" aria-hidden="true"></i>
+          <div class="dsh-panel__titles">
+            <h3 class="dsh-panel__title">El ritmo de tus ventas</h3>
+            <span class="dsh-panel__sub">Importe de pedidos no cancelados, día a día</span>
+          </div>
+        </div>
+        <div class="dsh-trend__wrap">
+          <canvas id="trendChart" role="img"
+                  aria-label="Importe de ventas agrupado por día"></canvas>
+        </div>
+        <!-- El pie NO es decorativo: `renderTrendChart()` escribe aquí qué
+             período se está viendo. Si no hay pedidos en los últimos 30 días
+             la ventana se desplaza al último pedido, y sin este aviso el
+             dueño leería «últimos 30 días» sobre datos de otra fecha. -->
+        <span class="dsh-panel__note" id="trendNote">Últimos 30 días</span>
+      </section>
 
       <!-- BUILD 456 · Tarjetas de indicador.
            ⚠️ SON CINCO, no cuatro como el diseño de referencia: la quinta
@@ -332,8 +364,27 @@
            herramienta sabe hacer.
            Los `id` (kpiSales, kpiOrders, kpiProducts, kpiLowStock,
            kpiNotiNoLeidas) NO se tocan: los rellena renderDashboardKpis(). -->
+      <!-- BUILD 462 · LAS CINCO TARJETAS SON BOTONES QUE LLEVAN A ALGÚN SITIO.
+           Antes solo «Notificaciones» reaccionaba al clic; las otras cuatro
+           tenían una flecha «›» dibujada que no hacía NADA. Una flecha que
+           promete navegación y no navega es peor que no ponerla.
+
+           🔴 SON <button>, NO <article> CON onclick. Un `onclick` sobre un
+           <article> no es alcanzable con el tabulador ni se anuncia como
+           control: quien navegue con teclado no puede activarlo y un lector
+           de pantalla lo lee como texto suelto. Con <button> se gana el foco,
+           la tecla Enter y el rol correcto sin escribir una línea de más.
+
+           Destinos (tomados del diseño de referencia de GPT-6):
+             Ventas    → despliega el panel «El ritmo de tus ventas»
+             Pedidos   → sección Pedidos
+             Productos → sección Productos
+             Stock bajo→ Inventario, ya filtrado por stock bajo
+             Notific.  → Notificaciones (ya lo hacía) -->
       <div class="dsh-kpis" id="dashKpiGrid">
-        <article class="dsh-kpi dsh-kpi--feature">
+        <button type="button" class="dsh-kpi dsh-kpi--feature"
+                onclick="filtrarDashboard('ventas', document.querySelector('.dsh-tab[data-vista=ventas]'))"
+                aria-label="Ver el detalle de las ventas">
           <span class="dsh-kpi__icon"><i class="fa-solid fa-chart-simple"></i></span>
           <div class="dsh-kpi__body">
             <span class="dsh-kpi__label">Ventas del mes</span>
@@ -341,9 +392,11 @@
             <span class="dsh-kpi__foot"><i class="fa-solid fa-leaf"></i>Un mes de buenas ventas</span>
           </div>
           <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-        </article>
+        </button>
 
-        <article class="dsh-kpi">
+        <button type="button" class="dsh-kpi"
+                onclick="showSection('orders', document.querySelector('[data-section=orders]'))"
+                aria-label="Ver todos los pedidos">
           <span class="dsh-kpi__icon"><i class="fa-solid fa-cart-shopping"></i></span>
           <div class="dsh-kpi__body">
             <span class="dsh-kpi__label">Pedidos totales</span>
@@ -351,9 +404,11 @@
             <span class="dsh-kpi__foot">Pedidos registrados</span>
           </div>
           <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-        </article>
+        </button>
 
-        <article class="dsh-kpi dsh-kpi--sand">
+        <button type="button" class="dsh-kpi dsh-kpi--sand"
+                onclick="showSection('products', document.querySelector('[data-section=products]'))"
+                aria-label="Ver el catálogo de productos">
           <span class="dsh-kpi__icon"><i class="fa-solid fa-box"></i></span>
           <div class="dsh-kpi__body">
             <span class="dsh-kpi__label">Productos activos</span>
@@ -361,9 +416,14 @@
             <span class="dsh-kpi__foot">En catálogo</span>
           </div>
           <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-        </article>
+        </button>
 
-        <article class="dsh-kpi dsh-kpi--warn">
+        <!-- Va a Inventario Y deja aplicado el filtro de stock bajo: llevar a
+             una lista de 2.000 productos para que el dueño busque a mano los
+             18 con poco stock no resolvería nada. -->
+        <button type="button" class="dsh-kpi dsh-kpi--warn"
+                onclick="irAStockBajo()"
+                aria-label="Revisar los productos con stock bajo">
           <span class="dsh-kpi__icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
           <div class="dsh-kpi__body">
             <span class="dsh-kpi__label">Stock bajo</span>
@@ -371,10 +431,11 @@
             <span class="dsh-kpi__foot">Requiere atención</span>
           </div>
           <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-        </article>
+        </button>
 
-        <article class="dsh-kpi" style="cursor:pointer"
-                 onclick="showSection('notificaciones', document.querySelector('[data-section=notificaciones]'))">
+        <button type="button" class="dsh-kpi"
+                onclick="showSection('notificaciones', document.querySelector('[data-section=notificaciones]'))"
+                aria-label="Ver las notificaciones">
           <span class="dsh-kpi__icon"><i class="fa-regular fa-bell"></i></span>
           <div class="dsh-kpi__body">
             <span class="dsh-kpi__label">Notificaciones</span>
@@ -382,7 +443,7 @@
             <span class="dsh-kpi__foot" id="kpiNotiSublabel">sin leer</span>
           </div>
           <span class="dsh-kpi__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-        </article>
+        </button>
       </div>
 
       <!-- Gráfico + Top productos -->
@@ -3152,7 +3213,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=402"></script>
+  <script src="js/admin.v33.js?v=403"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
