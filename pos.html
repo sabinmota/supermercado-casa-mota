@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Punto de Venta · Casa Mota</title>
+
+<script>
+  /* ── Forzar versión correcta ──
+     Mismo patrón que index.html y admin.html: si la versión guardada en la
+     sesión no coincide, se recarga sin caché UNA vez. Sin esto, una cajera
+     con la pestaña abierta desde ayer seguiría con el JS viejo. */
+  (function () {
+    var VER = 'POS-1';
+    var KEY = 'cm_pos_ver';
+    var guardado = sessionStorage.getItem(KEY);
+    if (guardado !== VER) {
+      sessionStorage.setItem(KEY, VER);
+      if (guardado !== null) { window.location.reload(true); }
+    }
+  })();
+</script>
+
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  POS · PUNTO DE VENTA AUXILIAR · Casa Mota · build POS-1 (2026-09-20)
+
+  🔴 PÁGINA APARTE DEL PANEL, POR DECISIÓN DEL DUEÑO: «el módulo tiene que
+     ser aparte del panel administrativo ya que las cajeras tienen que entrar
+     con sus credenciales». Aquí una cajera NO ve productos, precios,
+     informes ni clientes: solo la caja.
+
+  🔴 NO CARGA `css/style.css` NI `css/admin.v33.css`. Hoja propia con prefijo
+     `pos-`, así que no puede romper la tienda ni el panel. Y al contrario:
+     ningún cambio futuro en esas hojas puede descolocar la caja.
+
+  ⚠️ LO QUE ESTE BUILD **NO** HACE TODAVÍA, y está dicho a propósito para que
+     nadie lo dé por hecho:
+       · NO imprime el recibo (falta el puente a la Epson TM-T88VII)
+       · NO asigna NCF ni número de documento (falta la RPC de numeración
+         atómica en la base — el contador NO puede vivir en el navegador:
+         dos cajeras a la vez darían el mismo NCF a dos facturas)
+       · NO guarda la venta en la base
+       · NO descuenta inventario (decisión del dueño: NO debe descontarlo)
+     Es la pantalla de caja para APROBAR: escaneo, pesados, líneas, ITBIS,
+     total, pago y cambio.
+
+  🔴 SEGURIDAD · LÍMITE QUE HAY QUE CONOCER: esta página es estática y la
+     clave `anon` de Supabase está publicada en js/api.js. El login de cajera
+     valida CONTRA LA BASE (RPC `verify_staff_password`, build 395), así que
+     la contraseña no viaja ni se compara en el navegador — pero una página
+     estática no puede impedir que alguien abra esta URL. Lo que protege los
+     datos son las políticas RLS y las RPC, no esta pantalla.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/pos.css?v=1" />
+</head>
+<body>
+
+<!-- ════════════════════ LOGIN DE CAJERA ════════════════════ -->
+<section class="pos-login" id="pos-login" aria-labelledby="pos-login-tit">
+  <div class="pos-login__caja">
+    <img src="images/logo-casamota.png" alt="Casa Mota" class="pos-login__logo"
+         onerror="this.style.display='none'" />
+    <h1 id="pos-login-tit">Punto de Venta</h1>
+    <p class="pos-login__sub">Supermercado Casa Mota</p>
+
+    <form id="pos-login-form" novalidate>
+      <p class="pos-error" id="pos-login-error" hidden></p>
+
+      <div class="pos-campo">
+        <label for="pos-correo">Usuario</label>
+        <input type="email" id="pos-correo" autocomplete="username"
+               inputmode="email" autocapitalize="off" spellcheck="false"
+               placeholder="correo@casamota.com" required />
+      </div>
+
+      <div class="pos-campo">
+        <label for="pos-clave">Contraseña</label>
+        <input type="password" id="pos-clave" autocomplete="current-password" required />
+      </div>
+
+      <button type="submit" class="pos-btn-grande" id="pos-entrar">Entrar</button>
+    </form>
+  </div>
+</section>
+
+
+<!-- ════════════════════ LA CAJA ════════════════════ -->
+<main class="pos-caja" id="pos-caja" hidden>
+
+  <header class="pos-top">
+    <span class="pos-top__marca">Casa Mota · Caja</span>
+    <span class="pos-top__dato">Cajera: <b id="pos-cajera">—</b></span>
+    <span class="pos-top__sep"></span>
+    <span class="pos-top__dato">Catálogo: <b id="pos-total-articulos">0</b></span>
+    <span class="pos-reloj" id="pos-reloj">—</span>
+  </header>
+
+  <!-- ── IZQUIERDA · la venta ── -->
+  <section class="pos-venta" aria-labelledby="pos-venta-tit">
+    <div class="pos-venta__cab">
+      <h2 id="pos-venta-tit">Venta en curso</h2>
+    </div>
+
+    <div class="pos-lineas" id="pos-lineas"></div>
+
+    <div class="pos-totales">
+      <div class="pos-fila">
+        <span>Artículos</span><span id="pos-arts">0</span>
+      </div>
+      <div class="pos-fila">
+        <span>Subtotal (sin ITBIS)</span><span>RD$ <span id="pos-base">0.00</span></span>
+      </div>
+      <div class="pos-fila">
+        <span>ITBIS</span><span>RD$ <span id="pos-itbis">0.00</span></span>
+      </div>
+      <div class="pos-fila pos-fila--neto">
+        <span>TOTAL</span><span>RD$ <span id="pos-neto">0.00</span></span>
+      </div>
+      <p class="pos-itbis-nota">Impuestos incluidos en el precio</p>
+
+      <div class="pos-acciones">
+        <button type="button" class="pos-cobrar" id="pos-cobrar" disabled>
+          Procesar pago
+        </button>
+        <button type="button" class="pos-secundario" id="pos-vaciar">Vaciar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DERECHA · trabajo ── -->
+  <section class="pos-trabajo" aria-label="Escaneo y búsqueda">
+
+    <div class="pos-escaneo">
+      <label for="pos-entrada">Escanear producto</label>
+      <input type="text" id="pos-entrada" autocomplete="off"
+             autocapitalize="off" spellcheck="false"
+             placeholder="Apunte la pistola y dispare…" />
+      <p class="pos-escaneo__pista">
+        La pistola escribe aquí sola. También puede teclear el código y pulsar Enter.
+        Las etiquetas de báscula se reconocen solas.
+      </p>
+    </div>
+
+    <!-- Foto del último producto · lo pidió el dueño -->
+    <div class="pos-ultimo" id="pos-ultimo" hidden></div>
+
+    <div class="pos-buscador">
+      <input type="text" id="pos-buscar" autocomplete="off"
+             placeholder="Buscar por nombre (para productos sin código)…" />
+    </div>
+
+    <div class="pos-resultados" id="pos-resultados"></div>
+  </section>
+
+</main>
+
+
+<!-- ════════════════════ MODAL DE PAGO ════════════════════ -->
+<div class="pos-modal" id="pos-modal-pago" hidden role="dialog"
+     aria-modal="true" aria-labelledby="pos-pago-tit">
+  <div class="pos-modal__caja">
+    <h2 id="pos-pago-tit">Procesar pago</h2>
+
+    <div class="pos-pago-total">RD$ <span id="pos-pago-total">0.00</span></div>
+
+    <div class="pos-recibido">
+      <label for="pos-recibido" style="display:block;font-weight:600;margin-bottom:6px">
+        Efectivo recibido
+      </label>
+      <input type="number" id="pos-recibido" step="0.01" min="0"
+             inputmode="decimal" placeholder="0.00" />
+    </div>
+
+    <p class="pos-falta" id="pos-falta" hidden></p>
+
+    <div class="pos-cambio-caja">
+      <span>Cambio</span><b>RD$ <span id="pos-cambio">0.00</span></b>
+    </div>
+
+    <div class="pos-modal__pie">
+      <button type="button" class="pos-secundario" id="pos-pago-cancelar">Cancelar</button>
+      <button type="button" class="pos-btn-grande" id="pos-pago-aceptar" disabled
+              title="La impresión y el NCF se añaden en el siguiente paso">
+        Cobrar e imprimir
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<div class="pos-cargando" id="pos-cargando" hidden>Cargando catálogo…</div>
+<div class="pos-aviso" id="pos-aviso" role="status" aria-live="polite" hidden></div>
+
+<!-- 🔴 ORDEN OBLIGATORIO: api.js define DB, auth.v33.js define login(), y
+     pos.js los usa. Cambiar el orden deja `DB is not defined`. -->
+<script src="js/api.js?v=350"></script>
+<script src="js/auth.v33.js?v=300"></script>
+<script src="js/pos.js?v=1"></script>
+</body>
+</html>

@@ -2180,6 +2180,34 @@ input, select { font-family: var(--font); }
 }
 .btn-logout-client:hover { background: #ffebee; }
 
+/* Enlace para eliminar la cuenta · exigido por Apple (directriz 5.1.1(v)).
+ *
+ * 🔴 DELIBERADAMENTE DISCRETO, y no es descuido de diseño: va justo debajo
+ *    de «Cerrar sesión», que ya es rojo. Dos botones rojos pegados invitan a
+ *    pulsar el que no se quería — y este borrado NO se puede deshacer.
+ *    Apple exige que la opción exista y se pueda encontrar, no que compita
+ *    visualmente con el botón de salir.
+ *
+ * ⚠️ Pero sigue siendo un enlace de verdad, con su icono, su zona de toque
+ *    de 44 px y subrayado al pasar: «discreto» no puede significar
+ *    «escondido», o no cumpliría el requisito. */
+.link-borrar-cuenta {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin-top: 10px; padding: 11px 10px; min-height: 44px;
+  font-size: .82rem; font-weight: 500;
+  color: #8a8a8a; text-decoration: none;
+  border-radius: 8px;
+  transition: color .2s, background .2s;
+}
+.link-borrar-cuenta:hover,
+.link-borrar-cuenta:focus-visible {
+  color: #c62828; background: #fafafa; text-decoration: underline;
+}
+/* `:focus-visible` y no `:focus`: con `:focus` el recuadro saldría también
+ * al hacer clic con el ratón, que es el ruido por el que mucha gente acaba
+ * poniendo `outline:none` y dejando la página inservible con teclado. */
+.link-borrar-cuenta:focus-visible { outline: 2px solid #c62828; outline-offset: 2px; }
+
 /* ============================================================
    PANEL DE FAVORITOS — Lateral deslizante
    ============================================================ */

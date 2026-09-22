@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '461', KEY = 'cm_app_ver';
+        var VER = '467', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=324" />
+  <link rel="stylesheet" href="css/style.css?v=325" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -1250,6 +1250,22 @@
       <button class="btn-logout-client" onclick="logoutCliente()">
         <i class="fas fa-right-from-bracket"></i> Cerrar sesión
       </button>
+
+      <!-- 🔴 BORRADO DE CUENTA · exigido por Apple (directriz 5.1.1(v)).
+           El rechazo del 2026-09-21 decía: «Account deletion is required in
+           apps that support account creation».
+
+           Tiene que estar AQUÍ DENTRO y no solo como URL: el revisor busca
+           el mecanismo NAVEGANDO por la app. Una página que solo existe por
+           enlace directo no cuenta como accesible.
+
+           Va DEBAJO de «Cerrar sesión», en letra pequeña y sin color de
+           alarma, a propósito: es una opción que debe existir y ser
+           encontrable, no un botón que se pulse por error junto al de salir.
+           La confirmación (doble, escribiendo ELIMINAR) está en su página. -->
+      <a href="eliminar-cuenta.html" class="link-borrar-cuenta">
+        <i class="fas fa-user-slash"></i> Eliminar mi cuenta
+      </a>
     </div>
   </aside>
 

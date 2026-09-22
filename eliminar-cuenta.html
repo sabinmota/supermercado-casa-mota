@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Eliminar mi cuenta · Supermercado Casa Mota</title>
+
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  ELIMINAR CUENTA · exigido por Apple · directriz 5.1.1(v)
+  Creado 2026-09-22 tras el rechazo del 2026-09-21:
+  «Account deletion is required in apps that support account creation.»
+
+  🔴 ESTA PÁGINA TIENE DOS USOS, Y EL SEGUNDO ES EL QUE DESBLOQUEA EL ENVÍO:
+     1. El cliente borra su cuenta desde la app o la web.
+     2. Su URL se pega en App Store Connect → Privacidad → «URL de las
+        opciones de privacidad del usuario», el campo que hasta hoy debía
+        quedar VACÍO precisamente porque este mecanismo no existía.
+
+  ⚠️ NO carga `css/style.css`: es autónoma a propósito. Si mañana se toca la
+     hoja de la tienda, esta página no puede romperse — Apple la visita.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 18px 60px;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: #f4f6f8; color: #1a2028; line-height: 1.6;
+  }
+  .caja { max-width: 620px; margin: 0 auto; }
+  .logo { display: block; width: 62px; margin: 0 auto 14px; }
+  h1 { font-size: 1.45rem; margin: 0 0 6px; text-align: center; }
+  .sub { text-align: center; color: #5a6572; margin: 0 0 26px; }
+
+  .tarjeta {
+    background: #fff; border: 1px solid #dfe5ec; border-radius: 14px;
+    padding: 22px; margin-bottom: 16px;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li { margin-bottom: 7px; }
+
+  .borra  { border-left: 4px solid #b42318; }
+  .queda  { border-left: 4px solid #b45309; }
+
+  .btn {
+    display: block; width: 100%; padding: 15px; font-size: 1rem;
+    font-weight: 700; border-radius: 10px; cursor: pointer;
+    font-family: inherit; border: 0; min-height: 52px;
+  }
+  .btn--peligro { background: #b42318; color: #fff; }
+  .btn--peligro:disabled { background: #d6a5a0; cursor: not-allowed; }
+  .btn--calma { background: #fff; border: 1px solid #c8d0da; color: #333; }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 40; background: rgba(10,14,20,.6);
+    display: flex; align-items: center; justify-content: center; padding: 18px;
+  }
+  [hidden] { display: none !important; }
+  .modal__caja {
+    background: #fff; border-radius: 16px; padding: 26px;
+    width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto;
+  }
+  .aviso-rojo {
+    background: #fdeceb; border: 1px solid #b42318; color: #7a1610;
+    border-radius: 10px; padding: 14px; margin-bottom: 16px; font-size: .93rem;
+  }
+  .campo-conf {
+    width: 100%; padding: 14px; font-size: 1.1rem; text-align: center;
+    border: 2px solid #c8d0da; border-radius: 10px; font-family: inherit;
+    letter-spacing: 2px; text-transform: uppercase; margin: 6px 0 16px;
+  }
+  .campo-conf:focus { outline: none; border-color: #b42318; }
+  .pie-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .error {
+    background: #fdeceb; border: 1px solid #b42318; color: #7a1610;
+    border-radius: 10px; padding: 12px; margin-top: 14px; font-size: .9rem;
+  }
+  .hecho { text-align: center; }
+  .hecho__tick {
+    width: 62px; height: 62px; margin: 0 auto 14px; border-radius: 50%;
+    background: #0f7b34; color: #fff; font-size: 2rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .detalle {
+    background: #f4f6f8; border-radius: 10px; padding: 12px;
+    font-size: .88rem; color: #4a5562; margin-top: 12px; text-align: left;
+  }
+  .ayuda { text-align: center; font-size: .9rem; color: #5a6572; margin-top: 22px; }
+  .ayuda a { color: #1a7c3e; }
+</style>
+</head>
+<body>
+
+<main class="caja">
+
+  <img src="images/logo-casamota.png" alt="Casa Mota" class="logo"
+       onerror="this.style.display='none'" />
+  <h1>Eliminar mi cuenta</h1>
+  <p class="sub">Supermercado Casa Mota</p>
+
+  <section class="tarjeta borra">
+    <h2>🗑️ Qué se elimina para siempre</h2>
+    <ul>
+      <li>Tu nombre, correo y teléfono</li>
+      <li>Tu cédula y tu dirección de entrega</li>
+      <li>Tu contraseña y tu forma de acceso</li>
+      <li><b>Todos tus puntos de fidelidad acumulados</b></li>
+      <li>Tus notificaciones y tus favoritos</li>
+    </ul>
+  </section>
+
+  <!--
+    🔴 ESTO SE DICE ANTES DE BORRAR, NO DESPUÉS.
+       Un borrado que promete más de lo que hace sería peor que no tenerlo:
+       el usuario creería que no queda rastro. Casa Mota es un comercio con
+       RNC 1-1301137-5 y sus comprobantes de venta no se pueden destruir.
+  -->
+  <section class="tarjeta queda">
+    <h2>📋 Qué se conserva, y por qué</h2>
+    <p style="margin:0">
+      Los <b>comprobantes de las compras que ya hiciste</b> se conservan sin
+      tus datos personales. Quedan a nombre de «Cliente eliminado», sin
+      correo ni teléfono.
+    </p>
+    <p style="margin:10px 0 0">
+      <b>Motivo:</b> son facturas de un comercio registrado y la ley
+      dominicana obliga a conservarlas para la declaración fiscal ante la
+      DGII. <b>No se pueden vincular contigo después del borrado.</b>
+    </p>
+  </section>
+
+  <section class="tarjeta">
+    <h2>⚠️ Esto no se puede deshacer</h2>
+    <p style="margin:0 0 16px">
+      Si eliminas tu cuenta perderás tus puntos y tendrás que registrarte de
+      nuevo para volver a comprar. <b>Puedes volver a usar el mismo correo.</b>
+    </p>
+    <button type="button" class="btn btn--peligro" id="bc-abrir">
+      Eliminar mi cuenta
+    </button>
+  </section>
+
+  <p class="ayuda">
+    ¿Dudas antes de borrar? Escríbenos a
+    <a href="mailto:info@supermercadocasamota.com">info@supermercadocasamota.com</a>
+    o llama al <a href="tel:+18095532226">809-553-2226</a>.
+  </p>
+
+</main>
+
+
+<!-- ════════════════ CONFIRMACIÓN ════════════════ -->
+<div class="modal" id="bc-modal" hidden role="dialog" aria-modal="true">
+  <div class="modal__caja">
+
+    <!-- Paso 1 -->
+    <div id="bc-paso1">
+      <h2>¿Seguro que quieres eliminar tu cuenta?</h2>
+      <div class="aviso-rojo">
+        <b>Esta acción es permanente.</b> Se borrarán tus datos personales y
+        <b>todos tus puntos de fidelidad</b>. No hay forma de recuperarlos.
+      </div>
+      <div class="pie-botones">
+        <button type="button" class="btn btn--calma" id="bc-cancelar">No, volver</button>
+        <button type="button" class="btn btn--peligro" id="bc-seguir">Sí, continuar</button>
+      </div>
+    </div>
+
+    <!-- Paso 2 · escribir ELIMINAR -->
+    <div id="bc-paso2" hidden>
+      <h2>Confirma escribiendo ELIMINAR</h2>
+      <p style="font-size:.93rem;color:#5a6572">
+        Para evitar borrados por error, escribe la palabra
+        <b>ELIMINAR</b> en mayúsculas.
+      </p>
+      <input type="text" class="campo-conf" id="bc-confirmacion"
+             autocomplete="off" autocapitalize="characters"
+             spellcheck="false" placeholder="ELIMINAR"
+             aria-label="Escribe ELIMINAR para confirmar" />
+      <button type="button" class="btn btn--peligro" id="bc-final" disabled>
+        Eliminar mi cuenta definitivamente
+      </button>
+      <button type="button" class="btn btn--calma" id="bc-cancelar2"
+              style="margin-top:10px">Cancelar</button>
+      <p class="error" id="bc-error" hidden></p>
+    </div>
+
+    <!-- Hecho -->
+    <div id="bc-hecho" class="hecho" hidden>
+      <div class="hecho__tick">✓</div>
+      <h2>Tu cuenta ha sido eliminada</h2>
+      <p style="color:#5a6572;margin:0">
+        Tus datos personales se han borrado. Gracias por haber comprado con
+        nosotros.
+      </p>
+      <p class="detalle" id="bc-detalle" hidden></p>
+      <p style="font-size:.85rem;color:#8a95a1;margin-top:16px">
+        Volviendo a la tienda…
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- 🔴 ORDEN OBLIGATORIO: api.js define _SB_URL y _SB_HEADERS, que usa el otro. -->
+<script src="js/api.js?v=350"></script>
+<script src="js/borrar-cuenta.js?v=1"></script>
+</body>
+</html>
