@@ -12,7 +12,7 @@
      sesión no coincide, se recarga sin caché UNA vez. Sin esto, una cajera
      con la pestaña abierta desde ayer seguiría con el JS viejo. */
   (function () {
-    var VER = 'POS-2';
+    var VER = 'POS-4';
     var KEY = 'cm_pos_ver';
     var guardado = sessionStorage.getItem(KEY);
     if (guardado !== VER) {
@@ -58,7 +58,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/pos.css?v=2" />
+<link rel="stylesheet" href="css/pos.css?v=3" />
 </head>
 <body>
 
@@ -234,6 +234,8 @@
      pos.js los usa. Cambiar el orden deja `DB is not defined`. -->
 <script src="js/api.js?v=350"></script>
 <script src="js/auth.v33.js?v=300"></script>
-<script src="js/pos.js?v=2"></script>
+<!-- POS-3 · anuncios diseñados de la franja. Va ANTES de pos.js. -->
+<script src="js/pos-anuncios.js?v=2"></script>
+<script src="js/pos.js?v=4"></script>
 </body>
 </html>

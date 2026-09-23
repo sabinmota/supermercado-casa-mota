@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * POS · PUNTO DE VENTA AUXILIAR · Casa Mota
- * Creado: 2026-09-20 · build POS-1
+ * Creado: 2026-09-20 · build POS-1 · POS-2 y POS-3 el 2026-09-23
  *
  * 🔴 FICHERO NUEVO. No modifica ni `app.js` ni `admin.v33.js`. Si este módulo
  *    se borrara, el resto del proyecto seguiría igual. Es deliberado: el POS
@@ -12,28 +12,33 @@
  *    de la página se pinta como texto visible SIN dar un solo error de
  *    consola. Ya ocurrió en este proyecto.
  *
+ * 🔴 SOLO CARACTERES NORMALES. En POS-3 se coló un carácter de uso privado
+ *    (el logo de Apple escrito como texto): en Windows sale como un cuadrado
+ *    y las herramientas de edición no podían localizar la línea. Hubo que
+ *    reescribir el fichero entero para sacarlo.
+ *
  * DEPENDE DE (cargados antes en pos.html):
- *   · js/api.js       → const DB (getProducts, etc.)
- *   · js/auth.v33.js  → login(correo, clave) vía RPC verify_staff_password
+ *   · js/api.js          → const DB, _SB_URL, _SB_HEADERS, _valeAdmin
+ *   · js/auth.v33.js     → login(correo, clave) vía RPC verify_staff_password
+ *   · js/pos-anuncios.js → window.CASAMOTA_ANUNCIOS_POS (opcional)
  * ════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
   /* ── Estado ─────────────────────────────────────────────────────────────── */
-  var _cajera    = null;   // ficha de staff de la sesión
-  var _productos = [];     // catálogo en memoria
-  var _porBarcode = {};    // índice barcode → producto
-  var _lineas    = [];     // líneas de la venta en curso
-  var _caja      = '01';
-  var _ultimoPeso = null;  // { peso, nombre } de la última etiqueta de báscula
+  var _cajera     = null;   // ficha de staff de la sesión
+  var _productos  = [];     // catálogo en memoria
+  var _porBarcode = {};     // índice barcode → producto
+  var _lineas     = [];     // líneas de la venta en curso
+  var _caja       = '01';
+  var _ultimoPeso = null;   // { peso, nombre } de la última etiqueta de báscula
 
   /* POS-2 · LÍMITE DE ITBIS (pedido del dueño, 2026-09-23)
    *   estado 'libre'    → factura con normalidad
    *   estado 'ultima'   → se alcanzó el límite CON una factura abierta: se
    *                       puede COBRAR esa factura, pero no añadirle nada
    *   estado 'cerrada'  → la caja no registra ni cobra ventas nuevas
-   *   estado 'sin_dato' → hay límite configurado pero NO se pudo leer lo
-   *                       facturado: se bloquea (ver cargarLimite) */
+   *   estado 'sin_dato' → no se pudo consultar el estado: se bloquea */
   var _limite = { valor: null, acumulado: 0, estado: 'libre' };
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -62,9 +67,37 @@
   var PREFIJO_BASCULA = '0';
   var PESO_MAXIMO_LB  = 200;   // nada que se venda al peso llega a 200 lb
 
+  /* Dígito de control EAN-13 de las 12 primeras cifras. */
+  function controlEan13(d12) {
+    var suma = 0;
+    for (var i = 0; i < 12; i++) { suma += Number(d12.charAt(i)) * (i % 2 ? 3 : 1); }
+    return (10 - (suma % 10)) % 10;
+  }
+
   function descifrarBascula(codigo) {
     var s = String(codigo || '').replace(/\D/g, '');
+
+    /* 🔴 POS-4 (2026-09-23) · LA PISTOLA MANDA 12 CIFRAS, NO 13.
+     *    Etiqueta del bacalao: impresa `0 001040 00079 1` (13). La pistola
+     *    envió `001040000791` (12): un EAN-13 que empieza por 0 lo lee como
+     *    UPC-A y QUITA ESE 0. El POS solo aceptaba 13 cifras, así que la
+     *    etiqueta no se reconocía como pesada y se buscaba entera en el
+     *    catálogo → «no está en el catálogo». Visto por el dueño en caja.
+     *    Las TRES etiquetas probadas antes eran de 13 porque se TECLEARON
+     *    copiándolas del papel, no se escanearon: la prueba no reproducía
+     *    lo que hace la pistola.
+     *    Arreglo: con 12 cifras se repone el 0 delante y sigue igual. */
+    if (s.length === LARGO_BASCULA - 1) { s = PREFIJO_BASCULA + s; }
     if (s.length !== LARGO_BASCULA) { return null; }
+
+    /* 🔴 Y SE EXIGE EL DÍGITO DE CONTROL. Aceptar 12 cifras amplía qué
+     *    códigos pueden confundirse con una pesada (cualquier UPC-A de
+     *    fábrica que empiece por 0). La báscula imprime un control EAN-13
+     *    válido (verificado en las cinco etiquetas reales: 0001006000254,
+     *    0001081001665, 0008110001528, 0001040000791, 0001036001122);
+     *    un código ajeno que casualmente encaje tiene 9 de 10 papeletas de
+     *    fallar aquí. Además `procesar()` mira el catálogo ANTES. */
+    if (controlEan13(s) !== Number(s.charAt(12))) { return null; }
 
     /* 🔴 EL PREFIJO SE COMPRUEBA, Y ES LA CORRECCIÓN MÁS IMPORTANTE.
      *
@@ -706,14 +739,19 @@
   }
 
   /* ════════════════════════════════════════════════════════════════════════
-   * POS-2 · FRANJA DE OFERTAS (abajo)
-   * 🔴 Sale del CATÁLOGO REAL, no de textos escritos a mano: productos con
-   *    `originalPrice` mayor que `price`, los mismos que la tienda online
-   *    muestra como oferta. Cambiar una oferta en el panel la cambia aquí,
-   *    sin mantener dos listas. Ordenadas por mayor descuento.
+   * POS-2/3 · FRANJA DE ABAJO
+   *
+   * Alterna, cada 7 s:
+   *   · el ANUNCIO DE LA APP (js/pos-anuncios.js) — el único diseñado, por
+   *     decisión del dueño (23-sep: «ya no me hagas ningún diseño de
+   *     publicidad excepto el de la app»);
+   *   · las OFERTAS DEL CATÁLOGO: productos con `originalPrice` > `price`,
+   *     los mismos que la tienda online muestra como oferta. Cambiar una
+   *     oferta en el panel la cambia aquí sin mantener dos listas.
    * ════════════════════════════════════════════════════════════════════════ */
   var _ofertas = [], _iOferta = 0, _tOferta = null;
   var ROTACION_MS = 7000;
+  var LEMA = '<div class="pos-promo__lema"><b>Supermercado Casa Mota</b><span>Lo Nuestro..!</span></div>';
 
   function listarOfertas(productos) {
     var r = [];
@@ -729,39 +767,73 @@
     return r.slice(0, 30);
   }
 
+  /* Anuncio, oferta, anuncio, oferta… */
+  function intercalar(anuncios, ofertas) {
+    var r = [], i = 0, j = 0;
+    while (i < anuncios.length || j < ofertas.length) {
+      if (i < anuncios.length) { r.push({ anuncio: anuncios[i++] }); }
+      if (j < ofertas.length)  { r.push({ oferta:  ofertas[j++] }); }
+    }
+    return r;
+  }
+
   function montarPromo() {
     var caja = $('pos-promo');
     if (!caja) { return; }
-    _ofertas = listarOfertas(_productos);
+    var anuncios = Array.isArray(window.CASAMOTA_ANUNCIOS_POS) ? window.CASAMOTA_ANUNCIOS_POS : [];
+    _ofertas = intercalar(anuncios, listarOfertas(_productos));
     if (_tOferta) { clearInterval(_tOferta); _tOferta = null; }
     _iOferta = 0;
     pintarOferta();
     if (_ofertas.length > 1) { _tOferta = setInterval(pintarOferta, ROTACION_MS); }
   }
 
-  function pintarOferta() {
-    var caja = $('pos-promo');
-    if (!caja) { return; }
-    var lema = '<div class="pos-promo__lema"><b>Supermercado Casa Mota</b><span>Lo Nuestro..!</span></div>';
-    if (!_ofertas.length) {
-      caja.innerHTML = '<div class="pos-promo__vacia">Pregunte por nuestras ofertas de la semana</div>' + lema;
-      return;
-    }
-    var p = _ofertas[_iOferta % _ofertas.length];
-    _iOferta++;
+  function htmlAnuncioApp(a) {
+    return '<div class="pos-anuncio pos-anuncio--app">' +
+        '<div class="pos-anuncio__movil"><img src="' + esc(a.imagen) + '" alt="" ' +
+          'onerror="this.parentNode.style.display=\'none\'"></div>' +
+        '<div class="pos-anuncio__txt">' +
+          '<b class="pos-anuncio__titulo">' + esc(a.titulo) + '</b>' +
+          '<span class="pos-anuncio__linea">' + esc(a.texto) + '</span>' +
+        '</div>' +
+        '<div class="pos-anuncio__app-der">' +
+          '<span class="pos-anuncio__sello">' + esc(a.sello) + '</span>' +
+          '<span class="pos-anuncio__web">' + esc(a.web) + '</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function htmlOferta(p) {
     var pct = Math.round((1 - p.price / p.originalPrice) * 100);
     var img = p.image
       ? '<img class="pos-promo__img" src="' + esc(p.image) + '" alt="">'
       : '<div class="pos-promo__img pos-promo__img--letra">' + esc((p.name || '?').charAt(0)) + '</div>';
-    caja.innerHTML =
-      '<div class="pos-promo__oferta">' + img +
+    return '<div class="pos-promo__oferta">' + img +
         '<div class="pos-promo__txt">' +
           '<span class="pos-promo__sello">OFERTA · -' + pct + '%</span>' +
           '<b class="pos-promo__nombre">' + esc(p.name) + '</b>' +
           '<span class="pos-promo__precios"><s>RD$ ' + dinero(p.originalPrice) + '</s> ' +
             '<b>RD$ ' + dinero(p.price) + '</b>' + (p.unit ? ' / ' + esc(p.unit) : '') + '</span>' +
         '</div>' +
-      '</div>' + lema;
+      '</div>' + LEMA;
+  }
+
+  function pintarOferta() {
+    var caja = $('pos-promo');
+    if (!caja) { return; }
+    caja.className = 'pos-promo';
+    if (!_ofertas.length) {
+      caja.innerHTML = '<div class="pos-promo__vacia">Pregunte por nuestras ofertas de la semana</div>' + LEMA;
+      return;
+    }
+    var pieza = _ofertas[_iOferta % _ofertas.length];
+    _iOferta++;
+    if (pieza.anuncio) {
+      caja.className = 'pos-promo pos-promo--app';
+      caja.innerHTML = htmlAnuncioApp(pieza.anuncio);
+      return;
+    }
+    caja.innerHTML = htmlOferta(pieza.oferta);
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -784,8 +856,8 @@
    * 🔴 SI NO SE PUEDE CONSULTAR EL ESTADO, LA CAJA SE BLOQUEA ('sin_dato').
    *    Seguir facturando «por si acaso» es justo lo que el límite existe
    *    para impedir. Excepción única: si la función AÚN NO EXISTE en la base
-   *    (el SQL 69 no se ha ejecutado, respuesta 404/PGRST202), no hay
-   *    límite configurado posible y la caja funciona como antes.
+   *    (respuesta 404/PGRST202), no hay límite posible y la caja funciona
+   *    como antes.
    *
    * Se vuelve a consultar cada 60 s: así cambia de día sola a medianoche,
    * ve lo que cobran las demás cajas y se desbloquea sin recargar cuando el
@@ -816,7 +888,7 @@
       if (!res.ok) { console.error('[POS] estado del límite · HTTP ' + res.status + ' · ' + txt); return null; }
       var j = JSON.parse(txt);
       if (Array.isArray(j)) { j = j[0]; }
-      var lim  = j && j.limite    !== null && j.limite !== undefined ? Number(j.limite) : null;
+      var lim  = j && j.limite !== null && j.limite !== undefined ? Number(j.limite) : null;
       var acum = j ? Number(j.acumulado) : NaN;
       if (!isFinite(acum) || acum < 0) { return null; }
       return { limite: (isFinite(lim) && lim > 0) ? lim : null, acumulado: acum };
@@ -863,8 +935,8 @@
     pintar();
   }
 
-  /* Se llama tras cada artículo añadido y al arrancar. Si lo cobrado más la
-   * factura abierta llega al límite, esa factura es la última. */
+  /* Se llama tras cada artículo añadido. Si lo cobrado hoy más la factura
+   * abierta llega al límite, esa factura es la última. */
   function comprobarLimite() {
     if (!_limite.valor || _limite.estado !== 'libre') { pintarTopLimite(); return; }
     var total = _limite.acumulado + totales().itbis;
@@ -962,16 +1034,19 @@
   /* Se expone solo lo que hace falta verificar desde un arnés. */
   window.CasaMotaPOS = {
     descifrarBascula: descifrarBascula,
+    _procesar:        function (c) { procesar(c); },
     desglosar:        desglosar,
     _totales:         totales,
     _lineas:          function () { return _lineas; },
     _ofertas:         listarOfertas,
+    _intercalar:      intercalar,
+    _mostrarPieza:    function (n) { _iOferta = n; pintarOferta(); },
     _limite:          {
-      estado:    function () { return _limite.estado; },
-      fijar:     function (valor, acumulado) {
-                   _limite.valor = valor; _limite.acumulado = acumulado || 0;
-                   _limite.estado = 'libre'; comprobarLimite();
-                 },
+      estado:     function () { return _limite.estado; },
+      fijar:      function (valor, acumulado) {
+                    _limite.valor = valor; _limite.acumulado = acumulado || 0;
+                    _limite.estado = 'libre'; comprobarLimite();
+                  },
       trasCobrar: trasCobrar,
       aplicar:    aplicarEstado
     }
