@@ -257,11 +257,14 @@
 /* 468d: el pie ahora lleva también «Punto de venta»; para que «Respaldo» siga
    visible se juntan un poco las opciones del menú (separación 3 → 1 px). */
 .sidebar-nav .nav-link { margin-bottom: 1px; }
-.sidebar-footer { padding-top: 1px; padding-bottom: 1px; }
-.sidebar-footer .nav-link { padding-top: 3px; padding-bottom: 3px; margin-bottom: 0; }
+/* 468e: el dueño pidió separar más «Ver tienda» y «Punto de venta» usando el
+   espacio vacío que sobra debajo de «Respaldo» en su pantalla. */
+.sidebar-footer { padding-top: 8px; padding-bottom: 8px; }
+.sidebar-footer .nav-link { padding-top: 8px; padding-bottom: 8px; margin-bottom: 4px; }
+.sidebar-footer .nav-link:last-child { margin-bottom: 0; }
 .dsh-plant {
   margin-top: auto;
-  padding: 0 20px 3px;
+  padding: 6px 20px 6px;
   display: flex;
   align-items: flex-end;
   gap: 12px;
