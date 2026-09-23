@@ -349,20 +349,30 @@ html, body {
 .pos-promo__precios s { color: #8a95a1; }
 .pos-promo__precios b { color: var(--pos-verde); font-size: 1.7rem; }
 .pos-promo__vacia { flex: 1; font-size: 1.4rem; font-weight: 700; color: #6b3a05; }
+/* POS-7 · logo más grande + lema «Lo Nuestro..!» en su letra (la misma del
+   login de clientes), centrado a la altura del logo y pegado a él. */
+/* POS-8 · el dueño: lema DEBAJO del logo, SIN caja verde (fondo = el de la
+   franja) y con su color marrón original; de POS-7 solo se queda la letra. */
 .pos-promo__lema {
-  display: flex; flex-direction: row; align-items: center; gap: 16px;
-  padding-left: 20px; border-left: 1px solid #f0d9a8; flex: 0 0 auto;
-  align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  padding-left: 18px; border-left: 1px solid #f0d9a8; flex: 0 0 auto;
+  align-self: stretch; margin: -10px 0;   /* recupera 10 px arriba y abajo */
 }
-/* POS-6 · logo Casa Mota a la izquierda del lema, del alto de la franja
-   (140 px − 12 px de relleno arriba y abajo = 116 px). */
-.pos-promo__logo {
-  height: 116px; width: auto; max-width: 140px; object-fit: contain;
-  background: #fff; border-radius: 12px; flex: 0 0 auto;
+/* POS-9 · logo más grande: el PNG trae ~12 % de margen blanco alrededor; el
+   marco (110 px de alto) lo recorta y la imagen se pinta a 130 px, así el
+   dibujo real crece de ~85 px a ~106 px sin agrandar la franja. */
+.pos-promo__logo-marco {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  height: 110px; width: 108px; overflow: hidden;
+  background: #fff; border-radius: 12px;
 }
-.pos-promo__lema-txt { display: flex; flex-direction: column; align-items: flex-end; }
-.pos-promo__lema b { color: var(--pos-verde); font-size: 1.2rem; }
-.pos-promo__lema span { font-style: italic; font-weight: 800; color: #6b3a05; font-size: 1.15rem; }
+.pos-promo__logo { height: 130px; width: 130px; max-width: none; object-fit: contain; flex: 0 0 auto; }
+.pos-promo__lema-txt {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic; font-weight: 900; font-size: 1.35rem; line-height: 1.1;
+  color: #6b3a05; white-space: nowrap;
+}
+.pos-promo__puntos { color: inherit; }
 
 /* ══ POS-3 · ANUNCIO DE LA APP (js/pos-anuncios.js) ══
    Único anuncio diseñado (decisión del dueño). Mismo tamaño que la franja

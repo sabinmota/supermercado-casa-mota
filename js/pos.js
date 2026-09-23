@@ -753,9 +753,13 @@
   var ROTACION_MS = 7000;
   /* POS-6 · logo de la tienda a la izquierda del lema, alto de la franja. */
   var LEMA = '<div class="pos-promo__lema">' +
-      '<img class="pos-promo__logo" src="images/logo-casamota.png?v=433" alt="Supermercado Casa Mota" ' +
-        'onerror="this.style.display=\'none\'">' +
-      '<div class="pos-promo__lema-txt"><b>Supermercado Casa Mota</b><span>Lo Nuestro..!</span></div>' +
+      /* POS-9 · el marco recorta el margen blanco que trae el PNG, para que
+         el dibujo del logo se vea más grande dentro del mismo alto. */
+      '<span class="pos-promo__logo-marco"><img class="pos-promo__logo" src="images/logo-casamota.png?v=433" ' +
+        'alt="Supermercado Casa Mota" onerror="this.parentNode.style.display=\'none\'"></span>' +
+      /* POS-8 · lema debajo del logo, letra Playfair Display itálica, marrón,
+         sin caja de fondo (el fondo es el de la franja). */
+      '<div class="pos-promo__lema-txt">Lo Nuestro<span class="pos-promo__puntos">..!</span></div>' +
     '</div>';
 
   function listarOfertas(productos) {
