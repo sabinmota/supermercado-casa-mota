@@ -253,20 +253,23 @@
 /* ── Pie: ilustración y lema ───────────────────────────────────────────── */
 /* 468b: solo se reduce el LARGO del pie (Ver tienda + planta) para que
    «Respaldo» quepa en el menú; anchos laterales y colores sin cambios. */
-.sidebar-nav { padding-top: 2px; padding-bottom: 4px; }
+.sidebar-nav { padding-top: 2px; padding-bottom: 0; }
+/* 468d: el pie ahora lleva también «Punto de venta»; para que «Respaldo» siga
+   visible se juntan un poco las opciones del menú (separación 3 → 1 px). */
+.sidebar-nav .nav-link { margin-bottom: 1px; }
 .sidebar-footer { padding-top: 1px; padding-bottom: 1px; }
-.sidebar-footer .nav-link { padding-top: 5px; padding-bottom: 5px; margin-bottom: 0; }
+.sidebar-footer .nav-link { padding-top: 3px; padding-bottom: 3px; margin-bottom: 0; }
 .dsh-plant {
   margin-top: auto;
-  padding: 0 20px 6px;
+  padding: 0 20px 3px;
   display: flex;
   align-items: flex-end;
   gap: 12px;
 }
-.dsh-plant svg { width: auto; height: 34px; flex-shrink: 0; }
+.dsh-plant svg { width: auto; height: 28px; flex-shrink: 0; }
 .dsh-plant__txt {
   font-size: .73rem;
-  line-height: 1.15;
+  line-height: 1.12;
   color: rgba(255,255,255,.52);
 }
 .sidebar.collapsed .dsh-plant { display: none; }
