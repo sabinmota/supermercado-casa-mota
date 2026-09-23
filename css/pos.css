@@ -1,0 +1,410 @@
+/* ════════════════════════════════════════════════════════════════════════════
+ * POS · Punto de venta auxiliar · Casa Mota
+ * Creado 2026-09-20 · build POS-1
+ *
+ * 🔴 HOJA INDEPENDIENTE. No se toca `style.css` ni `admin.v33.css`.
+ *    Todo lleva prefijo `pos-`, así que no puede colisionar con las ~700
+ *    reglas del panel ni con la tienda. Borrando su <link>, el POS
+ *    desaparece sin dejar rastro.
+ *
+ * 🔴 PENSADO PARA TÁCTIL **Y** RATÓN a la vez (decisión del dueño):
+ *    · zonas de toque de 44 px mínimo (lo que alcanza un dedo sin fallar)
+ *    · nada depende de `:hover` para funcionar — en una pantalla táctil el
+ *      hover no existe, así que un control que solo aparece al pasar el
+ *      ratón sería invisible para la cajera
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/* 🔴 ESTA REGLA VA PRIMERA Y NO ES OPCIONAL.
+ *    El atributo `hidden` de HTML equivale a `display:none`, pero es una
+ *    regla del NAVEGADOR y cualquier `display` de autor la PISA. Este fichero
+ *    declara `display:flex` en `.pos-login`, `.pos-modal` y `.pos-cargando`,
+ *    y `display:grid` en `.pos-caja` — así que con `hidden` puesto seguían
+ *    viéndose.
+ *
+ *    Síntoma real capturado al verificar: la página abría mostrando el MODAL
+ *    DE PAGO encima de todo, en vez del login. Y no daba ni un error de
+ *    consola: el JS ponía `hidden` correctamente y el CSS lo ignoraba.
+ *
+ *    Es el mismo fallo que el build 462 con `.dsh-trend`, anotado entonces:
+ *    «no declara `display:` porque cualquier display de autor pisaría al
+ *    atributo hidden». Aquí sí hacen falta los display, así que se neutraliza
+ *    con `!important`, que es el único camino cuando el autor necesita ambos. */
+[hidden] { display: none !important; }
+
+:root {
+  --pos-verde:  #1a7c3e;
+  --pos-verde2: #15682f;
+  --pos-naranja:#d97706;
+  --pos-rojo:   #b42318;
+  --pos-tinta:  #12181f;
+  --pos-papel:  #f4f6f8;
+  --pos-linea:  #d6dde5;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--pos-papel);
+  color: var(--pos-tinta);
+  /* El POS es una aplicación de pantalla completa: no debe hacer scroll el
+     documento entero, solo las zonas que lo necesitan. */
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * LOGIN
+ * ══════════════════════════════════════════════════════════════════════════ */
+.pos-login {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #0f3d21, #1a7c3e);
+  padding: 20px;
+}
+.pos-login__caja {
+  background: #fff; border-radius: 16px; padding: 30px 28px;
+  width: 100%; max-width: 380px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.3);
+}
+.pos-login__logo {
+  display: block; width: 68px; height: 68px; margin: 0 auto 14px;
+  object-fit: contain;
+}
+.pos-login h1 { font-size: 1.25rem; margin: 0 0 4px; text-align: center; }
+.pos-login__sub {
+  margin: 0 0 22px; text-align: center; color: #667; font-size: .9rem;
+}
+.pos-campo { margin-bottom: 14px; }
+.pos-campo label {
+  display: block; font-size: .85rem; font-weight: 600;
+  margin-bottom: 5px; color: #445;
+}
+.pos-campo input {
+  width: 100%; padding: 13px 14px; font-size: 1.05rem;
+  border: 2px solid var(--pos-linea); border-radius: 10px;
+  font-family: inherit;
+}
+.pos-campo input:focus {
+  outline: none; border-color: var(--pos-verde);
+}
+.pos-btn-grande {
+  width: 100%; padding: 15px; font-size: 1.05rem; font-weight: 700;
+  background: var(--pos-verde); color: #fff;
+  border: 0; border-radius: 10px; cursor: pointer;
+  font-family: inherit; min-height: 52px;
+}
+.pos-btn-grande:hover:not(:disabled) { background: var(--pos-verde2); }
+.pos-btn-grande:disabled { background: #9aa5b1; cursor: not-allowed; }
+.pos-error {
+  background: #fde8e6; border: 1px solid var(--pos-rojo);
+  color: var(--pos-rojo); border-radius: 8px;
+  padding: 10px 12px; font-size: .88rem; margin-bottom: 14px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ESTRUCTURA DE LA CAJA
+ * Izquierda: la venta · Derecha: trabajo. Es la disposición de la referencia
+ * que trajo el dueño, pero SIN el mural de fotos: con 2.093 productos un
+ * grid de imágenes obligaría a pasar páginas sin fin, y la pistola es más
+ * rápida que cualquier pantalla.
+ * ══════════════════════════════════════════════════════════════════════════ */
+.pos-caja {
+  display: grid;
+  grid-template-columns: minmax(380px, 38%) 1fr;
+  /* POS-2 · la tercera fila es la franja de ofertas */
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+}
+
+/* ── Barra superior ─────────────────────────────────────────────────────── */
+.pos-top {
+  grid-column: 1 / -1;
+  background: var(--pos-verde); color: #fff;
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px; min-height: 56px;
+}
+.pos-top__marca { font-weight: 700; font-size: 1.05rem; }
+.pos-top__sep { flex: 1; }
+.pos-top__dato { font-size: .85rem; opacity: .95; }
+.pos-top__dato b { font-weight: 700; }
+.pos-reloj { font-variant-numeric: tabular-nums; font-size: .9rem; }
+
+/* ── Panel izquierdo · la venta ─────────────────────────────────────────── */
+.pos-venta {
+  background: #fff; border-right: 1px solid var(--pos-linea);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.pos-venta__cab {
+  padding: 12px 14px 8px; border-bottom: 1px solid var(--pos-linea);
+}
+.pos-venta__cab h2 { margin: 0; font-size: 1rem; }
+.pos-lineas { flex: 1; overflow-y: auto; padding: 0 6px; }
+
+.pos-tabla { width: 100%; border-collapse: collapse; font-size: .93rem; }
+.pos-tabla th {
+  text-align: left; font-size: .75rem; text-transform: uppercase;
+  letter-spacing: .3px; color: #667; padding: 8px 6px;
+  border-bottom: 1px solid var(--pos-linea);
+  position: sticky; top: 0; background: #fff;
+}
+.pos-tabla th.n, .pos-tabla td.n { text-align: right; }
+.pos-tabla td { padding: 9px 6px; border-bottom: 1px solid #eef1f4; vertical-align: top; }
+.pos-peso {
+  display: block; font-size: .78rem; color: var(--pos-naranja); font-weight: 600;
+}
+.pos-quitar {
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 1px solid var(--pos-linea); background: #fff;
+  color: var(--pos-rojo); font-size: 1rem; cursor: pointer; line-height: 1;
+}
+.pos-vacio { color: #8a95a1; text-align: center; padding: 34px 16px; font-size: .95rem; }
+
+/* ── Totales ────────────────────────────────────────────────────────────── */
+.pos-totales {
+  border-top: 2px solid var(--pos-linea); padding: 12px 14px; background: #fafbfc;
+}
+.pos-fila { display: flex; justify-content: space-between; font-size: .92rem; margin-bottom: 5px; }
+.pos-fila--neto {
+  font-size: 1.7rem; font-weight: 800; margin: 10px 0 12px;
+  padding-top: 10px; border-top: 1px solid var(--pos-linea);
+  /* Sin `text-overflow`: si un importe no cupiera, que se VEA desbordar.
+     Una cifra recortada se lee como buena y sería un error mudo. */
+  font-variant-numeric: tabular-nums;
+}
+.pos-itbis-nota { font-size: .78rem; color: #667; }
+
+.pos-acciones { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.pos-cobrar {
+  padding: 17px; font-size: 1.15rem; font-weight: 800;
+  background: var(--pos-naranja); color: #fff;
+  border: 0; border-radius: 10px; cursor: pointer;
+  font-family: inherit; min-height: 58px;
+}
+.pos-cobrar:disabled { background: #c8cdd3; cursor: not-allowed; }
+.pos-secundario {
+  padding: 17px 16px; font-weight: 600; font-family: inherit;
+  background: #fff; border: 1px solid var(--pos-linea);
+  border-radius: 10px; cursor: pointer; min-height: 58px;
+}
+
+/* ── Panel derecho · trabajo ────────────────────────────────────────────── */
+.pos-trabajo { display: flex; flex-direction: column; overflow: hidden; padding: 14px; gap: 12px; }
+
+.pos-escaneo label {
+  display: block; font-weight: 700; font-size: .9rem; margin-bottom: 6px;
+}
+.pos-escaneo input {
+  width: 100%; padding: 18px 16px; font-size: 1.3rem;
+  border: 3px solid var(--pos-verde); border-radius: 12px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 1px;
+}
+.pos-escaneo input:focus { outline: none; box-shadow: 0 0 0 4px rgba(26,124,62,.18); }
+.pos-escaneo__pista { font-size: .8rem; color: #667; margin: 6px 0 0; }
+
+/* Último producto escaneado · lo pidió el dueño.
+   Confirma de un vistazo que se leyó el artículo correcto. */
+.pos-ultimo {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid var(--pos-linea);
+  border-left: 5px solid var(--pos-verde);
+  border-radius: 12px; padding: 10px 12px;
+}
+.pos-ultimo__img {
+  width: 76px; height: 76px; object-fit: contain;
+  background: #fff; border-radius: 8px; flex: 0 0 76px;
+}
+.pos-ultimo__sinfoto {
+  width: 76px; height: 76px; flex: 0 0 76px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--pos-verde); color: #fff;
+  font-size: 2rem; font-weight: 700; border-radius: 8px;
+}
+.pos-ultimo__txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pos-ultimo__txt b { font-size: 1.02rem; }
+.pos-ultimo__txt span { color: #556; font-size: .9rem; }
+
+.pos-buscador input {
+  width: 100%; padding: 13px 14px; font-size: 1rem;
+  border: 2px solid var(--pos-linea); border-radius: 10px; font-family: inherit;
+}
+.pos-buscador input:focus { outline: none; border-color: var(--pos-verde); }
+
+.pos-resultados {
+  flex: 1; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 8px; align-content: start;
+}
+.pos-hit {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 12px; background: #fff; border: 1px solid var(--pos-linea);
+  border-radius: 10px; cursor: pointer; font-family: inherit;
+  min-height: 62px;
+}
+.pos-hit__n { font-size: .9rem; font-weight: 600; }
+.pos-hit__p { font-size: .95rem; color: var(--pos-verde); font-weight: 700; }
+.pos-hit--sintasa { border-color: var(--pos-rojo); background: #fff7f6; }
+.pos-hit__av {
+  font-size: .72rem; color: var(--pos-rojo); font-weight: 700; text-transform: uppercase;
+}
+
+/* ── Avisos ─────────────────────────────────────────────────────────────── */
+.pos-aviso {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: 118px; z-index: 60;   /* POS-2 · por encima de la franja de ofertas */
+  padding: 14px 22px; border-radius: 12px;
+  font-size: 1rem; font-weight: 600; max-width: 660px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+.pos-aviso--ok    { background: #0f7b34; color: #fff; }
+.pos-aviso--info  { background: #1f2937; color: #fff; }
+.pos-aviso--error { background: var(--pos-rojo); color: #fff; }
+
+/* ── Modal de pago ──────────────────────────────────────────────────────── */
+.pos-modal {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(8,12,16,.6);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.pos-modal__caja {
+  background: #fff; border-radius: 16px; padding: 26px;
+  width: 100%; max-width: 440px;
+}
+.pos-modal h2 { margin: 0 0 18px; font-size: 1.2rem; }
+.pos-pago-total {
+  font-size: 2.3rem; font-weight: 800; text-align: center;
+  padding: 14px; background: var(--pos-papel); border-radius: 12px;
+  margin-bottom: 18px; font-variant-numeric: tabular-nums;
+}
+.pos-recibido input {
+  width: 100%; padding: 16px; font-size: 1.6rem; text-align: right;
+  border: 3px solid var(--pos-verde); border-radius: 12px;
+  font-family: inherit; font-variant-numeric: tabular-nums;
+}
+.pos-recibido input:focus { outline: none; }
+.pos-cambio-caja {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: 16px 0; padding: 14px; border-radius: 12px;
+  background: #e9f6ee; font-size: 1.1rem;
+}
+.pos-cambio-caja b { font-size: 1.9rem; font-variant-numeric: tabular-nums; }
+.pos-falta {
+  background: #fde8e6; color: var(--pos-rojo); border-radius: 10px;
+  padding: 11px 13px; font-weight: 700; margin-bottom: 14px; font-size: .95rem;
+}
+.pos-modal__pie { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ══ POS-2 · INDICADORES (peso / artículos) ══ */
+.pos-indicadores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pos-ind {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: #fff; border: 2px solid var(--pos-linea); border-radius: 12px;
+  padding: 10px 8px; min-height: 92px; text-align: center; min-width: 0;
+}
+.pos-ind__tit {
+  font-size: .78rem; font-weight: 800; letter-spacing: .6px;
+  text-transform: uppercase; color: #556;
+}
+.pos-ind__val {
+  font-size: 2rem; font-weight: 800; line-height: 1.15;
+  font-variant-numeric: tabular-nums; color: var(--pos-tinta);
+}
+.pos-ind__val small { font-size: 1rem; font-weight: 700; color: #556; }
+.pos-ind__sub {
+  font-size: .76rem; color: #778; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ══ POS-2 · FRANJA DE OFERTAS (abajo, a lo ancho) ══ */
+.pos-promo {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 16px;
+  min-height: 96px; padding: 10px 18px;
+  background: linear-gradient(90deg, #fff8e6, #fff);
+  border-top: 3px solid var(--pos-naranja);
+}
+.pos-promo__oferta { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+.pos-promo__img {
+  width: 76px; height: 76px; flex: 0 0 76px; object-fit: contain;
+  background: #fff; border-radius: 10px;
+}
+.pos-promo__img--letra {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--pos-naranja); color: #fff; font-size: 2rem; font-weight: 800;
+}
+.pos-promo__txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pos-promo__sello {
+  align-self: flex-start; background: var(--pos-rojo); color: #fff;
+  font-size: .74rem; font-weight: 800; letter-spacing: .5px;
+  padding: 2px 9px; border-radius: 6px;
+}
+.pos-promo__nombre {
+  font-size: 1.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pos-promo__precios { font-size: 1rem; color: #445; }
+.pos-promo__precios s { color: #8a95a1; }
+.pos-promo__precios b { color: var(--pos-verde); font-size: 1.25rem; }
+.pos-promo__vacia { flex: 1; font-size: 1.1rem; font-weight: 700; color: #6b3a05; }
+.pos-promo__lema {
+  display: flex; flex-direction: column; align-items: flex-end;
+  padding-left: 16px; border-left: 1px solid #f0d9a8; flex: 0 0 auto;
+}
+.pos-promo__lema b { color: var(--pos-verde); font-size: 1rem; }
+.pos-promo__lema span { font-style: italic; font-weight: 800; color: #6b3a05; }
+
+/* ══ POS-2 · LÍMITE DE FACTURACIÓN · hoja que sube desde abajo ══ */
+.pos-limite {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(8,12,16,.55);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.pos-limite__hoja {
+  background: #fff; width: 100%; max-width: 720px;
+  border-radius: 20px 20px 0 0; padding: 22px 28px 30px;
+  max-height: 90vh; overflow-y: auto;   /* el botón nunca queda fuera de pantalla */
+  border-top: 6px solid var(--pos-rojo); text-align: center;
+  box-shadow: 0 -12px 40px rgba(0,0,0,.3);
+  animation: pos-subir .35s ease-out both;
+}
+@keyframes pos-subir { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.pos-limite__icono {
+  width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 50%;
+  background: var(--pos-rojo); color: #fff; font-size: 2rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.pos-limite h2 { margin: 0 0 8px; font-size: 1.45rem; color: var(--pos-rojo); }
+.pos-limite p { margin: 0 0 10px; font-size: 1.02rem; line-height: 1.45; }
+.pos-limite__cifras { font-weight: 700; font-variant-numeric: tabular-nums; color: #445; }
+.pos-limite .pos-btn-grande { max-width: 320px; margin: 6px auto 0; display: block; }
+
+.pos-entrada--bloqueada { border-color: var(--pos-rojo) !important; background: #fff4f3; }
+.pos-top__limite {
+  font-size: .82rem; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+  background: rgba(255,255,255,.18); font-variant-numeric: tabular-nums;
+}
+.pos-top__limite--rojo { background: var(--pos-rojo); }
+
+/* ── Cargando ───────────────────────────────────────────────────────────── */
+.pos-cargando {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(244,246,248,.95);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; font-weight: 600; text-align: center; padding: 24px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * PANTALLAS ESTRECHAS
+ * Un monitor de caja suele ser 1024×768 o mayor. Por debajo de 900 px se
+ * apila, para que un portátil pequeño siga siendo usable.
+ * ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .pos-caja {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+    overflow-y: auto;
+  }
+  .pos-venta { border-right: 0; border-bottom: 1px solid var(--pos-linea); }
+  .pos-lineas { max-height: 38vh; }
+}

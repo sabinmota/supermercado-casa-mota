@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '467';
+      const VER = '468';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1077,6 +1077,26 @@
           </div>
           <button class="btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Guardar cambios</button>
         </div>
+        <!-- ══ POS-2 · LÍMITE DIARIO DE ITBIS (seguridad/69) ══
+             NO usa saveSettings(): se guarda por RPC con vale y rol
+             superadmin, porque `settings` se escribe con la clave pública. -->
+        <div class="card settings-card" id="cardLimiteItbis" style="border-top:3px solid #b42318">
+          <h3><i class="fas fa-cash-register" style="color:#b42318"></i> Límite diario de ITBIS (Punto de Venta)</h3>
+          <p style="font-size:.82rem;color:#6b7280;margin:0 0 12px">
+            Cuando el ITBIS cobrado <b>hoy</b> sumando <b>todas las cajas</b> llegue a esta cifra,
+            el POS deja cobrar la factura que esté abierta y después no factura más.
+            Para desbloquearlo, suba el límite. Déjelo vacío o en 0 para no tener límite.
+          </p>
+          <div class="form-group">
+            <label for="limiteItbisInput">Límite de ITBIS por día (RD$)</label>
+            <input type="number" class="form-input" id="limiteItbisInput" min="0" step="0.01" placeholder="Sin límite" />
+          </div>
+          <p id="limiteItbisEstado" style="font-size:.85rem;margin:0 0 12px;color:#374151">Cargando…</p>
+          <button class="btn-primary" id="limiteItbisGuardar" type="button">
+            <i class="fas fa-save"></i> Guardar límite
+          </button>
+        </div>
+
         <!-- ══ AUTO-RELOAD DE PRODUCTOS ══ -->
         <div class="card settings-card" id="cardAutoReload" style="border-top:3px solid #0891b2">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
@@ -3226,6 +3246,8 @@
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=315"></script>
+  <!-- POS-2 · Límite diario de ITBIS (tarjeta en Configuración) -->
+  <script src="js/limite-itbis.js?v=1"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=4"></script>
