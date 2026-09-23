@@ -751,7 +751,12 @@
    * ════════════════════════════════════════════════════════════════════════ */
   var _ofertas = [], _iOferta = 0, _tOferta = null;
   var ROTACION_MS = 7000;
-  var LEMA = '<div class="pos-promo__lema"><b>Supermercado Casa Mota</b><span>Lo Nuestro..!</span></div>';
+  /* POS-6 · logo de la tienda a la izquierda del lema, alto de la franja. */
+  var LEMA = '<div class="pos-promo__lema">' +
+      '<img class="pos-promo__logo" src="images/logo-casamota.png?v=433" alt="Supermercado Casa Mota" ' +
+        'onerror="this.style.display=\'none\'">' +
+      '<div class="pos-promo__lema-txt"><b>Supermercado Casa Mota</b><span>Lo Nuestro..!</span></div>' +
+    '</div>';
 
   function listarOfertas(productos) {
     var r = [];

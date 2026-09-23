@@ -350,9 +350,17 @@ html, body {
 .pos-promo__precios b { color: var(--pos-verde); font-size: 1.7rem; }
 .pos-promo__vacia { flex: 1; font-size: 1.4rem; font-weight: 700; color: #6b3a05; }
 .pos-promo__lema {
-  display: flex; flex-direction: column; align-items: flex-end;
+  display: flex; flex-direction: row; align-items: center; gap: 16px;
   padding-left: 20px; border-left: 1px solid #f0d9a8; flex: 0 0 auto;
+  align-self: stretch;
 }
+/* POS-6 · logo Casa Mota a la izquierda del lema, del alto de la franja
+   (140 px − 12 px de relleno arriba y abajo = 116 px). */
+.pos-promo__logo {
+  height: 116px; width: auto; max-width: 140px; object-fit: contain;
+  background: #fff; border-radius: 12px; flex: 0 0 auto;
+}
+.pos-promo__lema-txt { display: flex; flex-direction: column; align-items: flex-end; }
 .pos-promo__lema b { color: var(--pos-verde); font-size: 1.2rem; }
 .pos-promo__lema span { font-style: italic; font-weight: 800; color: #6b3a05; font-size: 1.15rem; }
 
