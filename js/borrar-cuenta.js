@@ -87,11 +87,30 @@
    * Tras borrar en la base hay que dejar el navegador limpio. Si no, el
    * carrito y los favoritos del build 422c seguirían en `localStorage` con
    * el id del cliente borrado. */
+  /* 🔴 2026-09-23 · LA CLAVE DE SESIÓN ES `cm_client_session` (en inglés).
+   *    La v=1 borraba `cm_cliente_sesion`, que NO EXISTE en ningún fichero
+   *    (leído en js/auth.js:192 y js/almacen-cliente.js:55). Fallo mudo:
+   *    removeItem de una clave inexistente no protesta. Consecuencia: tras
+   *    borrar la cuenta, la tienda seguía saludando al cliente por su nombre
+   *    con la ficha guardada en localStorage — delante del revisor.
+   *    Se conserva la clave vieja en la lista por si alguna vez se escribió. */
+  var SESION_KEYS = ['cm_client_session', 'cm_cliente_sesion'];
+
+  function haySesion() {
+    if (!vale()) { return false; }
+    try {
+      return !!(localStorage.getItem(SESION_KEYS[0]) ||
+                sessionStorage.getItem(SESION_KEYS[0]));
+    } catch (e) { return false; }
+  }
+
   function limpiarNavegador() {
     try {
       sessionStorage.removeItem(VALE_KEY);
-      sessionStorage.removeItem('cm_cliente_sesion');
-      localStorage.removeItem('cm_cliente_sesion');
+      for (var s = 0; s < SESION_KEYS.length; s++) {
+        sessionStorage.removeItem(SESION_KEYS[s]);
+        localStorage.removeItem(SESION_KEYS[s]);
+      }
 
       /* Las claves de carrito y favoritos llevan el id detrás
        * (`casamota_cart_<id>`), así que se barren por prefijo. */
@@ -111,6 +130,15 @@
   function montar() {
     var abrir = $('bc-abrir');
     if (!abrir) { return; }          // la página no tiene esta sección
+
+    /* Sin sesión no se ofrece el botón: antes el visitante pasaba por las
+     * DOS confirmaciones y recién al final le decían «sesión caducada». */
+    if (!haySesion()) {
+      abrir.hidden = true;
+      if ($('bc-sin-sesion')) { $('bc-sin-sesion').hidden = false; }
+      if ($('bc-entrar'))     { $('bc-entrar').hidden = false; }
+      return;
+    }
 
     abrir.addEventListener('click', function () {
       $('bc-modal').hidden = false;
@@ -189,5 +217,6 @@
     montar();
   }
 
-  window.CasaMotaBorrarCuenta = { _borrar: borrarEnLaBase, _limpiar: limpiarNavegador };
+  window.CasaMotaBorrarCuenta = { _borrar: borrarEnLaBase, _limpiar: limpiarNavegador,
+                                  _haySesion: haySesion };
 })();

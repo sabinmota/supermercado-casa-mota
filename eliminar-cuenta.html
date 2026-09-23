@@ -94,11 +94,26 @@
   }
   .ayuda { text-align: center; font-size: .9rem; color: #5a6572; margin-top: 22px; }
   .ayuda a { color: #1a7c3e; }
+
+  /* Volver a la tienda. Dentro de la app de iPhone NO hay barra de
+     direcciones ni botón atrás: sin este enlace, quien cancela el borrado
+     se queda encerrado en esta página. */
+  .volver {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+    color: #1a7c3e; font-weight: 600; text-decoration: none; margin-bottom: 8px;
+  }
+  .aviso-sesion {
+    background: #fff8e6; border: 1px solid #b45309; color: #6b3a05;
+    border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; font-size: .92rem;
+  }
+  a.btn { text-align: center; text-decoration: none; line-height: 22px; }
 </style>
 </head>
 <body>
 
 <main class="caja">
+
+  <a href="index.html" class="volver" id="bc-volver">← Volver a la tienda</a>
 
   <img src="images/logo-casamota.png" alt="Casa Mota" class="logo"
        onerror="this.style.display='none'" />
@@ -142,6 +157,16 @@
       Si eliminas tu cuenta perderás tus puntos y tendrás que registrarte de
       nuevo para volver a comprar. <b>Puedes volver a usar el mismo correo.</b>
     </p>
+    <!-- Sin sesión (p. ej. alguien abre este enlace desde App Store Connect
+         o desde un correo): se le dice ANTES de las dos confirmaciones, no
+         después. Lo decide js/borrar-cuenta.js al cargar. -->
+    <p class="aviso-sesion" id="bc-sin-sesion" hidden>
+      Para eliminar tu cuenta primero tienes que <b>entrar en ella</b>.
+      Después ve a <b>Mi cuenta → Eliminar mi cuenta</b>.
+    </p>
+    <a href="login-cliente.html" class="btn btn--peligro" id="bc-entrar" hidden>
+      Entrar en mi cuenta
+    </a>
     <button type="button" class="btn btn--peligro" id="bc-abrir">
       Eliminar mi cuenta
     </button>
@@ -211,6 +236,6 @@
 
 <!-- 🔴 ORDEN OBLIGATORIO: api.js define _SB_URL y _SB_HEADERS, que usa el otro. -->
 <script src="js/api.js?v=350"></script>
-<script src="js/borrar-cuenta.js?v=1"></script>
+<script src="js/borrar-cuenta.js?v=2"></script>
 </body>
 </html>
