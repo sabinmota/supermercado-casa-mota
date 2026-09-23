@@ -5561,7 +5561,16 @@ function saveLoyaltyConfig() {
 }
 
 function renderLoyaltyKpis() {
-  const all   = customers;
+  /* BUILD 467 · Fuera las cuentas eliminadas, igual que en la lista.
+   *
+   * ⚠️ Hoy no cambia ninguna cifra, porque `cliente_borrar_cuenta` pone
+   *    `loyaltyPoints = 0` y los filtros de abajo exigen «> 0». Se añade
+   *    igualmente por dos motivos: (1) si mañana se borrara una cuenta por
+   *    otra vía que no pusiera los puntos a cero, aparecería en el ranking
+   *    de fidelidad un «Cliente eliminado»; (2) dejar dos criterios
+   *    distintos de «qué cliente cuenta» en el mismo panel es como se
+   *    fabrican cifras que no cuadran entre pantallas. */
+  const all   = customers.filter(c => c.deleted !== true && c.deleted !== 'true');
   const withPts = all.filter(c => (c.loyaltyPoints || 0) > 0);
   const total   = withPts.reduce((s, c) => s + (c.loyaltyPoints || 0), 0);
   const avg     = withPts.length ? Math.round(total / withPts.length) : 0;
@@ -5600,7 +5609,9 @@ function renderLoyaltyKpis() {
  *    comentario, es contenido. Por eso vive aquí fuera. */
 function renderLoyaltyRanking() {
   const q   = document.getElementById('lSearch')?.value || '';
-  const all = customers;
+  // BUILD 467 · mismo criterio que la lista de Clientes y que los KPIs:
+  // una cuenta eliminada no aparece en el ranking de fidelidad.
+  const all = customers.filter(c => c.deleted !== true && c.deleted !== 'true');
   const list = all
     // BUILD 399: por palabras sueltas ("maria perez" encuentra "María de los
     // Santos Pérez").
@@ -6108,9 +6119,27 @@ function renderCustomers() {
   const q    = document.getElementById('custSearch')?.value || '';
   const sort = document.getElementById('custSortFilter')?.value || '';
 
+  /* BUILD 467 · LAS CUENTAS ELIMINADAS NO SE LISTAN.
+   *
+   * 🔴 El dueño borró una cuenta de prueba con el mecanismo nuevo
+   *    (`cliente_borrar_cuenta`, exigido por Apple) y la ficha siguió
+   *    apareciendo aquí — y lo peor: **con la etiqueta verde «✅ Habilitado»**.
+   *    Una cuenta eliminada mostrada como habilitada es un dato falso en
+   *    pantalla, del mismo tipo que los widgets del build 459.
+   *
+   *    La causa: el borrado es LÓGICO (`deleted = true`) porque `orders`
+   *    referencia el id y un DELETE físico dejaría pedidos huérfanos. El
+   *    panel nunca había filtrado por esa columna porque hasta ahora ningún
+   *    cliente podía borrarse a sí mismo.
+   *
+   * ⚠️ Se filtra AQUÍ y no en la carga de datos a propósito: `customers` lo
+   *    usan también las estadísticas de fidelidad y el buscador de pedidos.
+   *    Quitarlas del origen cambiaría cifras que nadie ha pedido cambiar. */
+  const vivos = customers.filter(c => c.deleted !== true && c.deleted !== 'true');
+
   // BUILD 399: por palabras sueltas. El teléfono sigue encontrándose por
   // coincidencia literal dentro de _admBuscar().
-  let list = customers.filter(c => _admBuscar(q, c.name, c.email, c.phone));
+  let list = vivos.filter(c => _admBuscar(q, c.name, c.email, c.phone));
 
   if (sort === 'name')   list = list.sort((a,b) => a.name.localeCompare(b.name));
   // Ordenar por los mismos números que se muestran (calculados), no por los
