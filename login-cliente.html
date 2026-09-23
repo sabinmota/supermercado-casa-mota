@@ -15,8 +15,6 @@
   </script>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <!-- Apple Sign In JS -->
-  <script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
@@ -632,12 +630,6 @@
       to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
     }
 
-    /* Apple — banner "próximamente" */
-    .apple-coming-soon {
-      font-size: .75rem; color: #f59e0b; font-weight: 600;
-      background: rgba(245,158,11,.12); border-radius: 20px;
-      padding: 2px 8px; letter-spacing: .02em;
-    }
   </style>
 </head>
 <body>
@@ -652,7 +644,7 @@
       <div class="sheet-handle"></div>
       <div class="register-modal-icon"><i class="fas fa-user-plus"></i></div>
       <h3>¿Cómo crear tu cuenta?</h3>
-      <p>Crea tu cuenta al instante con Google o Apple, o contáctanos y un administrador de <strong id="registerModalName">Supermercado Casa Mota</strong> te asignará tu acceso:</p>
+      <p>Crea tu cuenta al instante con <span id="registerModalMetodos">Google</span>, o contáctanos y un administrador de <strong id="registerModalName">Supermercado Casa Mota</strong> te asignará tu acceso:</p>
 
       <div class="register-modal-contacts">
 
@@ -670,16 +662,9 @@
           <span class="oauth-label">Crear cuenta con Google</span>
         </button>
 
-        <!-- 2. Apple -->
-        <button type="button" class="btn-oauth apple" id="btnAppleRegister"
-                onclick="handleAppleLogin()" style="width:100%">
-          <div class="oauth-spinner"></div>
-          <svg class="oauth-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#fff">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-          </svg>
-          <span class="oauth-label">Crear cuenta con Apple</span>
-          <span class="apple-coming-soon">Pronto</span>
-        </button>
+        <!-- Apple NO está en el marcado (decisión del dueño, 2026-09-23): la
+             web solo ofrece Google + credenciales. Dentro de la app de iPhone
+             el botón lo CREA ajustarOAuthEnApp() aquí debajo de Google. -->
 
         <!-- Divisor -->
         <div class="oauth-divider" style="margin:8px 0 4px">o contáctanos</div>
@@ -816,7 +801,7 @@
              style="color:var(--green);font-weight:600;text-decoration:none">Solicítala aquí</a>
         </div>
 
-        <!-- ── OAuth: Google + Apple ───────────────────── -->
+        <!-- ── OAuth: Google (Apple solo lo añade la app de iPhone) ── -->
         <div class="oauth-divider">o continúa con</div>
         <div class="oauth-buttons">
 
@@ -836,18 +821,6 @@
           </button>
           <!-- Fallback: botón nativo de Google si One Tap es bloqueado por el navegador -->
           <div id="googleBtnFallback" style="display:none;margin-top:-4px"></div>
-
-          <!-- Apple -->
-          <button type="button" class="btn-oauth apple" id="btnAppleLogin"
-                  onclick="handleAppleLogin()">
-            <div class="oauth-spinner"></div>
-            <!-- Apple logo SVG -->
-            <svg class="oauth-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#fff">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-            </svg>
-            <span class="oauth-label">Continuar con Apple</span>
-            <span class="apple-coming-soon">Pronto</span>
-          </button>
 
         </div>
         <!-- /OAuth -->
@@ -933,6 +906,31 @@
        simular el entorno nativo. Además permite reejecutarla a mano desde la
        consola del iPhone si hubiera que diagnosticar algo en vivo — y es
        idempotente a propósito (comprueba `avisoOAuthApp` antes de añadirlo). */
+    /* Crea un botón de Apple justo DESPUÉS de `despuesDe`. Se construye con
+       createElement (sin onclick en texto): llama a window.handleAppleLogin,
+       que instalarLoginNativo() desvía al plugin nativo. */
+    function _crearBotonApple(id, texto, despuesDe, anchoCompleto) {
+      if (document.getElementById(id) || !despuesDe || !despuesDe.parentNode) return;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn-oauth apple';
+      b.id = id;
+      if (anchoCompleto) b.style.width = '100%';
+      b.innerHTML =
+        '<div class="oauth-spinner"></div>' +
+        '<svg class="oauth-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#fff">' +
+        '<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>' +
+        '</svg>';
+      const etiqueta = document.createElement('span');
+      etiqueta.className = 'oauth-label';
+      etiqueta.textContent = texto;
+      b.appendChild(etiqueta);
+      b.addEventListener('click', function () {
+        if (typeof window.handleAppleLogin === 'function') window.handleAppleLogin();
+      });
+      despuesDe.parentNode.insertBefore(b, despuesDe.nextSibling);
+    }
+
     function ajustarOAuthEnApp() {
       // Si la capa nativa no está cargada, no se toca nada: es un navegador.
       if (!window.CasaMotaNativo || typeof window.CasaMotaNativo.enApp !== 'function') {
@@ -943,7 +941,6 @@
 
       const nat       = window.CasaMotaNativo;
       const btnGoogle = document.getElementById('btnGoogleLogin');
-      const btnApple  = document.getElementById('btnAppleLogin');
       const zona      = document.querySelector('.oauth-buttons');
       const divisor   = document.querySelector('.oauth-divider');
 
@@ -961,32 +958,30 @@
                        nat.appleNativoDisponible();
 
       if (btnGoogle) btnGoogle.style.display = googleOk ? '' : 'none';
-      if (btnApple)  btnApple.style.display  = appleOk  ? '' : 'none';
       if (divisor)   divisor.style.display   = (googleOk || appleOk) ? '' : 'none';
 
-      /* El botón de Apple lleva en el marcado una insignia «Pronto». Si el
-         plugin ya está, sobra: el botón funciona de verdad.
-
-         🔴 BUILD 446 · AQUÍ HABÍA UN DEFECTO MÍO, VISTO EN EL IPHONE DEL DUEÑO:
-            el selector era `'.oauth-badge, .badge, [class*="pronto"]'` y
-            NINGUNO DE LOS TRES existe. La clase real es `apple-coming-soon`
-            (línea 800). Los dos primeros me los inventé; el tercero es el
-            instructivo: `[class*="pronto"]` busca esa palabra **en el atributo
-            `class`**, no en el texto visible — y «Pronto» es el CONTENIDO del
-            span, mientras la clase está en inglés.
-            **Escribí tres selectores plausibles sin abrir el marcado**, que es
-            el mismo defecto de método que ya costó cuatro veces en este
-            proyecto: afirmar el contenido de algo sin leerlo.
-            Es cosmético (el botón funcionaba igual), pero decía «Pronto» sobre
-            una función ya disponible.
-            Se deja `.apple-coming-soon` como selector principal y se conservan
-            los otros dos por si el marcado cambia; NO es un remiendo: son
-            alternativas del mismo `querySelector`, no un respaldo que pueda
-            reintroducir el fallo. */
-      if (appleOk && btnApple) {
-        const insignia = btnApple.querySelector(
-          '.apple-coming-soon, .oauth-badge, .badge');
-        if (insignia) insignia.style.display = 'none';
+      /* 🔴 2026-09-23 · APPLE YA NO VIVE EN EL MARCADO · decisión del dueño:
+         «no me gustan las cosas ocultas, me gusta eliminarlas».
+         La web no tiene botones de Apple (ni «Pronto», ni el SDK web de Apple,
+         que se cargaba y nunca se usaba). Dentro de la app, y SOLO si el
+         plugin nativo existe, se CREAN aquí los dos botones: el de entrar
+         (debajo de Google) y el del modal «¿Cómo crear tu cuenta?».
+         Sin plugin no se crea nada: un botón que no hace nada no se pinta.
+         Idempotente: si el botón ya existe no se duplica. */
+      if (appleOk) {
+        _crearBotonApple('btnAppleLogin', 'Continuar con Apple',
+                         document.getElementById('googleBtnFallback'), false);
+        _crearBotonApple('btnAppleRegister', 'Crear cuenta con Apple',
+                         document.getElementById('btnGoogleRegister'), true);
+        const metodos = document.getElementById('registerModalMetodos');
+        if (metodos) metodos.textContent = 'Google o Apple';
+      } else {
+        ['btnAppleLogin', 'btnAppleRegister'].forEach(function (id) {
+          const b = document.getElementById(id);
+          if (b) b.remove();
+        });
+        const metodos = document.getElementById('registerModalMetodos');
+        if (metodos) metodos.textContent = 'Google';
       }
 
       const avisoViejo = document.getElementById('avisoOAuthApp');
@@ -1461,44 +1456,12 @@
     //  APPLE SIGN IN
     // ══════════════════════════════════════════════════════════════════
 
-    /** Click en botón "Continuar con Apple" */
-    async function handleAppleLogin() {
-      _showOAuthToast('Apple Sign In estará disponible muy pronto 🍎');
-      return;
-      /* --- Implementar cuando Apple Developer esté listo ---
-      const btn = document.getElementById('btnAppleLogin');
-      if (!btn || btn.disabled) return;
-      btn.classList.add('loading');
-      btn.disabled = true;
-      try {
-        AppleID.auth.init({
-          clientId:    'com.casamota.web',
-          scope:       'name email',
-          redirectURI: 'https://supermercadocasamota.com/login-cliente.html',
-          usePopup:    true,
-        });
-        const data = await AppleID.auth.signIn();
-        const jwt  = data.authorization.id_token;
-        const parts   = jwt.split('.');
-        const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-        const nameObj = data.user?.name;
-        const fullName = nameObj
-          ? ((nameObj.firstName || '') + ' ' + (nameObj.lastName || '')).trim()
-          : payload.email.split('@')[0];
-        await _processOAuthProfile({
-          email:        payload.email || payload.sub + '@privaterelay.appleid.com',
-          name:         fullName,
-          authProvider: 'apple',
-          sub:          payload.sub,
-        });
-      } catch(e) {
-        btn.classList.remove('loading');
-        btn.disabled = false;
-        const msg = e.error || e.message || '';
-        if (msg === 'popup_closed_by_user' || msg === 'user_cancelled_authorize') return;
-        _showOAuthToast('Error con Apple Sign In: ' + msg);
-      }
-      */
+    /** Apple: SOLO en la app de iPhone (decisión del dueño, 2026-09-23).
+     *  Dentro de la app, instalarLoginNativo() sustituye esta función por la
+     *  que abre la hoja nativa de Apple. Esta versión solo se ejecutaría si
+     *  alguien la llamara en la web, donde ya no existe ningún botón. */
+    function handleAppleLogin() {
+      _showOAuthToast('Entrar con Apple está disponible en la app de iPhone.');
     }
 
     // ══════════════════════════════════════════════════════════════════
