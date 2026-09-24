@@ -31,6 +31,9 @@
   var _porBarcode = {};     // índice barcode → producto
   var _lineas     = [];     // líneas de la venta en curso
   var _caja       = '01';
+  var _formaPago  = 'efectivo';   // B4 · efectivo | tarjeta | transferencia
+  var _idCobro    = null;         // B4 · id único del cobro en curso (evita duplicados)
+  var _guardando  = false;        // B4 · hay un guardado en marcha
   var _ultimoPeso = null;   // { peso, nombre } de la última etiqueta de báscula
 
   /* POS-2 · LÍMITE DE ITBIS (pedido del dueño, 2026-09-23)
@@ -668,6 +671,17 @@
     on('pos-cobrar', 'click', abrirPago);
     on('pos-pago-cancelar', 'click', cerrarPago);
     on('pos-recibido', 'input', calcularCambio);
+    on('pos-recibido', 'keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); confirmarCobro(); }
+    });
+    on('pos-pago-aceptar', 'click', confirmarCobro);
+    on('pos-nueva-venta', 'click', nuevaVenta);
+    var formas = document.querySelectorAll('.pos-forma');
+    for (var f = 0; f < formas.length; f++) {
+      formas[f].addEventListener('click', function (ev) {
+        elegirForma(ev.currentTarget.getAttribute('data-forma'));
+      });
+    }
     on('pos-vaciar', 'click', function () {
       if (!_lineas.length) { return; }
       if (window.confirm('¿Vaciar la venta en curso? Se perderán ' +
@@ -694,22 +708,50 @@
       pitar(true); mostrarLimite(); return;
     }
     var t = totales();
+    /* Un identificador por COBRO (no por intento): si la red falla y se pulsa
+     * «Cobrar» otra vez, la base reconoce el mismo id y NO duplica la venta. */
+    _idCobro = nuevoIdLocal();
+    _guardando = false;
     $('pos-pago-total').textContent = dinero(t.neto);
     $('pos-recibido').value = '';
     $('pos-cambio').textContent = '0.00';
+    $('pos-pago-error').hidden = true;
+    $('pos-pago-hecho').hidden = true;
+    document.querySelector('#pos-modal-pago .pos-modal__caja').hidden = false;
     $('pos-modal-pago').hidden = false;
-    $('pos-recibido').focus();
+    elegirForma('efectivo');
   }
 
   function cerrarPago() {
+    if (_guardando) { return; }   // no se cierra mientras se guarda
     $('pos-modal-pago').hidden = true;
     $('pos-entrada').focus();
   }
 
+  function elegirForma(forma) {
+    _formaPago = forma;
+    var bs = document.querySelectorAll('.pos-forma');
+    for (var i = 0; i < bs.length; i++) {
+      var act = bs[i].getAttribute('data-forma') === forma;
+      bs[i].classList.toggle('pos-forma--activa', act);
+      bs[i].setAttribute('aria-pressed', act ? 'true' : 'false');
+    }
+    $('pos-bloque-efectivo').hidden = forma !== 'efectivo';
+    calcularCambio();
+    if (forma === 'efectivo') { $('pos-recibido').focus(); }
+    else { $('pos-pago-aceptar').focus(); }
+  }
+
   function calcularCambio() {
     var t   = totales();
+    var btn = $('pos-pago-aceptar');
+    if (_formaPago !== 'efectivo') {
+      $('pos-falta').hidden = true;
+      btn.disabled = _guardando;
+      return;
+    }
     var rec = parseFloat($('pos-recibido').value) || 0;
-    var cam = rec - t.neto;
+    var cam = Math.round((rec - t.neto) * 100) / 100;
     var el  = $('pos-cambio');
     el.textContent = dinero(cam > 0 ? cam : 0);
     /* Si falta dinero se dice, en vez de dejar un cambio en 0 que parece
@@ -721,6 +763,137 @@
     } else {
       falta.hidden = true;
     }
+    btn.disabled = _guardando || cam < 0;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * B4 · GUARDAR LA VENTA (seguridad/71 · RPC pos_registrar_venta)
+   *
+   * 🔴 LA VENTA NO SE DA POR HECHA HASTA QUE LA BASE LA CONFIRMA. Si falla
+   *    la red, la factura SIGUE en pantalla y la cajera puede reintentar: el
+   *    mismo `_idCobro` impide que se guarde dos veces.
+   * 🔴 LA BASE RECALCULA TOTALES E ITBIS y comprueba el límite con la fila
+   *    bloqueada: el navegador no decide lo que se factura.
+   * ════════════════════════════════════════════════════════════════════════ */
+  function nuevoIdLocal() {
+    try { if (window.crypto && crypto.randomUUID) { return 'POS-' + crypto.randomUUID(); } }
+    catch (e) { /* sigue abajo */ }
+    return 'POS-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  }
+
+  var MENSAJES_COBRO = {
+    SESION_INVALIDA:   'Su sesión no es válida. Salga y vuelva a entrar a la caja.',
+    SESION_CADUCADA:   'Su sesión caducó. Salga y vuelva a entrar a la caja; la factura no se ha perdido.',
+    CUENTA_DESACTIVADA:'Su usuario está desactivado. Avise al administrador.',
+    VENTA_VACIA:       'La factura está vacía.',
+    VENTA_INVALIDA:    'Hay un artículo con datos incorrectos (precio, cantidad o ITBIS). Revise la factura.',
+    TOTAL_NO_CUADRA:   'El total no cuadra con la base de datos. Recargue la caja con Ctrl + F5 e inténtelo de nuevo.',
+    PAGO_INVALIDO:     'Forma de pago no válida.',
+    PAGO_INSUFICIENTE: 'El efectivo recibido no cubre el total.',
+    LIMITE_ALCANZADO:  'Se alcanzó el límite de ITBIS. La venta NO se guardó.'
+  };
+
+  function lineasParaGuardar() {
+    var r = [];
+    for (var i = 0; i < _lineas.length; i++) {
+      var l = _lineas[i];
+      r.push({ id: l.id, nombre: l.nombre, barcode: l.barcode, precio: l.precio,
+               cantidad: l.cantidad, tasa: l.tasa, esPeso: l.esPeso });
+    }
+    return r;
+  }
+
+  async function guardarVenta(cuerpo) {
+    var res = await fetch(_SB_URL + '/rpc/pos_registrar_venta', {
+      method: 'POST', headers: _SB_HEADERS, body: JSON.stringify(cuerpo)
+    });
+    var txt = await res.text();
+    if (res.status === 404 || txt.indexOf('PGRST202') >= 0) {
+      throw new Error('Falta ejecutar seguridad/71-guardar-ventas-pos.sql en Supabase. La venta NO se guardó.');
+    }
+    if (!res.ok) {
+      for (var k in MENSAJES_COBRO) {
+        if (txt.indexOf(k) >= 0) { var e = new Error(MENSAJES_COBRO[k]); e.codigo = k; throw e; }
+      }
+      throw new Error('La base respondió con un error (HTTP ' + res.status + '). La venta NO se guardó.');
+    }
+    var j = JSON.parse(txt);
+    return Array.isArray(j) ? j[0] : j;
+  }
+
+  async function confirmarCobro() {
+    if (_guardando || !_lineas.length) { return; }
+    var btn = $('pos-pago-aceptar');
+    if (btn.disabled) { return; }
+    var t = totales();
+    var rec = _formaPago === 'efectivo' ? (parseFloat($('pos-recibido').value) || 0) : t.neto;
+    if (_formaPago === 'efectivo' && rec < t.neto) { calcularCambio(); return; }
+
+    _guardando = true;
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+    $('pos-pago-error').hidden = true;
+
+    try {
+      var r = await guardarVenta({
+        p_vale:       (typeof _valeAdmin === 'function') ? _valeAdmin() : '',
+        p_id_local:   _idCobro,
+        p_caja:       _caja,
+        p_forma_pago: _formaPago,
+        p_recibido:   Math.round(rec * 100) / 100,
+        p_lineas:     lineasParaGuardar(),
+        p_total:      t.neto,
+        p_itbis:      t.itbis
+      });
+      ventaGuardada(r);
+    } catch (e) {
+      console.error('[POS] no se guardó la venta:', e);
+      var err = $('pos-pago-error');
+      err.textContent = (e && e.message ? e.message : String(e)) +
+        (e && e.codigo ? '' : (e instanceof TypeError ? ' (sin conexión: revise la red y pulse Cobrar otra vez)' : ''));
+      err.hidden = false;
+      pitar(true);
+      if (e && e.codigo === 'LIMITE_ALCANZADO') {
+        _limite.estado = 'cerrada';
+        $('pos-modal-pago').hidden = true;
+        mostrarLimite();
+      }
+    } finally {
+      _guardando = false;
+      btn.textContent = 'Cobrar';
+      calcularCambio();
+    }
+  }
+
+  function ventaGuardada(r) {
+    var nombres = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' };
+    document.querySelector('#pos-modal-pago .pos-modal__caja').hidden = true;
+    $('pos-hecho-num').textContent = String(r.numero).padStart(6, '0');
+    $('pos-hecho-forma').textContent = 'RD$ ' + dinero(r.total) + ' · ' + (nombres[_formaPago] || _formaPago) +
+      (r.repetida ? ' · (ya estaba guardada)' : '');
+    $('pos-hecho-cambio').textContent = dinero(r.cambio);
+    $('pos-hecho-cambio-caja').hidden = _formaPago !== 'efectivo';
+    $('pos-pago-hecho').hidden = false;
+    pitar(false);
+
+    /* El límite: la base devuelve lo acumulado CON esta venta. Si era la
+     * última factura permitida, la caja se cierra. */
+    if (isFinite(Number(r.acumulado)) && r.acumulado !== null) { _limite.acumulado = Number(r.acumulado); }
+    var itbisVenta = Number(r.itbis) || 0;
+    _limite.acumulado -= itbisVenta;   // trasCobrar lo vuelve a sumar
+    _lineas = [];
+    _ultimoPeso = null;
+    var u = $('pos-ultimo'); if (u) { u.hidden = true; }
+    trasCobrar(itbisVenta);
+    pintar();
+    $('pos-nueva-venta').focus();
+  }
+
+  function nuevaVenta() {
+    $('pos-pago-hecho').hidden = true;
+    $('pos-modal-pago').hidden = true;
+    var e = $('pos-entrada');
+    if (e) { e.focus(); }
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -853,8 +1026,10 @@
    * Si ocurre CON UNA FACTURA ABIERTA, esa factura se puede cobrar tal como
    * quedó; después no se registra ni se cobra ninguna más.
    *
-   * DECISIONES DEL DUEÑO (23-sep): el límite es POR DÍA (día de RD), suma
-   * TODAS LAS CAJAS, y lo desbloquea él SUBIENDO EL LÍMITE en el panel.
+   * DECISIONES DEL DUEÑO (23-sep): suma TODAS LAS CAJAS y lo desbloquea él
+   * SUBIENDO EL LÍMITE en el panel. POS-10: el límite YA NO VA POR FECHA
+   * (ni día ni semana): cuenta TODO el ITBIS facturado y se detiene al
+   * llegar a la cifra programada (seguridad/70).
    *
    * 🔴 LÍMITE Y ACUMULADO SALEN DE LA BASE, en UNA llamada (RPC
    *    `pos_estado_limite`, seguridad/69). Un contador en el navegador se
@@ -868,9 +1043,8 @@
    *    (respuesta 404/PGRST202), no hay límite posible y la caja funciona
    *    como antes.
    *
-   * Se vuelve a consultar cada 60 s: así cambia de día sola a medianoche,
-   * ve lo que cobran las demás cajas y se desbloquea sin recargar cuando el
-   * dueño sube el límite.
+   * Se vuelve a consultar cada 60 s: así ve lo que cobran las demás cajas
+   * y se desbloquea sin recargar cuando el dueño sube el límite.
    * ════════════════════════════════════════════════════════════════════════ */
   var _tLimite = null;
   var REVISAR_LIMITE_MS = 60000;
@@ -944,7 +1118,7 @@
     pintar();
   }
 
-  /* Se llama tras cada artículo añadido. Si lo cobrado hoy más la factura
+  /* Se llama tras cada artículo añadido. Si lo ya facturado más la factura
    * abierta llega al límite, esa factura es la última. */
   function comprobarLimite() {
     if (!_limite.valor || _limite.estado !== 'libre') { pintarTopLimite(); return; }
@@ -976,15 +1150,15 @@
       txt.textContent = 'Puede cobrar esta factura tal como está. No se pueden añadir ' +
                         'más artículos, y después de cobrarla la caja no registrará ventas nuevas.';
     } else if (_limite.estado === 'sin_dato') {
-      txt.textContent = 'No se pudo comprobar el límite de facturación de hoy. Por ' +
+      txt.textContent = 'No se pudo comprobar el límite de facturación. Por ' +
                         'seguridad esta caja no factura. Revise la conexión; si sigue, avise al administrador.';
     } else {
-      txt.textContent = 'Se alcanzó el límite de ITBIS de hoy (todas las cajas). Esta caja no ' +
+      txt.textContent = 'Se alcanzó el límite de ITBIS programado (todas las cajas). Esta caja no ' +
                         'puede registrar ni cobrar más ventas hasta que el administrador suba el límite.';
     }
     $('pos-limite-cifras').textContent = _limite.valor
-      ? 'ITBIS facturado hoy: RD$ ' + dinero(_limite.acumulado + totales().itbis) +
-        '  ·  Límite diario: RD$ ' + dinero(_limite.valor)
+      ? 'ITBIS facturado: RD$ ' + dinero(_limite.acumulado + totales().itbis) +
+        '  ·  Límite: RD$ ' + dinero(_limite.valor)
       : '';
     hoja.hidden = false;
     var ent = $('pos-entrada');
@@ -1004,7 +1178,7 @@
     }
     var usado = _limite.acumulado + totales().itbis;
     el.className = 'pos-top__limite' + (_limite.estado === 'libre' ? '' : ' pos-top__limite--rojo');
-    el.textContent = 'ITBIS hoy RD$ ' + dinero(usado) + ' / ' + dinero(_limite.valor);
+    el.textContent = 'ITBIS RD$ ' + dinero(usado) + ' / ' + dinero(_limite.valor);
   }
 
   /* ── Arranque ───────────────────────────────────────────────────────────── */
@@ -1058,6 +1232,15 @@
                   },
       trasCobrar: trasCobrar,
       aplicar:    aplicarEstado
+    },
+    /* B4 · para el arnés */
+    _cobro: {
+      abrir:      abrirPago,
+      forma:      elegirForma,
+      confirmar:  confirmarCobro,
+      lineas:     lineasParaGuardar,
+      idCobro:    function () { return _idCobro; },
+      anadirPrueba: function (p, c, peso) { anadir(p, c, peso); }
     }
   };
 })();

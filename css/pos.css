@@ -296,6 +296,28 @@ html, body {
 }
 .pos-modal__pie { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+/* ══ B4 · forma de pago y venta guardada ══ */
+.pos-formas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.pos-forma {
+  padding: 12px 6px; border: 2px solid var(--pos-linea, #d7dde3); border-radius: 10px;
+  background: #fff; font: inherit; font-weight: 700; font-size: .95rem; cursor: pointer;
+}
+.pos-forma--activa { border-color: var(--pos-verde); background: #e9f6ee; color: var(--pos-verde); }
+#pos-pago-error { margin: 0 0 14px; }
+.pos-modal [hidden] { display: none !important; }
+.pos-hecho { text-align: center; }
+.pos-hecho__ok {
+  width: 64px; height: 64px; margin: 0 auto 10px; border-radius: 50%;
+  background: var(--pos-verde); color: #fff; font-size: 2.2rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.pos-hecho h2 { margin-bottom: 6px; }
+.pos-hecho__num { font-size: 1.15rem; margin: 0 0 4px; }
+.pos-hecho__num b { font-variant-numeric: tabular-nums; }
+.pos-hecho__forma { color: #556; margin: 0 0 6px; }
+.pos-hecho__cambio { text-align: left; }
+.pos-hecho .pos-btn-grande { width: 100%; }
+
 /* ══ POS-2 · INDICADORES (peso / artículos) ══ */
 .pos-indicadores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pos-ind {
