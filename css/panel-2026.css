@@ -295,6 +295,13 @@
 .vp-lineas { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .vp-lineas th, .vp-lineas td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
 .vp-detalle__pie { margin: 10px 0 0; font-size: .85rem; color: #374151; }
+.vp-anular {
+  margin-top: 10px; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+  background: #fff; color: #b42318; border: 1.5px solid #b42318; font: inherit; font-weight: 700; font-size: .85rem;
+}
+.vp-anular:hover { background: #fde8e6; }
+.vp-detalle__anul { margin: 10px 0 0; color: #b42318; font-weight: 700; font-size: .85rem; }
+.vp-fila--anulada + .vp-detalle td { text-decoration: none; }
 
 /* ── Pie: ilustración y lema ───────────────────────────────────────────── */
 /* 468b: solo se reduce el LARGO del pie (Ver tienda + planta) para que
