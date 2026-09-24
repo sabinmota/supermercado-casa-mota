@@ -296,6 +296,21 @@ html, body {
 }
 .pos-modal__pie { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+/* ══ POS-12 · clave administrativa ══ */
+.pos-aut__candado { font-size: 2rem; text-align: center; margin-bottom: 4px; }
+#pos-modal-aut h2 { text-align: center; }
+.pos-aut__que {
+  background: #fff4e5; border: 1px solid #f5c67a; color: #6b3a05; border-radius: 10px;
+  padding: 10px 12px; font-weight: 700; margin: 0 0 14px; font-size: .95rem;
+}
+.pos-aut__lbl { display: block; font-weight: 600; margin: 0 0 5px; font-size: .9rem; }
+.pos-aut__campo {
+  width: 100%; padding: 12px; font-size: 1.05rem; margin-bottom: 12px;
+  border: 2px solid var(--pos-linea, #d7dde3); border-radius: 10px; font-family: inherit;
+}
+.pos-aut__campo:focus { outline: none; border-color: var(--pos-verde); }
+#pos-aut-error { margin: 0 0 12px; }
+
 /* ══ B4 · forma de pago y venta guardada ══ */
 .pos-formas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
 .pos-forma {

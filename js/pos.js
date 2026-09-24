@@ -615,9 +615,8 @@
       for (var j = 0; j < qs.length; j++) {
         qs[j].addEventListener('click', function (ev) {
           var idx = parseInt(ev.currentTarget.getAttribute('data-i'), 10);
-          _lineas.splice(idx, 1);
-          pintar();
-          $('pos-entrada').focus();
+          /* POS-12 · quitar un artículo exige la clave de un administrador. */
+          pedirAutorizacion('quitar_articulo', idx);
         });
       }
     }
@@ -682,22 +681,144 @@
         elegirForma(ev.currentTarget.getAttribute('data-forma'));
       });
     }
+    /* POS-12 · «Vaciar» también exige clave: si no, bastaría vaciar la
+     * factura para saltarse el seguro de la ✕. */
     on('pos-vaciar', 'click', function () {
       if (!_lineas.length) { return; }
-      if (window.confirm('¿Vaciar la venta en curso? Se perderán ' +
-                          _lineas.length + ' líneas.')) {
-        _lineas = [];
-        _ultimoPeso = null;
-        var u = $('pos-ultimo');
-        if (u) { u.hidden = true; }
-        /* Si se vacía la factura que quedaba abierta tras el límite, ya no
-         * hay nada que cobrar: la caja se cierra. */
-        if (_limite.estado === 'ultima') { _limite.estado = 'cerrada'; mostrarLimite(); }
-        pintar();
-        var e = $('pos-entrada');
-        if (e) { e.focus(); }
-      }
+      pedirAutorizacion('vaciar_factura', null);
     });
+    on('pos-aut-cancelar', 'click', cerrarAutorizacion);
+    on('pos-aut-aceptar', 'click', confirmarAutorizacion);
+    on('pos-aut-clave', 'keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); confirmarAutorizacion(); }
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-12 · CLAVE ADMINISTRATIVA para quitar artículos o vaciar la factura
+   * (pedido del dueño, seguridad/73 · RPC pos_autorizar).
+   *
+   * 🔴 LA CLAVE SE COMPRUEBA EN LA BASE, NO AQUÍ. El navegador solo envía
+   *    correo + clave; si la base dice que no, NO se borra nada.
+   * 🔴 Si no hay conexión, NO se borra (sin autorización comprobada no hay
+   *    borrado). Queda registro en la base de cada autorización y de cada
+   *    intento fallido; con 5 fallos en 10 min se bloquea.
+   * 🔴 La clave NO se guarda: el campo se vacía al cerrar la ventana.
+   * ════════════════════════════════════════════════════════════════════════ */
+  var _aut = null;   // { accion, idx, linea } mientras la ventana está abierta
+
+  var MENSAJES_AUT = {
+    CLAVE_INCORRECTA:    'Correo o clave incorrectos, o ese usuario no es administrador.',
+    DEMASIADOS_INTENTOS: 'Demasiados intentos fallidos. Espere 10 minutos o avise al administrador.',
+    SESION_CADUCADA:     'Su sesión caducó. Salga y vuelva a entrar a la caja.',
+    SESION_INVALIDA:     'Su sesión no es válida. Salga y vuelva a entrar a la caja.',
+    ACCION_INVALIDA:     'Acción no válida.'
+  };
+
+  function pedirAutorizacion(accion, idx) {
+    var l = (idx !== null && idx !== undefined) ? _lineas[idx] : null;
+    if (accion === 'quitar_articulo' && !l) { return; }
+    _aut = { accion: accion, idx: idx, linea: l };
+    $('pos-aut-que').textContent = accion === 'vaciar_factura'
+      ? 'Vaciar toda la factura (' + _lineas.length + (_lineas.length === 1 ? ' línea' : ' líneas') +
+        ', RD$ ' + dinero(totales().neto) + ')'
+      : 'Quitar: ' + l.nombre + ' · ' + (l.esPeso ? l.cantidad.toFixed(2) + ' lb' : l.cantidad + ' ud.') +
+        ' · RD$ ' + dinero(l.precio * l.cantidad);
+    $('pos-aut-correo').value = '';
+    $('pos-aut-clave').value = '';
+    $('pos-aut-error').hidden = true;
+    $('pos-aut-aceptar').disabled = false;
+    $('pos-aut-aceptar').textContent = 'Autorizar';
+    $('pos-modal-aut').hidden = false;
+    $('pos-aut-correo').focus();
+  }
+
+  function cerrarAutorizacion() {
+    _aut = null;
+    $('pos-aut-clave').value = '';   // la clave no se queda en pantalla
+    $('pos-modal-aut').hidden = true;
+    var e = $('pos-entrada'); if (e) { e.focus(); }
+  }
+
+  async function confirmarAutorizacion() {
+    if (!_aut) { return; }
+    var correo = ($('pos-aut-correo').value || '').trim();
+    var clave  = $('pos-aut-clave').value || '';
+    var err = $('pos-aut-error');
+    if (!correo || !clave) {
+      err.textContent = 'Escriba el correo y la clave del administrador.';
+      err.hidden = false; return;
+    }
+    var btn = $('pos-aut-aceptar');
+    btn.disabled = true; btn.textContent = 'Comprobando…';
+    err.hidden = true;
+    var pedido = _aut;
+    try {
+      var res = await fetch(_SB_URL + '/rpc/pos_autorizar', {
+        method: 'POST', headers: _SB_HEADERS,
+        body: JSON.stringify({
+          p_vale:    (typeof _valeAdmin === 'function') ? _valeAdmin() : '',
+          p_email:   correo,
+          p_clave:   clave,
+          p_accion:  pedido.accion,
+          p_detalle: pedido.linea
+            ? { nombre: pedido.linea.nombre, barcode: pedido.linea.barcode, cantidad: pedido.linea.cantidad,
+                precio: pedido.linea.precio, importe: Math.round(pedido.linea.precio * pedido.linea.cantidad * 100) / 100 }
+            : { lineas: _lineas.length, total: totales().neto }
+        })
+      });
+      var txt = await res.text();
+      if (res.status === 404 || txt.indexOf('PGRST202') >= 0) {
+        throw new Error('Falta ejecutar seguridad/74-arreglar-bloqueo-clave.sql en Supabase. No se borró nada.');
+      }
+      if (!res.ok) {
+        for (var k in MENSAJES_AUT) { if (txt.indexOf(k) >= 0) { throw new Error(MENSAJES_AUT[k]); } }
+        throw new Error('No se pudo comprobar la clave (HTTP ' + res.status + '). No se borró nada.');
+      }
+      var j = JSON.parse(txt); if (Array.isArray(j)) { j = j[0]; }
+      /* seguridad/74 · con clave incorrecta la base NO da error (para que el
+       * intento quede registrado): responde { ok:false, error:'CLAVE_INCORRECTA' }. */
+      if (j && j.ok === false && j.error && MENSAJES_AUT[j.error]) {
+        var quedan = Number(j.intentos_restantes);
+        throw new Error(MENSAJES_AUT[j.error] +
+          (isFinite(quedan) && j.error === 'CLAVE_INCORRECTA'
+            ? (quedan > 0 ? (quedan === 1 ? ' Le queda 1 intento.' : ' Le quedan ' + quedan + ' intentos.') : ' La caja queda bloqueada 10 minutos.')
+            : ''));
+      }
+      if (!j || j.ok !== true) { throw new Error('La base no confirmó la autorización. No se borró nada.'); }
+      aplicarBorrado(pedido, j.autorizo);
+      cerrarAutorizacion();
+    } catch (e) {
+      console.error('[POS] autorización:', e);
+      err.textContent = (e instanceof TypeError)
+        ? 'Sin conexión: no se pudo comprobar la clave. No se borró nada.'
+        : (e && e.message ? e.message : String(e));
+      err.hidden = false;
+      $('pos-aut-clave').value = '';
+      $('pos-aut-clave').focus();
+      pitar(true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Autorizar';
+    }
+  }
+
+  function aplicarBorrado(pedido, autorizo) {
+    if (pedido.accion === 'vaciar_factura') {
+      _lineas = [];
+      _ultimoPeso = null;
+      var u = $('pos-ultimo'); if (u) { u.hidden = true; }
+      /* Si se vacía la factura que quedaba abierta tras el límite, ya no
+       * hay nada que cobrar: la caja se cierra. */
+      if (_limite.estado === 'ultima') { _limite.estado = 'cerrada'; mostrarLimite(); }
+      avisar('Factura vaciada · autorizó ' + (autorizo || 'administrador'), 'ok');
+    } else {
+      /* Se busca la MISMA línea (no solo el índice), por si la lista cambió
+       * mientras se escribía la clave. */
+      var i = _lineas.indexOf(pedido.linea);
+      if (i >= 0) { _lineas.splice(i, 1); }
+      avisar('Artículo quitado · autorizó ' + (autorizo || 'administrador'), 'ok');
+    }
+    pintar();
   }
 
   function abrirPago() {
@@ -1240,6 +1361,8 @@
       confirmar:  confirmarCobro,
       lineas:     lineasParaGuardar,
       idCobro:    function () { return _idCobro; },
+      pedirAut:   pedirAutorizacion,
+      confirmarAut: confirmarAutorizacion,
       anadirPrueba: function (p, c, peso) { anadir(p, c, peso); }
     }
   };

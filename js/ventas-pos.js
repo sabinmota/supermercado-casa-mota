@@ -49,6 +49,46 @@
 
   var _ventas = [];
   var _abierta = null;
+  var _puedeAnular = false;   // lo decide la BASE (solo superadmin); aquí solo se muestra el botón
+
+  var MENSAJES_ANULAR = {
+    NO_INSTALADO:      'Falta ejecutar seguridad/73-anular-y-autorizar-pos.sql en Supabase.',
+    ROL_NO_AUTORIZADO: 'Solo el superadministrador puede anular ventas.',
+    MOTIVO_REQUERIDO:  'Escriba el motivo de la anulación (mínimo 4 letras).',
+    YA_ANULADA:        'Esa venta ya estaba anulada.',
+    VENTA_NO_EXISTE:   'La venta no existe.',
+    SESION_INVALIDA:   'Su sesión caducó. Vuelva a entrar al panel.',
+    SESION_CADUCADA:   'Su sesión caducó. Vuelva a entrar al panel.'
+  };
+
+  async function anular(v) {
+    var motivo = window.prompt('Anular el ticket Nº ' + String(v.numero).padStart(6, '0') +
+      ' (' + dinero(v.total) + ').\n\nEscriba el motivo de la anulación:');
+    if (motivo === null) { return; }
+    motivo = motivo.trim();
+    if (motivo.length < 4) { aviso(MENSAJES_ANULAR.MOTIVO_REQUERIDO, 'error'); return; }
+    try {
+      var res = await fetch(_SB_URL + '/rpc/admin_anular_venta_pos', {
+        method: 'POST', headers: _SB_HEADERS,
+        body: JSON.stringify({ p_vale: (typeof _valeAdmin === 'function') ? _valeAdmin() : '', p_id: v.id, p_motivo: motivo })
+      });
+      var txt = await res.text();
+      if (res.status === 404 || txt.indexOf('PGRST202') >= 0) { throw new Error(MENSAJES_ANULAR.NO_INSTALADO); }
+      if (!res.ok) {
+        for (var k in MENSAJES_ANULAR) { if (txt.indexOf(k) >= 0) { throw new Error(MENSAJES_ANULAR[k]); } }
+        throw new Error('No se pudo anular (HTTP ' + res.status + ').');
+      }
+      aviso('Ticket Nº ' + String(v.numero).padStart(6, '0') + ' anulado', 'success');
+      await cargar();
+    } catch (e) {
+      aviso(e && e.message ? e.message : String(e), 'error');
+    }
+  }
+
+  function aviso(txt, tipo) {
+    if (typeof showAdminToast === 'function') { showAdminToast(txt, tipo); }
+    else { window.alert(txt); }
+  }
 
   async function pedir(dia) {
     var res = await fetch(_SB_URL + '/rpc/admin_ventas_pos', {
@@ -136,12 +176,19 @@
     var pago = v.forma_pago === 'efectivo'
       ? 'Recibido ' + dinero(v.recibido) + ' · Cambio ' + dinero(v.cambio)
       : (NOMBRE_PAGO[v.forma_pago] || v.forma_pago);
+    var extra = v.anulada
+      ? '<p class="vp-detalle__anul">ANULADA' + (v.anulada_en ? ' el ' + esc(v.anulada_en) : '') +
+        (v.anulada_por ? ' por ' + esc(v.anulada_por) : '') +
+        (v.motivo_anulacion ? ' · Motivo: ' + esc(v.motivo_anulacion) : '') + '</p>'
+      : (_puedeAnular ? '<button type="button" class="vp-anular" data-anular="' + esc(v.id) + '">' +
+                        '<i class="fas fa-ban"></i> Anular venta</button>' : '');
     return '<tr class="vp-detalle"><td colspan="8">' +
              '<table class="vp-lineas"><thead><tr><th>Artículo</th><th class="n">Cant.</th>' +
              '<th class="n">Precio</th><th class="n">ITBIS</th><th class="n">Importe</th></tr></thead>' +
              '<tbody>' + (filas || '<tr><td colspan="5">Sin detalle.</td></tr>') + '</tbody></table>' +
              '<p class="vp-detalle__pie">Subtotal ' + dinero(v.subtotal) + ' · ITBIS ' + dinero(v.itbis) +
              ' · <b>Total ' + dinero(v.total) + '</b> · ' + esc(pago) + '</p>' +
+             extra +
            '</td></tr>';
   }
 
@@ -156,6 +203,7 @@
     try {
       var r = await pedir(inp.value);
       _ventas = (r && Array.isArray(r.ventas)) ? r.ventas : [];
+      _puedeAnular = !!(r && r.puede_anular);
       est.textContent = _ventas.length ? '' : '';
       est.hidden = true;
       pintar();
@@ -175,6 +223,12 @@
     $('vpRecargar').addEventListener('click', cargar);
     $('vpHoy').addEventListener('click', function () { $('vpDia').value = hoyRD(); cargar(); });
     $('vpCuerpo').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-anular]');
+      if (b) {
+        var id = b.getAttribute('data-anular');
+        for (var k = 0; k < _ventas.length; k++) { if (_ventas[k].id === id) { anular(_ventas[k]); break; } }
+        return;
+      }
       var tr = ev.target.closest('.vp-fila');
       if (!tr) { return; }
       var i = parseInt(tr.getAttribute('data-i'), 10);
@@ -204,5 +258,7 @@
     montar();
   }
 
-  window.CasaMotaVentasPOS = { _cargar: cargar, _resumir: resumir, _pintar: function (v) { _ventas = v; pintar(); } };
+  window.CasaMotaVentasPOS = { _cargar: cargar, _resumir: resumir,
+    _pintar: function (v, puede) { _ventas = v; _puedeAnular = !!puede; pintar(); },
+    _abrir: function (i) { _abierta = i; pintar(); } };
 })();
