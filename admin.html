@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=10" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=12" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -200,10 +200,28 @@
             <i class="fa-solid fa-gear"></i><span>Configuración</span>
           </a>
         </li>
-        <li>
-          <a href="#" class="nav-link nav-link-respaldo" data-section="respaldo" onclick="showSection('respaldo',this)">
-            <i class="fa-regular fa-shield"></i><span>Respaldo</span>
+        <!-- 469b · «··· Más» justo después de Configuración (decisión del dueño:
+             el menú queda igual que antes; SOLO Respaldo y Ventas POS van dentro).
+             Plegado por defecto; se abre al pulsar o si la sección activa está
+             dentro (js/menu-mas.js). -->
+        <li class="dsh-more-li">
+          <a href="#" class="nav-link dsh-more" id="navMas" role="button"
+             aria-expanded="false" aria-controls="navMasLista">
+            <i class="fa-solid fa-ellipsis"></i><span>Más</span>
+            <i class="fa-solid fa-chevron-down dsh-more__chevron" aria-hidden="true"></i>
           </a>
+          <ul class="dsh-more__lista" id="navMasLista" hidden>
+            <li>
+              <a href="#" class="nav-link nav-link-respaldo" data-section="respaldo" onclick="showSection('respaldo',this)">
+                <i class="fa-regular fa-shield"></i><span>Respaldo</span>
+              </a>
+            </li>
+            <li>
+              <a href="#" class="nav-link" data-section="ventaspos" onclick="showSection('ventaspos',this)">
+                <i class="fa-solid fa-cash-register"></i><span>Ventas POS</span>
+              </a>
+            </li>
+          </ul>
         </li>
       </ul>
     </nav>
@@ -1081,18 +1099,18 @@
           </div>
           <button class="btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Guardar cambios</button>
         </div>
-        <!-- ══ POS-2 · LÍMITE DIARIO DE ITBIS (seguridad/69) ══
+        <!-- ══ POS-2 · LÍMITE DE ITBIS (POS-10: sin fecha · seguridad/70) ══
              NO usa saveSettings(): se guarda por RPC con vale y rol
              superadmin, porque `settings` se escribe con la clave pública. -->
         <div class="card settings-card" id="cardLimiteItbis" style="border-top:3px solid #b42318">
-          <h3><i class="fas fa-cash-register" style="color:#b42318"></i> Límite diario de ITBIS (Punto de Venta)</h3>
+          <h3><i class="fas fa-cash-register" style="color:#b42318"></i> Límite de ITBIS (Punto de Venta)</h3>
           <p style="font-size:.82rem;color:#6b7280;margin:0 0 12px">
-            Cuando el ITBIS cobrado <b>hoy</b> sumando <b>todas las cajas</b> llegue a esta cifra,
+            Cuando el ITBIS facturado sumando <b>todas las cajas</b> llegue a esta cifra,
             el POS deja cobrar la factura que esté abierta y después no factura más.
             Para desbloquearlo, suba el límite. Déjelo vacío o en 0 para no tener límite.
           </p>
           <div class="form-group">
-            <label for="limiteItbisInput">Límite de ITBIS por día (RD$)</label>
+            <label for="limiteItbisInput">Límite de ITBIS (RD$)</label>
             <input type="number" class="form-input" id="limiteItbisInput" min="0" step="0.01" placeholder="Sin límite" />
           </div>
           <p id="limiteItbisEstado" style="font-size:.85rem;margin:0 0 12px;color:#374151">Cargando…</p>
@@ -2825,6 +2843,46 @@
     <!-- ══════════════════════════════════════════════
          SECCIÓN RESPALDO
     ══════════════════════════════════════════════ -->
+    <!-- ══ 469 · VENTAS POS (js/ventas-pos.js · RPC admin_ventas_pos, seguridad/72) ══ -->
+    <section class="section-content" id="sec-ventaspos">
+      <div class="page-header">
+        <h1><i class="fas fa-cash-register" style="color:#1a7c3e;margin-right:8px"></i>Ventas del Punto de Venta</h1>
+        <div class="vp-filtros">
+          <label for="vpDia" class="vp-lbl">Día</label>
+          <input type="date" id="vpDia" class="form-input vp-dia" />
+          <button type="button" class="btn-secondary" id="vpHoy">Hoy</button>
+          <button type="button" class="btn-primary" id="vpRecargar"><i class="fas fa-rotate"></i> Actualizar</button>
+        </div>
+      </div>
+
+      <div class="vp-kpis" id="vpKpis">
+        <div class="vp-kpi vp-kpi--total"><span class="vp-kpi__lbl">Total vendido</span><b id="vpTotal">RD$ 0.00</b><small id="vpNum">0 ventas</small></div>
+        <div class="vp-kpi"><span class="vp-kpi__lbl">Efectivo</span><b id="vpEfectivo">RD$ 0.00</b></div>
+        <div class="vp-kpi"><span class="vp-kpi__lbl">Tarjeta</span><b id="vpTarjeta">RD$ 0.00</b></div>
+        <div class="vp-kpi"><span class="vp-kpi__lbl">Transferencia</span><b id="vpTransf">RD$ 0.00</b></div>
+        <div class="vp-kpi vp-kpi--itbis"><span class="vp-kpi__lbl">ITBIS</span><b id="vpItbis">RD$ 0.00</b></div>
+      </div>
+
+      <div class="card vp-cajeras-card">
+        <h3 class="vp-sub">Por cajera</h3>
+        <div id="vpCajeras" class="vp-cajeras"><p class="vp-vacio">Sin ventas.</p></div>
+      </div>
+
+      <div class="card">
+        <h3 class="vp-sub">Ventas del día <small>(pulse una venta para ver sus artículos)</small></h3>
+        <p id="vpEstado" class="vp-estado">Cargando…</p>
+        <div class="table-wrapper">
+          <table class="data-table vp-tabla" id="vpTabla">
+            <thead><tr>
+              <th>Ticket</th><th>Hora</th><th>Cajera</th><th>Caja</th><th>Pago</th>
+              <th class="n">Art.</th><th class="n">ITBIS</th><th class="n">Total</th>
+            </tr></thead>
+            <tbody id="vpCuerpo"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section class="section-content" id="sec-respaldo">
 
       <!-- Header -->
@@ -3241,7 +3299,7 @@
        El panel lo necesita porque chat.js (Maya) lee los favoritos del
        cliente. Debe cargarse ANTES de chat.js. -->
   <script src="js/almacen-cliente.js?v=1"></script>
-  <script src="js/auth.v33.js?v=300"></script>
+  <script src="js/auth.v33.js?v=301"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
@@ -3250,8 +3308,11 @@
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
   <script src="js/extras.v33.js?v=315"></script>
-  <!-- POS-2 · Límite diario de ITBIS (tarjeta en Configuración) -->
-  <script src="js/limite-itbis.js?v=1"></script>
+  <!-- POS-2 · Límite de ITBIS (tarjeta en Configuración) -->
+  <script src="js/limite-itbis.js?v=2"></script>
+  <!-- 469 · menú «··· Más» y sección Ventas POS (ficheros aparte, no tocan admin.v33.js) -->
+  <script src="js/menu-mas.js?v=2"></script>
+  <script src="js/ventas-pos.js?v=1"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=4"></script>

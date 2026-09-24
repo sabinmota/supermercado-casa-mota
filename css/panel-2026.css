@@ -249,6 +249,52 @@
 /* Fila «Más», con su flecha a la derecha. */
 .dsh-more__chevron { margin-left: auto; font-size: .7rem; transition: transform .2s; }
 .dsh-more[aria-expanded="true"] .dsh-more__chevron { transform: rotate(180deg); }
+/* 469 · lista del desplegable «Más»: mismas filas, con sangría ligera. */
+.dsh-more-li { border-top: 1px solid rgba(255,255,255,.14); margin-top: 6px; padding-top: 6px; }
+/* 469b · las opciones de dentro se ven IGUAL que el resto del menú. */
+.dsh-more__lista { list-style: none; margin: 0; padding: 0; }
+.dsh-more__lista[hidden] { display: none; }
+.sidebar.collapsed .dsh-more__chevron { display: none; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   469 · SECCIÓN VENTAS POS
+   ═════════════════════════════════════════════════════════════════════════ */
+#sec-ventaspos .page-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.vp-filtros { display: flex; align-items: center; gap: 8px; }
+.vp-lbl { font-weight: 600; font-size: .85rem; color: #4b5563; }
+.vp-dia { width: auto; }
+.vp-kpis { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+.vp-kpi {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.vp-kpi__lbl { font-size: .74rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #6b7280; }
+.vp-kpi b { font-size: 1.25rem; font-variant-numeric: tabular-nums; color: #111827; }
+.vp-kpi small { color: #6b7280; font-size: .8rem; }
+.vp-kpi--total { background: #e9f6ee; border-color: #b7e0c6; }
+.vp-kpi--total b { color: #1a7c3e; font-size: 1.5rem; }
+.vp-kpi--itbis b { color: #b42318; }
+.vp-sub { margin: 0 0 12px; font-size: 1rem; }
+.vp-sub small { font-weight: 400; color: #6b7280; font-size: .8rem; }
+.vp-cajeras-card { margin-bottom: 16px; }
+.vp-cajeras { display: flex; flex-wrap: wrap; gap: 10px; }
+.vp-cajera {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 14px;
+  border: 1px solid #e5e7eb; border-radius: 12px; min-width: 200px; font-size: .85rem; color: #374151;
+}
+.vp-cajera b { font-size: .95rem; color: #111827; }
+.vp-vacio { color: #6b7280; text-align: center; padding: 14px; }
+.vp-estado { margin: 0 0 10px; font-size: .9rem; color: #6b7280; }
+.vp-estado--error { color: #b42318; font-weight: 600; }
+.vp-tabla .n, .vp-lineas .n { text-align: right; font-variant-numeric: tabular-nums; }
+.vp-fila { cursor: pointer; }
+.vp-fila:hover { background: #f3f7f4; }
+.vp-fila--anulada td { color: #9ca3af; text-decoration: line-through; }
+.vp-anulada { background: #fde8e6; color: #b42318; font-size: .7rem; font-weight: 700; padding: 2px 6px; border-radius: 6px; text-decoration: none; }
+.vp-detalle > td { background: #f9fafb; padding: 12px 16px; }
+.vp-lineas { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.vp-lineas th, .vp-lineas td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+.vp-detalle__pie { margin: 10px 0 0; font-size: .85rem; color: #374151; }
 
 /* ── Pie: ilustración y lema ───────────────────────────────────────────── */
 /* 468b: solo se reduce el LARGO del pie (Ver tienda + planta) para que
