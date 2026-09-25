@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Prueba de impresora · Casa Mota</title>
+<!--
+  PÁGINA TEMPORAL DE DIAGNÓSTICO (POS-21, 25-sep). Se BORRA cuando se sepa
+  qué variante imprime en la Star TSP100. Autónoma: sin CDN ni ficheros.
+  Cada botón abre una ventana con UN solo formato y manda imprimir.
+-->
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; background: #f3f5f7; color: #1d2733; }
+  h1 { margin: 0 0 6px; font-size: 1.5rem; }
+  p { margin: 0 0 16px; max-width: 720px; }
+  .lista { display: grid; gap: 12px; max-width: 720px; }
+  .prueba { background: #fff; border: 1px solid #d7dde3; border-radius: 12px; padding: 14px 16px;
+            display: flex; align-items: center; gap: 14px; }
+  .prueba b { display: block; font-size: 1.05rem; }
+  .prueba span { color: #556; font-size: .9rem; }
+  .prueba div { flex: 1; }
+  .letra { width: 44px; height: 44px; border-radius: 50%; background: #1f7a3a; color: #fff;
+           font-weight: 800; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; }
+  button { padding: 12px 18px; font: inherit; font-weight: 700; border: 0; border-radius: 10px;
+           background: #2f8fd8; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+  <h1>Prueba de impresora</h1>
+  <p>Pulse cada botón, elija la <b>Star TSP100</b> en la ventana de imprimir y
+     apunte qué sale en el papel. Antes de pulsar «Imprimir», fíjese también en
+     la <b>vista previa</b> de la ventana: ¿se ve el texto o está en blanco?</p>
+
+  <div class="lista">
+    <div class="prueba"><span class="letra">A</span>
+      <div><b>Texto grande, sin nada especial</b><span>La prueba más simple posible.</span></div>
+      <button type="button" data-v="A">Imprimir A</button></div>
+    <div class="prueba"><span class="letra">B</span>
+      <div><b>Ticket igual que el de la caja (72 mm)</b><span>El formato actual.</span></div>
+      <button type="button" data-v="B">Imprimir B</button></div>
+    <div class="prueba"><span class="letra">C</span>
+      <div><b>Ticket más estrecho (64 mm) con margen</b><span>Por si el borde queda fuera de lo imprimible.</span></div>
+      <button type="button" data-v="C">Imprimir C</button></div>
+    <div class="prueba"><span class="letra">D</span>
+      <div><b>Ticket con tamaño de hoja fijo (72 × 200 mm)</b><span>Por si el driver no sabe el largo del papel.</span></div>
+      <button type="button" data-v="D">Imprimir D</button></div>
+    <div class="prueba"><span class="letra">E</span>
+      <div><b>Letra Arial, negrita, sin monoespaciada</b><span>Por si el driver no dibuja la fuente fina.</span></div>
+      <button type="button" data-v="E">Imprimir E</button></div>
+  </div>
+
+  <h1 style="margin-top:26px">Ronda 2</h1>
+  <p>Cada una es como la A (que sí imprimió) pero con <b>un solo cambio</b>.
+     Así sabremos exactamente qué es lo que la Star no acepta.</p>
+  <div class="lista">
+    <div class="prueba"><span class="letra">F</span>
+      <div><b>Ticket en Arial negrita, sin nada más</b><span>Igual que A, pero con el contenido del ticket.</span></div>
+      <button type="button" data-v="F">Imprimir F</button></div>
+    <div class="prueba"><span class="letra">G</span>
+      <div><b>F + márgenes a cero</b><span>Prueba si el problema es el margen 0.</span></div>
+      <button type="button" data-v="G">Imprimir G</button></div>
+    <div class="prueba"><span class="letra">H</span>
+      <div><b>F con letra Courier (la de la caja)</b><span>Prueba si el problema es la letra.</span></div>
+      <button type="button" data-v="H">Imprimir H</button></div>
+    <div class="prueba"><span class="letra">I</span>
+      <div><b>F con ancho fijo de 72 mm</b><span>Prueba si el problema es el ancho.</span></div>
+      <button type="button" data-v="I">Imprimir I</button></div>
+  </div>
+
+<script src="js/prueba-impresora.js"></script>
+</body>
+</html>
