@@ -41,8 +41,9 @@
    *   estado 'ultima'   → se alcanzó el límite CON una factura abierta: se
    *                       puede COBRAR esa factura, pero no añadirle nada
    *   estado 'cerrada'  → la caja no registra ni cobra ventas nuevas
-   *   estado 'sin_dato' → no se pudo consultar el estado: se bloquea */
-  var _limite = { valor: null, acumulado: 0, estado: 'libre' };
+   *   (POS-13: el estado 'sin_dato' se ELIMINÓ; `fallo` solo marca que la
+   *    última consulta no se pudo hacer, sin bloquear) */
+  var _limite = { valor: null, acumulado: 0, estado: 'libre', fallo: null };
 
   /* ════════════════════════════════════════════════════════════════════════
    * DESCIFRADO DEL CÓDIGO DE BÁSCULA
@@ -627,8 +628,7 @@
     $('pos-base').textContent  = dinero(t.base);
     $('pos-itbis').textContent = dinero(t.itbis);
     $('pos-neto').textContent  = dinero(t.neto);
-    $('pos-cobrar').disabled   = !_lineas.length ||
-                                 _limite.estado === 'cerrada' || _limite.estado === 'sin_dato';
+    $('pos-cobrar').disabled   = !_lineas.length || _limite.estado === 'cerrada';
   }
 
   /* ── Reloj ──────────────────────────────────────────────────────────────── */
@@ -824,8 +824,8 @@
   function abrirPago() {
     if (!_lineas.length) { return; }
     /* 'ultima' SÍ deja cobrar (la factura abierta al llegar al límite).
-     * 'cerrada' y 'sin_dato' no. */
-    if (_limite.estado === 'cerrada' || _limite.estado === 'sin_dato') {
+     * 'cerrada' no. */
+    if (_limite.estado === 'cerrada') {
       pitar(true); mostrarLimite(); return;
     }
     var t = totales();
@@ -1158,11 +1158,13 @@
    *    NO se guarda en `settings`: esa tabla se escribe con la clave pública
    *    y cualquiera podría subirlo.
    *
-   * 🔴 SI NO SE PUEDE CONSULTAR EL ESTADO, LA CAJA SE BLOQUEA ('sin_dato').
-   *    Seguir facturando «por si acaso» es justo lo que el límite existe
-   *    para impedir. Excepción única: si la función AÚN NO EXISTE en la base
-   *    (respuesta 404/PGRST202), no hay límite posible y la caja funciona
-   *    como antes.
+   * 🔴 POS-13 · SE ELIMINÓ EL BLOQUEO «sin_dato». Antes, si UNA consulta de
+   *    las de cada 60 s fallaba (un corte de red), la caja se bloqueaba y
+   *    mostraba «Llegamos al límite de facturación» con RD$ 22.88 de RD$
+   *    10,000 — falso y alarmante (visto por el dueño en caja). Sobraba:
+   *    el límite REAL lo impone la base al cobrar (`pos_registrar_venta`,
+   *    seguridad/71, con la fila bloqueada). Si la consulta falla, la caja
+   *    conserva el último estado conocido y lo marca «sin comprobar» arriba.
    *
    * Se vuelve a consultar cada 60 s: así ve lo que cobran las demás cajas
    * y se desbloquea sin recargar cuando el dueño sube el límite.
@@ -1180,7 +1182,7 @@
     }
   }
 
-  /* Devuelve { limite, acumulado } · 'NO_INSTALADO' · null (error). */
+  /* Devuelve { limite, acumulado } · 'NO_INSTALADO' · { fallo: motivo } (error). */
   async function leerEstadoLimite() {
     try {
       var vale = (typeof _valeAdmin === 'function') ? _valeAdmin() : '';
@@ -1189,16 +1191,20 @@
       });
       var txt = await res.text();
       if (res.status === 404 || txt.indexOf('PGRST202') >= 0) { return 'NO_INSTALADO'; }
-      if (!res.ok) { console.error('[POS] estado del límite · HTTP ' + res.status + ' · ' + txt); return null; }
+      if (!res.ok) {
+        console.error('[POS] estado del límite · HTTP ' + res.status + ' · ' + txt);
+        if (/SESION_(INVALIDA|CADUCADA)|CUENTA_DESACTIVADA/.test(txt)) { return { fallo: 'SESION' }; }
+        return { fallo: 'HTTP ' + res.status };
+      }
       var j = JSON.parse(txt);
       if (Array.isArray(j)) { j = j[0]; }
       var lim  = j && j.limite !== null && j.limite !== undefined ? Number(j.limite) : null;
       var acum = j ? Number(j.acumulado) : NaN;
-      if (!isFinite(acum) || acum < 0) { return null; }
+      if (!isFinite(acum) || acum < 0) { return { fallo: 'RESPUESTA' }; }
       return { limite: (isFinite(lim) && lim > 0) ? lim : null, acumulado: acum };
     } catch (e) {
       console.error('[POS] estado del límite ·', e);
-      return null;
+      return { fallo: 'RED' };
     }
   }
 
@@ -1206,16 +1212,24 @@
    *  · Sin límite, o límite subido por encima de lo facturado → se
    *    desbloquea (así «la desbloqueo subiendo el límite» funciona sin
    *    recargar). Si había factura abierta en 'ultima', vuelve a admitir artículos.
-   *  · Nunca se desbloquea por un fallo de red: null mantiene/pone 'sin_dato'. */
+   *  · Si la consulta FALLA no se cambia nada (ni bloquea ni desbloquea):
+   *    se marca «sin comprobar». La base sigue imponiendo el límite al cobrar. */
+  var _avisoSesion = false;
   function aplicarEstado(r) {
     if (r === 'NO_INSTALADO') {
-      _limite.valor = null; _limite.estado = 'libre';
+      _limite.valor = null; _limite.estado = 'libre'; _limite.fallo = null;
       pintarTopLimite(); return;
     }
-    if (r === null) {
-      if (_limite.estado !== 'ultima') { _limite.estado = 'sin_dato'; mostrarLimite(); }
-      pintarTopLimite(); pintar(); return;
+    if (!r || r.fallo) {
+      _limite.fallo = r ? r.fallo : 'RED';
+      if (_limite.fallo === 'SESION' && !_avisoSesion) {
+        _avisoSesion = true;
+        avisar('Su sesión de caja caducó. Termine esta venta, salga y vuelva a entrar.', 'error');
+      }
+      pintarTopLimite(); return;
     }
+    _limite.fallo = null;
+    _avisoSesion = false;
     _limite.valor = r.limite;
     _limite.acumulado = r.acumulado;
 
@@ -1231,7 +1245,7 @@
                    ent.placeholder = 'Apunte la pistola y dispare…'; }
         avisar('Límite actualizado: la caja vuelve a facturar', 'ok');
       }
-    } else if (_limite.estado === 'libre' || _limite.estado === 'sin_dato') {
+    } else if (_limite.estado === 'libre') {
       _limite.estado = _lineas.length ? 'ultima' : 'cerrada';
       mostrarLimite();
     }
@@ -1270,9 +1284,6 @@
     if (_limite.estado === 'ultima') {
       txt.textContent = 'Puede cobrar esta factura tal como está. No se pueden añadir ' +
                         'más artículos, y después de cobrarla la caja no registrará ventas nuevas.';
-    } else if (_limite.estado === 'sin_dato') {
-      txt.textContent = 'No se pudo comprobar el límite de facturación. Por ' +
-                        'seguridad esta caja no factura. Revise la conexión; si sigue, avise al administrador.';
     } else {
       txt.textContent = 'Se alcanzó el límite de ITBIS programado (todas las cajas). Esta caja no ' +
                         'puede registrar ni cobrar más ventas hasta que el administrador suba el límite.';
