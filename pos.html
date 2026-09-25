@@ -12,7 +12,7 @@
      sesión no coincide, se recarga sin caché UNA vez. Sin esto, una cajera
      con la pestaña abierta desde ayer seguiría con el JS viejo. */
   (function () {
-    var VER = 'POS-16';
+    var VER = 'POS-19';
     var KEY = 'cm_pos_ver';
     var guardado = sessionStorage.getItem(KEY);
     if (guardado !== VER) {
@@ -37,11 +37,6 @@
 
   ⚠️ LO QUE ESTE BUILD **NO** HACE TODAVÍA, y está dicho a propósito para que
      nadie lo dé por hecho:
-       · NO imprime el recibo (falta el puente a la Epson TM-T88VII)
-       · NO asigna NCF ni número de documento (falta la RPC de numeración
-         atómica en la base — el contador NO puede vivir en el navegador:
-         dos cajeras a la vez darían el mismo NCF a dos facturas)
-       · NO guarda la venta en la base
        · NO descuenta inventario (decisión del dueño: NO debe descontarlo)
      Es la pantalla de caja para APROBAR: escaneo, pesados, líneas, ITBIS,
      total, pago y cambio.
@@ -58,7 +53,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/pos.css?v=13" />
+<link rel="stylesheet" href="css/pos.css?v=15" />
 </head>
 <body>
 
@@ -245,9 +240,13 @@
     <h2>Venta guardada</h2>
     <p class="pos-hecho__num">Ticket Nº <b id="pos-hecho-num">—</b></p>
     <p class="pos-hecho__forma" id="pos-hecho-forma"></p>
+    <!-- POS-19 · NCF asignado, o aviso si no se pudo / si se acerca el vencimiento -->
+    <p class="pos-hecho__ncf" id="pos-hecho-ncf" hidden></p>
     <div class="pos-cambio-caja pos-hecho__cambio" id="pos-hecho-cambio-caja">
       <span>Entregar de cambio</span><b>RD$ <span id="pos-hecho-cambio">0.00</span></b>
     </div>
+    <!-- POS-17 · el ticket sale solo al guardar; este botón saca una COPIA -->
+    <button type="button" class="pos-btn-grande pos-btn-azul pos-hecho__reimp" id="pos-reimprimir">Reimprimir ticket</button>
     <button type="button" class="pos-btn-grande" id="pos-nueva-venta">Nueva venta</button>
   </div>
 </div>
@@ -305,7 +304,7 @@
   </div>
 </div>
 
-<!-- POS-14 · recibo para la impresora térmica (solo se ve al imprimir) -->
+<!-- POS-14/17 · recibo para la impresora térmica (ticket de venta y cierre; solo se ve al imprimir) -->
 <div class="pos-recibo" id="pos-recibo" aria-hidden="true"></div>
 
 
@@ -318,6 +317,6 @@
 <script src="js/auth.v33.js?v=302"></script>
 <!-- POS-3 · anuncios diseñados de la franja. Va ANTES de pos.js. -->
 <script src="js/pos-anuncios.js?v=2"></script>
-<script src="js/pos.js?v=17"></script>
+<script src="js/pos.js?v=20"></script>
 </body>
 </html>

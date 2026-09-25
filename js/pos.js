@@ -35,6 +35,7 @@
   var _idCobro    = null;         // B4 · id único del cobro en curso (evita duplicados)
   var _guardando  = false;        // B4 · hay un guardado en marcha
   var _ultimoPeso = null;   // { peso, nombre } de la última etiqueta de báscula
+  var _ultimoTicket = null; // POS-17 · datos del último ticket (para «Reimprimir»)
 
   /* POS-2 · LÍMITE DE ITBIS (pedido del dueño, 2026-09-23)
    *   estado 'libre'    → factura con normalidad
@@ -684,6 +685,7 @@
     });
     on('pos-pago-aceptar', 'click', confirmarCobro);
     on('pos-nueva-venta', 'click', nuevaVenta);
+    on('pos-reimprimir', 'click', reimprimir);
     var formas = document.querySelectorAll('.pos-forma');
     for (var f = 0; f < formas.length; f++) {
       formas[f].addEventListener('click', function (ev) {
@@ -975,6 +977,10 @@
         p_total:      t.neto,
         p_itbis:      t.itbis
       });
+      /* POS-19 · NCF B02: se pide DESPUÉS de guardar, con el número de la
+       * venta. Si falla, la venta YA está guardada: sale como ticket sin
+       * NCF y se avisa (nunca se inventa un NCF en el navegador). */
+      r.ncfInfo = await pedirNcf(r.numero);
       ventaGuardada(r);
     } catch (e) {
       console.error('[POS] no se guardó la venta:', e);
@@ -995,8 +1001,99 @@
     }
   }
 
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-19 · NCF B02 (seguridad/77 · RPC pos_asignar_ncf)
+   * Rango B0200000001 → B0201000000 · vence 31/12/2027 (datos del dueño).
+   * 🔴 El contador vive en la BASE: dos cajas nunca dan el mismo NCF.
+   * 🔴 Reintento = el MISMO NCF de esa venta (no se gasta otro).
+   * Devuelve {ok, ncf, vence, restantes, dias} o {ok:false, error}.
+   * ════════════════════════════════════════════════════════════════════════ */
+  var MENSAJES_NCF = {
+    NCF_VENCIDO:       'Los comprobantes B02 están VENCIDOS. Este ticket sale SIN NCF. Avise al administrador.',
+    NCF_AGOTADO:       'Se acabaron los comprobantes B02. Este ticket sale SIN NCF. Avise al administrador.',
+    NCF_SIN_SECUENCIA: 'No hay secuencia de comprobantes B02 configurada. Este ticket sale SIN NCF.',
+    SESION_INVALIDA:   'Su sesión no es válida para pedir el NCF. Este ticket sale SIN NCF.',
+    VENTA_NO_EXISTE:   'La venta no se encontró al pedir el NCF. Este ticket sale SIN NCF.'
+  };
+  var AVISO_NCF_DIAS = 30, AVISO_NCF_QUEDAN = 1000;
+
+  async function pedirNcf(numero) {
+    try {
+      var res = await fetch(_SB_URL + '/rpc/pos_asignar_ncf', {
+        method: 'POST', headers: _SB_HEADERS,
+        body: JSON.stringify({ p_vale: (typeof _valeAdmin === 'function') ? _valeAdmin() : '', p_numero: numero })
+      });
+      var txt = await res.text();
+      if (res.status === 404 || txt.indexOf('PGRST202') >= 0) {
+        return { ok: false, error: 'FALTA_SQL', mensaje: 'Falta ejecutar seguridad/77-ncf-b02.sql en Supabase. Este ticket sale SIN NCF.' };
+      }
+      if (!res.ok) { return { ok: false, error: 'HTTP', mensaje: 'No se pudo pedir el NCF (HTTP ' + res.status + '). Este ticket sale SIN NCF.' }; }
+      var j = JSON.parse(txt);
+      j = Array.isArray(j) ? j[0] : j;
+      if (!j || !j.ok) {
+        var cod = j && j.error ? j.error : 'DESCONOCIDO';
+        return { ok: false, error: cod, mensaje: MENSAJES_NCF[cod] || ('No se pudo asignar el NCF (' + cod + '). Este ticket sale SIN NCF.') };
+      }
+      return j;
+    } catch (e) {
+      return { ok: false, error: 'RED', mensaje: 'Sin conexión al pedir el NCF. Este ticket sale SIN NCF; pulse «Reimprimir ticket» para reintentarlo.' };
+    }
+  }
+
+  /* Aviso en la ventana de venta guardada: error de NCF, o que se acerca el
+   * vencimiento / el final del rango. */
+  function avisoNcf(info) {
+    var el = $('pos-hecho-ncf');
+    if (!el) { return; }
+    el.className = 'pos-hecho__ncf';
+    if (!info) { el.hidden = true; return; }
+    if (!info.ok) {
+      el.textContent = info.mensaje || 'Este ticket sale SIN NCF.';
+      el.classList.add('pos-hecho__ncf--error');
+      el.hidden = false;
+      return;
+    }
+    var partes = ['NCF ' + info.ncf];
+    var dias = Number(info.dias), quedan = Number(info.restantes);
+    if (isFinite(dias) && dias <= AVISO_NCF_DIAS) {
+      partes.push('⚠ los comprobantes vencen en ' + dias + (dias === 1 ? ' día' : ' días'));
+      el.classList.add('pos-hecho__ncf--aviso');
+    }
+    if (isFinite(quedan) && quedan <= AVISO_NCF_QUEDAN) {
+      partes.push('⚠ quedan ' + quedan + ' comprobantes');
+      el.classList.add('pos-hecho__ncf--aviso');
+    }
+    el.textContent = partes.join(' · ');
+    el.hidden = false;
+  }
+
+  function fechaDMA(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+  }
+
   function ventaGuardada(r) {
     var nombres = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' };
+    var nInfo = r.ncfInfo || null;
+    /* POS-17 · el ticket se arma ANTES de vaciar la factura, con lo que la
+     * BASE devolvió (número, total, cambio), no con lo que calculó la pantalla. */
+    _ultimoTicket = {
+      numero:  r.numero,
+      lineas:  _lineas.slice(),
+      arts:    totales().arts,
+      total:   Number(r.total) || 0,
+      /* POS-18 · ITBIS cobrado: el que calculó y guardó la BASE. Solo si la
+       * base no lo devolviera se usa el de pantalla. */
+      itbis:   isFinite(Number(r.itbis)) && r.itbis !== null ? Number(r.itbis) : totales().itbis,
+      cambio:  Number(r.cambio) || 0,
+      forma:   _formaPago,
+      cajera:  _cajera ? ([_cajera.firstName, _cajera.lastName].filter(Boolean).join(' ') || _cajera.email || '') : '',
+      caja:    _caja,
+      fecha:   new Date(),
+      ncf:     nInfo && nInfo.ok ? nInfo.ncf : '',
+      ncfVence: nInfo && nInfo.ok ? fechaDMA(nInfo.vence) : ''
+    };
+    avisoNcf(nInfo);
     document.querySelector('#pos-modal-pago .pos-modal__caja').hidden = true;
     $('pos-hecho-num').textContent = String(r.numero).padStart(6, '0');
     $('pos-hecho-forma').textContent = 'RD$ ' + dinero(r.total) + ' · ' + (nombres[_formaPago] || _formaPago) +
@@ -1017,6 +1114,132 @@
     trasCobrar(itbisVenta);
     pintar();
     $('pos-nueva-venta').focus();
+    imprimirTicket(_ultimoTicket, false);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-17 · TICKET DE VENTA · Epson TM-T88VII (rollo 80 mm, 72 mm útiles)
+   *
+   * Sigue la muestra aprobada (documentos/recibo-pos-muestra.html).
+   * 🔴 SIN NCF todavía: el comprobante fiscal exige la numeración atómica en
+   *    la base (B2). Por eso el título es «TICKET DE VENTA» y no «FACTURA
+   *    CONSUMIDOR FINAL»: poner ese título sin NCF sería un papel fiscal falso.
+   * Sale por la ventana de impresión de Chrome; con «--kiosk-printing» y la
+   * Epson como predeterminada sale sin preguntar.
+   * ════════════════════════════════════════════════════════════════════════ */
+  var C39 = {
+    '0':'nnnwwnwnn', '1':'wnnwnnnnw', '2':'nnwwnnnnw', '3':'wnwwnnnnn',
+    '4':'nnnwwnnnw', '5':'wnnwwnnnn', '6':'nnwwwnnnn', '7':'nnnwnnwnw',
+    '8':'wnnwnnwnn', '9':'nnwwnnwnn', '*':'nnwnwwnwn'
+  };
+
+  /* Code 39 (el mismo de la muestra). Devuelve una imagen, o '' si no se
+   * pudo: mejor sin barras que unas barras a medias que parezcan válidas. */
+  function barrasCode39(valor) {
+    var texto = '*' + String(valor).replace(/\D/g, '') + '*';
+    var E = 2, A = 6, ALTO = 40, tramos = [];
+    for (var i = 0; i < texto.length; i++) {
+      var pat = C39[texto[i]];
+      if (!pat) { return ''; }
+      for (var k = 0; k < pat.length; k++) { tramos.push({ b: k % 2 === 0, w: pat[k] === 'w' ? A : E }); }
+      if (i < texto.length - 1) { tramos.push({ b: false, w: E }); }
+    }
+    var total = 0;
+    for (var m = 0; m < tramos.length; m++) { total += tramos[m].w; }
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = total; cv.height = ALTO;
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, total, ALTO);
+      ctx.fillStyle = '#000';
+      var x = 0;
+      for (var n = 0; n < tramos.length; n++) { if (tramos[n].b) { ctx.fillRect(x, 0, tramos[n].w, ALTO); } x += tramos[n].w; }
+      return cv.toDataURL('image/png');
+    } catch (e) { return ''; }
+  }
+
+  function htmlTicket(d, copia) {
+    var num = String(d.numero).padStart(6, '0');
+    var f = d.fecha instanceof Date ? d.fecha : new Date();
+    var fecha = dosDig(f.getDate()) + '/' + dosDig(f.getMonth() + 1) + '/' + f.getFullYear();
+    var hora  = dosDig(f.getHours()) + ':' + dosDig(f.getMinutes()) + ':' + dosDig(f.getSeconds());
+    var barras = barrasCode39(num);
+    var formas = { efectivo: 'EFECTIVO', tarjeta: 'TARJETA', transferencia: 'TRANSFERENCIA' };
+
+    var filas = '';
+    for (var i = 0; i < d.lineas.length; i++) {
+      var l = d.lineas[i];
+      var cant = l.esPeso ? l.cantidad.toFixed(2) + ' lb' : String(l.cantidad);
+      filas += '<tr><td class="t-art" colspan="4">' + esc(l.nombre) + '</td></tr>' +
+               '<tr><td></td><td class="n">' + esc(cant) + '</td><td class="n">' + dinero(l.precio) +
+               '</td><td class="n">' + dinero(l.precio * l.cantidad) + '</td></tr>';
+    }
+
+    var pago = d.forma === 'efectivo'
+      ? '<div class="f"><span>EFECTIVO RECIBIDO</span><span>' + dinero(d.total + d.cambio) + '</span></div>' +
+        '<div class="f t-b"><span>CAMBIO</span><span>' + dinero(d.cambio) + '</span></div>'
+      : '<div class="f t-b"><span>PAGADO CON</span><span>' + (formas[d.forma] || esc(d.forma)) + '</span></div>';
+
+    return '<div class="t-logo">' +
+             '<img src="images/logo-casamota.png" alt="" class="t-logo__img">' +
+             '<div class="t-razon"><div class="t-b t-grande-nom">SUPERMERCADO CASA MOTA</div>' +
+             '<div class="t-mini">SUPER MERCADO M.&amp; R., S.R.L.</div></div>' +
+           '</div>' +
+           '<div class="c t-mini">RNC: 1-1301137-5<br>Melchor Contín Alfau 5<br>' +
+             'Hato Mayor del Rey, Rep. Dom.<br>Tel: 809-553-2226</div>' +
+           '<hr class="t-solida">' +
+           /* POS-19 · con NCF es factura fiscal B02; sin NCF, ticket (nunca
+            * se imprime «FACTURA» sin comprobante). */
+           '<div class="c t-titulo">' + (d.ncf ? 'FACTURA DE CONSUMO' : 'TICKET DE VENTA') + '</div>' +
+           '<div class="c t-b">' + (copia ? '(COPIA)' : '(ORIGINAL)') + '</div>' +
+           '<hr>' +
+           '<div class="t-dos">' +
+             '<div><div class="t-mini">DOCUMENTO No.</div><div class="t-b t-num">' + num + '</div>' +
+               (barras ? '<img src="' + barras + '" alt="" class="t-barras">' : '') + '</div>' +
+             (d.ncf
+               ? '<div class="t-der"><div class="t-mini">COMPROBANTE<br>CONSUMIDOR FINAL</div>' +
+                   '<div class="t-b t-ncf">' + esc(d.ncf) + '</div>' +
+                   '<div class="t-mini">VÁLIDO HASTA: ' + esc(d.ncfVence) + '</div></div>'
+               : '<div class="t-der"><div class="t-mini">SIN NCF</div></div>') +
+           '</div>' +
+           '<hr>' +
+           '<div class="t-dos"><div class="t-b">VENTA AL CONTADO</div>' +
+             '<div class="t-der t-mini">CAJA ' + esc(d.caja) + '<br>' + fecha + ' ' + hora + '</div></div>' +
+           '<hr class="t-solida">' +
+           '<table class="t-lineas"><tr><th>ARTÍCULO</th><th class="n">CANT</th>' +
+             '<th class="n">PRECIO</th><th class="n">VALOR</th></tr>' + filas + '</table>' +
+           '<hr class="t-solida">' +
+           '<div class="f t-mini"><span>ARTÍCULOS</span><span>' + esc(d.arts) + '</span></div>' +
+           /* POS-18 · desglose: subtotal sin ITBIS + ITBIS cobrado = TOTAL */
+           '<div class="f"><span>SUBTOTAL (SIN ITBIS)</span><span>' + dinero(d.total - (Number(d.itbis) || 0)) + '</span></div>' +
+           '<div class="f"><span>ITBIS</span><span>' + dinero(Number(d.itbis) || 0) + '</span></div>' +
+           '<div class="f t-total"><span>TOTAL</span><span>RD$ ' + dinero(d.total) + '</span></div>' +
+           '<hr>' + pago +
+           '<hr class="t-solida">' +
+           '<div class="t-mini">ATENDIDO POR: <b>' + esc(String(d.cajera || '').toUpperCase()) + '</b></div>' +
+           '<hr>' +
+           '<div class="t-pie">¡Gracias por preferirnos!<br>supermercadocasamota.com</div>';
+  }
+
+  /* Reimprimir: si el ticket salió SIN NCF (red, por ejemplo), se vuelve a
+   * pedir. La base devuelve el mismo si ya lo tenía: nunca se gasta otro. */
+  async function reimprimir() {
+    var d = _ultimoTicket;
+    if (!d) { return; }
+    if (!d.ncf) {
+      var info = await pedirNcf(d.numero);
+      if (info && info.ok) { d.ncf = info.ncf; d.ncfVence = fechaDMA(info.vence); }
+      avisoNcf(info);
+    }
+    imprimirTicket(d, true);
+  }
+
+  function imprimirTicket(d, copia) {
+    if (!d) { return; }
+    var r = $('pos-recibo');
+    if (!r) { return; }
+    r.innerHTML = htmlTicket(d, copia);
+    try { window.print(); } catch (e) { console.error('[POS] impresión del ticket:', e); }
   }
 
   function nuevaVenta() {
@@ -1394,7 +1617,7 @@
    * supervisor cuenta con la cajera. Aquí solo se muestra y se imprime.
    * 🔴 No se puede cerrar con una factura abierta: primero cobrarla o vaciarla.
    * 🔴 Impresión: ventana de impresión del navegador con un recibo de 80 mm
-   *    (Star TSP100). Para imprimir sin la ventana, abrir la caja en Chrome
+   *    (Epson TM-T88VII, confirmada por el dueño el 25-sep). Para imprimir sin la ventana, abrir la caja en Chrome
    *    con «--kiosk-printing» (ver el README).
    * ════════════════════════════════════════════════════════════════════════ */
   var _cierre = null;
@@ -1576,7 +1799,10 @@
       confirmarCierre: confirmarCierre,
       pedirAut:   pedirAutorizacion,
       confirmarAut: confirmarAutorizacion,
-      anadirPrueba: function (p, c, peso) { anadir(p, c, peso); }
+      anadirPrueba: function (p, c, peso) { anadir(p, c, peso); },
+      ticket:     function () { return _ultimoTicket; },
+      reimprimir: reimprimir,
+      pintarTicket: function (d, copia) { $('pos-recibo').innerHTML = htmlTicket(d, copia); }
     }
   };
 })();
