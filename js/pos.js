@@ -210,8 +210,14 @@
       osc.connect(g); g.connect(ctx.destination);
       osc.frequency.value = malo ? 220 : 880;   // grave = error, agudo = OK
       g.gain.value = 0.15;
+      /* POS-20 · 🔴 EL FINAL DEL PITIDO SE PROGRAMA EN EL RELOJ DE AUDIO, NO CON
+       * setTimeout. Con setTimeout, al abrirse la ventana de imprimir (que
+       * CONGELA el JavaScript de la página) el apagado no llegaba nunca y el
+       * pitido se quedaba sonando: el «zumbido que no termina» del dueño. */
+      var dur = (malo ? 260 : 90) / 1000;
+      osc.onended = function () { try { ctx.close(); } catch (e2) { /* nada */ } };
       osc.start();
-      setTimeout(function () { osc.stop(); ctx.close(); }, malo ? 260 : 90);
+      osc.stop(ctx.currentTime + dur);
     } catch (e) { /* sin audio: el aviso visual sigue estando */ }
   }
 
@@ -1239,7 +1245,11 @@
     var r = $('pos-recibo');
     if (!r) { return; }
     r.innerHTML = htmlTicket(d, copia);
-    try { window.print(); } catch (e) { console.error('[POS] impresión del ticket:', e); }
+    /* POS-20 · se deja terminar el pitido de «venta guardada» antes de abrir
+     * la ventana de imprimir. */
+    setTimeout(function () {
+      try { window.print(); } catch (e) { console.error('[POS] impresión del ticket:', e); }
+    }, 350);
   }
 
   function nuevaVenta() {

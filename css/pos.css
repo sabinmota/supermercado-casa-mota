@@ -170,7 +170,11 @@ kbd {
 /* Recibo: invisible en pantalla, es lo único que sale al imprimir. */
 .pos-recibo { display: none; }
 @media print {
-  @page { size: 80mm auto; margin: 0; }
+  /* POS-20 · «size: 80mm auto» NO ES CSS VÁLIDO (no se puede mezclar medida
+     y auto): Chrome lo ignoraba y usaba el papel de la impresora elegida.
+     Se deja solo el margen; el tamaño lo pone el driver de la Epson
+     (papel «Roll Paper 80 x 297 mm»). */
+  @page { margin: 0; }
   body > *:not(.pos-recibo) { display: none !important; }
   .pos-recibo {
     display: block !important; width: 72mm; margin: 0 auto; padding: 3mm 0 8mm;

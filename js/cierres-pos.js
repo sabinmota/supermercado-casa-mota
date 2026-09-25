@@ -118,7 +118,8 @@
   function imprimir(c) {
     var v = window.open('', '_blank', 'width=420,height=700');
     if (!v) { window.alert('El navegador bloqueó la ventana de impresión. Permita las ventanas emergentes para este sitio.'); return; }
-    var css = '@page{size:80mm auto;margin:0}body{margin:0}' +
+    /* POS-20 · «size:80mm auto» no es CSS válido; el tamaño lo pone el driver. */
+    var css = '@page{margin:0}body{margin:0}' +
       '.r{width:72mm;margin:0 auto;padding:3mm 0 8mm;font-family:"Courier New",monospace;font-size:11.5px;line-height:1.35;color:#000}' +
       'h1{font-size:15px;text-align:center;margin:0 0 2px}.c{text-align:center}' +
       '.f{display:flex;justify-content:space-between;gap:6px}.g{font-weight:700;font-size:13px}' +
