@@ -288,6 +288,15 @@
         return;
       }
 
+      /* 471 · permiso «Punto de Venta» del rol (js/auth.v33.js · canUsePOS).
+       * Hoy lo tienen los 3 roles; si algún día se le quita a uno, aquí se
+       * le cierra la puerta de la caja. */
+      if (typeof getRole === 'function' && !getRole(String(r.user.role || '').toLowerCase()).canUsePOS) {
+        err.textContent = 'Su rol no tiene permiso para usar el Punto de Venta.';
+        err.hidden = false;
+        return;
+      }
+
       _cajera = r.user;
       await arrancarCaja();
 
@@ -1310,7 +1319,10 @@
     }
     var usado = _limite.acumulado + totales().itbis;
     el.className = 'pos-top__limite' + (_limite.estado === 'libre' ? '' : ' pos-top__limite--rojo');
-    el.textContent = 'ITBIS RD$ ' + dinero(usado) + ' / ' + dinero(_limite.valor);
+    el.textContent = 'ITBIS RD$ ' + dinero(usado) + ' / ' + dinero(_limite.valor) +
+                     (_limite.fallo ? ' · sin comprobar' : '');
+    el.title = _limite.fallo ? 'No se pudo consultar el límite ahora mismo; se reintenta cada minuto. ' +
+                               'La base de datos sigue comprobándolo al cobrar.' : '';
   }
 
   /* ── Arranque ───────────────────────────────────────────────────────────── */
@@ -1338,6 +1350,215 @@
         }
       });
     }
+
+    montarCierre();
+    montarAtajos();
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-14 · ATAJOS DE TECLADO (pedido del dueño: «más fácil que el ratón»)
+   *   F9 → Procesar pago (hace lo mismo que el botón, con sus mismas reglas)
+   *   F6 → Cierre de turno
+   * Solo con la caja abierta y sin otra ventana encima. Se anula la acción
+   * propia del navegador (F6 salta a la barra de direcciones).
+   * ════════════════════════════════════════════════════════════════════════ */
+  function hayVentanaAbierta() {
+    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite'];
+    for (var i = 0; i < ids.length; i++) { var e = $(ids[i]); if (e && !e.hidden) { return true; } }
+    return false;
+  }
+
+  function montarAtajos() {
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'F9' && ev.key !== 'F6') { return; }
+      var caja = $('pos-caja');
+      if (!caja || caja.hidden) { return; }        // aún en la pantalla de entrada
+      ev.preventDefault();
+      if (hayVentanaAbierta()) { return; }
+      if (ev.key === 'F9') {
+        var b = $('pos-cobrar');
+        if (b && !b.disabled) { abrirPago(); }
+        else { pitar(true); avisar(_lineas.length ? 'Esta caja no puede cobrar ahora.' : 'No hay artículos que cobrar.', 'error'); }
+      } else {
+        abrirCierre();
+      }
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-14 · CIERRE DE TURNO (seguridad/75 · RPC pos_resumen_turno / pos_cerrar_turno)
+   *
+   * La cajera escribe el FONDO inicial y el EFECTIVO CONTADO. La BASE calcula
+   * los totales, lo esperado (fondo + ventas en efectivo) y la diferencia;
+   * lo GUARDA y lo devuelve. Aquí solo se muestra y se imprime.
+   * 🔴 No se puede cerrar con una factura abierta: primero cobrarla o vaciarla.
+   * 🔴 Impresión: ventana de impresión del navegador con un recibo de 80 mm
+   *    (Star TSP100). Para imprimir sin la ventana, abrir la caja en Chrome
+   *    con «--kiosk-printing» (ver el README).
+   * ════════════════════════════════════════════════════════════════════════ */
+  var _cierre = null;
+  var MENSAJES_CIERRE = {
+    SIN_VENTAS:        'No hay ventas en este turno: no hay nada que cerrar.',
+    FONDO_INVALIDO:    'El fondo de caja no es válido.',
+    CONTADO_INVALIDO:  'Escriba el efectivo contado (0 o más).',
+    SESION_INVALIDA:   'Su sesión no es válida. Salga y vuelva a entrar a la caja.',
+    SESION_CADUCADA:   'Su sesión caducó. Salga y vuelva a entrar a la caja.',
+    CUENTA_DESACTIVADA:'Su usuario está desactivado.'
+  };
+
+  async function rpcCierre(nombre, cuerpo) {
+    var res = await fetch(_SB_URL + '/rpc/' + nombre, {
+      method: 'POST', headers: _SB_HEADERS, body: JSON.stringify(cuerpo)
+    });
+    var txt = await res.text();
+    if (res.status === 404 || txt.indexOf('PGRST202') >= 0) {
+      throw new Error('Falta ejecutar seguridad/75-cierre-de-turno.sql en Supabase.');
+    }
+    if (!res.ok) {
+      for (var k in MENSAJES_CIERRE) { if (txt.indexOf(k) >= 0) { throw new Error(MENSAJES_CIERRE[k]); } }
+      throw new Error('La base respondió con un error (HTTP ' + res.status + ').');
+    }
+    var j = JSON.parse(txt);
+    return Array.isArray(j) ? j[0] : j;
+  }
+
+  function montarCierre() {
+    on('pos-btn-cierre', 'click', abrirCierre);
+    on('pos-cierre-cancelar', 'click', cerrarVentanaCierre);
+    on('pos-cierre-aceptar', 'click', confirmarCierre);
+    on('pos-cierre-listo', 'click', cerrarVentanaCierre);
+    on('pos-cierre-imprimir', 'click', function () { if (_cierre) { imprimirCierre(_cierre); } });
+    on('pos-cierre-contado', 'keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); confirmarCierre(); }
+    });
+  }
+
+  async function abrirCierre() {
+    if (_lineas.length) {
+      pitar(true);
+      avisar('Hay una factura abierta. Cóbrela o vacíela antes de cerrar el turno.', 'error');
+      return;
+    }
+    _cierre = null;
+    $('pos-cierre-paso1').hidden = false;
+    $('pos-cierre-paso2').hidden = true;
+    $('pos-cierre-error').hidden = true;
+    $('pos-cierre-fondo').value = '';
+    $('pos-cierre-contado').value = '';
+    $('pos-cierre-aceptar').disabled = true;
+    var nombre = _cajera ? [_cajera.firstName, _cajera.lastName].filter(Boolean).join(' ') || _cajera.email : '—';
+    $('pos-cierre-quien').textContent = 'Cajera: ' + nombre + ' · Caja ' + _caja;
+    $('pos-cierre-resumen').textContent = 'Cargando las ventas del turno…';
+    $('pos-modal-cierre').hidden = false;
+    try {
+      var r = await rpcCierre('pos_resumen_turno', { p_vale: (typeof _valeAdmin === 'function') ? _valeAdmin() : '' });
+      var n = Number(r.ventas) || 0, an = Number(r.anuladas) || 0;
+      if (!n && !an) {
+        $('pos-cierre-resumen').textContent = MENSAJES_CIERRE.SIN_VENTAS;
+        return;
+      }
+      $('pos-cierre-resumen').innerHTML =
+        '<div class="f"><span>Ventas del turno</span><b>' + n + '</b></div>' +
+        (an ? '<div class="f"><span>Anuladas (no suman)</span><b>' + an + '</b></div>' : '') +
+        '<div class="f"><span>Total vendido</span><b>RD$ ' + dinero(r.total) + '</b></div>' +
+        '<div class="f"><span>En efectivo</span><b>RD$ ' + dinero(r.efectivo) + '</b></div>';
+      /* 🔴 A propósito NO se muestra aquí «lo que debería haber»: la cajera
+       * cuenta el dinero sin saber la cifra esperada. El cuadre sale después. */
+      $('pos-cierre-aceptar').disabled = false;
+      $('pos-cierre-fondo').focus();
+    } catch (e) {
+      $('pos-cierre-resumen').textContent = e && e.message ? e.message : String(e);
+    }
+  }
+
+  function cerrarVentanaCierre() {
+    $('pos-modal-cierre').hidden = true;
+    var e = $('pos-entrada'); if (e) { e.focus(); }
+  }
+
+  async function confirmarCierre() {
+    var btn = $('pos-cierre-aceptar');
+    if (btn.disabled) { return; }
+    var err = $('pos-cierre-error');
+    var fondoTxt = String($('pos-cierre-fondo').value || '').trim();
+    var contTxt  = String($('pos-cierre-contado').value || '').trim();
+    var fondo = fondoTxt === '' ? 0 : Number(fondoTxt);
+    var contado = Number(contTxt);
+    if (contTxt === '' || !isFinite(contado) || contado < 0) {
+      err.textContent = MENSAJES_CIERRE.CONTADO_INVALIDO; err.hidden = false; return;
+    }
+    if (!isFinite(fondo) || fondo < 0) {
+      err.textContent = MENSAJES_CIERRE.FONDO_INVALIDO; err.hidden = false; return;
+    }
+    if (!window.confirm('¿Cerrar el turno con RD$ ' + dinero(contado) + ' contados en caja?\n' +
+                        'Después de cerrarlo no se puede cambiar.')) { return; }
+    btn.disabled = true; btn.textContent = 'Cerrando…'; err.hidden = true;
+    try {
+      var r = await rpcCierre('pos_cerrar_turno', {
+        p_vale: (typeof _valeAdmin === 'function') ? _valeAdmin() : '',
+        p_caja: _caja, p_fondo: Math.round(fondo * 100) / 100,
+        p_contado: Math.round(contado * 100) / 100, p_nota: ''
+      });
+      _cierre = r;
+      mostrarResultadoCierre(r);
+      imprimirCierre(r);
+    } catch (e) {
+      err.textContent = e && e.message ? e.message : String(e);
+      err.hidden = false; pitar(true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Cerrar turno';
+    }
+  }
+
+  function veredicto(dif) {
+    var d = Math.round(Number(dif) * 100) / 100;
+    if (d === 0) { return { clase: 'ok', texto: 'CUADRA', cifra: 'RD$ 0.00' }; }
+    if (d < 0)   { return { clase: 'faltante', texto: 'FALTANTE', cifra: '− RD$ ' + dinero(-d) }; }
+    return { clase: 'sobrante', texto: 'SOBRANTE', cifra: '+ RD$ ' + dinero(d) };
+  }
+
+  function filasCierre(r) {
+    function f(a, b, fuerte) { return '<div class="f' + (fuerte ? ' g' : '') + '"><span>' + a + '</span><b>' + b + '</b></div>'; }
+    var tk = (r.primer_ticket !== null && r.primer_ticket !== undefined)
+      ? String(r.primer_ticket).padStart(6, '0') + ' a ' + String(r.ultimo_ticket).padStart(6, '0') : '—';
+    return f('Desde', esc(r.desde || '—')) + f('Hasta', esc(r.hasta)) +
+           f('Tickets', tk) + f('Ventas', esc(r.ventas)) +
+           (Number(r.anuladas) ? f('Anuladas (no suman)', esc(r.anuladas) + ' · RD$ ' + dinero(r.anulado_total)) : '') +
+           '<hr>' +
+           f('Efectivo', 'RD$ ' + dinero(r.efectivo)) +
+           f('Tarjeta', 'RD$ ' + dinero(r.tarjeta)) +
+           f('Transferencia', 'RD$ ' + dinero(r.transferencia)) +
+           f('TOTAL VENDIDO', 'RD$ ' + dinero(r.total), true) +
+           f('ITBIS incluido', 'RD$ ' + dinero(r.itbis)) +
+           '<hr>' +
+           f('Fondo inicial', 'RD$ ' + dinero(r.fondo)) +
+           f('+ Ventas en efectivo', 'RD$ ' + dinero(r.efectivo)) +
+           f('= Efectivo esperado', 'RD$ ' + dinero(r.esperado), true) +
+           f('Efectivo contado', 'RD$ ' + dinero(r.contado), true);
+  }
+
+  function mostrarResultadoCierre(r) {
+    var v = veredicto(r.diferencia);
+    var el = $('pos-cierre-veredicto');
+    el.className = 'pos-cierre__veredicto pos-cierre__veredicto--' + v.clase;
+    el.innerHTML = v.texto + '<big>' + v.cifra + '</big>';
+    $('pos-cierre-tabla').innerHTML = filasCierre(r);
+    $('pos-cierre-paso1').hidden = true;
+    $('pos-cierre-paso2').hidden = false;
+    $('pos-cierre-listo').focus();
+  }
+
+  function imprimirCierre(r) {
+    var v = veredicto(r.diferencia);
+    $('pos-recibo').innerHTML =
+      '<h1>SUPERMERCADO CASA MOTA</h1>' +
+      '<div class="c">CIERRE DE TURNO Nº ' + esc(String(r.cierre).padStart(5, '0')) + '</div>' +
+      '<div class="c">Cajera: ' + esc(r.cajera) + ' · Caja ' + esc(r.caja) + '</div>' +
+      '<hr>' + filasCierre(r) + '<hr>' +
+      '<div class="f g"><span>' + v.texto + '</span><b>' + v.cifra + '</b></div>' +
+      '<div class="firma">Firma cajera</div>' +
+      '<div class="firma">Firma supervisor</div>';
+    try { window.print(); } catch (e) { console.error('[POS] impresión:', e); }
   }
 
   if (document.readyState === 'loading') {
@@ -1372,6 +1593,8 @@
       confirmar:  confirmarCobro,
       lineas:     lineasParaGuardar,
       idCobro:    function () { return _idCobro; },
+      abrirCierre: abrirCierre,
+      confirmarCierre: confirmarCierre,
       pedirAut:   pedirAutorizacion,
       confirmarAut: confirmarAutorizacion,
       anadirPrueba: function (p, c, peso) { anadir(p, c, peso); }

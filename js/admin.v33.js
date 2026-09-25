@@ -7252,6 +7252,7 @@ function updateRolePermissions() {
     { label: 'Gestionar Clientes',   key: 'sections', val: 'customers' },
     { label: 'Gestionar Personal',   key: 'canManageStaff' },
     { label: 'Configuración',        key: 'canManageSettings' },
+    { label: 'Punto de Venta',       key: 'canUsePOS' },   // 471 · los 3 roles
   ];
 
   const container = document.getElementById('rolePermissions');

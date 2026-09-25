@@ -15,6 +15,7 @@ const ROLES = {
     canCreateProducts:true,
     canManageStaff:   true,
     canManageSettings:true,
+    canUsePOS:        true,   // 471 · entrar a la caja (Punto de Venta)
   },
   admin: {
     label: 'Administrador',
@@ -26,6 +27,7 @@ const ROLES = {
     canCreateProducts:true,
     canManageStaff:   false,
     canManageSettings:true,
+    canUsePOS:        true,   // 471 · entrar a la caja (Punto de Venta)
   },
   operador: {
     label: 'Operador',
@@ -37,6 +39,7 @@ const ROLES = {
     canCreateProducts:false,
     canManageStaff:   false,
     canManageSettings:false,
+    canUsePOS:        true,   // 471 · entrar a la caja (Punto de Venta)
   },
 };
 
