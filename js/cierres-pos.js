@@ -120,8 +120,9 @@
     if (!v) { window.alert('El navegador bloqueó la ventana de impresión. Permita las ventanas emergentes para este sitio.'); return; }
     /* POS-22 · medido en la Star TSP100: con margen 0 se corta el principio
      * y la Courier sale casi invisible. Arial negrita + margen 3 mm. */
-    var css = '@page{margin:3mm}body{margin:0}' +
-      '.r{width:66mm;margin:0 auto;padding:0 0 4mm;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:12.5px;line-height:1.35;color:#000}' +
+    /* POS-23 · ocupa todo el ancho imprimible (sin franjas blancas a los lados). */
+    var css = '@page{margin:3mm 1mm}body{margin:0}' +
+      '.r{width:auto;margin:0;padding:0 0 4mm;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:12.5px;line-height:1.35;color:#000}' +
       'h1{font-size:15px;text-align:center;margin:0 0 2px}.c{text-align:center}' +
       '.f{display:flex;justify-content:space-between;gap:6px}.g{font-weight:700;font-size:13px}' +
       'hr{border:0;border-top:1px dashed #000;margin:4px 0}' +
