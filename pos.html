@@ -12,7 +12,7 @@
      sesión no coincide, se recarga sin caché UNA vez. Sin esto, una cajera
      con la pestaña abierta desde ayer seguiría con el JS viejo. */
   (function () {
-    var VER = 'POS-14';
+    var VER = 'POS-16';
     var KEY = 'cm_pos_ver';
     var guardado = sessionStorage.getItem(KEY);
     if (guardado !== VER) {
@@ -58,7 +58,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/pos.css?v=12" />
+<link rel="stylesheet" href="css/pos.css?v=13" />
 </head>
 <body>
 
@@ -99,9 +99,9 @@
     <span class="pos-top__dato">Cajera: <b id="pos-cajera">—</b></span>
     <span class="pos-top__sep"></span>
     <span class="pos-top__dato">Catálogo: <b id="pos-total-articulos">0</b></span>
-    <!-- POS-14 · cierre de turno (también con F6) -->
-    <button type="button" class="pos-top__btn" id="pos-btn-cierre" title="Cierre de turno (F6)">
-      Cierre de turno <kbd>F6</kbd>
+    <!-- POS-14 · cierre de turno (también con F7) -->
+    <button type="button" class="pos-btn-grande pos-btn-azul pos-top__btn" id="pos-btn-cierre" title="Cierre de turno (F7)">
+      Cierre de turno <kbd>F7</kbd>
     </button>
     <span class="pos-reloj" id="pos-reloj">—</span>
   </header>
@@ -133,7 +133,7 @@
         <button type="button" class="pos-cobrar" id="pos-cobrar" disabled title="Procesar pago (F9)">
           Procesar pago <kbd>F9</kbd>
         </button>
-        <button type="button" class="pos-secundario" id="pos-vaciar">Vaciar</button>
+        <button type="button" class="pos-btn-grande pos-btn-rojo pos-vaciar" id="pos-vaciar">Vaciar</button>
       </div>
     </div>
   </section>
@@ -274,20 +274,18 @@
 </div>
 
 
-<!-- ════════════════════ POS-14 · CIERRE DE TURNO (F6) ════════════════════ -->
+<!-- ════════════════════ POS-14 · CIERRE DE TURNO (F7) ════════════════════ -->
 <div class="pos-modal" id="pos-modal-cierre" hidden role="dialog"
      aria-modal="true" aria-labelledby="pos-cierre-tit">
   <div class="pos-modal__caja pos-cierre">
     <h2 id="pos-cierre-tit">Cierre de turno</h2>
 
-    <!-- Paso 1 · contar el dinero -->
+    <!-- Paso 1 · solo el fondo inicial (decisión del dueño: NO se pide el efectivo contado) -->
     <div id="pos-cierre-paso1">
       <p class="pos-cierre__quien" id="pos-cierre-quien"></p>
       <div class="pos-cierre__resumen" id="pos-cierre-resumen">Cargando…</div>
       <label for="pos-cierre-fondo" class="pos-aut__lbl">Fondo de caja inicial (el cambio con que empezó)</label>
-      <input type="number" id="pos-cierre-fondo" class="pos-aut__campo" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
-      <label for="pos-cierre-contado" class="pos-aut__lbl">Efectivo contado en caja (todo, incluido el fondo)</label>
-      <input type="number" id="pos-cierre-contado" class="pos-aut__campo pos-cierre__contado" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+      <input type="number" id="pos-cierre-fondo" class="pos-aut__campo pos-cierre__fondo" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
       <p class="pos-error" id="pos-cierre-error" hidden></p>
       <div class="pos-modal__pie">
         <button type="button" class="pos-secundario" id="pos-cierre-cancelar">Cancelar</button>
@@ -295,14 +293,14 @@
       </div>
     </div>
 
-    <!-- Paso 2 · resultado (lo calcula la base) -->
+    <!-- Paso 2 · resultado (lo calcula la base). «Imprimir» ARRIBA, siempre a la vista. -->
     <div id="pos-cierre-paso2" hidden>
       <div class="pos-cierre__veredicto" id="pos-cierre-veredicto"></div>
-      <div class="pos-cierre__tabla" id="pos-cierre-tabla"></div>
-      <div class="pos-modal__pie">
-        <button type="button" class="pos-secundario" id="pos-cierre-imprimir">Imprimir otra vez</button>
+      <div class="pos-modal__pie pos-cierre__acciones">
+        <button type="button" class="pos-btn-grande pos-btn-azul" id="pos-cierre-imprimir">Imprimir cierre</button>
         <button type="button" class="pos-btn-grande" id="pos-cierre-listo">Listo</button>
       </div>
+      <div class="pos-cierre__tabla" id="pos-cierre-tabla"></div>
     </div>
   </div>
 </div>
@@ -320,6 +318,6 @@
 <script src="js/auth.v33.js?v=302"></script>
 <!-- POS-3 · anuncios diseñados de la franja. Va ANTES de pos.js. -->
 <script src="js/pos-anuncios.js?v=2"></script>
-<script src="js/pos.js?v=15"></script>
+<script src="js/pos.js?v=17"></script>
 </body>
 </html>

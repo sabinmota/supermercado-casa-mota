@@ -301,6 +301,29 @@
 }
 .vp-anular:hover { background: #fde8e6; }
 .vp-detalle__anul { margin: 10px 0 0; color: #b42318; font-weight: 700; font-size: .85rem; }
+
+/* 472 · pestañas Ventas / Cierres de turno */
+.vp-tabs { display: flex; gap: 8px; margin: 14px 0 0; border-bottom: 2px solid #e5e7eb; }
+.vp-tab {
+  padding: 10px 18px; border: 0; background: none; font: inherit; font-weight: 600;
+  color: #6b7280; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+}
+.vp-tab:hover { color: #111827; }
+.vp-tab--activa { color: #1a7c3e; border-bottom-color: #1a7c3e; }
+.vp-tab i { margin-right: 6px; }
+.vp-kpis--4 { grid-template-columns: 1.2fr repeat(3, 1fr); }
+.vc-esperado { color: #1a7c3e; }
+.vc-cuadre { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.vc-cuadre__tabla { flex: 1; min-width: 320px; max-width: 520px; font-size: .88rem; line-height: 1.7; }
+.vc-cuadre__tabla .f { display: flex; justify-content: space-between; gap: 12px; }
+.vc-cuadre__tabla .g { font-weight: 700; }
+.vc-cuadre__tabla b { font-variant-numeric: tabular-nums; }
+.vc-cuadre__tabla hr { border: 0; border-top: 1px dashed #cfd6dd; margin: 6px 0; }
+.vc-imprimir {
+  padding: 12px 18px; border: 0; border-radius: 10px; cursor: pointer;
+  background: #2f8fd8; color: #fff; font: inherit; font-weight: 700;
+}
+.vc-imprimir:hover { background: #1f7cc2; }
 .vp-fila--anulada + .vp-detalle td { text-decoration: none; }
 
 /* ── Pie: ilustración y lema ───────────────────────────────────────────── */

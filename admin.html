@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=13" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=14" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -2855,6 +2855,17 @@
         </div>
       </div>
 
+      <!-- 472 · pestañas: ventas del día / cierres de turno del día (mismo selector de día) -->
+      <div class="vp-tabs" role="tablist">
+        <button type="button" class="vp-tab vp-tab--activa" id="vpTabVentas" role="tab" aria-selected="true" aria-controls="vpPanelVentas">
+          <i class="fas fa-receipt"></i> Ventas
+        </button>
+        <button type="button" class="vp-tab" id="vpTabCierres" role="tab" aria-selected="false" aria-controls="vpPanelCierres">
+          <i class="fas fa-cash-register"></i> Cierres de turno
+        </button>
+      </div>
+
+      <div id="vpPanelVentas" role="tabpanel">
       <div class="vp-kpis" id="vpKpis">
         <div class="vp-kpi vp-kpi--total"><span class="vp-kpi__lbl">Total vendido</span><b id="vpTotal">RD$ 0.00</b><small id="vpNum">0 ventas</small></div>
         <div class="vp-kpi"><span class="vp-kpi__lbl">Efectivo</span><b id="vpEfectivo">RD$ 0.00</b></div>
@@ -2879,6 +2890,30 @@
             </tr></thead>
             <tbody id="vpCuerpo"></tbody>
           </table>
+        </div>
+      </div>
+      </div>
+
+      <!-- 472 · CIERRES DE TURNO (js/cierres-pos.js · RPC admin_cierres_pos, seguridad/76) -->
+      <div id="vpPanelCierres" role="tabpanel" hidden>
+        <div class="vp-kpis vp-kpis--4">
+          <div class="vp-kpi vp-kpi--total"><span class="vp-kpi__lbl">Cierres del día</span><b id="vcNum">0</b><small id="vcCajeras">—</small></div>
+          <div class="vp-kpi"><span class="vp-kpi__lbl">Total vendido</span><b id="vcTotal">RD$ 0.00</b></div>
+          <div class="vp-kpi"><span class="vp-kpi__lbl">Efectivo que debe haber</span><b id="vcEsperado">RD$ 0.00</b><small>fondos + ventas en efectivo</small></div>
+          <div class="vp-kpi vp-kpi--itbis"><span class="vp-kpi__lbl">ITBIS</span><b id="vcItbis">RD$ 0.00</b></div>
+        </div>
+        <div class="card">
+          <h3 class="vp-sub">Cierres de turno del día <small>(pulse un cierre para ver el cuadre completo)</small></h3>
+          <p id="vcEstado" class="vp-estado" hidden></p>
+          <div class="table-wrapper">
+            <table class="data-table vp-tabla" id="vcTabla">
+              <thead><tr>
+                <th>Cierre</th><th>Hora</th><th>Cajera</th><th>Caja</th><th class="n">Ventas</th>
+                <th class="n">Total vendido</th><th class="n">Fondo</th><th class="n">Debe haber en caja</th>
+              </tr></thead>
+              <tbody id="vcCuerpo"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -3313,6 +3348,8 @@
   <!-- 469 · menú «··· Más» y sección Ventas POS (ficheros aparte, no tocan admin.v33.js) -->
   <script src="js/menu-mas.js?v=2"></script>
   <script src="js/ventas-pos.js?v=2"></script>
+  <!-- 472 · pestaña «Cierres de turno» de Ventas POS (fichero aparte) -->
+  <script src="js/cierres-pos.js?v=1"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=4"></script>

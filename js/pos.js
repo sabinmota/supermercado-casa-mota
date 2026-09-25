@@ -1358,9 +1358,9 @@
   /* ════════════════════════════════════════════════════════════════════════
    * POS-14 · ATAJOS DE TECLADO (pedido del dueño: «más fácil que el ratón»)
    *   F9 → Procesar pago (hace lo mismo que el botón, con sus mismas reglas)
-   *   F6 → Cierre de turno
+   *   F7 → Cierre de turno (POS-16: el dueño lo pidió en F7, no F6)
    * Solo con la caja abierta y sin otra ventana encima. Se anula la acción
-   * propia del navegador (F6 salta a la barra de direcciones).
+   * propia del navegador (F7 activa la navegación con cursor en Chrome).
    * ════════════════════════════════════════════════════════════════════════ */
   function hayVentanaAbierta() {
     var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite'];
@@ -1370,7 +1370,7 @@
 
   function montarAtajos() {
     document.addEventListener('keydown', function (ev) {
-      if (ev.key !== 'F9' && ev.key !== 'F6') { return; }
+      if (ev.key !== 'F9' && ev.key !== 'F7') { return; }
       var caja = $('pos-caja');
       if (!caja || caja.hidden) { return; }        // aún en la pantalla de entrada
       ev.preventDefault();
@@ -1388,9 +1388,10 @@
   /* ════════════════════════════════════════════════════════════════════════
    * POS-14 · CIERRE DE TURNO (seguridad/75 · RPC pos_resumen_turno / pos_cerrar_turno)
    *
-   * La cajera escribe el FONDO inicial y el EFECTIVO CONTADO. La BASE calcula
-   * los totales, lo esperado (fondo + ventas en efectivo) y la diferencia;
-   * lo GUARDA y lo devuelve. Aquí solo se muestra y se imprime.
+   * POS-15 · decisión del dueño: la caja pide SOLO el FONDO inicial (ya no
+   * el efectivo contado). La BASE calcula totales y el EFECTIVO QUE DEBE HABER
+   * EN CAJA (fondo + ventas en efectivo), lo GUARDA y lo devuelve; el
+   * supervisor cuenta con la cajera. Aquí solo se muestra y se imprime.
    * 🔴 No se puede cerrar con una factura abierta: primero cobrarla o vaciarla.
    * 🔴 Impresión: ventana de impresión del navegador con un recibo de 80 mm
    *    (Star TSP100). Para imprimir sin la ventana, abrir la caja en Chrome
@@ -1400,7 +1401,6 @@
   var MENSAJES_CIERRE = {
     SIN_VENTAS:        'No hay ventas en este turno: no hay nada que cerrar.',
     FONDO_INVALIDO:    'El fondo de caja no es válido.',
-    CONTADO_INVALIDO:  'Escriba el efectivo contado (0 o más).',
     SESION_INVALIDA:   'Su sesión no es válida. Salga y vuelva a entrar a la caja.',
     SESION_CADUCADA:   'Su sesión caducó. Salga y vuelva a entrar a la caja.',
     CUENTA_DESACTIVADA:'Su usuario está desactivado.'
@@ -1428,7 +1428,7 @@
     on('pos-cierre-aceptar', 'click', confirmarCierre);
     on('pos-cierre-listo', 'click', cerrarVentanaCierre);
     on('pos-cierre-imprimir', 'click', function () { if (_cierre) { imprimirCierre(_cierre); } });
-    on('pos-cierre-contado', 'keydown', function (ev) {
+    on('pos-cierre-fondo', 'keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); confirmarCierre(); }
     });
   }
@@ -1444,7 +1444,6 @@
     $('pos-cierre-paso2').hidden = true;
     $('pos-cierre-error').hidden = true;
     $('pos-cierre-fondo').value = '';
-    $('pos-cierre-contado').value = '';
     $('pos-cierre-aceptar').disabled = true;
     var nombre = _cajera ? [_cajera.firstName, _cajera.lastName].filter(Boolean).join(' ') || _cajera.email : '—';
     $('pos-cierre-quien').textContent = 'Cajera: ' + nombre + ' · Caja ' + _caja;
@@ -1462,8 +1461,6 @@
         (an ? '<div class="f"><span>Anuladas (no suman)</span><b>' + an + '</b></div>' : '') +
         '<div class="f"><span>Total vendido</span><b>RD$ ' + dinero(r.total) + '</b></div>' +
         '<div class="f"><span>En efectivo</span><b>RD$ ' + dinero(r.efectivo) + '</b></div>';
-      /* 🔴 A propósito NO se muestra aquí «lo que debería haber»: la cajera
-       * cuenta el dinero sin saber la cifra esperada. El cuadre sale después. */
       $('pos-cierre-aceptar').disabled = false;
       $('pos-cierre-fondo').focus();
     } catch (e) {
@@ -1481,23 +1478,17 @@
     if (btn.disabled) { return; }
     var err = $('pos-cierre-error');
     var fondoTxt = String($('pos-cierre-fondo').value || '').trim();
-    var contTxt  = String($('pos-cierre-contado').value || '').trim();
     var fondo = fondoTxt === '' ? 0 : Number(fondoTxt);
-    var contado = Number(contTxt);
-    if (contTxt === '' || !isFinite(contado) || contado < 0) {
-      err.textContent = MENSAJES_CIERRE.CONTADO_INVALIDO; err.hidden = false; return;
-    }
     if (!isFinite(fondo) || fondo < 0) {
       err.textContent = MENSAJES_CIERRE.FONDO_INVALIDO; err.hidden = false; return;
     }
-    if (!window.confirm('¿Cerrar el turno con RD$ ' + dinero(contado) + ' contados en caja?\n' +
+    if (!window.confirm('¿Cerrar el turno con un fondo inicial de RD$ ' + dinero(fondo) + '?\n' +
                         'Después de cerrarlo no se puede cambiar.')) { return; }
     btn.disabled = true; btn.textContent = 'Cerrando…'; err.hidden = true;
     try {
       var r = await rpcCierre('pos_cerrar_turno', {
         p_vale: (typeof _valeAdmin === 'function') ? _valeAdmin() : '',
-        p_caja: _caja, p_fondo: Math.round(fondo * 100) / 100,
-        p_contado: Math.round(contado * 100) / 100, p_nota: ''
+        p_caja: _caja, p_fondo: Math.round(fondo * 100) / 100
       });
       _cierre = r;
       mostrarResultadoCierre(r);
@@ -1508,13 +1499,6 @@
     } finally {
       btn.disabled = false; btn.textContent = 'Cerrar turno';
     }
-  }
-
-  function veredicto(dif) {
-    var d = Math.round(Number(dif) * 100) / 100;
-    if (d === 0) { return { clase: 'ok', texto: 'CUADRA', cifra: 'RD$ 0.00' }; }
-    if (d < 0)   { return { clase: 'faltante', texto: 'FALTANTE', cifra: '− RD$ ' + dinero(-d) }; }
-    return { clase: 'sobrante', texto: 'SOBRANTE', cifra: '+ RD$ ' + dinero(d) };
   }
 
   function filasCierre(r) {
@@ -1533,29 +1517,24 @@
            '<hr>' +
            f('Fondo inicial', 'RD$ ' + dinero(r.fondo)) +
            f('+ Ventas en efectivo', 'RD$ ' + dinero(r.efectivo)) +
-           f('= Efectivo esperado', 'RD$ ' + dinero(r.esperado), true) +
-           f('Efectivo contado', 'RD$ ' + dinero(r.contado), true);
+           f('= Efectivo que debe haber en caja', 'RD$ ' + dinero(r.esperado), true);
   }
 
   function mostrarResultadoCierre(r) {
-    var v = veredicto(r.diferencia);
-    var el = $('pos-cierre-veredicto');
-    el.className = 'pos-cierre__veredicto pos-cierre__veredicto--' + v.clase;
-    el.innerHTML = v.texto + '<big>' + v.cifra + '</big>';
+    $('pos-cierre-veredicto').innerHTML = 'Efectivo que debe haber en caja<big>RD$ ' + dinero(r.esperado) + '</big>';
     $('pos-cierre-tabla').innerHTML = filasCierre(r);
     $('pos-cierre-paso1').hidden = true;
     $('pos-cierre-paso2').hidden = false;
-    $('pos-cierre-listo').focus();
+    $('pos-cierre-imprimir').focus();
   }
 
   function imprimirCierre(r) {
-    var v = veredicto(r.diferencia);
     $('pos-recibo').innerHTML =
       '<h1>SUPERMERCADO CASA MOTA</h1>' +
       '<div class="c">CIERRE DE TURNO Nº ' + esc(String(r.cierre).padStart(5, '0')) + '</div>' +
       '<div class="c">Cajera: ' + esc(r.cajera) + ' · Caja ' + esc(r.caja) + '</div>' +
       '<hr>' + filasCierre(r) + '<hr>' +
-      '<div class="f g"><span>' + v.texto + '</span><b>' + v.cifra + '</b></div>' +
+      '<div class="f"><span>Efectivo contado:</span><b>RD$ ____________</b></div>' +
       '<div class="firma">Firma cajera</div>' +
       '<div class="firma">Firma supervisor</div>';
     try { window.print(); } catch (e) { console.error('[POS] impresión:', e); }
