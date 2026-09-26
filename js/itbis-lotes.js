@@ -90,7 +90,7 @@
     var b = boton();
     if (!b) { return; }
     if (n > 0) {
-      b.innerHTML = '<i class="fas fa-percent"></i> Asignar ITBIS <span class="itl-btn__n">' + n + ' pendientes</span>';
+      b.innerHTML = 'Asignar ITBIS <span class="itl-btn__n">' + n + ' pendientes</span>';
       b.classList.remove('itl-btn--ok');
     } else {
       b.innerHTML = '<i class="fas fa-check"></i> ITBIS asignado a todos';
@@ -107,7 +107,7 @@
       /* Sin permiso: el botón no se crea (un operador no asigna impuestos). */
       if (e.codigo === 'ROL_NO_AUTORIZADO') { var b = $('btnItbisLotes'); if (b) { b.remove(); } return; }
       var bb = boton();
-      if (bb) { bb.innerHTML = '<i class="fas fa-percent"></i> Asignar ITBIS'; bb.title = e.message; }
+      if (bb) { bb.innerHTML = 'Asignar ITBIS'; bb.title = e.message; }
     }
   }
 
