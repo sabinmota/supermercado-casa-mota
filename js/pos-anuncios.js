@@ -17,8 +17,7 @@ window.CASAMOTA_ANUNCIOS_POS = [
     titulo:  'Haz tu compra desde el celular',
     texto:   'Pide en la app Casa Mota y te lo llevamos a tu casa',
     web:     'supermercadocasamota.com',
-    /* ⚠️ La app está EN REVISIÓN en Apple. Cuando esté publicada, cambie
-     *    esta línea por 'Disponible en App Store'. */
-    sello:   'Muy pronto en App Store'
+    /* ✅ APROBADA POR APPLE el 26-sep-2026 («approved for distribution»). */
+    sello:   'Disponible en App Store'
   }
 ];
