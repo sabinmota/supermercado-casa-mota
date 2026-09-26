@@ -187,18 +187,28 @@ kbd {
  * POS-25 · el dueño: sin cortes, pero «rozando el borde izquierdo y sobrando
  * mucho del derecho». La zona que imprime la Star no está centrada con la
  * hoja que da el driver: se DESPLAZA el ticket a la derecha un valor fijo
- * (--recibo-izq). Si hay que afinar, se cambia SOLO ese número. */
+ * (--recibo-izq). Si hay que afinar, se cambia SOLO ese número.
+ * POS-26 · MEDIDO en la foto del dueño (ticket 000013): lo impreso ocupa
+ * solo ~48 mm de los 80 del rollo, pegado a la izquierda. O sea, la regla
+ * @page hacía que Chrome ENCOGIERA el ticket (~68 %) y el desplazamiento
+ * apenas se notaba. La prueba I (25-sep), que salió a buen tamaño y bien
+ * colocada, NO tenía @page ni centrado: 72 mm pegado a la izquierda y los
+ * márgenes los ponía el driver. Se copia EXACTAMENTE esa fórmula. */
 .pos-recibo { display: none; }
 .pos-recibo {
-  --recibo-izq: 4mm;
-  width: 70mm; max-width: calc(100% - var(--recibo-izq));
-  margin: 0 0 0 var(--recibo-izq); padding: 0 0 4mm; box-sizing: border-box;
+  width: 72mm; max-width: 100%; margin: 0; padding: 0 0 4mm; box-sizing: border-box;
   font-family: Arial, Helvetica, sans-serif; font-weight: 700;
   font-size: 12.5px; line-height: 1.35; color: #000; background: #fff;
 }
 .pos-recibo .t-mini, .pos-recibo th { font-weight: 700; }
 @media print {
-  @page { margin: 3mm; }
+  /* SIN regla @page: con ella Chrome encogía o cortaba el ticket en la Star. */
+  /* html/body de la caja tienen height:100% + overflow:hidden + fondo gris:
+     al imprimir se anulan, para que la página sea como la de la prueba I. */
+  html, body {
+    margin: 0 !important; padding: 0 !important;
+    height: auto !important; overflow: visible !important; background: #fff !important;
+  }
   body > *:not(.pos-recibo) { display: none !important; }
   .pos-recibo { display: block !important; }
 }
