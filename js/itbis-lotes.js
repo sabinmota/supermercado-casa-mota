@@ -272,6 +272,7 @@
       var hechos = {};
       for (var i = 0; i < ids.length; i++) { hechos[ids[i]] = true; }
       ponerEnMemoria(hechos, tasa);
+      repintarTabla();
       _prods = _prods.filter(function (p) { return !hechos[p.id]; });
       _marcados = {};
       estado('');
@@ -318,6 +319,11 @@
   function ponerEnMemoria(ids, tasa) {
     var l = listaProductos();
     for (var i = 0; i < l.length; i++) { if (ids[l[i].id]) { l[i].itbis_tasa = tasa; } }
+  }
+  /* 477 · la columna ITBIS de la tabla se actualiza al momento */
+  function repintarTabla() {
+    try { if (typeof renderProductsTable === 'function' && $('productsTbody')) { renderProductsTable(); } }
+    catch (e) { /* la tabla se verá al volver a Productos */ }
   }
   function tieneTasa(v) { return v !== null && v !== undefined && v !== '' && isFinite(Number(v)); }
 
@@ -398,6 +404,7 @@
           await rpc('admin_fijar_itbis', { p_vale: vale(), p_id: String(id), p_tasa: tasa });
           if (saved) { saved.itbis_tasa = tasa; }
           var p = buscarProducto(id); if (p) { p.itbis_tasa = tasa; }
+          setTimeout(repintarTabla, 0);   // el panel ya repintó antes de la RPC
           if (product) { product.itbis_tasa = tasa; }
           contar();
         } catch (e) {

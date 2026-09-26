@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '468';
+      const VER = '477';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=16" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=17" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -653,6 +653,10 @@
                 </th>
                 <th class="th-sortable" onclick="sortProductsBy('price')" title="Ordenar por precio">
                   Precio <span class="sort-icon" id="sort-icon-price">⇅</span>
+                </th>
+                <!-- 477 · columna ITBIS (pedido del dueño: después de Precio) -->
+                <th class="th-sortable" onclick="sortProductsBy('itbis_tasa')" title="Ordenar por ITBIS">
+                  ITBIS <span class="sort-icon" id="sort-icon-itbis_tasa">⇅</span>
                 </th>
                 <th class="th-sortable" onclick="sortProductsBy('stock')" title="Ordenar por stock">
                   Stock <span class="sort-icon" id="sort-icon-stock">⇅</span>
@@ -3354,7 +3358,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=408"></script>
+  <script src="js/admin.v33.js?v=409"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
@@ -3365,7 +3369,7 @@
   <script src="js/menu-mas.js?v=2"></script>
   <script src="js/ventas-pos.js?v=2"></script>
 <!-- 475 · Asignar ITBIS por lotes (botón en Productos · seguridad/78) -->
-<script src="js/itbis-lotes.js?v=3"></script>
+<script src="js/itbis-lotes.js?v=4"></script>
   <!-- 472 · pestaña «Cierres de turno» de Ventas POS (fichero aparte) -->
   <script src="js/cierres-pos.js?v=8"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script

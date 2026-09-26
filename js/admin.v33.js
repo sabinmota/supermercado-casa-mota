@@ -2111,7 +2111,7 @@ function sortProductsBy(field) {
     _prodSortDir   = 'asc';
   }
   // Actualizar íconos en los headers
-  ['name','category','price','stock'].forEach(f => {
+  ['name','category','price','itbis_tasa','stock'].forEach(f => {   // 477 · + ITBIS
     const icon = document.getElementById(`sort-icon-${f}`);
     const th   = icon?.closest('th');
     if (!icon) return;
@@ -2298,6 +2298,17 @@ document.addEventListener('visibilitychange', () => {
   refrescarProductos(false);
 });
 
+/* 477 · Columna ITBIS de la tabla de Productos (pedido del dueño, 26-sep).
+ * Mismos colores que la ficha de detalle (css/panel-2026.css · .itl-pill). */
+function _celdaItbis(t) {
+  if (t === null || t === undefined || t === '' || !isFinite(Number(t))) {
+    return '<span class="itl-pill itl-pill--sin" title="La caja no factura este producto hasta que tenga tasa">Sin asignar</span>';
+  }
+  const n = Number(t);
+  return '<span class="itl-pill itl-pill--' + (n === 18 ? '18' : n === 16 ? '16' : '0') + '">' +
+         n + ' %' + (n === 0 ? ' exento' : '') + '</span>';
+}
+
 function renderProductsTable() {
   const q       = document.getElementById('prodSearch')?.value || '';
   const cat     = document.getElementById('prodCatFilter')?.value || '';
@@ -2319,6 +2330,8 @@ function renderProductsTable() {
         // Normalizar para comparación
         if (typeof va === 'string') va = va.toLowerCase();
         if (typeof vb === 'string') vb = vb.toLowerCase();
+        // 477 · ITBIS: «sin asignar» va antes que el 0 % (si no, se mezclarían)
+        if (_prodSortField === 'itbis_tasa') { va = va ?? -1; vb = vb ?? -1; }
         va = va ?? '';
         vb = vb ?? '';
         if (va < vb) return _prodSortDir === 'asc' ? -1 :  1;
@@ -2372,6 +2385,7 @@ function renderProductsTable() {
       <td>${p.name}</td>
       <td><span class="td-cat">${catLabel(p.category)}</span></td>
       <td><strong>RD$ ${fmt$(p.price)}</strong>${p.originalPrice ? `<br><small style="text-decoration:line-through;color:#aaa">RD$ ${fmt$(p.originalPrice)}</small>` : ''}</td>
+      <td>${_celdaItbis(p.itbis_tasa)}</td>
       <td><span class="${stockClass}">${p.stock}</span></td>
       <td>${p.unit ? `<span class="td-unit-pill">${p.unit}</span>` : `<span style="color:#ddd;font-size:.78rem">—</span>`}</td>
       <td>${badgeHTML}</td>
