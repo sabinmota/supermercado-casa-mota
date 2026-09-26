@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=14" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=16" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -1545,6 +1545,12 @@
           <span id="vpBarcode">—</span>
         </div>
 
+        <!-- 476 · Tasa de ITBIS (la rellena js/itbis-lotes.js) -->
+        <div class="vp-itbis-row" id="vpItbisRow">
+          <i class="fas fa-percent"></i>
+          <span id="vpItbis">—</span>
+        </div>
+
         <!-- BUILD 452b · Aviso 18+ en la VISTA de detalle.
              Se rellena desde js/admin.v33.js → viewProduct(). Arranca oculto:
              solo se muestra si el producto lleva alcohol, con la MISMA regla
@@ -1659,6 +1665,17 @@
             <span id="pBarcodeStatus" style="font-size:.75rem;white-space:nowrap;min-width:160px"></span>
           </div>
           <small style="color:#6b7280;font-size:.72rem">Compatible con lectores láser · 6, 8, 12, 13 o 14 dígitos con dígito verificador válido.</small>
+        </div>
+        <!-- 476 · ITBIS obligatorio (lo gestiona js/itbis-lotes.js · seguridad/78) -->
+        <div class="form-group">
+          <label for="pItbis"><i class="fas fa-percent" style="margin-right:5px;color:#b42318"></i>ITBIS <span style="color:#e53935;font-weight:700">*</span></label>
+          <select class="form-input" id="pItbis" aria-required="true">
+            <option value="">— Elija la tasa —</option>
+            <option value="18">18 %</option>
+            <option value="16">16 %</option>
+            <option value="0">0 % (exento)</option>
+          </select>
+          <small style="color:#6b7280;font-size:.72rem">La caja no factura productos sin tasa. El precio ya incluye el impuesto.</small>
         </div>
         <!-- BUILD 452 · Contiene alcohol (verificación de edad · App Store 1.4.3)
              Las categorías Vinos y Licores, Whiskys y Rones y Cervezas se tratan
@@ -3348,6 +3365,8 @@
   <!-- 469 · menú «··· Más» y sección Ventas POS (ficheros aparte, no tocan admin.v33.js) -->
   <script src="js/menu-mas.js?v=2"></script>
   <script src="js/ventas-pos.js?v=2"></script>
+<!-- 475 · Asignar ITBIS por lotes (botón en Productos · seguridad/78) -->
+<script src="js/itbis-lotes.js?v=2"></script>
   <!-- 472 · pestaña «Cierres de turno» de Ventas POS (fichero aparte) -->
   <script src="js/cierres-pos.js?v=8"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
