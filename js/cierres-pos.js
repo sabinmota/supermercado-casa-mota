@@ -121,9 +121,10 @@
     /* POS-22 · medido en la Star TSP100: con margen 0 se corta el principio
      * y la Courier sale casi invisible. Arial negrita + margen 3 mm. */
     /* POS-24 · 70 mm centrados (todo el ancho se cortaba a los lados). */
-    /* POS-26 · la fórmula de la prueba I: sin @page, 72 mm, pegado a la izquierda. */
+    /* POS-27 · sin ancho fijo: ocupa el área imprimible que dé el driver
+     * (con 72 mm fijos Chrome encogía la página entera). */
     var css = 'body{margin:0}' +
-      '.r{width:72mm;max-width:100%;box-sizing:border-box;margin:0;padding:0 0 4mm;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:12.5px;line-height:1.35;color:#000}' +
+      '.r{width:auto;max-width:100%;box-sizing:border-box;margin:0;padding:0 0 4mm;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:12.5px;line-height:1.35;color:#000}' +
       'h1{font-size:15px;text-align:center;margin:0 0 2px}.c{text-align:center}' +
       '.f{display:flex;justify-content:space-between;gap:6px}.g{font-weight:700;font-size:13px}' +
       'hr{border:0;border-top:1px dashed #000;margin:4px 0}' +

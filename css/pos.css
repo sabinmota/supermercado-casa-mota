@@ -193,10 +193,17 @@ kbd {
  * @page hacía que Chrome ENCOGIERA el ticket (~68 %) y el desplazamiento
  * apenas se notaba. La prueba I (25-sep), que salió a buen tamaño y bien
  * colocada, NO tenía @page ni centrado: 72 mm pegado a la izquierda y los
- * márgenes los ponía el driver. Se copia EXACTAMENTE esa fórmula. */
+ * márgenes los ponía el driver. Se copia EXACTAMENTE esa fórmula.
+ * POS-27 · captura de la ventana de Chrome del dueño (Epson TM-T88VII, todo
+ * en Predeterminado): YA EN LA VISTA PREVIA el ticket ocupa solo ~65 % de la
+ * hoja. Causa: los 72 mm fijos son MÁS ANCHOS que el área imprimible que
+ * deja el driver (80 mm menos sus márgenes), y Chrome ENCOGE la página
+ * entera para que quepa. Solución: SIN ancho fijo. El ticket ocupa el 100 %
+ * del área imprimible que dé cada driver (Epson o Star): nunca sobra,
+ * nunca encoge, nunca se corta. */
 .pos-recibo { display: none; }
 .pos-recibo {
-  width: 72mm; max-width: 100%; margin: 0; padding: 0 0 4mm; box-sizing: border-box;
+  width: auto; max-width: 100%; margin: 0; padding: 0 0 4mm; box-sizing: border-box;
   font-family: Arial, Helvetica, sans-serif; font-weight: 700;
   font-size: 12.5px; line-height: 1.35; color: #000; background: #fff;
 }
@@ -211,6 +218,7 @@ kbd {
   }
   body > *:not(.pos-recibo) { display: none !important; }
   .pos-recibo { display: block !important; }
+  .pos-recibo img { max-width: 100%; }
 }
 /* ── contenido del recibo (ticket y cierre) ── */
   .pos-recibo h1 { font-size: 15px; text-align: center; margin: 0 0 2px; }
