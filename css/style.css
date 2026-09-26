@@ -2471,6 +2471,7 @@ input, select { font-family: var(--font); }
   transition: all var(--transition);
   color: rgba(255,255,255,.75);
   background: rgba(255,255,255,.04);
+  text-decoration: none;   /* el de App Store ahora es un enlace */
 }
 .app-badge:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); color: #fff; }
 

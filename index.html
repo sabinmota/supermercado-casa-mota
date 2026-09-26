@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '467', KEY = 'cm_app_ver';
+        var VER = '474', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=325" />
+  <link rel="stylesheet" href="css/style.css?v=326" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -691,7 +691,8 @@
           <li><i class="fas fa-clock"></i> <span id="storeHoursSunFooter"></span></li>
         </ul>
         <div class="app-badges">
-          <span class="app-badge"><i class="fab fa-apple"></i> App Store</span>
+          <!-- 26-sep · app aprobada por Apple: el distintivo lleva a su ficha -->
+          <a class="app-badge" href="https://apps.apple.com/app/casa-mota/id6811365677" target="_blank" rel="noopener" aria-label="Descargar Casa Mota en la App Store"><i class="fab fa-apple"></i> App Store</a>
           <span class="app-badge"><i class="fab fa-google-play"></i> Google Play</span>
         </div>
       </div>
