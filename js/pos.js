@@ -1601,7 +1601,41 @@
     return false;
   }
 
+  /* POS-29 · el dueño: una cajera pulsa F5 sin querer y se pierde la factura
+   * y la sesión. Con la caja abierta se ANULA la recarga por teclado
+   * (F5, Ctrl+R, Ctrl+F5, Ctrl+Shift+R). El botón de recargar del navegador
+   * no se puede anular: para ése, si hay artículos, el navegador pregunta
+   * antes de salir (beforeunload). */
+  /* POS-30 · el dueño pide dejar LIBRE Ctrl+Shift+R: tres teclas a la vez no
+   * se pulsan por error, y le sirve para actualizar la caja. */
+  function esRecarga(ev) {
+    var k = String(ev.key || '').toLowerCase();
+    if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && k === 'r') { return false; }
+    return ev.key === 'F5' || ((ev.ctrlKey || ev.metaKey) && k === 'r');
+  }
+
+  function montarAntiRecarga() {
+    document.addEventListener('keydown', function (ev) {
+      if (!esRecarga(ev)) { return; }
+      var caja = $('pos-caja');
+      if (!caja || caja.hidden) { return; }        // en la pantalla de entrada sí se puede
+      ev.preventDefault();
+      ev.stopPropagation();
+      pitar(true);
+      avisar('F5 está desactivado en la caja para no perder la factura.', 'error');
+    }, true);
+
+    window.addEventListener('beforeunload', function (ev) {
+      var caja = $('pos-caja');
+      if (!caja || caja.hidden || !_lineas.length) { return; }
+      ev.preventDefault();
+      ev.returnValue = '';   // Chrome muestra su aviso «¿Salir del sitio?»
+      return '';
+    });
+  }
+
   function montarAtajos() {
+    montarAntiRecarga();
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'F9' && ev.key !== 'F7') { return; }
       var caja = $('pos-caja');
