@@ -177,19 +177,22 @@ kbd {
  * Así que: Arial en negrita y margen de 3 mm. El largo de la hoja lo pone
  * el driver (pendiente: sale papel en blanco al final; ver PLAN-CIERRE).
  *
- * POS-23 · el dueño: «mucho espacio libre a los lados». El ancho fijo de
- * 66 mm dejaba franjas blancas: ahora el recibo ocupa TODO el ancho que el
- * driver da como imprimible (width auto) y los lados van a 1 mm. Arriba y
- * abajo se quedan 3 mm (con 0 se cortaba el principio, prueba G). */
+ * POS-23 · «mucho espacio libre a los lados» con 66 mm → se puso todo el
+ * ancho con 1 mm de margen, y SE CORTÓ A LOS LADOS: la Star solo imprime
+ * ~72 mm centrados en el rollo de 80, aunque el driver diga que la hoja
+ * es más ancha.
+ * POS-24 · punto medio: 70 mm centrados (2 mm más por lado que los 66
+ * que salían bien, y 1 mm por dentro del límite físico de 72). Con
+ * max-width:100% nunca pasa del ancho que dé el driver. */
 .pos-recibo { display: none; }
 .pos-recibo {
-  width: auto; margin: 0; padding: 0 0 4mm;
+  width: 70mm; max-width: 100%; margin: 0 auto; padding: 0 0 4mm; box-sizing: border-box;
   font-family: Arial, Helvetica, sans-serif; font-weight: 700;
   font-size: 12.5px; line-height: 1.35; color: #000; background: #fff;
 }
 .pos-recibo .t-mini, .pos-recibo th { font-weight: 700; }
 @media print {
-  @page { margin: 3mm 1mm; }
+  @page { margin: 3mm; }
   body > *:not(.pos-recibo) { display: none !important; }
   .pos-recibo { display: block !important; }
 }
