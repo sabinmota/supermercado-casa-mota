@@ -438,6 +438,9 @@ async function _chatLoadProducts(force = false) {
         badge:    p.badge,
         unit:     p.unit,                 // faltaba: el catálogo lo usaba y siempre era undefined
         stock:    Number(p.stock) || 0,   // faltaba: sin esto Maya no podía hablar de inventario
+        /* 478 · la tasa de ITBIS que tiene ASIGNADA en la base (null = sin asignar).
+         * Solo se muestra en el panel (_IS_ADMIN). */
+        itbis:    (p.itbis_tasa === null || p.itbis_tasa === undefined || p.itbis_tasa === '') ? null : Number(p.itbis_tasa),
       }));
   } catch (e) {
     console.warn('[Chat] No se pudieron cargar los productos:', e);
@@ -1143,6 +1146,7 @@ async function _chatCallAI(userMsg) {
   const catalog = relevant
     .map(p => `• ${p.name} RD$${p.price}${p.unit ? ' / ' + p.unit : ''}`
       + (_IS_ADMIN ? ` · stock: ${p.stock}` : '')
+      + (_IS_ADMIN ? ` · ITBIS: ${p.itbis === null || p.itbis === undefined || isNaN(p.itbis) ? 'SIN ASIGNAR' : p.itbis + ' %'}` : '')
       + (p.badge ? ` [${p.badge}]` : ''))
     .join('\n');
 
@@ -1248,6 +1252,12 @@ INSTRUCCIONES:
   pedidos enviados/entregados están SIN repartidor asignado: esos no cuentan para
   nadie hasta que se les asigne uno en Pedidos → Ver detalles.
 - Da siempre cifras exactas, nunca aproximaciones.
+- ITBIS: cada producto del bloque PRODUCTOS RELEVANTES trae la tasa que tiene
+  ASIGNADA en el sistema (18 %, 16 % o 0 %) o "SIN ASIGNAR". Si preguntan qué
+  ITBIS tiene un producto, di esa tasa y aclara que es la asignada en el
+  sistema. Si dice SIN ASIGNAR, dilo y recuerda que la caja no lo factura hasta
+  que se le ponga en Productos. NO afirmes qué dice la DGII ni deduzcas una tasa
+  por el nombre: no consultas la DGII, y la tasa la decide el dueño.
 - Si una lista está vacía ("ninguno"), dilo con claridad: es un dato válido, no una falta de información.
 - No reveles teléfonos ni direcciones: no los tienes y no debes inventarlos.
 - Español dominicano profesional. Máx 3 oraciones, salvo que te pidan una lista.
