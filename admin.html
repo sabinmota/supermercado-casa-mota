@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '477';
+      const VER = '479';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -3350,6 +3350,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
   <script src="js/api.js?v=350"></script>
+<!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
+<script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
        El panel lo necesita porque chat.js (Maya) lee los favoritos del
        cliente. Debe cargarse ANTES de chat.js. -->
