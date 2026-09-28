@@ -5952,7 +5952,7 @@ function _recalcCheckoutTotals() {
   // Actualizar desglose
   if (totalsEl) {
     totalsEl.innerHTML = `
-      <div class="chk-total-row"><span>Subtotal (${totalItems} artículo${totalItems!==1?'s':''})</span><span>RD$ ${fmt$(subtotal)}</span></div>
+      <div class="chk-total-row"><span>Subtotal</span><span>RD$ ${fmt$(subtotal)}</span></div><!-- 482 · la cantidad solo en «Gastos de envío» -->
       ${itbisIncl !== null ? `<div class="chk-total-row chk-itbis-row"><span>ITBIS incluido</span><span>RD$ ${fmt$(itbisIncl)}</span></div>` : ''}
       <div class="chk-total-row"><span>Gastos de envío <span class="chk-envio-arts">(${totalItems} artículo${totalItems!==1?'s':''})</span></span><span>${envioLabel}</span></div>
       ${descuento > 0 ? `<div class="chk-total-row" style="color:#1a7c3e;font-weight:600"><span><i class="fas fa-tag"></i> Cupón ${_activeCupon?.cupon?.codigo || ''}</span><span>- RD$ ${fmt$(descuento)}</span></div>` : ''}
