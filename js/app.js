@@ -5875,6 +5875,29 @@ function _sincronizarCuponYPuntos() {
   }
 }
 
+/* 480 · ITBIS INCLUIDO EN LA COMPRA (pedido del dueño, como la competencia).
+ *
+ * Los precios YA INCLUYEN el impuesto, así que el ITBIS se EXTRAE, no se suma:
+ *     itbis = importe − importe / (1 + tasa/100)
+ * Es la misma fórmula de la caja (js/pos.js · desglosar). El TOTAL NO CAMBIA:
+ * la fila es informativa («incluido»).
+ *
+ * La tasa se toma del catálogo EN VIVO (un carrito guardado de antes no la
+ * trae). 🔴 Si ALGÚN artículo no tiene tasa asignada, devuelve null y la fila
+ * NO se muestra: enseñar al cliente un impuesto a medias sería un dato falso. */
+function _itbisDelCarrito() {
+  const vivos = getLiveProducts() || [];
+  let itbis = 0;
+  for (const c of cart) {
+    const live = vivos.find(p => String(p.id) === String(c.id));
+    const t = live && live.itbis_tasa !== undefined ? live.itbis_tasa : c.itbis_tasa;
+    if (t === null || t === undefined || t === '' || !isFinite(Number(t))) return null;
+    const imp = Number(c.price) * Number(c.qty);
+    itbis += imp - imp / (1 + Number(t) / 100);
+  }
+  return Math.round(itbis * 100) / 100;
+}
+
 function _recalcCheckoutTotals() {
   const totalItems = cart.reduce((s, c) => s + c.qty, 0);
   const subtotal   = cart.reduce((s, c) => s + c.price * c.qty, 0);
@@ -5904,7 +5927,7 @@ function _recalcCheckoutTotals() {
   if (envio === 0) {
     envioLabel = `<span style="color:#1a7c3e;font-weight:700">¡Gratis!</span>`;
   } else {
-    envioLabel = `RD$ ${fmt$(envio)} <span style="font-size:.75rem;color:#888">(${totalItems} art.)</span>`;
+    envioLabel = `RD$ ${fmt$(envio)}`;   // 481 · la cantidad de artículos va ahora a la izquierda
   }
 
   // Indicador de sustitución autorizada
@@ -5924,11 +5947,14 @@ function _recalcCheckoutTotals() {
        </div>`
     : '';
 
+  const itbisIncl = _itbisDelCarrito();   // 480
+
   // Actualizar desglose
   if (totalsEl) {
     totalsEl.innerHTML = `
       <div class="chk-total-row"><span>Subtotal (${totalItems} artículo${totalItems!==1?'s':''})</span><span>RD$ ${fmt$(subtotal)}</span></div>
-      <div class="chk-total-row"><span>Gastos de envío</span><span>${envioLabel}</span></div>
+      ${itbisIncl !== null ? `<div class="chk-total-row chk-itbis-row"><span>ITBIS incluido</span><span>RD$ ${fmt$(itbisIncl)}</span></div>` : ''}
+      <div class="chk-total-row"><span>Gastos de envío <span class="chk-envio-arts">(${totalItems} artículo${totalItems!==1?'s':''})</span></span><span>${envioLabel}</span></div>
       ${descuento > 0 ? `<div class="chk-total-row" style="color:#1a7c3e;font-weight:600"><span><i class="fas fa-tag"></i> Cupón ${_activeCupon?.cupon?.codigo || ''}</span><span>- RD$ ${fmt$(descuento)}</span></div>` : ''}
       ${descPuntos > 0 ? `<div class="chk-total-row chk-canje-row"><span><i class="fas fa-star"></i> Puntos usados (${_canjePuntos})</span><span>- RD$ ${fmt$(descPuntos)}</span></div>` : ''}
       ${ceroCentavosRow}

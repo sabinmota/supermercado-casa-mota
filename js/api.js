@@ -97,7 +97,9 @@ const _SELECT_FIELDS = {
   // modal, y para decidir si el checkout pide confirmar la edad. Si llegara
   // tarde (bajo demanda) habría un instante en el que una cerveza se vería sin
   // aviso, que es exactamente lo que la directriz 1.4.3 no permite.
-  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,barcode,isNew,deleted,description,es_alcohol',
+  // 480 · `itbis_tasa` también (un número): el checkout enseña al cliente el
+  // ITBIS incluido en su compra, como hace la competencia.
+  products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,barcode,isNew,deleted,description,es_alcohol,itbis_tasa',
   // Tienda fase 2 — solo image para actualizar imágenes
   products_imgs:  'id,image',
   orders:    '*',

@@ -2884,6 +2884,10 @@ input, select { font-family: var(--font); }
   border-top: 1.5px solid #b2dfcc;
 }
 .chk-total-row.total-final span:last-child { color: #1a7c3e; }
+/* 480 · ITBIS incluido (informativo: no suma al total) */
+.chk-itbis-row { color: #777; font-size: .8rem; }
+/* 481 · «Gastos de envío (2 artículos)»: la cantidad junto al texto, a la izquierda */
+.chk-envio-arts { font-size: .78rem; color: #888; }
 
 /* Datos de entrega */
 .chk-delivery {
