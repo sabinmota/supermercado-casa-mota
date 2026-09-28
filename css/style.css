@@ -1326,7 +1326,12 @@ input, select { font-family: var(--font); }
 .products-grid.list-view .add-cart-btn { left: auto; padding: 0 20px; }
 
 /* ── BUILD 483 · Vitrinas Novedades / Ofertas (js/vitrinas.js) ── */
-.vitrinas-section { background: var(--bg-light); padding: 36px 0 0; }
+/* BUILD 488 · `display: flow-root` hace que la sección CONTENGA el margen
+   inferior de la última fila. Sin esto ese margen se «salía» de la sección
+   (colapso de márgenes) y dejaba un hueco sin fondo propio entre Ofertas y
+   «Todos los Productos». En la web se veía el fondo claro del body (no se
+   notaba); en la app el body es #0f1f14 (build 450) → franja negra. */
+.vitrinas-section { background: var(--bg-light); padding: 36px 0 0; display: flow-root; }
 .vitrina { max-width: 1280px; margin: 0 auto 28px; padding: 0 20px; }
 .vitrina-cab { display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 12px; margin-bottom: 14px; }
 .vitrina-titulo { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 0; cursor: pointer; color: var(--text-dark); justify-self: start; }
