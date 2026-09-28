@@ -1337,7 +1337,13 @@ input, select { font-family: var(--font); }
 .vitrina-flecha { width: 34px; height: 34px; border-radius: 50%; background: white; border: 1px solid var(--border); color: var(--text-medium); display: flex; align-items: center; justify-content: center; }
 .vitrina-fila { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .vitrina-fila::-webkit-scrollbar { display: none; }
-.vitrina-fila > .product-card { flex: 0 0 220px; scroll-snap-align: start; }
+/* BUILD 487 · En computadora caben tarjetas ENTERAS: antes medían 220 px fijos
+   y la última quedaba cortada en el borde de la fila, lo que se veía como una
+   franja rota a la derecha. Ahora el ancho se reparte: 5 / 4 / 3 por fila. En
+   el celular (≤680 px) se deja asomar la siguiente a propósito (ver abajo). */
+.vitrina-fila > .product-card { flex: 0 0 calc((100% - 4 * 16px) / 5); min-width: 0; scroll-snap-align: start; }
+@media (max-width: 1100px) { .vitrina-fila > .product-card { flex-basis: calc((100% - 3 * 16px) / 4); } }
+@media (max-width: 900px)  { .vitrina-fila > .product-card { flex-basis: calc((100% - 2 * 16px) / 3); } }
 .vitrina-fila .product-img-wrap { height: 160px; }
 .vitrina-fila .product-desc { display: none; }
 /* Mismo tamaño en las dos filas: nombre siempre en 2 líneas y hueco fijo

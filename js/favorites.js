@@ -79,17 +79,6 @@ function updateFavoritesUI() {
   }
 }
 
-/* BUILD 486 · La tienda NUNCA debe quedar corrida de lado. Al abrir y cerrar
- * Favoritos el navegador desplazaba la página en horizontal y dejaba una franja
- * vacía del ancho del panel (medido: 400 px = ancho del panel). Esto la
- * devuelve a su sitio al instante. Solo toca el eje horizontal; la tienda no
- * tiene nada que deba desplazarse de lado (las vitrinas se desplazan dentro de
- * su propia fila, no la página). Se probó `overflow-x: clip` en CSS y NO
- * bastaba en Chrome, por eso no está. */
-window.addEventListener('scroll', () => {
-  if (window.scrollX) window.scrollTo({ left: 0, top: window.scrollY, behavior: 'instant' });
-}, { passive: true });
-
 // Toggle panel de favoritos
 function toggleFavorites() {
   const panel = document.getElementById('favoritesPanel');
@@ -101,11 +90,6 @@ function toggleFavorites() {
   if (panel.classList.contains('open')) {
     panel.classList.remove('open');
     overlay.classList.remove('open');
-    // BUILD 486 · Al cerrar, la página quedaba corrida a la izquierda con una
-    // franja vacía del ancho del panel. Se suelta el foco del panel y se
-    // devuelve la página a su sitio en horizontal (la vertical no se toca).
-    if (panel.contains(document.activeElement)) document.activeElement.blur();
-    if (window.scrollX) window.scrollTo({ left: 0, top: window.scrollY, behavior: 'instant' });
   } else {
     // Si está cerrado, abrir
     _applyPanelTop(); // Recalcular posición

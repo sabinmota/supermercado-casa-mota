@@ -96,7 +96,8 @@
 
   window.moverVitrina = function (id, dir) {
     const fila = document.querySelector(`#${id} .vitrina-fila`);
-    if (fila) fila.scrollBy({ left: dir * fila.clientWidth * 0.8, behavior: 'smooth' });
+    // Avanza una «página» exacta de tarjetas enteras (ancho visible + el hueco de 16 px)
+    if (fila) fila.scrollBy({ left: dir * (fila.clientWidth + 16), behavior: 'smooth' });
   };
 
   /* ── Envolturas de app.js ────────────────────────────────────────────────── */
