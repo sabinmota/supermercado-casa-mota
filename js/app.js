@@ -976,7 +976,7 @@ function productCardHTML(p) {
         </div>
       </div>
       <button class="add-cart-btn" onclick="addToCart('${p.id}')" title="Agregar al carrito">
-        <i class="fas fa-cart-plus"></i>
+        <i class="fas fa-cart-plus" aria-hidden="true"></i><span>Añadir</span>
       </button>
     </div>`;
 }

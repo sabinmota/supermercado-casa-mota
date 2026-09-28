@@ -107,8 +107,10 @@ function renderFavorites() {
   if (favorites.length === 0) {
     container.innerHTML = `
       <div class="favorites-empty">
-        <i class="fas fa-heart"></i>
-        <span>No tienes favoritos aún<br>Agrega productos que te gusten</span>
+        <img class="favorites-empty__ilustracion" src="images/favoritos-vacio.svg" alt="" width="240" height="200">
+        <h4 class="favorites-empty__titulo">Aún no tienes favoritos</h4>
+        <p class="favorites-empty__texto">Toca el <i class="fas fa-heart" aria-label="corazón"></i> en cualquier producto y aquí lo tendrás a mano para tu próxima compra.</p>
+        <button type="button" class="favorites-empty__btn" onclick="toggleFavorites()">Explorar productos</button>
       </div>`;
     return;
   }
