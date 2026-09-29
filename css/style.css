@@ -1332,6 +1332,12 @@ input, select { font-family: var(--font); }
    «Todos los Productos». En la web se veía el fondo claro del body (no se
    notaba); en la app el body es #0f1f14 (build 450) → franja negra. */
 .vitrinas-section { background: var(--bg-light); padding: 36px 0 0; display: flow-root; }
+/* BUILD 489 · Espacio entre Ofertas y «Todos los Productos» = el mismo que hay
+   entre Novedades y Ofertas. Antes se sumaban el margen de la última fila
+   (22–28 px) + los 60 px de arriba de la sección de productos → ~90 px vacíos.
+   Solo cuando las vitrinas se ven; si no hay ninguna, productos queda igual. */
+.vitrina:last-child { margin-bottom: 0; }
+.vitrinas-section:not(.hidden) + .products-section { padding-top: 28px; }
 .vitrina { max-width: 1280px; margin: 0 auto 28px; padding: 0 20px; }
 .vitrina-cab { display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 12px; margin-bottom: 14px; }
 .vitrina-titulo { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 0; cursor: pointer; color: var(--text-dark); justify-self: start; }
