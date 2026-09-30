@@ -233,7 +233,12 @@ kbd {
   /* POS-17 · ticket de venta (Star TSP100 · rollo 80 mm) */
   /* POS-35 · Logo ENCIMA del nombre, los dos centrados en el ancho del ticket
      (pedido del dueño). Antes iban lado a lado y el nombre quedaba corrido. */
-  .pos-recibo .t-logo { display: flex; flex-direction: column; align-items: center; gap: 1mm; margin-bottom: 1.5mm; text-align: center; }
+  .pos-recibo .t-logo { display: flex; flex-direction: column; align-items: center; gap: 1mm; margin-bottom: 1.5mm; text-align: center; container-type: inline-size; }
+  /* POS-36 · «SUPERMERCADO CASA MOTA» SIEMPRE en una sola línea. Mide 60,8 mm a
+     15,5 px y la impresora del dueño deja menos ancho → «MOTA» saltaba. Ahora
+     no se parte nunca y la letra se ajusta al ancho real del papel (6,4 % del
+     ancho = cabe con margen), con 15,5 px como máximo. */
+  .pos-recibo .t-logo .t-grande-nom { white-space: nowrap; font-size: min(15.5px, 6.4cqw); }
   .pos-recibo .t-logo__img { width: 22mm; height: 22mm; object-fit: contain; }
   .pos-recibo .t-razon { text-align: center; }
   .pos-recibo .t-grande-nom { font-size: 15.5px; }
