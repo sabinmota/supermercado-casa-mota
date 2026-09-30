@@ -231,9 +231,11 @@ kbd {
   .pos-recibo hr { border: 0; border-top: 1px dashed #000; margin: 4px 0; }
   .pos-recibo .firma { margin-top: 12mm; border-top: 1px solid #000; text-align: center; padding-top: 1mm; }
   /* POS-17 · ticket de venta (Star TSP100 · rollo 80 mm) */
-  .pos-recibo .t-logo { display: flex; align-items: center; gap: 2mm; margin-bottom: 1.5mm; }
-  .pos-recibo .t-logo__img { width: 22mm; height: 22mm; object-fit: contain; flex: 0 0 22mm; }
-  .pos-recibo .t-razon { flex: 1; text-align: center; }
+  /* POS-35 · Logo ENCIMA del nombre, los dos centrados en el ancho del ticket
+     (pedido del dueño). Antes iban lado a lado y el nombre quedaba corrido. */
+  .pos-recibo .t-logo { display: flex; flex-direction: column; align-items: center; gap: 1mm; margin-bottom: 1.5mm; text-align: center; }
+  .pos-recibo .t-logo__img { width: 22mm; height: 22mm; object-fit: contain; }
+  .pos-recibo .t-razon { text-align: center; }
   .pos-recibo .t-grande-nom { font-size: 15.5px; }
   .pos-recibo .t-b { font-weight: 700; }
   .pos-recibo .t-mini { font-size: 12px; }
