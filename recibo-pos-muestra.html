@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muestra del recibo · POS Casa Mota</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  MUESTRA DEL RECIBO · POS Casa Mota · generada 2026-09-20
+  Revisada 2026-09-23 (se corrigió esta cabecera: decía Code 128-C)
+
+  🔴 ES UNA MUESTRA PARA APROBAR EL DISEÑO, NO EL MÓDULO.
+     No factura, no guarda nada, no toca la base. Sirve para que el dueño vea
+     la disposición y la corrija. La pantalla de caja real ya existe aparte:
+     pos.html + css/pos.css + js/pos.js (build POS-1). Norma del proyecto:
+     se enseña una muestra visual antes de escribir el módulo.
+
+  🔴 FICHERO AUTÓNOMO: sin CDN, sin <script src>, sin <link>. El código de
+     barras se dibuja aquí con un generador escrito a mano, porque una
+     herramienta que se entrega al dueño no puede depender de internet ni de
+     carpetas del proyecto (ya pasó: la abrió desde Descargas y vio cuadros
+     vacíos).
+
+  🔴 ES CODE 39, NO CODE 128. La cabecera de este fichero decía «Code 128-C»
+     y ERA FALSO desde que se cambió el generador: la tabla de Code 128 que
+     escribí tenía 104 entradas y el valor de ARRANQUE de 128-C es el 105,
+     así que P[105] daba undefined y NO SE DIBUJABA NADA. Se cambió a Code 39
+     (44 símbolos, tabla comprobable de un vistazo, sin dígito de control, y
+     lo lee de fábrica cualquier lector de supermercado). El comentario se
+     quedó viejo: UNA CABECERA DESACTUALIZADA SE LEE COMO UN HECHO y el
+     siguiente habría buscado el fallo en la tabla equivocada.
+
+  ⚠️ LÍMITE DECLARADO — EL CÓDIGO DE BARRAS NO ESTÁ VERIFICADO CON LECTOR.
+     Desde aquí no hay forma de comprobar que la pistola Motorola lo lee: no
+     hay lector ni librería de decodificación en este entorno. El dibujo
+     sigue la especificación Code 39, pero LA ÚNICA PRUEBA VÁLIDA ES QUE EL
+     DUEÑO LO ESCANEE (imprimiendo la muestra o apuntando la Motorola a la
+     pantalla). No se declara funcionando hasta entonces.
+
+  ⚠️ ANCHO: 72 mm, que es el área imprimible real de un rollo de 80 mm en la
+     Epson TM-T88VII. No son 80: los 8 mm restantes son margen físico.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 16px;
+    background: #4a5158;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: #e6edf3;
+  }
+  .envoltura { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .sub { color: #c9d1d9; margin: 0 0 20px; font-size: .92rem; }
+
+  .aviso {
+    background: #2d1618; border: 1px solid #f85149; border-left-width: 4px;
+    border-radius: 8px; padding: 13px 15px; margin: 0 0 18px; font-size: .88rem;
+  }
+  .aviso b { color: #ffa198; }
+  .falta {
+    background: #2b2111; border: 1px solid #d29922; border-left-width: 4px;
+    border-radius: 8px; padding: 13px 15px; margin: 0 0 22px; font-size: .88rem;
+  }
+  .ok-verde {
+    background: #12261a; border: 1px solid #2ea043; border-left-width: 4px;
+    border-radius: 8px; padding: 13px 15px; margin: 0 0 22px; font-size: .88rem;
+  }
+
+  /* ── EL PAPEL ─────────────────────────────────────────────────────────
+     Monoespaciada a propósito: la impresora térmica es de ancho fijo, así
+     que si se diseña con una fuente proporcional las columnas no cuadran
+     al imprimir. Lo que se ve aquí es lo que sale. */
+  .papel {
+    width: 72mm; margin: 0 auto; background: #fff; color: #000;
+    padding: 4mm 3mm 8mm; border-radius: 2px;
+    font-family: ui-monospace, "Courier New", Courier, monospace;
+    font-size: 10.5px; line-height: 1.32;
+    box-shadow: 0 8px 26px rgba(0,0,0,.45);
+  }
+  .c { text-align: center; }
+  .b { font-weight: 700; }
+  .sep { border-top: 1px dashed #000; margin: 1.6mm 0; }
+  .sep2 { border-top: 1px solid #000; margin: 1.6mm 0; }
+
+  .logo-fila { display: flex; align-items: center; gap: 2mm; margin-bottom: 1.5mm; }
+  .logo-caja {
+    width: 11mm; height: 11mm; flex: 0 0 11mm;
+    border: 1px solid #000; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7px; text-align: center; line-height: 1.1;
+  }
+  .razon { flex: 1; text-align: center; }
+
+  .titulo-doc { font-size: 11.5px; font-weight: 700; letter-spacing: .3px; }
+
+  /* Dos columnas: número + barras a la izquierda, NCF a la derecha */
+  .dos {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; gap: 2mm;
+  }
+  .dos > div:last-child { text-align: right; }
+  .mini { font-size: 8.5px; }
+
+  canvas.barras { display: block; margin-top: .8mm; }
+
+  table.lineas { width: 100%; border-collapse: collapse; }
+  table.lineas th {
+    text-align: left; font-size: 8.5px; font-weight: 700;
+    border-bottom: 1px solid #000; padding: .5mm 0;
+  }
+  table.lineas th.n, table.lineas td.n { text-align: right; }
+  table.lineas td { padding: .35mm 0; vertical-align: top; }
+  .art { font-size: 9.5px; }
+
+  .tot { display: flex; justify-content: space-between; }
+  .tot.grande { font-size: 13px; font-weight: 700; margin: 1mm 0; }
+
+  .pie { font-size: 8.5px; text-align: center; margin-top: 2mm; }
+
+  .nota {
+    max-width: 640px; margin: 22px auto 0; font-size: .86rem;
+    color: #c9d1d9; background: #2f363d; border: 1px solid #58636d;
+    border-radius: 8px; padding: 14px 16px;
+  }
+  .nota h3 { margin: 0 0 8px; font-size: .98rem; color: #fff; }
+  .nota ul { margin: 6px 0 0; padding-left: 20px; }
+  .nota li { margin-bottom: 6px; }
+  code {
+    background: #22272e; padding: 1px 5px; border-radius: 3px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em;
+  }
+</style>
+</head>
+<body>
+<div class="envoltura">
+
+  <h1>Muestra del recibo · punto de venta</h1>
+  <p class="sub">Ancho real de impresión: 72 mm (rollo de 80 mm) · Epson TM-T88VII</p>
+
+  <div class="aviso">
+    <b>EL CÓDIGO DE BARRAS NO ESTÁ VERIFICADO.</b> Está dibujado según la
+    especificación <b>Code 39</b> (este aviso decía «Code 128-C» y era un
+    texto viejo: el generador se cambió porque el de Code 128 no dibujaba
+    nada). Pero <b>desde aquí no puedo comprobar que la pistola lo lea</b>:
+    no hay lector en este entorno. <b>La única prueba válida es que usted lo
+    escanee</b> — imprima esta página o apunte la Motorola a la pantalla.
+    Hasta entonces no lo doy por bueno.
+  </div>
+
+  <div class="ok-verde">
+    <b>Datos del comercio ya fijados</b> (2026-09-20):
+    RNC <b>1-1301137-5</b> · Tel. <b>809-553-2226</b> · rango NCF
+    <b>B0200000001 — B0201000000</b> (un millón de comprobantes).
+  </div>
+
+  <!-- ═══════════════ EL RECIBO ═══════════════ -->
+  <div class="papel">
+
+    <!-- Generales del comercio -->
+    <div class="logo-fila">
+      <div class="logo-caja">LOGO<br>Casa<br>Mota</div>
+      <div class="razon">
+        <div class="b" style="font-size:12px">SUPERMERCADO CASA MOTA</div>
+
+      </div>
+    </div>
+    <div class="c mini">
+      RNC: 1-1301137-5<br>
+      Melchor Contín Alfau 5<br>
+      Hato Mayor del Rey, Rep. Dom.<br>
+      Tel: 809-553-2226
+    </div>
+
+    <div class="sep2"></div>
+
+    <!-- Título del documento -->
+    <div class="c titulo-doc">FACTURAS CONSUMIDOR FINAL</div>
+    <div class="c b" style="font-size:10.5px">(ORIGINAL)</div>
+
+    <div class="sep"></div>
+
+    <!-- Número interno + barras (izq) · NCF (der) -->
+    <div class="dos">
+      <div>
+        <div class="mini">DOCUMENTO No.</div>
+        <div class="b" style="font-size:12px">000001</div>
+        <canvas class="barras" id="bc" data-valor="000001"></canvas>
+      </div>
+      <div>
+        <div class="mini">COMPROBANTE<br>CONSUMIDOR FINAL</div>
+        <div class="b" style="font-size:11px">B0200000001</div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Condición · fecha y hora -->
+    <div class="dos">
+      <div class="b">VENTA AL CONTADO</div>
+      <div class="mini" id="fechaHora">—</div>
+    </div>
+
+    <div class="sep2"></div>
+
+    <!-- Líneas -->
+    <table class="lineas">
+      <tr><th>ARTÍCULO</th><th class="n">CANT</th><th class="n">PRECIO</th><th class="n">VALOR</th></tr>
+      <tr>
+        <td class="art" colspan="4">Leche Evaporada Carnation 307g</td>
+      </tr>
+      <tr><td></td><td class="n">2</td><td class="n">65.00</td><td class="n">130.00</td></tr>
+      <tr>
+        <td class="art" colspan="4">Sazón Con Azafrán Goya 100g</td>
+      </tr>
+      <tr><td></td><td class="n">1</td><td class="n">200.00</td><td class="n">200.00</td></tr>
+      <tr>
+        <td class="art" colspan="4">Aceite de Oliva Virgen E. Figaro 750ml</td>
+      </tr>
+      <tr><td></td><td class="n">1</td><td class="n">975.00</td><td class="n">975.00</td></tr>
+      <tr>
+        <td class="art" colspan="4">Mayonesa Baldom 128z</td>
+      </tr>
+      <tr><td></td><td class="n">1</td><td class="n">775.00</td><td class="n">775.00</td></tr>
+    </table>
+
+    <div class="sep2"></div>
+
+    <div class="tot mini"><span>ARTÍCULOS</span><span>5</span></div>
+    <div class="tot grande"><span>TOTAL</span><span>RD$ 2,080.00</span></div>
+    <div class="sep"></div>
+    <div class="tot"><span>EFECTIVO RECIBIDO</span><span>3,000.00</span></div>
+    <div class="tot b"><span>CAMBIO</span><span>920.00</span></div>
+
+    <div class="sep2"></div>
+
+    <div class="mini">ATENDIDO POR: <b>MARÍA PÉREZ</b></div>
+
+    <div class="sep"></div>
+
+    <div class="pie">
+      ¡Gracias por preferirnos!<br>
+      supermercadocasamota.com
+    </div>
+
+  </div>
+  <!-- ═══════════════ FIN DEL RECIBO ═══════════════ -->
+
+  <div class="nota">
+    <h3>Cómo leer esta muestra</h3>
+    <ul>
+      <li><b>Los datos son de ejemplo.</b> Artículos, importes y la cajera
+          «María Pérez» están puestos para ver cómo queda.</li>
+      <li><b>Los dos números van separados</b>, como pidió: a la izquierda el
+          documento (en cifras y en barras) y a la derecha el NCF
+          <code>B0200000001</code>.</li>
+      <li><b>La fuente es monoespaciada a propósito.</b> La impresora térmica
+          es de ancho fijo: si se diseña con letra proporcional, las columnas
+          no cuadran al imprimir.</li>
+      <li><b>Dígame qué cambiar</b> — orden, textos, qué sobra o qué falta.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Fecha y hora reales, en formato dominicano ──────────────────────
+   * Se pinta desde JS y no escrita a mano para que la muestra enseñe la
+   * hora de verdad: una fecha fija daría la falsa impresión de estar
+   * cableada en el recibo. */
+  function dosDig(n) { return String(n).padStart(2, '0'); }
+  var ahora = new Date();
+  var f = dosDig(ahora.getDate()) + '/' + dosDig(ahora.getMonth() + 1) + '/' + ahora.getFullYear();
+  var h = dosDig(ahora.getHours()) + ':' + dosDig(ahora.getMinutes()) + ':' + dosDig(ahora.getSeconds());
+  document.getElementById('fechaHora').innerHTML = f + '<br>' + h;
+
+  /* ── CODE 39 ─────────────────────────────────────────────────────────
+   * 🔴 SE CAMBIÓ DE CODE 128 A CODE 39, Y EL MOTIVO IMPORTA:
+   *    el primer intento usaba Code 128-C, cuya tabla tiene 107 entradas.
+   *    La que escribí tenía 104, así que los valores de ARRANQUE (105) y
+   *    PARADA (106) no existían → `P[105]` daba `undefined` y no se
+   *    dibujaba nada. **Se vio porque el código avisa cuando no puede
+   *    generar**; con un `catch` vacío habría quedado un hueco en blanco
+   *    que se habría confundido con un problema de la impresora.
+   *
+   *    Code 39 tiene 44 símbolos, tabla pequeña y comprobable de un
+   *    vistazo, NO necesita dígito de control, y todo lector de
+   *    supermercado lo lee de fábrica — incluida una pistola
+   *    teclado-emulada como la Motorola. Para un número de documento es
+   *    de sobra.
+   *
+   * Cada símbolo son 9 elementos alternos empezando por BARRA:
+   * n = estrecho, w = ancho. Entre símbolo y símbolo, un espacio estrecho.
+   *
+   * ⚠️ SIGUE SIN VERIFICAR CON LECTOR REAL. Ver la cabecera del fichero. */
+  var C39 = {
+    '0':'nnnwwnwnn', '1':'wnnwnnnnw', '2':'nnwwnnnnw', '3':'wnwwnnnnn',
+    '4':'nnnwwnnnw', '5':'wnnwwnnnn', '6':'nnwwwnnnn', '7':'nnnwnnwnw',
+    '8':'wnnwnnwnn', '9':'nnwwnnwnn', '*':'nnwnwwnwn'
+  };
+
+  function dibujar(canvas, valor) {
+    /* Los delimitadores `*` son obligatorios en Code 39: sin ellos el
+     * lector no sabe dónde empieza ni acaba y no lee nada. */
+    var texto = '*' + String(valor).replace(/\D/g, '') + '*';
+
+    var ESTRECHO = 2, ANCHO = ESTRECHO * 3, ALTO = 34;
+
+    /* Primero se mide, y solo después se dibuja: así, si algún símbolo no
+     * estuviera en la tabla, no queda un código a medias en pantalla
+     * —que sería peor que ninguno, porque parecería válido—. */
+    var tramos = [];
+    for (var i = 0; i < texto.length; i++) {
+      var pat = C39[texto[i]];
+      if (!pat) { return false; }
+      for (var k = 0; k < pat.length; k++) {
+        tramos.push({ barra: (k % 2 === 0), w: (pat[k] === 'w' ? ANCHO : ESTRECHO) });
+      }
+      if (i < texto.length - 1) {
+        tramos.push({ barra: false, w: ESTRECHO });   // separador entre símbolos
+      }
+    }
+
+    var total = 0;
+    for (var m = 0; m < tramos.length; m++) { total += tramos[m].w; }
+
+    canvas.width  = total;
+    canvas.height = ALTO;
+
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#000';
+
+    var x = 0;
+    for (var n = 0; n < tramos.length; n++) {
+      if (tramos[n].barra) { ctx.fillRect(x, 0, tramos[n].w, ALTO); }
+      x += tramos[n].w;
+    }
+    return true;
+  }
+
+  var cv = document.getElementById('bc');
+  if (cv) {
+    var ok = dibujar(cv, cv.getAttribute('data-valor'));
+    if (!ok) {
+      /* Si no se pudo codificar, se DICE. Un canvas en blanco parecería
+       * un problema de impresión y mandaría a buscar el fallo donde no está. */
+      var avisoFallo = document.createElement('div');
+      avisoFallo.style.cssText = 'font-size:9px;color:#b00';
+      avisoFallo.textContent = '[no se pudo generar el código de barras]';
+      cv.parentNode.replaceChild(avisoFallo, cv);
+    }
+  }
+})();
+</script>
+</body>
+</html>

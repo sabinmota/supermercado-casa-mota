@@ -1188,8 +1188,8 @@
 
     return '<div class="t-logo">' +
              '<img src="images/logo-casamota.png" alt="" class="t-logo__img">' +
-             '<div class="t-razon"><div class="t-b t-grande-nom">SUPERMERCADO CASA MOTA</div>' +
-             '<div class="t-mini">SUPER MERCADO M.&amp; R., S.R.L.</div></div>' +
+             /* POS-33 · Solo el nombre comercial (el dueño no quiere la razón social en el ticket). */
+             '<div class="t-razon"><div class="t-b t-grande-nom">SUPERMERCADO CASA MOTA</div></div>' +
            '</div>' +
            '<div class="c t-mini">RNC: 1-1301137-5<br>Melchor Contín Alfau 5<br>' +
              'Hato Mayor del Rey, Rep. Dom.<br>Tel: 809-553-2226</div>' +
