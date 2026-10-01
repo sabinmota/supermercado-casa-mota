@@ -364,6 +364,15 @@ input, select { font-family: var(--font); }
 }
 .barcode-scan-btn:hover  { color: var(--green-dark); }
 .barcode-scan-btn:active { transform: scale(.92); }
+/* BUILD 490 · El escáner SOLO en la app instalada (iOS/Android). En la tienda
+   web (Safari, Chrome…) el botón no aparece: casi nadie usa la cámara del PC
+   como escáner. `es-app-nativa` la pone js/nativo.js en <html> antes del
+   primer pintado, así que en la app el botón no parpadea.
+   El código del escáner NO se borra: la app lo sigue usando (camino nativo y
+   el modo foto de respaldo). Buscar escribiendo el número del código sigue
+   funcionando en la web. */
+.barcode-scan-btn { display: none; }
+html.es-app-nativa .barcode-scan-btn { display: flex; }
 
 /* ============================================================
    ESCÁNER DE CÓDIGO DE BARRAS — v119
@@ -1370,6 +1379,8 @@ input, select { font-family: var(--font); }
 @media (max-width: 680px) {
   .vitrinas-section { padding-top: 22px; }
   .vitrina { padding: 0 14px; margin-bottom: 22px; }
+  .vitrina:last-child { margin-bottom: 0; }
+  .vitrinas-section:not(.hidden) + .products-section { padding-top: 22px; }
   .vitrina-titulo h2 { font-size: 1.35rem; }
   .vitrina-flechas { display: none; }
   .vitrina-fila { gap: 10px; }
