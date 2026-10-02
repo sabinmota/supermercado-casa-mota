@@ -279,7 +279,8 @@ function _goPage(section, scrollToId, page) {
       const badge = document.getElementById('prodBadgeFilter')?.value || '';
       return adminProducts.filter(p =>
         _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category) &&
-        (!cat || p.category === cat) && (!badge || p.badge === badge)
+        (!cat || p.category === cat) && (!badge || p.badge === badge) &&
+        _pasaFiltroVenta(p)   // 491 · MISMO criterio que renderProductsTable
       ).length;
     })(),
     orders: (() => {
@@ -2298,6 +2299,19 @@ document.addEventListener('visibilitychange', () => {
   refrescarProductos(false);
 });
 
+/* 491 · «Solo venta en caja» (seguridad/80). La casilla, la ficha y el
+ * guardado viven en js/solo-caja.js; aquí solo la etiqueta de la tabla y el
+ * filtro, porque los usan renderProductsTable y _goPage (mismo criterio). */
+function _esSoloCajaAdm(p) {
+  return !!p && (p.solo_caja === true || p.solo_caja === 'true' || p.solo_caja === 1);
+}
+function _pasaFiltroVenta(p) {
+  const v = document.getElementById('prodVentaFilter')?.value || '';
+  if (v === 'caja')   return _esSoloCajaAdm(p);
+  if (v === 'tienda') return !_esSoloCajaAdm(p);
+  return true;
+}
+
 /* 477 · Columna ITBIS de la tabla de Productos (pedido del dueño, 26-sep).
  * Mismos colores que la ficha de detalle (css/panel-2026.css · .itl-pill). */
 function _celdaItbis(t) {
@@ -2321,7 +2335,7 @@ function renderProductsTable() {
       const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category);
       const matchC = !cat   || p.category === cat;
       const matchB = !badge || p.badge    === badge;
-      return matchQ && matchC && matchB;
+      return matchQ && matchC && matchB && _pasaFiltroVenta(p);   // 491
     })
     // Ordenamiento por columna clicada, o por defecto más reciente primero
     .sort((a, b) => {
@@ -2382,7 +2396,7 @@ function renderProductsTable() {
     tr.dataset.pid = p.id;
     tr.innerHTML = `
       <td><img src="${p.image}" alt="${p.name}" class="td-img" onerror="this.src='images/logo-casamota.png'" /></td>
-      <td>${p.name}</td>
+      <td>${p.name}${_esSoloCajaAdm(p) ? ' <span class="sc-pill" title="Se factura en la caja; no se muestra en la tienda ni en la app">Solo caja</span>' : ''}</td>
       <td><span class="td-cat">${catLabel(p.category)}</span></td>
       <td><strong>RD$ ${fmt$(p.price)}</strong>${p.originalPrice ? `<br><small style="text-decoration:line-through;color:#aaa">RD$ ${fmt$(p.originalPrice)}</small>` : ''}</td>
       <td>${_celdaItbis(p.itbis_tasa)}</td>

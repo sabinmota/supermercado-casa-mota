@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '479';
+      const VER = '480';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=17" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=18" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -635,6 +635,12 @@
           <option value="offer">Oferta</option>
           <option value="new">Nuevo</option>
           <option value="best">Favorito</option>
+        </select>
+        <!-- 491 · dónde se vende (js/solo-caja.js) -->
+        <select class="filter-select" id="prodVentaFilter" onchange="_pages.products=1; renderProductsTable()">
+          <option value="">Caja y tienda</option>
+          <option value="caja">Solo venta en caja</option>
+          <option value="tienda">Visibles en la tienda</option>
         </select>
         <span class="filter-count" id="prodCount"></span>
       </div>
@@ -1553,6 +1559,10 @@
         <div class="vp-itbis-row" id="vpItbisRow">
           <span id="vpItbis">—</span>
         </div>
+        <!-- 491 · aviso «Solo venta en caja» (lo rellena js/solo-caja.js) -->
+        <div class="sc-ficha" id="vpSoloCaja" hidden>
+          <i class="fas fa-cash-register"></i> Solo venta en caja · no sale en la tienda ni en la app
+        </div>
 
         <!-- BUILD 452b · Aviso 18+ en la VISTA de detalle.
              Se rellena desde js/admin.v33.js → viewProduct(). Arranca oculto:
@@ -1679,6 +1689,16 @@
             <option value="0">0 % (exento)</option>
           </select>
           <small style="color:#6b7280;font-size:.72rem">La caja no factura productos sin tasa. El precio ya incluye el impuesto.</small>
+        </div>
+        <!-- 491 · Solo venta en caja (lo gestiona js/solo-caja.js · seguridad/80) -->
+        <div class="form-group">
+          <label for="pSoloCaja" class="sc-casilla">
+            <input type="checkbox" id="pSoloCaja" />
+            <span>
+              <strong>Solo venta en caja</strong>
+              <small>Se factura en la caja (POS), pero <b>no se muestra en la tienda web ni en la app</b>.</small>
+            </span>
+          </label>
         </div>
         <!-- BUILD 452 · Contiene alcohol (verificación de edad · App Store 1.4.3)
              Las categorías Vinos y Licores, Whiskys y Rones y Cervezas se tratan
@@ -3349,7 +3369,7 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=351"></script>
+  <script src="js/api.js?v=352"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
 <script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
@@ -3360,7 +3380,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=409"></script>
+  <script src="js/admin.v33.js?v=410"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
@@ -3372,6 +3392,8 @@
   <script src="js/ventas-pos.js?v=2"></script>
 <!-- 475 · Asignar ITBIS por lotes (botón en Productos · seguridad/78) -->
 <script src="js/itbis-lotes.js?v=4"></script>
+<!-- 491 · «Solo venta en caja» (casilla del producto · seguridad/80). DESPUÉS de itbis-lotes.js -->
+<script src="js/solo-caja.js?v=1"></script>
   <!-- 472 · pestaña «Cierres de turno» de Ventas POS (fichero aparte) -->
   <script src="js/cierres-pos.js?v=8"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script

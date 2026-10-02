@@ -66,13 +66,22 @@ function saveFavorites() {
   CasaMotaAlmacen.guardarFavoritos(favorites);
 }
 
+/* 491 · Favoritos que se pueden mostrar: se apartan los que el dueño marcó
+ * «Solo venta en caja» (la lista la lleva app.js en _esIdSoloCaja). Se
+ * ocultan, NO se borran del almacenamiento: si se desmarca, vuelven solos. */
+function _favoritosVisibles() {
+  const oculto = typeof _esIdSoloCaja === 'function' ? _esIdSoloCaja : () => false;
+  return favorites.filter(fav => !oculto(fav.id));
+}
+
 // Actualizar badge de favoritos en el header
 function updateFavoritesUI() {
   const badge = document.getElementById('favoritesBadge');
   if (!badge) return;
+  const visibles = _favoritosVisibles();
   
-  if (favorites.length > 0) {
-    badge.textContent = favorites.length;
+  if (visibles.length > 0) {
+    badge.textContent = visibles.length;
     badge.style.display = 'flex';
   } else {
     badge.style.display = 'none';
@@ -103,8 +112,10 @@ function toggleFavorites() {
 function renderFavorites() {
   const container = document.getElementById('favoritesItems');
   if (!container) return;
+  const visibles = _favoritosVisibles();
+  updateFavoritesUI();   // 491 · el contador sigue a lo que se ve
   
-  if (favorites.length === 0) {
+  if (visibles.length === 0) {
     container.innerHTML = `
       <div class="favorites-empty">
         <img class="favorites-empty__ilustracion" src="images/favoritos-vacio.svg" alt="" width="240" height="200">
@@ -116,7 +127,7 @@ function renderFavorites() {
   }
   
   // Ordenar por más reciente primero
-  const sortedFavorites = [...favorites].sort((a, b) => b.addedAt - a.addedAt);
+  const sortedFavorites = [...visibles].sort((a, b) => b.addedAt - a.addedAt);
 
   // Enriquecer con datos actuales de _liveProducts (por si unit no estaba guardado)
   const liveProds = typeof getLiveProducts === 'function' ? getLiveProducts() : [];

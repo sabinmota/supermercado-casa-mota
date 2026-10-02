@@ -121,6 +121,30 @@ function getLiveProducts() {
   return _liveProducts !== null ? _liveProducts : PRODUCTS;
 }
 
+/* BUILD 491 · «SOLO VENTA EN CAJA» (seguridad/80-solo-caja.sql).
+ * Los productos con `solo_caja = true` se facturan en la caja (POS) pero NO
+ * existen para la tienda ni la app. Se quitan en UN solo sitio: aquí, al
+ * entrar al catálogo de la tienda. Como TODO lo de la tienda lee de
+ * `_liveProducts` (lista, búsqueda, categorías, Novedades/Ofertas, escáner,
+ * favoritos, modal), ninguno puede colarse por otra puerta.
+ * El valor puede llegar como true o 'true' (caché serializada), igual que
+ * es_alcohol. La caja (pos.js) no usa este filtro: allí SÍ deben estar. */
+function _esSoloCaja(p) {
+  return !!p && (p.solo_caja === true || p.solo_caja === 'true' || p.solo_caja === 1);
+}
+/* Ids marcados «solo caja» en la última lista recibida. Lo usa favorites.js
+ * para no mostrar un favorito antiguo que ahora es solo de caja (se oculta,
+ * no se borra: si el dueño lo desmarca, el favorito vuelve a aparecer). */
+let _idsSoloCaja = new Set();
+function _paraTienda(lista) {
+  lista = lista || [];
+  _idsSoloCaja = new Set(lista.filter(_esSoloCaja).map(p => String(p.id)));
+  return lista.filter(p => p && !p.deleted && !_esSoloCaja(p));
+}
+function _esIdSoloCaja(id) {
+  return _idsSoloCaja.has(String(id));
+}
+
 /** Muestra loader de moto delivery mientras se espera la API */
 function _renderSkeletons(count = 8) {
   const grid = document.getElementById('productsGrid');
@@ -176,7 +200,7 @@ async function _loadProductsFromAPI() {
       }
 
       if (allProds && allProds.length > 0) {
-        _liveProducts = allProds.filter(p => !p.deleted);
+        _liveProducts = _paraTienda(allProds);
         buildCategoryNav(_dynamicCategories, _liveProducts);
         renderProducts();        // ← tarjetas visibles al instante (placeholder img)
         updateCartUI();
@@ -255,7 +279,7 @@ async function _loadImagesBackground() {
  */
 async function _refreshProductsSilent() {
   try {
-    const all = (await DB.getProducts().catch(() => [])).filter(p => !p.deleted);
+    const all = _paraTienda(await DB.getProducts().catch(() => []));
     if (all.length === 0) return;
 
     // ── Detectar si hay productos nuevos o eliminados ─────────────────────
@@ -1997,6 +2021,7 @@ function _stopLiveCamera() {
  */
 function _setLiveProductsKeepImages(fresh) {
   if (!Array.isArray(fresh) || !fresh.length) return;
+  fresh = _paraTienda(fresh);   // 491 · nunca entran los «solo caja»
   const imgMap = {};
   (_liveProducts || []).forEach(p => { if (p.image) imgMap[p.id] = p.image; });
   fresh.forEach(p => { if (!p.image && imgMap[p.id]) p.image = imgMap[p.id]; });
@@ -2809,7 +2834,7 @@ async function _onBarcodeDetected(code) {
       if (freshProds && freshProds.length > 0) {
         // Merge, no reemplazo: la fase 1 no trae `image` (ver helper arriba).
         _setLiveProductsKeepImages(freshProds);
-        product = findByBarcode(freshProds);
+        product = findByBarcode(_paraTienda(freshProds));   // 491 · un «solo caja» no se encuentra en la tienda
       }
     } catch(e) { /* ignorar error de red */ }
   }
@@ -3219,6 +3244,23 @@ async function checkout() {
     // Verificar stock disponible antes de mostrar el modal
     let stockActual;
     try { stockActual = await DB.getProducts(); } catch(e) { stockActual = deepClone(getLiveProducts()); }
+
+    /* BUILD 491 · Un carrito guardado de ANTES puede tener un artículo que el
+     * dueño marcó luego como «solo venta en caja». Se mira el dato FRESCO de la
+     * base (no la memoria), se quita del carrito y se avisa; el cliente revisa
+     * su carrito y vuelve a pulsar «Pagar». Nunca llega a crearse el pedido. */
+    const soloCaja = cart.filter(item =>
+      _esSoloCaja(stockActual.find(p => String(p.id) === String(item.id))));
+    if (soloCaja.length > 0) {
+      const ids = new Set(soloCaja.map(i => String(i.id)));
+      cart = cart.filter(i => !ids.has(String(i.id)));
+      saveCart();
+      updateCartUI();
+      renderCartItems();
+      showToast(`<i class="fas fa-store"></i> ${soloCaja.length === 1 ? 'Este artículo solo se vende' : 'Estos artículos solo se venden'} en la tienda física y se ${soloCaja.length === 1 ? 'quitó' : 'quitaron'} de tu carrito:<br>${soloCaja.map(i => `<strong>${i.name}</strong>`).join('<br>')}`, 'warning');
+      return;
+    }
+
     const sinStock = [];
     cart.forEach(item => {
       // Comparación por string para soportar tanto IDs numéricos como UUIDs

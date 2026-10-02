@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '490', KEY = 'cm_app_ver';
+        var VER = '491', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1389,15 +1389,15 @@
        nada. DEBE ir antes de app.js, que pregunta por CasaMotaNativo dentro
        de openBarcodeScanner(). -->
   <script src="js/nativo.js?v=8"></script>
-  <script src="js/api.js?v=351"></script>
+  <script src="js/api.js?v=352"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
        Debe cargarse ANTES de favorites.js, app.js y chat.js. -->
   <script src="js/almacen-cliente.js?v=1"></script>
   <script src="js/auth.js?v=205"></script>
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
-  <script src="js/favorites.js?v=284"></script>
-  <script src="js/app.js?v=376"></script>
+  <script src="js/favorites.js?v=285"></script>
+  <script src="js/app.js?v=377"></script>
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/location.js?v=121"></script>
