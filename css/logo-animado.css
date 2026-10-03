@@ -1,0 +1,92 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Logo animado del panel (barra lateral de admin.html)
+   ───────────────────────────────────────────────────────────────────────────
+   El dibujo es la imagen REAL del logo (images/logo-casamota-anim.jpg),
+   recortada en piezas con <clipPath> — no está redibujado. Los recortes se
+   midieron píxel a píxel: 0 píxeles de color fuera de las piezas, 0 azules
+   dentro y ninguna pieza solapada.
+
+   La animación COMPLETA se repite cada 15 s (pedido del dueño):
+     0,00–0,55 s  aparecen casa y letras
+     0,35–1,15 s  entra el carrito desde la izquierda con sus rayas
+     1,15–2,05 s  las rayas parpadean dos veces
+     1,05–2,15 s  pan, leche, lechuga y tomate caen dentro uno a uno
+     2,15–14,4 s  logo completo, quieto
+     14,4–15,0 s  se desvanece y vuelve a empezar
+
+   Todas las piezas usan el MISMO ciclo de 15 s y sin retardos: los tiempos
+   van dentro de cada @keyframes en %. Con retardos, cada pieza acabaría su
+   vuelta en un momento distinto y la compra quedaría flotando mientras la
+   casa ya está reapareciendo. 1 s = 6,667 % del ciclo.
+
+   Las piezas que se mueven usan mix-blend-mode: multiply: su fondo blanco
+   se vuelve transparente y no tapa las líneas azules de la casa al pasar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Tamaño: el mismo que tenía la imagen fija (.sidebar-logo en
+   admin.v33.css + panel-2026.css); aquí no se toca.
+   flex-shrink:0 → se comporta como la <img> (que no encogía dentro de su
+   caja): sin esto el SVG se encogía a 42 px en vez de los 58 de antes. */
+.cm-logo-anim { display: block; aspect-ratio: 1 / 1; flex-shrink: 0; }
+.cm-logo-anim g { transform-box: view-box; }
+/* .cm-todo agrupa las piezas que se mueven; lleva la misma mezcla para que
+   el blanco de las piezas no tape la casa que hay debajo del grupo. */
+.cm-logo-anim .cm-todo,
+.cm-logo-anim .cm-mueve { mix-blend-mode: multiply; }
+
+.cm-logo-anim .cm-base    { transform-origin: 512px 512px; animation: cm-base    15s infinite both; }
+.cm-logo-anim .cm-carro   { animation: cm-carro   15s infinite both; }
+.cm-logo-anim .cm-rayas   { animation: cm-rayas   15s infinite both; }
+.cm-logo-anim .cm-pan     { animation: cm-pan     15s infinite both; }
+.cm-logo-anim .cm-leche   { animation: cm-leche   15s infinite both; }
+.cm-logo-anim .cm-lechuga { animation: cm-lechuga 15s infinite both; }
+.cm-logo-anim .cm-tomate  { animation: cm-tomate  15s infinite both; }
+
+/* Casa y letras: 0 → 0,55 s */
+@keyframes cm-base {
+  0%        { opacity: 0; transform: scale(.9); animation-timing-function: ease-out; }
+  3.67%, 96% { opacity: 1; transform: none;     animation-timing-function: ease-in; }
+  100%      { opacity: 0; transform: none; }
+}
+/* Carrito: 0,35 → 1,15 s, con un pequeño rebote al frenar */
+@keyframes cm-carro {
+  0%, 2.33%  { opacity: 0; transform: translateX(-330px); animation-timing-function: cubic-bezier(.22,1.25,.4,1); }
+  7.67%, 96% { opacity: 1; transform: none;               animation-timing-function: ease-in; }
+  100%       { opacity: 0; transform: none; }
+}
+/* Rayas: entran con el carrito y parpadean dos veces (1,15 → 2,05 s) */
+@keyframes cm-rayas {
+  0%, 2.33% { opacity: 0;   transform: translateX(-330px); animation-timing-function: cubic-bezier(.22,1.25,.4,1); }
+  7.67%     { opacity: 1;   transform: none; animation-timing-function: ease-in-out; }
+  9.17%     { opacity: .25; transform: none; animation-timing-function: ease-in-out; }
+  10.67%    { opacity: 1;   transform: none; animation-timing-function: ease-in-out; }
+  12.17%    { opacity: .25; transform: none; animation-timing-function: ease-in-out; }
+  13.67%, 96% { opacity: 1; transform: none; animation-timing-function: ease-in; }
+  100%      { opacity: 0;   transform: none; }
+}
+/* La compra cae dentro del carrito, cada pieza 0,2 s después de la anterior */
+@keyframes cm-pan {      /* 1,05 → 1,55 s */
+  0%, 7%      { opacity: 0; transform: translateY(-170px); animation-timing-function: cubic-bezier(.3,1.5,.5,1); }
+  10.33%, 96% { opacity: 1; transform: none;               animation-timing-function: ease-in; }
+  100%        { opacity: 0; transform: none; }
+}
+@keyframes cm-leche {    /* 1,25 → 1,75 s */
+  0%, 8.33%   { opacity: 0; transform: translateY(-170px); animation-timing-function: cubic-bezier(.3,1.5,.5,1); }
+  11.67%, 96% { opacity: 1; transform: none;               animation-timing-function: ease-in; }
+  100%        { opacity: 0; transform: none; }
+}
+@keyframes cm-lechuga {  /* 1,45 → 1,95 s */
+  0%, 9.67%   { opacity: 0; transform: translateY(-170px); animation-timing-function: cubic-bezier(.3,1.5,.5,1); }
+  13%, 96%    { opacity: 1; transform: none;               animation-timing-function: ease-in; }
+  100%        { opacity: 0; transform: none; }
+}
+@keyframes cm-tomate {   /* 1,65 → 2,15 s */
+  0%, 11%     { opacity: 0; transform: translateY(-170px); animation-timing-function: cubic-bezier(.3,1.5,.5,1); }
+  14.33%, 96% { opacity: 1; transform: none;               animation-timing-function: ease-in; }
+  100%        { opacity: 0; transform: none; }
+}
+
+/* Quien pide menos movimiento en su sistema ve el logo quieto y completo. */
+@media (prefers-reduced-motion: reduce) {
+  .cm-logo-anim g { animation: none !important; }
+}

@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '480';
+      const VER = '481';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -48,6 +48,7 @@
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
   <link rel="stylesheet" href="css/panel-2026.css?v=18" />
+  <link rel="stylesheet" href="css/logo-animado.css?v=2" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
@@ -117,12 +118,33 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo-wrap">
-        <img src="images/logo-casamota.png?v=433" alt="Casa Mota" class="sidebar-logo" />
+        <!-- Logo animado: la imagen real recortada en piezas (css/logo-animado.css). -->
+        <svg class="cm-logo-anim sidebar-logo" viewBox="0 0 1024 1024" role="img" aria-label="Casa Mota">
+          <defs>
+            <clipPath id="cmlg-base"><path clip-rule="evenodd" d="M0 0H1024V1024H0Z M168 426H326L345 526L352 566H258V530H168Z M266 344H356L364 380L374 404H754V604H690V688H676V728H386V688H372V604L352 566L345 526L326 426H266Z M357 300L368 262H459V404H374L364 380L358 340Z M459 280H553V404H459Z M553 280H673V350L656 354L644 364L638 372L631 386L630 404H553Z M673 318H728V404H630L631 386L638 372L644 364L656 354L673 350Z"/></clipPath>
+            <clipPath id="cmlg-rayas"><path d="M168 426H326L345 526L352 566H258V530H168Z"/></clipPath>
+            <clipPath id="cmlg-carro"><path d="M266 344H356L364 380L374 404H754V604H690V688H676V728H386V688H372V604L352 566L345 526L326 426H266Z"/></clipPath>
+            <clipPath id="cmlg-pan"><path d="M357 300L368 262H459V404H374L364 380L358 340Z"/></clipPath>
+            <clipPath id="cmlg-leche"><path d="M459 280H553V404H459Z"/></clipPath>
+            <clipPath id="cmlg-lechuga"><path d="M553 280H673V350L656 354L644 364L638 372L631 386L630 404H553Z"/></clipPath>
+            <clipPath id="cmlg-tomate"><path d="M673 318H728V404H630L631 386L638 372L644 364L656 354L673 350Z"/></clipPath>
+          </defs>
+          <rect width="1024" height="1024" fill="#fff"/>
+          <g class="cm-base"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-base)"/></g>
+          <g class="cm-todo">
+            <g class="cm-mueve cm-rayas"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-rayas)"/></g>
+            <g class="cm-mueve cm-carro"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-carro)"/></g>
+            <g class="cm-mueve cm-pan"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-pan)"/></g>
+            <g class="cm-mueve cm-leche"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-leche)"/></g>
+            <g class="cm-mueve cm-lechuga"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-lechuga)"/></g>
+            <g class="cm-mueve cm-tomate"><image href="images/logo-casamota-anim.jpg" width="1024" height="1024" clip-path="url(#cmlg-tomate)"/></g>
+          </g>
+        </svg>
       </div>
       <!-- BUILD 456 · Marca y lema bajo el logotipo, como en el diseño.
            Las clases `dsh-` viven en css/panel-2026.css. -->
       <div class="dsh-brand">CASA MOTA
-        <span class="dsh-brand__tag">Tu barrio, siempre contigo</span>
+        <span class="dsh-brand__tag">Más que un super, una familia</span>
       </div>
       <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
