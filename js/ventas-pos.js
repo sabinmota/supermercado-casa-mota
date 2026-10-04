@@ -129,7 +129,10 @@
     $('vpEfectivo').textContent  = dinero(r.efectivo);
     $('vpTarjeta').textContent   = dinero(r.tarjeta);
     $('vpTransf').textContent    = dinero(r.transferencia);
-    $('vpItbis').textContent     = dinero(r.itbis);
+    /* 482 · antes era 'vpItbis', el MISMO id que la línea de ITBIS de la ficha
+     * de producto (476, que va antes en admin.html): getElementById devolvía
+     * esa y el total del día nunca se veía (se quedaba en RD$ 0.00). */
+    $('vpTotItbis').textContent  = dinero(r.itbis);
 
     var nombres = Object.keys(r.cajeras);
     $('vpCajeras').innerHTML = nombres.length

@@ -1878,6 +1878,7 @@
 
     window.addEventListener('beforeunload', function (ev) {
       var caja = $('pos-caja');
+      if (_abriendoCalc) { return; }   // POS-41 · abrir la calculadora no es salir
       if (!caja || caja.hidden || !_lineas.length) { return; }
       ev.preventDefault();
       ev.returnValue = '';   // Chrome muestra su aviso «¿Salir del sitio?»
@@ -1885,8 +1886,50 @@
     });
   }
 
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-41 · CALCULADORA DE WINDOWS (botón de la barra verde o F1)
+   * Se abre con el enlace del sistema «ms-calculator:» (Windows 10 y 11).
+   * La primera vez Chrome pregunta «¿Abrir Calculadora?»: marcar «Permitir
+   * siempre» y ya no vuelve a preguntar.
+   * 🔴 Chrome puede tomar ese enlace como «salir de la página» y sacar el
+   *    aviso «¿Salir del sitio?»: durante un instante se apaga ese aviso.
+   *    La página NO se va (el enlace lo atiende Windows), y aunque se fuera,
+   *    la factura está guardada (POS-40).
+   * 🔴 F1 normalmente abre la Ayuda de Chrome en otra pestaña: se anula.
+   * ════════════════════════════════════════════════════════════════════════ */
+  var _abriendoCalc = false;
+
+  function abrirCalculadora() {
+    if (!/Windows/i.test(navigator.userAgent || '')) {
+      pitar(true);
+      avisar('La calculadora solo se puede abrir en un ordenador con Windows.', 'error');
+      return;
+    }
+    _abriendoCalc = true;
+    var a = document.createElement('a');
+    a.href = 'ms-calculator:';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      _abriendoCalc = false;
+      var e = $('pos-entrada');
+      if (e && !hayVentanaAbierta()) { e.focus(); }
+    }, 1500);
+  }
+
   function montarAtajos() {
     montarAntiRecarga();
+    on('pos-btn-calc', 'click', abrirCalculadora);
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'F1') { return; }
+      var caja = $('pos-caja');
+      if (!caja || caja.hidden) { return; }        // en la pantalla de entrada no
+      ev.preventDefault();                         // que no abra la Ayuda de Chrome
+      if (ev.repeat) { return; }
+      abrirCalculadora();                          // también con el pago abierto (para el cambio)
+    });
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'F9' && ev.key !== 'F7') { return; }
       var caja = $('pos-caja');

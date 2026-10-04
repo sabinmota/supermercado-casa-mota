@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '481';
+      const VER = '482';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -2933,7 +2933,7 @@
         <div class="vp-kpi"><span class="vp-kpi__lbl">Efectivo</span><b id="vpEfectivo">RD$ 0.00</b></div>
         <div class="vp-kpi"><span class="vp-kpi__lbl">Tarjeta</span><b id="vpTarjeta">RD$ 0.00</b></div>
         <div class="vp-kpi"><span class="vp-kpi__lbl">Transferencia</span><b id="vpTransf">RD$ 0.00</b></div>
-        <div class="vp-kpi vp-kpi--itbis"><span class="vp-kpi__lbl">ITBIS</span><b id="vpItbis">RD$ 0.00</b></div>
+        <div class="vp-kpi vp-kpi--itbis"><span class="vp-kpi__lbl">ITBIS</span><b id="vpTotItbis">RD$ 0.00</b></div>
       </div>
 
       <div class="card vp-cajeras-card">
@@ -3411,7 +3411,7 @@
   <script src="js/limite-itbis.js?v=2"></script>
   <!-- 469 · menú «··· Más» y sección Ventas POS (ficheros aparte, no tocan admin.v33.js) -->
   <script src="js/menu-mas.js?v=2"></script>
-  <script src="js/ventas-pos.js?v=2"></script>
+  <script src="js/ventas-pos.js?v=3"></script>
 <!-- 475 · Asignar ITBIS por lotes (botón en Productos · seguridad/78) -->
 <script src="js/itbis-lotes.js?v=4"></script>
 <!-- 491 · «Solo venta en caja» (casilla del producto · seguridad/80). DESPUÉS de itbis-lotes.js -->
