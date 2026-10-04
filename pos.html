@@ -12,7 +12,7 @@
      sesión no coincide, se recarga sin caché UNA vez. Sin esto, una cajera
      con la pestaña abierta desde ayer seguiría con el JS viejo. */
   (function () {
-    var VER = 'POS-37';
+    var VER = 'POS-38';
     var KEY = 'cm_pos_ver';
     var guardado = sessionStorage.getItem(KEY);
     if (guardado !== VER) {
@@ -53,7 +53,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/pos.css?v=26" />
+<link rel="stylesheet" href="css/pos.css?v=27" />
 </head>
 <body>
 
@@ -159,6 +159,7 @@
       <p class="pos-escaneo__pista">
         La pistola escribe aquí sola. También puede teclear el código y pulsar Enter.
         Las etiquetas de báscula se reconocen solas.
+        <b>Varios iguales:</b> escanee uno y pulse <kbd class="pos-kbd-claro">F5</kbd> para poner la cantidad.
       </p>
     </div>
 
@@ -273,6 +274,26 @@
 </div>
 
 
+<!-- ════════════════════ POS-38 · CAMBIAR CANTIDAD DEL ÚLTIMO ARTÍCULO (F5) ════════════════════ -->
+<div class="pos-modal" id="pos-modal-cant" hidden role="dialog"
+     aria-modal="true" aria-labelledby="pos-cant-tit">
+  <div class="pos-modal__caja">
+    <h2 id="pos-cant-tit">Cantidad del último artículo</h2>
+    <p class="pos-cant__nombre" id="pos-cant-nombre"></p>
+    <p class="pos-cant__precio" id="pos-cant-precio"></p>
+    <label for="pos-cant-num" class="pos-aut__lbl">¿Cuántos lleva el cliente?</label>
+    <input type="text" id="pos-cant-num" class="pos-cant__num" inputmode="numeric"
+           autocomplete="off" maxlength="14" />
+    <div class="pos-cant__total" id="pos-cant-total">—</div>
+    <p class="pos-error" id="pos-cant-error" hidden></p>
+    <div class="pos-modal__pie">
+      <button type="button" class="pos-secundario" id="pos-cant-cancelar">Cancelar (Esc)</button>
+      <button type="button" class="pos-btn-grande" id="pos-cant-aceptar">Aceptar (Enter)</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- ════════════════════ POS-14 · CIERRE DE TURNO (F7) ════════════════════ -->
 <div class="pos-modal" id="pos-modal-cierre" hidden role="dialog"
      aria-modal="true" aria-labelledby="pos-cierre-tit">
@@ -319,6 +340,6 @@
 <script src="js/auth.v33.js?v=302"></script>
 <!-- POS-3 · anuncios diseñados de la franja. Va ANTES de pos.js. -->
 <script src="js/pos-anuncios.js?v=3"></script>
-<script src="js/pos.js?v=24"></script>
+<script src="js/pos.js?v=25"></script>
 </body>
 </html>

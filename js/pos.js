@@ -36,6 +36,7 @@
   var _guardando  = false;        // B4 · hay un guardado en marcha
   var _ultimoPeso = null;   // { peso, nombre } de la última etiqueta de báscula
   var _ultimoTicket = null; // POS-17 · datos del último ticket (para «Reimprimir»)
+  var _ultimaLinea  = null; // POS-38 · línea del ÚLTIMO artículo escaneado (para F5)
 
   /* POS-2 · LÍMITE DE ITBIS (pedido del dueño, 2026-09-23)
    *   estado 'libre'    → factura con normalidad
@@ -493,6 +494,7 @@
       for (var i = 0; i < _lineas.length; i++) {
         if (_lineas[i].id === p.id && !_lineas[i].esPeso) {
           _lineas[i].cantidad += cantidad;
+          _ultimaLinea = _lineas[i];
           pitar(false); pintar(); ultimoProducto(p);
           comprobarLimite();
           return;
@@ -500,7 +502,7 @@
       }
     }
 
-    _lineas.push({
+    _ultimaLinea = {
       id:       p.id,
       nombre:   p.name,
       barcode:  p.barcode || '',
@@ -510,7 +512,8 @@
       esPeso:   !!esPeso,
       unidad:   p.unit || '',
       image:    p.image || ''
-    });
+    };
+    _lineas.push(_ultimaLinea);
 
     if (esPeso) { _ultimoPeso = { peso: cantidad, nombre: p.name }; }
 
@@ -823,6 +826,7 @@
     if (pedido.accion === 'vaciar_factura') {
       _lineas = [];
       _ultimoPeso = null;
+      _ultimaLinea = null;
       var u = $('pos-ultimo'); if (u) { u.hidden = true; }
       /* Si se vacía la factura que quedaba abierta tras el límite, ya no
        * hay nada que cobrar: la caja se cierra. */
@@ -1116,6 +1120,7 @@
     _limite.acumulado -= itbisVenta;   // trasCobrar lo vuelve a sumar
     _lineas = [];
     _ultimoPeso = null;
+    _ultimaLinea = null;
     var u = $('pos-ultimo'); if (u) { u.hidden = true; }
     trasCobrar(itbisVenta);
     pintar();
@@ -1585,7 +1590,122 @@
     }
 
     montarCierre();
+    montarCantidad();
     montarAtajos();
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-38 · F5 = CAMBIAR LA CANTIDAD DEL ÚLTIMO ARTÍCULO (pedido del dueño)
+   *   Si un cliente lleva 7 iguales, se escanea UNO, se pulsa F5, se escribe
+   *   7 y Enter. Sin pasar la pistola 7 veces.
+   *
+   * «Último artículo» = el último ESCANEADO (el de la foto de la derecha),
+   * aunque al repetirse se haya sumado a una línea de más arriba. Si esa
+   * línea ya no está, se usa la última de la lista.
+   *
+   * 🔴 SOLO SUBE la cantidad. Bajarla sería quitar artículos sin la clave de
+   *    administrador que exige la ✕ (POS-12): con F5 cualquiera borraría
+   *    6 de 7 sin dejar rastro. Para bajar, la ✕ de siempre.
+   * 🔴 La ventana enseña el total ANTES de aceptar («7 × RD$ 45 = RD$ 315»)
+   *    para cazar un 70 tecleado por un 7 antes de que entre.
+   * 🔴 Si con la ventana abierta se dispara la pistola, el código cae en este
+   *    campo y su Enter lo aceptaría como cantidad: por eso solo valen 1 a 3
+   *    cifras y un número largo se rechaza diciendo que parece un código.
+   * 🔴 Los PESADOS no se tocan: su cantidad es el peso de la etiqueta.
+   * ════════════════════════════════════════════════════════════════════════ */
+  var CANT_MAX = 999;
+  var _cant = null;   // { linea } mientras la ventana está abierta
+
+  function lineaParaCantidad() {
+    if (_ultimaLinea && _lineas.indexOf(_ultimaLinea) >= 0) { return _ultimaLinea; }
+    return _lineas.length ? _lineas[_lineas.length - 1] : null;
+  }
+
+  function abrirCantidad() {
+    var l = lineaParaCantidad();
+    if (!l) { pitar(true); avisar('No hay artículos en la factura. Escanee uno primero.', 'error'); return; }
+    if (l.esPeso) {
+      pitar(true);
+      avisar('«' + l.nombre + '» es un pesado: su cantidad es el peso de la etiqueta y no se cambia a mano.', 'error');
+      return;
+    }
+    if (_limite.estado !== 'libre') { pitar(true); mostrarLimite(); return; }
+    _cant = { linea: l };
+    $('pos-cant-nombre').textContent = l.nombre;
+    $('pos-cant-precio').textContent = 'RD$ ' + dinero(l.precio) + ' cada uno · ahora lleva ' + l.cantidad;
+    var inp = $('pos-cant-num');
+    inp.value = String(l.cantidad);
+    $('pos-cant-error').hidden = true;
+    calcularCantidad();
+    $('pos-modal-cant').hidden = false;
+    inp.focus();
+    inp.select();   // escribir encima directamente, sin borrar antes
+  }
+
+  function cerrarCantidad() {
+    _cant = null;
+    $('pos-modal-cant').hidden = true;
+    var e = $('pos-entrada'); if (e) { e.focus(); }
+  }
+
+  /* Devuelve el número, o NaN si no son de 1 a 3 cifras. */
+  function leerCantidad() {
+    var v = String($('pos-cant-num').value || '').trim();
+    return /^\d{1,3}$/.test(v) ? parseInt(v, 10) : NaN;
+  }
+
+  function calcularCantidad() {
+    if (!_cant) { return; }
+    var n = leerCantidad(), el = $('pos-cant-total');
+    el.textContent = (n >= 1)
+      ? n + ' × RD$ ' + dinero(_cant.linea.precio) + ' = RD$ ' + dinero(n * _cant.linea.precio)
+      : '—';
+  }
+
+  function errorCantidad(texto) {
+    var err = $('pos-cant-error');
+    err.textContent = texto;
+    err.hidden = false;
+    pitar(true);
+    var inp = $('pos-cant-num'); inp.focus(); inp.select();
+  }
+
+  function confirmarCantidad() {
+    if (!_cant) { return; }
+    var l = _cant.linea;
+    if (_lineas.indexOf(l) < 0) { cerrarCantidad(); return; }   // la línea ya no existe
+    var bruto = String($('pos-cant-num').value || '').trim();
+    var n = leerCantidad();
+    if (/^\d{4,}$/.test(bruto)) {
+      $('pos-cant-num').value = '';
+      errorCantidad('Eso parece un código de barras. Escriba solo la cantidad (de 1 a ' + CANT_MAX + ').');
+      return;
+    }
+    if (!(n >= 1 && n <= CANT_MAX)) {
+      errorCantidad('Escriba una cantidad entera de 1 a ' + CANT_MAX + '.');
+      return;
+    }
+    if (n < l.cantidad) {
+      errorCantidad('Con F5 solo se puede subir la cantidad. Para bajarla, quite el artículo con la ✕ ' +
+                    '(pide la clave de un administrador) y vuelva a escanearlo.');
+      return;
+    }
+    l.cantidad = n;
+    cerrarCantidad();
+    pitar(false);
+    pintar();
+    avisar('«' + l.nombre + '» · cantidad ' + n, 'ok');
+    comprobarLimite();
+  }
+
+  function montarCantidad() {
+    on('pos-cant-cancelar', 'click', cerrarCantidad);
+    on('pos-cant-aceptar', 'click', confirmarCantidad);
+    on('pos-cant-num', 'input', calcularCantidad);
+    on('pos-cant-num', 'keydown', function (ev) {
+      if (ev.key === 'Enter')  { ev.preventDefault(); confirmarCantidad(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); cerrarCantidad(); }
+    });
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1596,7 +1716,7 @@
    * propia del navegador (F7 activa la navegación con cursor en Chrome).
    * ════════════════════════════════════════════════════════════════════════ */
   function hayVentanaAbierta() {
-    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite'];
+    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite', 'pos-modal-cant'];
     for (var i = 0; i < ids.length; i++) { var e = $(ids[i]); if (e && !e.hidden) { return true; } }
     return false;
   }
@@ -1608,21 +1728,36 @@
    * antes de salir (beforeunload). */
   /* POS-30 · el dueño pide dejar LIBRE Ctrl+Shift+R: tres teclas a la vez no
    * se pulsan por error, y le sirve para actualizar la caja. */
+  /* POS-38 · F5 SOLO (sin Ctrl) deja de ser «recargar» en la caja: ahora
+   * abre «cambiar cantidad». Siguen anulados Ctrl+R y Ctrl+F5. */
   function esRecarga(ev) {
     var k = String(ev.key || '').toLowerCase();
-    if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && k === 'r') { return false; }
-    return ev.key === 'F5' || ((ev.ctrlKey || ev.metaKey) && k === 'r');
+    var ctrl = ev.ctrlKey || ev.metaKey;
+    if (ctrl && ev.shiftKey && k === 'r') { return false; }
+    return ctrl && (k === 'r' || ev.key === 'F5');
+  }
+
+  function esF5Solo(ev) {
+    return ev.key === 'F5' && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
   }
 
   function montarAntiRecarga() {
     document.addEventListener('keydown', function (ev) {
-      if (!esRecarga(ev)) { return; }
       var caja = $('pos-caja');
       if (!caja || caja.hidden) { return; }        // en la pantalla de entrada sí se puede
+      if (esF5Solo(ev)) {
+        ev.preventDefault();                       // F5 nunca recarga con la caja abierta
+        ev.stopPropagation();
+        if (ev.repeat) { return; }                 // tecla mantenida: una sola ventana
+        if (hayVentanaAbierta()) { return; }
+        abrirCantidad();
+        return;
+      }
+      if (!esRecarga(ev)) { return; }
       ev.preventDefault();
       ev.stopPropagation();
       pitar(true);
-      avisar('F5 está desactivado en la caja para no perder la factura.', 'error');
+      avisar('Recargar está desactivado en la caja para no perder la factura.', 'error');
     }, true);
 
     window.addEventListener('beforeunload', function (ev) {
@@ -1844,6 +1979,8 @@
       pedirAut:   pedirAutorizacion,
       confirmarAut: confirmarAutorizacion,
       anadirPrueba: function (p, c, peso) { anadir(p, c, peso); },
+      abrirCantidad: abrirCantidad,
+      confirmarCantidad: confirmarCantidad,
       ticket:     function () { return _ultimoTicket; },
       reimprimir: reimprimir,
       pintarTicket: function (d, copia) { $('pos-recibo').innerHTML = htmlTicket(d, copia); }

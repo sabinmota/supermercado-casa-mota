@@ -443,6 +443,23 @@ kbd {
 .pos-aut__campo:focus { outline: none; border-color: var(--pos-verde); }
 #pos-aut-error { margin: 0 0 12px; }
 
+/* ══ POS-38 · F5 · cantidad del último artículo ══ */
+.pos-cant__nombre { font-weight: 800; font-size: 1.15rem; margin: 0 0 4px; }
+.pos-cant__precio { color: #556; margin: 0 0 14px; font-size: .95rem; }
+.pos-cant__num {
+  width: 100%; padding: 14px; font-size: 2.2rem; font-weight: 800; text-align: center;
+  border: 3px solid var(--pos-verde); border-radius: 12px; font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.pos-cant__num:focus { outline: none; }
+.pos-cant__total {
+  margin: 12px 0; padding: 12px; border-radius: 12px; background: #e9f6ee;
+  text-align: center; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+#pos-cant-error { margin: 0 0 12px; }
+/* Tecla dentro de un texto sobre fondo claro (el <kbd> general es para botones de color) */
+.pos-kbd-claro { background: #eef1f4; border-color: #c9d1d9; color: #223; }
+
 /* ══ B4 · forma de pago y venta guardada ══ */
 .pos-formas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
 .pos-forma {
