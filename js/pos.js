@@ -37,6 +37,7 @@
   var _ultimoPeso = null;   // { peso, nombre } de la última etiqueta de báscula
   var _ultimoTicket = null; // POS-17 · datos del último ticket (para «Reimprimir»)
   var _ultimaLinea  = null; // POS-38 · línea del ÚLTIMO artículo escaneado (para F5)
+  var _cobroPendiente = null; // POS-40 · { id, firma } de un cobro enviado sin respuesta
 
   /* POS-2 · LÍMITE DE ITBIS (pedido del dueño, 2026-09-23)
    *   estado 'libre'    → factura con normalidad
@@ -330,6 +331,10 @@
     var nombre = [_cajera.firstName, _cajera.lastName].filter(Boolean).join(' ');
     $('pos-cajera').textContent = nombre || _cajera.email || '—';
 
+    /* POS-40 · ANTES de pintar (que guarda) y de cargarLimite (que cuenta la
+     * factura abierta para el límite de ITBIS). */
+    var recuperadas = recuperarFactura();
+
     $('pos-cargando').hidden = false;
     try {
       /* full:true → hacen falta `barcode`, `itbis_tasa` y `es_pesado`, que no
@@ -339,7 +344,9 @@
       montarPromo();
       $('pos-cargando').hidden = true;
       $('pos-total-articulos').textContent = _productos.length;
-      avisar('Catálogo cargado: ' + _productos.length + ' productos', 'ok');
+      avisar(recuperadas
+        ? 'Se recuperó la factura en curso (' + recuperadas + (recuperadas === 1 ? ' línea' : ' líneas') + ')'
+        : 'Catálogo cargado: ' + _productos.length + ' productos', 'ok');
       $('pos-entrada').focus();
     } catch (e) {
       $('pos-cargando').textContent =
@@ -641,6 +648,7 @@
       }
     }
 
+    guardarFactura();   // POS-40 · cada cambio de la factura queda guardado
     var t = totales();
     pintarIndicadores(t);
     $('pos-arts').textContent  = t.arts;
@@ -852,7 +860,13 @@
     var t = totales();
     /* Un identificador por COBRO (no por intento): si la red falla y se pulsa
      * «Cobrar» otra vez, la base reconoce el mismo id y NO duplica la venta. */
-    _idCobro = nuevoIdLocal();
+    /* POS-40 · si un cobro anterior se ENVIÓ y no llegó respuesta (recarga a
+     * media, caída de red) y la factura es EXACTAMENTE la misma, se reutiliza
+     * su id: si la base ya la había guardado, la devuelve en vez de cobrarla
+     * dos veces. Si la factura cambió, id nuevo (si no, la base devolvería
+     * la venta vieja como si fuera la nueva). */
+    _idCobro = (_cobroPendiente && _cobroPendiente.firma === firmaVenta())
+      ? _cobroPendiente.id : nuevoIdLocal();
     _guardando = false;
     $('pos-pago-total').textContent = dinero(t.neto);
     $('pos-recibido').value = '';
@@ -975,6 +989,10 @@
     btn.disabled = true;
     btn.textContent = 'Guardando…';
     $('pos-pago-error').hidden = true;
+    /* POS-40 · se anota ANTES de enviar: si la página se recarga mientras
+     * la base guarda, al volver se reutiliza este id (ver abrirPago). */
+    _cobroPendiente = { id: _idCobro, firma: firmaVenta() };
+    guardarFactura();
 
     try {
       var r = await guardarVenta({
@@ -1121,6 +1139,7 @@
     _lineas = [];
     _ultimoPeso = null;
     _ultimaLinea = null;
+    _cobroPendiente = null;   // POS-40 · cobrada: ya no hay nada pendiente
     var u = $('pos-ultimo'); if (u) { u.hidden = true; }
     trasCobrar(itbisVenta);
     pintar();
@@ -1592,6 +1611,103 @@
     montarCierre();
     montarCantidad();
     montarAtajos();
+    reanudarSesion();   // POS-40 · tras recargar, vuelve sola a la caja
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-40 · RECARGAR LA PÁGINA YA NO BORRA LA FACTURA (pedido del dueño)
+   *
+   * El botón «recargar» de la barra del navegador NO se puede desactivar
+   * desde una página: ningún navegador lo permite. En vez de eso:
+   *   1 · la factura se guarda en el equipo en cada cambio (desde pintar()).
+   *   2 · al recargar, si la sesión de la cajera sigue viva EN LA BASE, la
+   *       caja vuelve sola, sin pedir la clave, con la factura tal cual.
+   *   3 · si la sesión caducó, se pide entrar; la factura se recupera solo si
+   *       entra LA MISMA cajera.
+   *
+   * 🔴 localStorage (no sessionStorage): sobrevive también a cerrar la pestaña
+   *    por error o a un apagón. No lleva nada secreto, solo las líneas. Va con
+   *    el id de la cajera y caduca a las 12 h: nadie ve una factura ajena.
+   * 🔴 La sesión NO se da por buena en el navegador: se pregunta a la base
+   *    (admin_renovar_sesion, SQL 79). Sin respuesta buena, se pide entrar.
+   * 🔴 Cobro a medias: ver _cobroPendiente en abrirPago / confirmarCobro.
+   * ════════════════════════════════════════════════════════════════════════ */
+  /* 🔴 UNA CLAVE POR CAJERA. Con una sola clave compartida, la prueba cazó
+   * que al entrar otra cajera (factura vacía) se BORRABA la factura que la
+   * primera tenía guardada. Ahora cada una tiene la suya y nadie toca la
+   * de otra. Las de más de 12 h se limpian al arrancar. */
+  var FACTURA_PREFIJO = 'cm_pos_factura:';
+  var FACTURA_MAX_MS = 12 * 60 * 60 * 1000;
+
+  function claveFactura() { return FACTURA_PREFIJO + (_cajera && _cajera.id ? _cajera.id : ''); }
+
+  function firmaVenta() { return JSON.stringify(lineasParaGuardar()); }
+
+  function guardarFactura() {
+    if (!_cajera || !_cajera.id) { return; }   // aún sin cajera: nada que guardar
+    try {
+      if (!_lineas.length && !_cobroPendiente) { localStorage.removeItem(claveFactura()); return; }
+      localStorage.setItem(claveFactura(), JSON.stringify({
+        v: 1, cajera: _cajera.id, t: Date.now(),
+        lineas: _lineas, ultima: _lineas.indexOf(_ultimaLinea),
+        peso: _ultimoPeso, cobro: _cobroPendiente
+      }));
+    } catch (e) { /* sin almacenamiento (modo privado): la caja sigue igual */ }
+  }
+
+  function limpiarFacturasViejas() {
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf(FACTURA_PREFIJO) !== 0) { continue; }
+        var d = null;
+        try { d = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { d = null; }
+        if (!d || !(Date.now() - Number(d.t) < FACTURA_MAX_MS)) { localStorage.removeItem(k); }
+      }
+    } catch (e) { /* nada */ }
+  }
+
+  /* Devuelve cuántas líneas se recuperaron (0 si nada). */
+  function recuperarFactura() {
+    limpiarFacturasViejas();
+    if (!_cajera || !_cajera.id) { return 0; }
+    var d = null;
+    try { d = JSON.parse(localStorage.getItem(claveFactura()) || 'null'); } catch (e) { d = null; }
+    if (!d || d.v !== 1 || !Array.isArray(d.lineas)) { return 0; }
+    if (!_cajera || d.cajera !== _cajera.id) { return 0; }          // es de otra cajera
+    if (!(Date.now() - Number(d.t) < FACTURA_MAX_MS)) { return 0; } // demasiado vieja
+    var buenas = d.lineas.filter(function (l) {
+      return l && l.id && isFinite(Number(l.precio)) && Number(l.cantidad) > 0 && isFinite(Number(l.tasa));
+    });
+    _lineas = buenas;
+    _ultimaLinea = (d.ultima >= 0 && buenas.length === d.lineas.length) ? (buenas[d.ultima] || null)
+                                                                        : (buenas[buenas.length - 1] || null);
+    _ultimoPeso = d.peso || null;
+    _cobroPendiente = (d.cobro && d.cobro.id) ? d.cobro : null;
+    return buenas.length;
+  }
+
+  async function reanudarSesion() {
+    var s = (typeof getSession === 'function') ? getSession() : null;
+    var v = (typeof _valeAdmin === 'function') ? _valeAdmin() : '';
+    if (!s || !s.id || !v || typeof _SB_URL === 'undefined') { return; }
+    if (typeof getRole === 'function' && !getRole(String(s.role || '').toLowerCase()).canUsePOS) { return; }
+    var btn = $('pos-entrar');
+    if (btn) { btn.disabled = true; btn.textContent = 'Recuperando la caja…'; }
+    try {
+      var res = await fetch(_SB_URL + '/rpc/admin_renovar_sesion', {
+        method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: v })
+      });
+      var j = null;
+      try { j = JSON.parse(await res.text()); j = Array.isArray(j) ? j[0] : j; } catch (e2) { j = null; }
+      if (!res.ok || !j || j.ok !== true) { return; }   // caducada o no válida: que entre
+      _cajera = s;
+      await arrancarCaja();
+    } catch (e) {
+      console.warn('[POS] no se pudo reanudar la sesión:', e && e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+    }
   }
 
   /* ════════════════════════════════════════════════════════════════════════
