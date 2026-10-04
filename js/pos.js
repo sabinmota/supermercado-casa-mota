@@ -716,10 +716,13 @@
 
   /* ════════════════════════════════════════════════════════════════════════
    * POS-12 · CLAVE ADMINISTRATIVA para quitar artículos o vaciar la factura
-   * (pedido del dueño, seguridad/73 · RPC pos_autorizar).
+   * (pedido del dueño, seguridad/73).
+   * POS-39 · el dueño: SOLO la clave, sin correo (seguridad/83 · RPC
+   * pos_autorizar_clave). La base prueba la clave contra los administradores
+   * activos y dice quién autorizó.
    *
    * 🔴 LA CLAVE SE COMPRUEBA EN LA BASE, NO AQUÍ. El navegador solo envía
-   *    correo + clave; si la base dice que no, NO se borra nada.
+   *    la clave; si la base dice que no, NO se borra nada.
    * 🔴 Si no hay conexión, NO se borra (sin autorización comprobada no hay
    *    borrado). Queda registro en la base de cada autorización y de cada
    *    intento fallido; con 5 fallos en 10 min se bloquea.
@@ -728,7 +731,7 @@
   var _aut = null;   // { accion, idx, linea } mientras la ventana está abierta
 
   var MENSAJES_AUT = {
-    CLAVE_INCORRECTA:    'Correo o clave incorrectos, o ese usuario no es administrador.',
+    CLAVE_INCORRECTA:    'Clave incorrecta, o no es la de un administrador.',
     DEMASIADOS_INTENTOS: 'Demasiados intentos fallidos. Espere 10 minutos o avise al administrador.',
     SESION_CADUCADA:     'Su sesión caducó. Salga y vuelva a entrar a la caja.',
     SESION_INVALIDA:     'Su sesión no es válida. Salga y vuelva a entrar a la caja.',
@@ -744,13 +747,12 @@
         ', RD$ ' + dinero(totales().neto) + ')'
       : 'Quitar: ' + l.nombre + ' · ' + (l.esPeso ? l.cantidad.toFixed(2) + ' lb' : l.cantidad + ' ud.') +
         ' · RD$ ' + dinero(l.precio * l.cantidad);
-    $('pos-aut-correo').value = '';
     $('pos-aut-clave').value = '';
     $('pos-aut-error').hidden = true;
     $('pos-aut-aceptar').disabled = false;
     $('pos-aut-aceptar').textContent = 'Autorizar';
     $('pos-modal-aut').hidden = false;
-    $('pos-aut-correo').focus();
+    $('pos-aut-clave').focus();
   }
 
   function cerrarAutorizacion() {
@@ -762,11 +764,10 @@
 
   async function confirmarAutorizacion() {
     if (!_aut) { return; }
-    var correo = ($('pos-aut-correo').value || '').trim();
     var clave  = $('pos-aut-clave').value || '';
     var err = $('pos-aut-error');
-    if (!correo || !clave) {
-      err.textContent = 'Escriba el correo y la clave del administrador.';
+    if (!clave) {
+      err.textContent = 'Escriba la clave del administrador.';
       err.hidden = false; return;
     }
     var btn = $('pos-aut-aceptar');
@@ -774,11 +775,10 @@
     err.hidden = true;
     var pedido = _aut;
     try {
-      var res = await fetch(_SB_URL + '/rpc/pos_autorizar', {
+      var res = await fetch(_SB_URL + '/rpc/pos_autorizar_clave', {
         method: 'POST', headers: _SB_HEADERS,
         body: JSON.stringify({
           p_vale:    (typeof _valeAdmin === 'function') ? _valeAdmin() : '',
-          p_email:   correo,
           p_clave:   clave,
           p_accion:  pedido.accion,
           p_detalle: pedido.linea
@@ -789,7 +789,7 @@
       });
       var txt = await res.text();
       if (res.status === 404 || txt.indexOf('PGRST202') >= 0) {
-        throw new Error('Falta ejecutar seguridad/74-arreglar-bloqueo-clave.sql en Supabase. No se borró nada.');
+        throw new Error('Falta ejecutar seguridad/83-autorizar-solo-clave.sql en Supabase. No se borró nada.');
       }
       if (!res.ok) {
         for (var k in MENSAJES_AUT) { if (txt.indexOf(k) >= 0) { throw new Error(MENSAJES_AUT[k]); } }
