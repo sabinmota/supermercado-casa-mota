@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '482';
+      const VER = '483';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1699,7 +1699,7 @@
                    oninput="_checkBarcodeUnique(this.value)" />
             <span id="pBarcodeStatus" style="font-size:.75rem;white-space:nowrap;min-width:160px"></span>
           </div>
-          <small style="color:#6b7280;font-size:.72rem">Compatible con lectores láser · 6, 8, 12, 13 o 14 dígitos con dígito verificador válido.</small>
+          <small style="color:#6b7280;font-size:.72rem">Compatible con lectores láser · 6, 8, 12, 13 o 14 dígitos. Si el código no cumple el estándar (etiqueta propia del suplidor), se puede guardar confirmando.</small>
         </div>
         <!-- 476 · ITBIS obligatorio (lo gestiona js/itbis-lotes.js · seguridad/78) -->
         <div class="form-group">
@@ -3402,7 +3402,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=410"></script>
+  <script src="js/admin.v33.js?v=411"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

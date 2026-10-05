@@ -484,8 +484,11 @@ function _validateEAN(code) {
     if (exp8 === chk8) return { valid: true, type: 'EAN-8', error: '' };
 
     // Ningún formato de 8 dígitos válido
+    // 493 · soloDigito: el formato es bueno y solo falla el dígito de control
+    // → saveProduct deja guardarlo si el dueño lo confirma (etiquetas propias).
     return {
       valid: false,
+      soloDigito: true,
       type: 'EAN-8 / UPC-E',
       error: `Dígito verificador inválido para EAN-8 y UPC-E`
     };
@@ -510,6 +513,7 @@ function _validateEAN(code) {
   if (calcCheck !== check) {
     return {
       valid: false,
+      soloDigito: true,   // 493 · ver arriba: se puede guardar confirmando
       type: validLengths[len],
       error: `Dígito verificador incorrecto (esperado: ${calcCheck}, ingresado: ${check})`
     };
@@ -598,6 +602,23 @@ function _checkBarcodeUnique(val, excludeId = null) {
 
   // Validar EAN/UPC completo
   const eanResult = _validateEAN(val);
+
+  /* 493 · Solo falla el dígito de control: aviso NARANJA, no rojo, porque se
+   * puede guardar confirmando (etiquetas propias del suplidor). Se sigue
+   * comprobando que no esté repetido: eso nunca se puede saltar. */
+  if (!eanResult.valid && eanResult.soloDigito) {
+    const dupNs = adminProducts.find(p => p.barcode === val && String(p.id) !== String(excludeId ?? editingProductId));
+    if (dupNs) {
+      status.innerHTML = `<span style="color:#e65100">⚠️ Ya asignado a "${dupNs.name}"</span>`;
+    } else {
+      status.innerHTML = `<span style="color:#b45309" title="${eanResult.error}">⚠️ No cumple el estándar · al guardar se pedirá confirmar</span>`;
+    }
+    if (inputEl) {
+      inputEl.style.borderColor = '#e65100';
+      inputEl.style.boxShadow   = '0 0 0 3px rgba(230,81,0,.15)';
+    }
+    return;
+  }
 
   if (!eanResult.valid) {
     status.innerHTML = `<span style="color:#e53935">❌ ${eanResult.error}</span>`;
@@ -3578,14 +3599,36 @@ function saveProduct() {
 
   // 2) Validar formato EAN / UPC (longitud + solo números + dígito verificador)
   const eanResult = _validateEAN(barcodeVal);
-  if (!eanResult.valid) {
+  if (!eanResult.valid && !eanResult.soloDigito) {
     _barcodeError(`⚠️ Código inválido: ${eanResult.error}`);
     _unlock(); return;
   }
 
-  // 3) Verificar que no esté duplicado en otro producto
+  // 3) Verificar que no esté duplicado en otro producto (ANTES de preguntar:
+  //    no tiene sentido confirmar un código que de todos modos no se acepta)
   const dup = adminProducts.find(p => p.barcode === barcodeVal && String(p.id) !== String(editingProductId));
   if (dup) { _barcodeError(`⚠️ Ese código ya está asignado a "${dup.name}"`); _unlock(); return; }
+
+  /* 4) 493 · Pedido del dueño: un código que solo falla el dígito de control
+   *    (etiquetas propias del suplidor, como 011254367945) se puede guardar
+   *    si se confirma. Letras, longitudes raras y repetidos siguen bloqueados.
+   *    Se pregunta SOLO si el código cambió o es un producto nuevo: editar el
+   *    precio de un producto que ya lo tenía no vuelve a preguntar. */
+  if (!eanResult.valid && eanResult.soloDigito) {
+    const previo = editingProductId
+      ? (adminProducts.find(p => String(p.id) === String(editingProductId)) || {}).barcode
+      : null;
+    if (String(previo || '') !== barcodeVal) {
+      const seguir = window.confirm(
+        'El código ' + barcodeVal + ' no cumple el estándar de códigos de barras ' +
+        '(' + eanResult.error + ').\n\n' +
+        'Si lo tecleó a mano, revíselo: puede tener una cifra mal copiada.\n' +
+        'Si es el código que trae la etiqueta del producto (lo leyó la pistola), ' +
+        'puede guardarlo igualmente.\n\n¿Guardarlo igualmente?'
+      );
+      if (!seguir) { barcodeField?.focus(); _unlock(); return; }
+    }
+  }
 
   const data = {
     name,
