@@ -745,6 +745,8 @@ function getFilteredProducts() {
       // Búsqueda por código de barras (exacta o parcial)
       const bcStr = String(p.barcode || '').trim();
       if (bcStr && bcStr.includes(q)) return true;
+      const bcAlt = String(p.barcode_alt || '').trim();   // 494 · código alternativo
+      if (bcAlt && bcAlt.includes(q)) return true;
 
       // Si es puramente numérico y no hubo match por barcode → no mostrar
       // resultados de texto para evitar confusión (ej: "12345" no debería
@@ -1563,9 +1565,7 @@ function handleSearch() {
   // hace el escáner físico), en lugar de mostrar la grilla filtrada.
   if (/^\d{6,14}$/.test(raw)) {
     const variants  = (typeof _barcodeVariants === 'function') ? _barcodeVariants(raw) : new Set([raw]);
-    const exactProd = getLiveProducts().find(p =>
-      p.barcode && variants.has(String(p.barcode).trim().replace(/\s+/g, ''))
-    );
+    const exactProd = getLiveProducts().find(p => _coincideCodigo(p, variants));   // 494
     if (exactProd) {
       document.getElementById('searchInput')?.blur();
       // Limpiar el campo de búsqueda para no dejar el código visible
@@ -2543,10 +2543,11 @@ function barcodeLiveSearch(query) {
       const startsWith = [];
       const contains   = [];
       prods.forEach(p => {
-        const bc = String(p.barcode || '').trim();
-        if (!bc) return;
-        if (bc.startsWith(q))     startsWith.push(p);
-        else if (bc.includes(q))  contains.push(p);
+        // 494 · se mira el principal y el alternativo
+        const cods = [String(p.barcode || '').trim(), String(p.barcode_alt || '').trim()].filter(Boolean);
+        if (!cods.length) return;
+        if (cods.some(c => c.startsWith(q)))     startsWith.push(p);
+        else if (cods.some(c => c.includes(q)))  contains.push(p);
       });
       results = [...startsWith, ...contains].slice(0, 10);
     } else {
@@ -2554,6 +2555,7 @@ function barcodeLiveSearch(query) {
       const tokens = _tokensBusqueda(q);
       const hallados = prods.filter(p => {
         if (p.barcode && String(p.barcode).trim().includes(q)) return true;
+        if (p.barcode_alt && String(p.barcode_alt).trim().includes(q)) return true;   // 494
         return _coincidenTokens(_textoBuscable(p), tokens);
       });
       // Relevancia: nombre que empieza por la 1ª palabra va primero
@@ -2598,8 +2600,13 @@ function _renderLiveResults(results, query, isNumericQuery) {
 
     // Resaltar los dígitos coincidentes en el código de barras
     let bcHTML = '';
-    if (p.barcode) {
-      const bcStr = String(p.barcode).trim();
+    /* 494 · Si lo encontró el código alternativo, se enseña ESE (el que
+     * coincide con lo tecleado), no el principal. */
+    const _bcAlt = String(p.barcode_alt || '').trim();
+    const _bcMuestra = (isNumericQuery && _bcAlt && _bcAlt.includes(query) &&
+                        !String(p.barcode || '').includes(query)) ? _bcAlt : p.barcode;
+    if (_bcMuestra) {
+      const bcStr = String(_bcMuestra).trim();
       if (isNumericQuery) {
         const idx = bcStr.indexOf(query);
         if (idx >= 0) {
@@ -2657,9 +2664,7 @@ function submitManualBarcode() {
   // Primero intentar como código de barras exacto (con variantes EAN-13/UPC-A)
   const cleanCode = code.replace(/\s+/g, '');
   const variants  = _barcodeVariants(cleanCode);
-  const byBarcode = getLiveProducts().find(p =>
-    p.barcode && variants.has(String(p.barcode).trim().replace(/\s+/g, ''))
-  );
+  const byBarcode = getLiveProducts().find(p => _coincideCodigo(p, variants));   // 494
 
   if (byBarcode) {
     // Código encontrado exacto → abrir producto directamente
@@ -2812,6 +2817,14 @@ function _barcodeVariants(code) {
   return v;
 }
 
+/* 494 · ¿El producto tiene este código, como principal o como alternativo
+ * (seguridad/86)? `variants` es el Set de _barcodeVariants. */
+function _coincideCodigo(p, variants) {
+  const limpio = c => String(c).trim().replace(/\s+/g, '');
+  return !!((p.barcode     && variants.has(limpio(p.barcode))) ||
+            (p.barcode_alt && variants.has(limpio(p.barcode_alt))));
+}
+
 async function _onBarcodeDetected(code) {
   _barcodeScanning = true;
   _stopLiveCamera();
@@ -2820,9 +2833,7 @@ async function _onBarcodeDetected(code) {
   const cleanCode = String(code).trim().replace(/\s+/g, '');
   const variants  = _barcodeVariants(cleanCode);
 
-  const findByBarcode = list => list.find(p =>
-    p.barcode && variants.has(String(p.barcode).trim().replace(/\s+/g, ''))
-  );
+  const findByBarcode = list => list.find(p => _coincideCodigo(p, variants));   // 494
 
   // 1) Buscar en catálogo local
   let product = findByBarcode(getLiveProducts());

@@ -366,6 +366,16 @@
       var b = String(p.barcode || '').trim();
       if (b) { _porBarcode[b] = p; }
     }
+    /* 494 · Código ALTERNATIVO (seguridad/86): apunta al MISMO producto, así
+     * que escanearlo suma en la misma línea (anadir agrupa por p.id). Va en
+     * una segunda pasada para que un código principal nunca quede tapado
+     * por el alternativo de otro producto. */
+    for (var j = 0; j < _productos.length; j++) {
+      var q = _productos[j];
+      if (q.deleted === true) { continue; }
+      var a = String(q.barcode_alt || '').trim();
+      if (a && !_porBarcode[a]) { _porBarcode[a] = q; }
+    }
   }
 
   /* ════════════════════════════════════════════════════════════════════════

@@ -278,7 +278,7 @@ function _goPage(section, scrollToId, page) {
       const cat = document.getElementById('prodCatFilter')?.value || '';
       const badge = document.getElementById('prodBadgeFilter')?.value || '';
       return adminProducts.filter(p =>
-        _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category) &&
+        _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category) &&
         (!cat || p.category === cat) && (!badge || p.badge === badge) &&
         _pasaFiltroVenta(p)   // 491 · MISMO criterio que renderProductsTable
       ).length;
@@ -295,7 +295,7 @@ function _goPage(section, scrollToId, page) {
       const q = document.getElementById('invSearch')?.value || '';
       const filter = document.getElementById('invStockFilter')?.value || '';
       return adminProducts.filter(p =>
-        _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category) &&
+        _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category) &&
         (!filter || (filter === 'low' ? p.stock < 20 : p.stock >= 20))
       ).length;
     })(),
@@ -607,7 +607,7 @@ function _checkBarcodeUnique(val, excludeId = null) {
    * puede guardar confirmando (etiquetas propias del suplidor). Se sigue
    * comprobando que no esté repetido: eso nunca se puede saltar. */
   if (!eanResult.valid && eanResult.soloDigito) {
-    const dupNs = adminProducts.find(p => p.barcode === val && String(p.id) !== String(excludeId ?? editingProductId));
+    const dupNs = _codigoEnUso(val, excludeId ?? editingProductId);
     if (dupNs) {
       status.innerHTML = `<span style="color:#e65100">⚠️ Ya asignado a "${dupNs.name}"</span>`;
     } else {
@@ -629,8 +629,8 @@ function _checkBarcodeUnique(val, excludeId = null) {
     return;
   }
 
-  // Verificar unicidad
-  const dup = adminProducts.find(p => p.barcode === val && String(p.id) !== String(excludeId ?? editingProductId));
+  // Verificar unicidad (494 · también contra los códigos alternativos)
+  const dup = _codigoEnUso(val, excludeId ?? editingProductId);
   if (dup) {
     status.innerHTML = `<span style="color:#e65100">⚠️ Ya asignado a "${dup.name}"</span>`;
     if (inputEl) {
@@ -648,6 +648,53 @@ function _checkBarcodeUnique(val, excludeId = null) {
   }
 }
 
+/* ═══ 494 · CÓDIGO ALTERNATIVO (products.barcode_alt · seguridad/86) ═══════════
+ * El mismo producto puede llegar del suplidor con otro código. Un código,
+ * sea principal o alternativo, identifica a UN solo producto: por eso los
+ * dos se comprueban contra los dos campos de todos los demás. */
+function _codigoEnUso(code, excludeId) {
+  const c = String(code || '').trim();
+  if (!c) return null;
+  return adminProducts.find(p =>
+    String(p.id) !== String(excludeId) &&
+    (String(p.barcode || '').trim() === c || String(p.barcode_alt || '').trim() === c)
+  ) || null;
+}
+
+/* Aviso en vivo del campo pBarcodeAlt. Vacío = nada (es opcional). */
+function _checkBarcodeAlt(val) {
+  const status  = document.getElementById('pBarcodeAltStatus');
+  const inputEl = document.getElementById('pBarcodeAlt');
+  if (!status) return;
+  const pinta = (html, color) => {
+    status.innerHTML = html;
+    if (!inputEl) return;
+    inputEl.style.borderColor = color || '';
+    inputEl.style.boxShadow   = color ? `0 0 0 3px ${color}26` : '';
+  };
+  const v = String(val || '').trim();
+  if (!v) { pinta('', ''); return; }
+  if (!/^\d+$/.test(v)) { pinta('<span style="color:#e53935">❌ Solo números</span>', '#e53935'); return; }
+  if (v.length < 6) { pinta(`<span style="color:#9ca3af">Escribe ${6 - v.length} dígito(s) más…</span>`, ''); return; }
+
+  const principal = (document.getElementById('pBarcode')?.value || '').trim();
+  if (v === principal) { pinta('<span style="color:#e53935">❌ Es igual al código principal</span>', '#e53935'); return; }
+
+  const dup = _codigoEnUso(v, editingProductId);
+  if (dup) { pinta(`<span style="color:#e65100">⚠️ Ya asignado a "${_escAdm(dup.name)}"</span>`, '#e65100'); return; }
+
+  const ean = _validateEAN(v);
+  if (!ean.valid && ean.soloDigito) {
+    pinta(`<span style="color:#b45309" title="${ean.error}">⚠️ No cumple el estándar · al guardar se pedirá confirmar</span>`, '#e65100'); return;
+  }
+  if (!ean.valid) { pinta(`<span style="color:#e53935">❌ ${ean.error}</span>`, '#e53935'); return; }
+  pinta(`<span style="color:#1a7c3e;font-weight:600">✅ ${ean.type} válido</span>`, '#1a7c3e');
+}
+
+function _escAdm(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // Búsqueda inmediata por código de barras en gestión de productos
 // _barcodeSearchProducts e _barcodeSearchInventory eliminados:
 // prodSearch e invSearch ya buscan por nombre, descripción y código de barras.
@@ -662,7 +709,9 @@ function noBarcodeLookup(val, commit = false) {
     return;
   }
   const code = val.trim();
-  const prod = adminProducts.find(p => p.barcode && p.barcode.trim() === code);
+  const prod = adminProducts.find(p =>
+    (p.barcode && String(p.barcode).trim() === code) ||
+    (p.barcode_alt && String(p.barcode_alt).trim() === code));   // 494
 
   if (!prod) {
     if (msg) msg.innerHTML = `<span style="color:#e53935">⚠️ Código no encontrado</span>`;
@@ -2353,7 +2402,7 @@ function renderProductsTable() {
     .filter(p => {
       if (!p || !p.name) return false;
       // BUILD 399: búsqueda por palabras sueltas en cualquier orden.
-      const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category);
+      const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category);
       const matchC = !cat   || p.category === cat;
       const matchB = !badge || p.badge    === badge;
       return matchQ && matchC && matchB && _pasaFiltroVenta(p);   // 491
@@ -2471,6 +2520,8 @@ function openProductModal(id = null) {
     document.getElementById('pImage').value         = p.image || '';
     document.getElementById('pBarcode').value       = p.barcode || '';
     _checkBarcodeUnique(p.barcode || '', p.id);
+    document.getElementById('pBarcodeAlt').value    = p.barcode_alt || '';   // 494
+    _checkBarcodeAlt(p.barcode_alt || '');
 
     /* BUILD 452 · Casilla «Contiene alcohol».
      * El valor puede llegar como true o 'true' según el camino (REST devuelve
@@ -2519,8 +2570,9 @@ function openProductModal(id = null) {
     // Cargar imágenes adicionales
     _loadExtraImages(Array.isArray(p.images) ? p.images : []);
   } else {
-    ['pName','pPrice','pOriginalPrice','pUnit','pStock','pRating','pDescription','pImage','pBarcode']
+    ['pName','pPrice','pOriginalPrice','pUnit','pStock','pRating','pDescription','pImage','pBarcode','pBarcodeAlt']
       .forEach(id => document.getElementById(id).value = '');
+    _checkBarcodeAlt('');   // 494 · limpia el aviso y el borde del alternativo
     /* BUILD 452 · La casilla es un checkbox, no un input de texto: no se limpia
      * con `.value = ''` (eso la dejaría marcada con el estado del producto
      * anterior). Hay que poner `.checked = false` explícitamente. */
@@ -2698,6 +2750,12 @@ function viewProduct(id) {
   if (bcEl) {
     bcEl.textContent   = p.barcode ? `${p.barcode}` : 'Sin código asignado';
     bcEl.style.opacity = p.barcode ? '1' : '0.45';
+  }
+  // 494 · código alternativo, a continuación del principal
+  const bcAltEl = document.getElementById('vpBarcodeAlt');
+  if (bcAltEl) {
+    bcAltEl.textContent = p.barcode_alt ? ` · Alt: ${p.barcode_alt}` : '';
+    bcAltEl.hidden      = !p.barcode_alt;
   }
 
   /* BUILD 452b · Aviso 18+ en la vista de detalle.
@@ -3606,7 +3664,8 @@ function saveProduct() {
 
   // 3) Verificar que no esté duplicado en otro producto (ANTES de preguntar:
   //    no tiene sentido confirmar un código que de todos modos no se acepta)
-  const dup = adminProducts.find(p => p.barcode === barcodeVal && String(p.id) !== String(editingProductId));
+  //    494 · también contra los códigos alternativos de los demás productos
+  const dup = _codigoEnUso(barcodeVal, editingProductId);
   if (dup) { _barcodeError(`⚠️ Ese código ya está asignado a "${dup.name}"`); _unlock(); return; }
 
   /* 4) 493 · Pedido del dueño: un código que solo falla el dígito de control
@@ -3627,6 +3686,43 @@ function saveProduct() {
         'puede guardarlo igualmente.\n\n¿Guardarlo igualmente?'
       );
       if (!seguir) { barcodeField?.focus(); _unlock(); return; }
+    }
+  }
+
+  /* 5) 494 · Código ALTERNATIVO (opcional). Mismas reglas que el principal:
+   *    solo números, longitud estándar, sin repetir (contra los dos campos de
+   *    los demás), distinto del principal; si solo falla el dígito de
+   *    control, se pide confirmar (y solo si cambió). */
+  const altField = document.getElementById('pBarcodeAlt');
+  const altVal   = (altField?.value || '').trim();
+  const _altError = (msg) => {
+    showAdminToast(msg, 'error');
+    altField?.focus();
+    if (altField) {
+      altField.style.borderColor = '#e53935';
+      altField.style.boxShadow   = '0 0 0 3px rgba(229,57,53,.18)';
+    }
+  };
+  if (altVal) {
+    if (altVal === barcodeVal) { _altError('⚠️ El código alternativo es igual al principal. Bórrelo o ponga otro.'); _unlock(); return; }
+    const altEan = _validateEAN(altVal);
+    if (!altEan.valid && !altEan.soloDigito) { _altError(`⚠️ Código alternativo inválido: ${altEan.error}`); _unlock(); return; }
+    const altDup = _codigoEnUso(altVal, editingProductId);
+    if (altDup) { _altError(`⚠️ El código alternativo ya está asignado a "${altDup.name}"`); _unlock(); return; }
+    if (!altEan.valid && altEan.soloDigito) {
+      const previoAlt = editingProductId
+        ? (adminProducts.find(p => String(p.id) === String(editingProductId)) || {}).barcode_alt
+        : null;
+      if (String(previoAlt || '') !== altVal) {
+        const seguirAlt = window.confirm(
+          'El código alternativo ' + altVal + ' no cumple el estándar de códigos de barras ' +
+          '(' + altEan.error + ').\n\n' +
+          'Si lo tecleó a mano, revíselo: puede tener una cifra mal copiada.\n' +
+          'Si es el código que trae la etiqueta del producto (lo leyó la pistola), ' +
+          'puede guardarlo igualmente.\n\n¿Guardarlo igualmente?'
+        );
+        if (!seguirAlt) { altField?.focus(); _unlock(); return; }
+      }
     }
   }
 
@@ -3672,6 +3768,7 @@ function saveProduct() {
     image:         document.getElementById('pImage').value.trim() || null,
     images:        _extraImages.length > 0 ? [..._extraImages] : [],
     barcode:       barcodeVal || null,
+    barcode_alt:   altVal || null,          // 494 · seguridad/86
     reviews:       0,
     isNew:         false,
     /* BUILD 452 · Se guarda SIEMPRE el estado de la casilla, también cuando la
@@ -5228,7 +5325,7 @@ function renderInventory() {
 
   const list = adminProducts.filter(p => {
     // BUILD 399: por palabras sueltas en cualquier orden.
-    const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.unit, p.category);
+    const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category);
     const matchF = !filter || (filter === 'low' ? Number(p.stock) < 20 : Number(p.stock) >= 20);
     return matchQ && matchF;
   }).sort((a, b) => {
