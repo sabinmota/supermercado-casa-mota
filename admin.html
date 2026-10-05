@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '484';
+      const VER = '485';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1575,6 +1575,7 @@
         <div class="vp-barcode-row">
           <i class="fas fa-barcode"></i>
           <span id="vpBarcode">—</span>
+          <span id="vpBarcodeAlt" hidden></span>
         </div>
 
         <!-- 476 · Tasa de ITBIS (la rellena js/itbis-lotes.js) -->
@@ -1700,6 +1701,19 @@
             <span id="pBarcodeStatus" style="font-size:.75rem;white-space:nowrap;min-width:160px"></span>
           </div>
           <small style="color:#6b7280;font-size:.72rem">Compatible con lectores láser · 6, 8, 12, 13 o 14 dígitos. Si el código no cumple el estándar (etiqueta propia del suplidor), se puede guardar confirmando.</small>
+        </div>
+        <!-- 494 · Código alternativo (opcional) · seguridad/86 -->
+        <div class="form-group">
+          <label for="pBarcodeAlt"><i class="fas fa-barcode" style="margin-right:5px;color:#6b7280"></i>Código alternativo (opcional)</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" class="form-input" id="pBarcodeAlt" placeholder="Otro código del mismo producto"
+                   style="flex:1;font-family:monospace;letter-spacing:.08em;font-size:.95rem"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   inputmode="numeric" maxlength="14"
+                   oninput="_checkBarcodeAlt(this.value)" />
+            <span id="pBarcodeAltStatus" style="font-size:.75rem;white-space:nowrap;min-width:160px"></span>
+          </div>
+          <small style="color:#6b7280;font-size:.72rem">Úselo si el suplidor trae este mismo producto con otro código. La caja, la tienda y la sincronización de precios lo reconocen igual que el principal.</small>
         </div>
         <!-- 476 · ITBIS obligatorio (lo gestiona js/itbis-lotes.js · seguridad/78) -->
         <div class="form-group">
@@ -3391,7 +3405,7 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=352"></script>
+  <script src="js/api.js?v=353"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
 <script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
@@ -3402,7 +3416,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=411"></script>
+  <script src="js/admin.v33.js?v=413"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=8"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

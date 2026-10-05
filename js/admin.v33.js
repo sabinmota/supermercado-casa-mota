@@ -2520,8 +2520,10 @@ function openProductModal(id = null) {
     document.getElementById('pImage').value         = p.image || '';
     document.getElementById('pBarcode').value       = p.barcode || '';
     _checkBarcodeUnique(p.barcode || '', p.id);
-    document.getElementById('pBarcodeAlt').value    = p.barcode_alt || '';   // 494
-    _checkBarcodeAlt(p.barcode_alt || '');
+    /* 494 · Si el campo no está (admin.html viejo con este JS nuevo), se
+     * salta: un fichero desparejado nunca debe impedir editar productos. */
+    const _altEl = document.getElementById('pBarcodeAlt');
+    if (_altEl) { _altEl.value = p.barcode_alt || ''; _checkBarcodeAlt(p.barcode_alt || ''); }
 
     /* BUILD 452 · Casilla «Contiene alcohol».
      * El valor puede llegar como true o 'true' según el camino (REST devuelve
@@ -2571,7 +2573,7 @@ function openProductModal(id = null) {
     _loadExtraImages(Array.isArray(p.images) ? p.images : []);
   } else {
     ['pName','pPrice','pOriginalPrice','pUnit','pStock','pRating','pDescription','pImage','pBarcode','pBarcodeAlt']
-      .forEach(id => document.getElementById(id).value = '');
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     _checkBarcodeAlt('');   // 494 · limpia el aviso y el borde del alternativo
     /* BUILD 452 · La casilla es un checkbox, no un input de texto: no se limpia
      * con `.value = ''` (eso la dejaría marcada con el estado del producto
@@ -3768,7 +3770,6 @@ function saveProduct() {
     image:         document.getElementById('pImage').value.trim() || null,
     images:        _extraImages.length > 0 ? [..._extraImages] : [],
     barcode:       barcodeVal || null,
-    barcode_alt:   altVal || null,          // 494 · seguridad/86
     reviews:       0,
     isNew:         false,
     /* BUILD 452 · Se guarda SIEMPRE el estado de la casilla, también cuando la
@@ -3778,6 +3779,10 @@ function saveProduct() {
      * casilla en una categoría de alcohol NO desprotege el producto. */
     es_alcohol:    !!document.getElementById('pEsAlcohol')?.checked,
   };
+  /* 494 · El alternativo se guarda SOLO si el campo existe en la página. Con
+   * un admin.html viejo (sin el campo) mandar `null` BORRARÍA el código
+   * alternativo que ya tuviera el producto, sin avisar. */
+  if (altField) data.barcode_alt = altVal || null;   // seguridad/86
 
   // ── El bloqueo y _unlock ya están definidos al inicio de la función ──────────
 
