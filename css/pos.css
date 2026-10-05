@@ -149,13 +149,14 @@ kbd {
 /* POS-41 · botón de la calculadora: fondo blanco para que el icono (con
    contorno negro) se vea bien sobre el verde. */
 .pos-top__calc {
-  display: inline-flex; align-items: center; gap: 2px;
-  min-height: 38px; padding: 4px 8px 4px 6px; border: 0; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 44px; padding: 3px 9px 3px 6px; border: 0; border-radius: 10px;
   background: #fff; cursor: pointer; font-family: inherit;
 }
 .pos-top__calc:hover { background: #eef6f0; }
 .pos-top__calc:focus-visible { outline: 3px solid #ffd54a; outline-offset: 2px; }
-.pos-top__calc-img { height: 28px; width: auto; display: block; }
+/* POS-42 · el dueño: «un poquito más grande» → 28 → 38 px */
+.pos-top__calc-img { height: 38px; width: auto; display: block; }
 /* «Vaciar» ocupa su columna sin estirarse a todo el ancho. */
 .pos-vaciar { width: auto; min-height: 58px; padding: 17px 20px; }
 .pos-cierre__acciones { margin-bottom: 14px; }
