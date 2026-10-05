@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '483';
+      const VER = '484';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=18" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=19" />
   <link rel="stylesheet" href="css/logo-animado.css?v=2" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -3412,8 +3412,8 @@
   <!-- 469 · menú «··· Más» y sección Ventas POS (ficheros aparte, no tocan admin.v33.js) -->
   <script src="js/menu-mas.js?v=2"></script>
   <script src="js/ventas-pos.js?v=3"></script>
-<!-- 475 · Asignar ITBIS por lotes (botón en Productos · seguridad/78) -->
-<script src="js/itbis-lotes.js?v=4"></script>
+<!-- 476 · Tasa de ITBIS en la ficha y selector obligatorio (la pantalla por lotes se borró en 484) -->
+<script src="js/itbis-lotes.js?v=5"></script>
 <!-- 491 · «Solo venta en caja» (casilla del producto · seguridad/80). DESPUÉS de itbis-lotes.js -->
 <script src="js/solo-caja.js?v=1"></script>
   <!-- 472 · pestaña «Cierres de turno» de Ventas POS (fichero aparte) -->
