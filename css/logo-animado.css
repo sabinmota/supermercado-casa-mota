@@ -28,6 +28,30 @@
    flex-shrink:0 → se comporta como la <img> (que no encogía dentro de su
    caja): sin esto el SVG se encogía a 42 px en vez de los 58 de antes. */
 .cm-logo-anim { display: block; aspect-ratio: 1 / 1; flex-shrink: 0; }
+
+/* ── 496 · MARCO CUADRADO (pedido del dueño) ─────────────────────────────
+   Antes: caja de 54 px con esquinas redondeadas (14 px) y el logo de 58 px
+   recortado dentro. Ahora, como la imagen que mandó el dueño: cuadro de
+   esquinas RECTAS, fondo blanco, borde verde y un filo claro por fuera
+   (para que el verde no se pierda sobre el verde oscuro de la barra), y el
+   logo más grande: 100 px en total (antes se veía a 42–54 px).
+   Se sobreescriben las reglas de admin.v33.css:84-98 y panel-2026.css:185-186
+   (este fichero se carga después). */
+.sidebar-header .sidebar-logo-wrap {
+  width: 100px; height: 100px;
+  padding: 4px;
+  background: #fff;
+  border: 3px solid #1a7c3e;
+  border-radius: 0;
+  box-shadow: 0 0 0 2px #e6ebe0;
+  box-sizing: border-box;
+}
+.sidebar-header .sidebar-logo { width: 100%; height: 100%; }
+/* Barra plegada / móvil: el cuadro desaparece del todo (sin dejar el borde). */
+.sidebar.collapsed .sidebar-header .sidebar-logo-wrap { border-width: 0; box-shadow: none; padding: 0; }
+@media (max-width: 768px) {
+  .sidebar .sidebar-header .sidebar-logo-wrap { border-width: 0; box-shadow: none; padding: 0; }
+}
 .cm-logo-anim g { transform-box: view-box; }
 /* .cm-todo agrupa las piezas que se mueven; lleva la misma mezcla para que
    el blanco de las piezas no tape la casa que hay debajo del grupo. */
