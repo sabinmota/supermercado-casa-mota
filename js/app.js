@@ -6146,15 +6146,21 @@ function _updateClientNotiBadge(count) {
   if (!badge) {
     const btn = document.querySelector('.myaccount-btn, #myAccountBtn, .action-btn.account');
     if (btn) {
+      /* 504 · Pedido del dueño: el número va AL LADO del muñequito, igual que
+       * el de Favoritos junto al corazón. Antes llevaba su propio estilo en
+       * línea y, como el botón apila icono y texto en columna, caía DEBAJO
+       * de «Mi cuenta». Ahora usa la MISMA clase que Favoritos
+       * (.favorites-badge en css/style.css: círculo rojo, esquina superior
+       * derecha del botón), así los dos se ven idénticos. */
       badge = document.createElement('span');
       badge.id = 'clientNotiBadge';
-      badge.style.cssText = 'background:#e53935;color:#fff;border-radius:10px;font-size:.65rem;font-weight:700;padding:1px 6px;margin-left:4px;vertical-align:top';
+      badge.className = 'favorites-badge';
       btn.appendChild(badge);
     }
   }
   if (badge) {
     badge.textContent = count;
-    badge.style.display = count > 0 ? 'inline-block' : 'none';
+    badge.style.display = count > 0 ? 'flex' : 'none';
   }
 }
 
