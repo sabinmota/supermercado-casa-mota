@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volante · App Casa Mota en el App Store</title>
+<!-- Todo es LOCAL (carpeta recursos/ e imagenes/): funciona sin internet. -->
+<link rel="stylesheet" href="recursos/fontawesome/css/all.min.css">
+<link rel="stylesheet" href="recursos/volante.css">
+</head>
+<body>
+
+<!-- Barra de pantalla (no se imprime) -->
+<nav class="barra-pantalla" aria-label="Acciones">
+  <strong>Volante App Casa Mota</strong> · Media carta (5.5 × 8.5 in), frente y dorso
+  <button type="button" onclick="window.print()"><i class="fas fa-print"></i> Imprimir / Guardar PDF</button>
+  <span class="barra-aviso">Al imprimir: Márgenes <b>Ninguno</b> · activar <b>Gráficos de fondo</b></span>
+</nav>
+
+<main class="hojas">
+
+  <!-- ══════════════ FRENTE ══════════════ -->
+  <section class="hoja frente" id="volante-frente" aria-label="Frente del volante">
+    <div class="frente__fondo" aria-hidden="true"></div>
+
+    <header class="frente__cab">
+      <img class="frente__logo" src="imagenes/logo-casamota.jpg" alt="Supermercado Casa Mota">
+      <span class="frente__sello"><i class="fas fa-star"></i> ¡NUEVO!</span>
+    </header>
+
+    <div class="frente__titulo">
+      <p class="frente__pre">Ya puedes descargar</p>
+      <h1>Nuestra app<br><span>ya está en el App Store</span></h1>
+      <p class="frente__sub">Haz tu compra del súper desde el celular y te la llevamos a la puerta de tu casa.</p>
+    </div>
+
+    <!-- Teléfonos -->
+    <div class="telefonos" aria-hidden="true">
+      <!-- Teléfono de atrás: Novedades / Ofertas -->
+      <div class="telefono telefono--atras">
+        <div class="telefono__pantalla pantalla-vitrina">
+          <div class="pv-cab">Novedades <i class="fas fa-chevron-right"></i></div>
+          <p class="pv-sub">Productos recién añadidos</p>
+          <div class="pv-fila">
+            <div class="pv-card"><span class="pv-badge pv-badge--nuevo">Nuevo</span><img src="imagenes/aguacate.jpg" alt=""><b>Aguacate</b><em>RD$ 45.00</em><span class="pv-btn"><i class="fas fa-cart-plus"></i> Añadir</span></div>
+            <div class="pv-card"><span class="pv-badge pv-badge--nuevo">Nuevo</span><img src="imagenes/queso-hoja.jpg" alt=""><b>Queso de hoja</b><em>RD$ 250.00</em><span class="pv-btn"><i class="fas fa-cart-plus"></i> Añadir</span></div>
+          </div>
+          <div class="pv-cab">Ofertas <i class="fas fa-chevron-right"></i></div>
+          <p class="pv-sub">Precios rebajados</p>
+          <div class="pv-fila">
+            <div class="pv-card"><span class="pv-badge pv-badge--oferta">Oferta</span><img class="pv-img-producto" src="imagenes/aceite-crisol-galon.jpg" alt=""><b>Aceite Crisol Galón</b><em>RD$ 295.00</em><span class="pv-btn"><i class="fas fa-cart-plus"></i> Añadir</span></div>
+            <div class="pv-card"><img src="imagenes/arroz.jpg" alt=""><b>Arroz Gourmet Soberano</b><em>RD$ 410.00</em><span class="pv-btn"><i class="fas fa-cart-plus"></i> Añadir</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Teléfono principal: la captura REAL de la app (diseño del principio,
+           pedido del dueño). Sobre los botones redondos antiguos se dibuja el
+           botón nuevo «Añadir», y se tapa el saludo de la cuenta de prueba. -->
+      <div class="telefono telefono--frente">
+        <div class="telefono__isla"></div>
+        <div class="telefono__pantalla pantalla-real">
+          <div class="captura">
+            <img src="imagenes/app-captura.jpg" alt="">
+            <span class="captura__saludo"><b><i>CM</i><span>Hola,<strong>Cliente</strong></span></b></span>
+            <span class="captura__btn" style="left:7%"><i class="fas fa-cart-plus"></i> Añadir</span>
+            <span class="captura__btn" style="left:53.5%"><i class="fas fa-cart-plus"></i> Añadir</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="frente__pie">
+      <div class="descarga">
+        <a class="badge-appstore" href="https://apps.apple.com/app/casa-mota/id6811365677">
+          <i class="fab fa-apple"></i>
+          <span><small>Descárgala en el</small>App Store</span>
+        </a>
+        <p class="descarga__texto">Busca <b>«Casa Mota»</b> o escanea el código</p>
+      </div>
+      <div class="qr-caja">
+        <div class="qr" id="qr-frente" aria-label="Código QR de la app en el App Store"></div>
+        <span>Escanéame</span>
+      </div>
+    </footer>
+
+    <p class="frente__lema">Más que un súper, ¡una familia!</p>
+  </section>
+
+  <!-- ══════════════ DORSO ══════════════ -->
+  <section class="hoja dorso" id="volante-dorso" aria-label="Dorso del volante">
+    <header class="dorso__cab">
+      <img src="imagenes/logo-casamota.jpg" alt="Supermercado Casa Mota">
+      <h2>Todo tu súper,<br><span>en la palma de tu mano</span></h2>
+    </header>
+
+    <ul class="ventajas">
+      <li><i class="fas fa-truck-fast"></i><div><b>Entrega a domicilio</b>Pides desde casa y te lo llevamos.</div></li>
+      <li><i class="fas fa-tags"></i><div><b>Ofertas y novedades</b>Mira primero lo nuevo y lo rebajado.</div></li>
+      <li><i class="fas fa-barcode"></i><div><b>Escanea el código</b>Apunta la cámara al producto y lo encuentras al instante.</div></li>
+      <li><i class="fas fa-heart"></i><div><b>Tus favoritos</b>Guarda lo que siempre compras y repite en segundos.</div></li>
+      <li><i class="fas fa-star"></i><div><b>Puntos por tus compras</b>Acumula y ahorra en tus próximos pedidos.</div></li>
+      <li><i class="fas fa-shield-halved"></i><div><b>Compra segura</b>Paga al recibir tu pedido.</div></li>
+    </ul>
+
+    <div class="pasos">
+      <h3>Descárgala en 3 pasos</h3>
+      <ol>
+        <li><span>1</span>Escanea el código o busca <b>Casa Mota</b> en el App Store</li>
+        <li><span>2</span>Toca <b>Obtener</b> y crea tu cuenta</li>
+        <li><span>3</span>¡Llena tu carrito y recibe en casa!</li>
+      </ol>
+    </div>
+
+    <footer class="dorso__pie">
+      <div class="qr-caja qr-caja--grande">
+        <div class="qr" id="qr-dorso" aria-label="Código QR de la app en el App Store"></div>
+      </div>
+      <div class="dorso__contacto">
+        <a class="badge-appstore" href="https://apps.apple.com/app/casa-mota/id6811365677">
+          <i class="fab fa-apple"></i>
+          <span><small>Descárgala en el</small>App Store</span>
+        </a>
+        <p><i class="fas fa-phone"></i> 809-553-2226</p>
+        <p><i class="fab fa-whatsapp"></i> 849-384-0117</p>
+        <p><i class="fas fa-location-dot"></i> Ave. Melchor Contin No.5, Centro,<br>Hato Mayor del Rey</p>
+        <p><i class="fas fa-globe"></i> supermercadocasamota.com</p>
+        <p class="dorso__lema">Más que un súper, ¡una familia!</p>
+      </div>
+    </footer>
+  </section>
+
+</main>
+
+<script src="recursos/qrcode.js"></script>
+<script src="recursos/volante.js"></script>
+</body>
+</html>
