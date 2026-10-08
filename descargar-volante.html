@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Descargar volante (ZIP) · Casa Mota</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; background: #f7f9f4; color: #1a1a2e; margin: 0; padding: 40px 16px; }
+  main { max-width: 560px; margin: 0 auto; background: #fff; border: 1px solid #e0e8de; border-radius: 16px; padding: 28px; box-shadow: 0 6px 20px rgba(0,0,0,.06); }
+  h1 { font-size: 22px; color: #1a7c3e; margin: 0 0 8px; }
+  p { line-height: 1.5; margin: 0 0 14px; }
+  button { background: #1a7c3e; color: #fff; border: 0; border-radius: 30px; padding: 14px 26px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  button:disabled { background: #9bbfa7; cursor: wait; }
+  #estado { margin-top: 16px; font-size: 14px; white-space: pre-line; }
+  .ok { color: #1a7c3e; font-weight: 700; }
+  .error { color: #c62828; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Descargar el volante de la app</h1>
+  <p>Descarga <b>volante-imprimir.zip</b> con todo lo necesario: el volante, las fotos, la letra, los íconos y el código QR. Funciona sin internet.</p>
+  <p>En su PC: descomprima el ZIP → abra la carpeta <b>volante-imprimir</b> → doble clic en <b>VOLANTE.html</b>. Las instrucciones de impresión están en <b>LEEME.txt</b>.</p>
+  <button type="button" id="btn-zip">Descargar ZIP</button>
+  <div id="estado" role="status" aria-live="polite"></div>
+</main>
+<script>
+  /* 505 · Abierta con doble clic desde la PC (file://), esta página NO puede
+     funcionar: no tiene a su lado la carpeta volante-imprimir/ ni js/, y el
+     navegador no deja leer archivos locales. Antes el botón no hacía nada y
+     sin avisar; ahora lo dice claro. */
+  if (location.protocol === 'file:') {
+    document.getElementById('btn-zip').disabled = true;
+    document.getElementById('estado').className = 'error';
+    document.getElementById('estado').textContent =
+      'Esta página no funciona abierta desde la PC (doble clic). ' +
+      'Ábrala desde la web: https://supermercadocasamota.com/descargar-volante.html';
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="js/descargar-volante.js"></script>
+</body>
+</html>
