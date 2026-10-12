@@ -431,42 +431,57 @@
    *
    * Esto vale para cualquier EAN que empiece por 0 — que son miles.
    * ════════════════════════════════════════════════════════════════════════ */
-  function procesar(codigo) {
+  /* POS-44 · La búsqueda del código va en una función APARTE para que la
+   * caja (procesar) y el verificador de precio (F3) reconozcan EXACTAMENTE
+   * los mismos códigos. Si cada uno tuviera su copia, con el tiempo uno
+   * reconocería una etiqueta de báscula y el otro no. No añade nada.
+   * Devuelve { s, p, cantidad, esPeso } o, si no lo encuentra, { s, p:null, bas }. */
+  function identificar(codigo) {
     var s = String(codigo).replace(/\s/g, '');
 
     /* 1 · ¿El código existe TAL CUAL en el catálogo? Entonces es ese producto.
      *     Va primero a propósito: un dato real gana a cualquier heurística. */
     var p = _porBarcode[s];
-    if (p) { anadir(p, 1, false); return; }
+    if (p) { return { s: s, p: p, cantidad: 1, esPeso: false }; }
 
     /* 1b · Mismo código sin ceros a la izquierda. Las bases de datos suelen
      *      guardar «7501234567890» mientras el lector manda
      *      «07501234567890», o al revés. */
     var sinCeros = s.replace(/^0+/, '');
     if (sinCeros && sinCeros !== s && _porBarcode[sinCeros]) {
-      anadir(_porBarcode[sinCeros], 1, false);
-      return;
+      return { s: s, p: _porBarcode[sinCeros], cantidad: 1, esPeso: false };
     }
 
     /* 2 · No está en el catálogo → ¿será una etiqueta de báscula? */
     var bas = descifrarBascula(s);
     if (bas) {
       var pPesado = _porBarcode[bas.barcode];
-      if (pPesado) { anadir(pPesado, bas.peso, true); return; }
+      if (pPesado) { return { s: s, p: pPesado, cantidad: bas.peso, esPeso: true }; }
+      return { s: s, p: null, bas: bas };
+    }
 
+    /* 3 · Ni código conocido ni báscula */
+    return { s: s, p: null, bas: null };
+  }
+
+  function procesar(codigo) {
+    var r = identificar(codigo);
+    if (r.p) { anadir(r.p, r.cantidad, r.esPeso); return; }
+
+    if (r.bas) {
       /* Ni como código entero ni como báscula. El mensaje dice LAS DOS cosas
        * que se intentaron, para no mandar a registrar algo que ya existe. */
       pitar(true);
-      avisar('El código ' + s + ' no está en el catálogo. Se probó también ' +
-             'como etiqueta de báscula (producto ' + bas.barcode +
+      avisar('El código ' + r.s + ' no está en el catálogo. Se probó también ' +
+             'como etiqueta de báscula (producto ' + r.bas.barcode +
              ') y tampoco. Búsquelo por nombre.', 'error');
       buscarPorTexto('');
       return;
     }
 
-    /* 3 · Ni código conocido ni báscula → buscar por nombre */
+    /* Ni código conocido ni báscula → buscar por nombre */
     pitar(true);
-    avisar('El código ' + s + ' no está en el catálogo.', 'error');
+    avisar('El código ' + r.s + ' no está en el catálogo.', 'error');
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1620,6 +1635,7 @@
 
     montarCierre();
     montarCantidad();
+    montarVerificador();   // POS-44
     montarAtajos();
     reanudarSesion();   // POS-40 · tras recargar, vuelve sola a la caja
   }
@@ -1835,6 +1851,89 @@
   }
 
   /* ════════════════════════════════════════════════════════════════════════
+   * POS-44 · F3 = VERIFICADOR DE PRECIO (pedido del dueño)
+   *   La cajera pulsa F3, dispara la pistola y ve la FOTO y el PRECIO del
+   *   artículo SIN que entre en la factura. Puede verificar varios seguidos
+   *   (cada lectura sustituye a la anterior) y cierra con Esc o con el botón
+   *   para seguir facturando donde estaba.
+   *
+   * 🔴 NO TOCA LA FACTURA: no llama a anadir(), no cambia _lineas,
+   *    _ultimaLinea ni la foto del «último producto», y no guarda nada.
+   * 🔴 Reconoce los mismos códigos que la caja (identificar(): código, sin
+   *    ceros, alternativo y báscula). Una etiqueta de báscula enseña además
+   *    el peso y el importe de ESA etiqueta.
+   * 🔴 Funciona también con el límite de ITBIS alcanzado: consultar no factura.
+   * 🔴 El precio sale del catálogo cargado en la caja (el mismo que cobraría).
+   * ════════════════════════════════════════════════════════════════════════ */
+  function abrirVerificador() {
+    $('pos-ver-res').innerHTML = '<p class="pos-ver__espera">Apunte la pistola al artículo y dispare…</p>';
+    $('pos-modal-ver').hidden = false;
+    var inp = $('pos-ver-cod');
+    inp.value = '';
+    inp.focus();
+  }
+
+  function cerrarVerificador() {
+    $('pos-modal-ver').hidden = true;
+    var e = $('pos-entrada'); if (e) { e.focus(); }
+  }
+
+  function verificarPrecio(codigo) {
+    var v = String(codigo || '').trim();
+    var res = $('pos-ver-res');
+    if (!v) { return; }
+    var r = identificar(v);
+    if (!r.p) {
+      pitar(true);
+      res.innerHTML = '<p class="pos-ver__no">El código <b>' + esc(r.s) + '</b> no está en el catálogo.</p>';
+      return;
+    }
+    var p = r.p;
+    var precio = Number(p.price) || 0;
+    var foto = p.image
+      ? '<img src="' + esc(p.image) + '" alt="" class="pos-ver__img">'
+      : '<div class="pos-ver__sinfoto">' + esc((p.name || '?').charAt(0)) + '</div>';
+    var extra = '';
+    if (r.esPeso) {
+      extra = '<p class="pos-ver__peso">Esta etiqueta: ' + String(r.cantidad).replace('.', ',') + ' ' +
+              esc(p.unit || 'lb') + ' = <b>RD$ ' + dinero(Math.round(precio * r.cantidad * 100) / 100) + '</b></p>';
+    }
+    var oferta = (Number(p.originalPrice) > precio)
+      ? '<p class="pos-ver__antes">Antes RD$ ' + dinero(p.originalPrice) + '</p>' : '';
+    var aviso = (precio <= 0) ? '<p class="pos-ver__no">Sin precio en el catálogo. Revise su ficha.</p>' : '';
+    res.innerHTML =
+      foto +
+      '<div class="pos-ver__txt">' +
+        '<p class="pos-ver__nombre">' + esc(p.name) + '</p>' +
+        '<p class="pos-ver__precio">RD$ ' + dinero(precio) +
+          (p.unit ? ' <small>/ ' + esc(p.unit) + '</small>' : '') + '</p>' +
+        oferta + extra + aviso +
+        '<p class="pos-ver__cod">Código ' + esc(r.s) + '</p>' +
+      '</div>';
+    pitar(precio <= 0);
+  }
+
+  function montarVerificador() {
+    on('pos-btn-ver', 'click', function () { if (!hayVentanaAbierta()) { abrirVerificador(); } });
+    on('pos-ver-cerrar', 'click', cerrarVerificador);
+    on('pos-ver-cod', 'keydown', function (ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        var inp = $('pos-ver-cod');
+        var v = inp.value;
+        inp.value = '';               // listo para el siguiente artículo
+        verificarPrecio(v);
+      }
+      if (ev.key === 'Escape') { ev.preventDefault(); cerrarVerificador(); }
+    });
+    /* Clic fuera del campo dentro de la ventana: el foco vuelve al campo,
+     * para que la siguiente lectura de la pistola no se pierda. */
+    on('pos-modal-ver', 'click', function (ev) {
+      if (ev.target && ev.target.tagName !== 'BUTTON') { $('pos-ver-cod').focus(); }
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
    * POS-14 · ATAJOS DE TECLADO (pedido del dueño: «más fácil que el ratón»)
    *   F9 → Procesar pago (hace lo mismo que el botón, con sus mismas reglas)
    *   F7 → Cierre de turno (POS-16: el dueño lo pidió en F7, no F6)
@@ -1842,7 +1941,7 @@
    * propia del navegador (F7 activa la navegación con cursor en Chrome).
    * ════════════════════════════════════════════════════════════════════════ */
   function hayVentanaAbierta() {
-    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite', 'pos-modal-cant'];
+    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite', 'pos-modal-cant', 'pos-modal-ver'];
     for (var i = 0; i < ids.length; i++) { var e = $(ids[i]); if (e && !e.hidden) { return true; } }
     return false;
   }
@@ -1939,6 +2038,18 @@
       ev.preventDefault();                         // que no abra la Ayuda de Chrome
       if (ev.repeat) { return; }
       abrirCalculadora();                          // también con el pago abierto (para el cambio)
+    });
+    /* POS-44 · F3 = verificador de precio. Se anula la búsqueda de Chrome.
+     * Si el verificador ya está abierto, F3 lo cierra (vuelta a facturar). */
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'F3') { return; }
+      var caja = $('pos-caja');
+      if (!caja || caja.hidden) { return; }        // en la pantalla de entrada no
+      ev.preventDefault();                         // que no abra «Buscar» de Chrome
+      if (ev.repeat) { return; }
+      if (!$('pos-modal-ver').hidden) { cerrarVerificador(); return; }
+      if (hayVentanaAbierta()) { return; }
+      abrirVerificador();
     });
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'F9' && ev.key !== 'F7') { return; }
