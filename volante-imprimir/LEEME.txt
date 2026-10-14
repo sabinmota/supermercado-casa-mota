@@ -1,0 +1,35 @@
+VOLANTE · APP CASA MOTA EN EL APP STORE
+=======================================
+
+Esta carpeta tiene TODO lo necesario. Funciona SIN INTERNET.
+
+QUE HAY DENTRO
+  VOLANTE.html   -> el volante. Es el unico archivo que se abre.
+  imagenes/      -> logo y fotos de los productos
+  recursos/      -> diseno, letra, iconos y el generador del codigo QR
+                    (no tocar)
+
+COMO IMPRIMIR
+  1. Copie la carpeta "volante-imprimir" COMPLETA a su PC.
+     (Si copia solo VOLANTE.html, saldra sin fotos ni diseno.)
+  2. Haga doble clic en VOLANTE.html. Se abre en el navegador.
+     Recomendado: Google Chrome.
+  3. Pulse el boton verde "Imprimir / Guardar PDF" (arriba).
+  4. En la ventana de impresion:
+       - Destino: "Guardar como PDF" (para la imprenta)
+                  o su impresora (para una prueba)
+       - Mas opciones -> Margenes: NINGUNO
+       - Mas opciones -> activar "Graficos de fondo"
+         (sin esto NO salen los colores verdes)
+  5. Guardar. Salen 2 paginas: 1 = frente, 2 = dorso.
+
+PARA LA IMPRENTA
+  - Tamano: MEDIA CARTA (5.5 x 8.5 pulgadas)
+  - Impreso por los DOS lados (frente y dorso)
+  - Papel recomendado: couche brillante de 150 g o mas
+
+ANTES DE IMPRIMIR MUCHOS
+  Imprima uno de prueba y escanee el codigo QR con un iPhone:
+  debe abrir la app Casa Mota en el App Store.
+
+  Enlace del QR: https://apps.apple.com/app/casa-mota/id6811365677
