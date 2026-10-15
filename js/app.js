@@ -6172,28 +6172,24 @@ async function loadClientNotificaciones() {
   } catch(e) { return []; }
 }
 
+/* 507 · El número de avisos sin leer va en la CAMPANA de la barra superior
+ * (antes, build 504, iba junto a «Mi cuenta»). Mismo estilo que el de
+ * Favoritos (.favorites-badge). Se muestra en un solo sitio para no repetir
+ * el mismo número dos veces. */
 function _updateClientNotiBadge(count) {
-  let badge = document.getElementById('clientNotiBadge');
-  if (!badge) {
-    const btn = document.querySelector('.myaccount-btn, #myAccountBtn, .action-btn.account');
-    if (btn) {
-      /* 504 · Pedido del dueño: el número va AL LADO del muñequito, igual que
-       * el de Favoritos junto al corazón. Antes llevaba su propio estilo en
-       * línea y, como el botón apila icono y texto en columna, caía DEBAJO
-       * de «Mi cuenta». Ahora usa la MISMA clase que Favoritos
-       * (.favorites-badge en css/style.css: círculo rojo, esquina superior
-       * derecha del botón), así los dos se ven idénticos. */
-      badge = document.createElement('span');
-      badge.id = 'clientNotiBadge';
-      badge.className = 'favorites-badge';
-      btn.appendChild(badge);
-    }
-  }
-  if (badge) {
-    badge.textContent = count;
-    badge.style.display = count > 0 ? 'flex' : 'none';
-  }
+  const badge = document.getElementById('clientNotiBadge');
+  if (!badge) return;
+  badge.textContent = count > 99 ? '99+' : count;
+  badge.style.display = count > 0 ? 'flex' : 'none';
 }
+
+/* 507 · Atajo de la campana: abre «Mi cuenta» directamente en Notificaciones. */
+function abrirNotificaciones() {
+  const panel = document.getElementById('accountPanel');
+  if (panel && !panel.classList.contains('open')) toggleMyAccount();
+  accOpenView('notificaciones');
+}
+window.abrirNotificaciones = abrirNotificaciones;
 
 async function renderClientNotificaciones() {
   const notiContainer = document.getElementById('clientNotiList');
