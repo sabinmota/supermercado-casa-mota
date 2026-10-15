@@ -59,25 +59,8 @@ const ROLES = {
  * ─────────────────────────────────────────────────────────────────────────── */
 
 // ─── Helpers de sesión ───────────────────────────────────────────────────────
-// Obtener staff desde la API (asíncrono)
-async function getStaffList() {
-  try {
-    return await DB.getStaff();
-  } catch(e) {
-    // BUILD 395 · Antes devolvía DEFAULT_STAFF, una lista de empleados de
-    // ejemplo con contraseñas en claro. Ahora un fallo se propaga como fallo:
-    // es preferible una lista vacía a una lista inventada.
-    console.warn('[auth] no se pudo cargar el personal:', e && e.message);
-    return [];
-  }
-}
-
-// saveStaffList ya no se usa directamente — se hace desde DB.updateStaff / DB.patchStaff
-function saveStaffList(list) {
-  // Deprecated: uso solo para compatibilidad. Las operaciones de escritura
-  // se hacen con DB.createStaff / DB.updateStaff / DB.patchStaff individualmente.
-  console.warn('saveStaffList() está deprecado. Usa DB.updateStaff() directamente.');
-}
+// SEGURIDAD 92 · `getStaffList` y `saveStaffList` borradas: nadie las llamaba
+// (el panel usa DB.getStaff / DB.createStaff… directamente).
 
 function getSession() {
   try { return JSON.parse(sessionStorage.getItem('cm_session') || 'null'); }
@@ -314,8 +297,9 @@ async function loginCliente(email, password) {
    * texto legible. Ver el comentario gemelo en js/auth.v33.js. */
   const now = new Date();
   const ts  = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  // SEGURIDAD 92 · con el vale recién guardado; la hora la pone la base.
   try {
-    await DB.patchCustomer(client.id, { lastLogin: Date.now() });
+    await DB.actualizarMisDatos({ lastLogin: Date.now() });
   } catch(e) { /* no crítico */ }
 
   /* Guardar sesión SIN contraseña Y SIN VALE.

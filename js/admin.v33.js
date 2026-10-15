@@ -5249,17 +5249,13 @@ async function saveNewOrder() {
   });
   DBCached.invalidateProducts();
 
-  // Actualizar estadísticas del cliente en API y en memoria
+  // Estadísticas del cliente: SEGURIDAD 92 · las suma LA BASE al crear el
+  // pedido (`admin_crear_pedido`). Aquí solo se refleja en memoria.
   const cIdx = customers.findIndex(c => c.id === clientId);
   if (cIdx !== -1) {
     customers[cIdx].orders    = (customers[cIdx].orders || 0) + 1;
     customers[cIdx].spent     = (customers[cIdx].spent  || 0) + total;
     customers[cIdx].lastOrder = dateStr;
-    DB.patchCustomer(clientId, {
-      orders:    customers[cIdx].orders,
-      spent:     customers[cIdx].spent,
-      lastOrder: dateStr,
-    }).catch(logFail(`actualizar los contadores de "${customers[cIdx].name}"`));
     DBCached.invalidateCustomers();
   }
 
@@ -6790,34 +6786,8 @@ function saveCustomer() {
     mapLink:     document.getElementById('cMapLink').value.trim(),
   };
 
-  /* 🔴 BUILD 419 · `status` y `loyaltyTier` SE SACARON de `data` y se añaden
-   * más abajo SOLO cuando la operación va a pasar por la RPC.
-   *
-   * Por qué: `46-cerrar-fidelidad.sql` revocó a `anon` el UPDATE de esas dos
-   * columnas. `DB.patchCustomer` solo enruta por `admin_guardar_cliente`
-   * cuando el objeto TRAE contraseña (`_tieneClave`, js/api.js:1183). Editar
-   * un cliente SIN tocarle la contraseña es el caso normal —cambiar un
-   * teléfono, una dirección— y ese camino es un PATCH directo: mencionar
-   * `status` ahí es un 403 seguro.
-   *
-   * O sea que el fallo NO habría salido al crear ni al cambiar la clave; solo
-   * al editar cualquier otro dato. El caso más frecuente del panel.
-   *
-   * Se añaden en los dos sitios donde SÍ hay RPC: al crear (siempre lleva
-   * contraseña, es obligatoria) y al editar cuando se escribió una nueva. */
-  /* 🔴 BUILD 423d · SE ENVÍAN SIEMPRE, SIN CONDICIÓN.
-   *
-   * Antes esto era `if (password) { … }`, y ESE ERA EL FALLO: cambiar el
-   * ranking de un cliente sin tocarle la contraseña —el caso normal— hacía que
-   * `loyaltyTier` NUNCA saliera del navegador. El panel decía «Cliente
-   * actualizado correctamente» y el dato se perdía. Un guardado que miente es
-   * peor que un error visible.
-   *
-   * Ya se pueden mandar siempre porque `DB.patchCustomer` enruta por la RPC
-   * `admin_guardar_cliente` en cuanto detecta una de estas columnas
-   * (`_exigeRpcCliente` en js/api.js), y esa función valida el vale del
-   * empleado y las acepta desde el build 43. La decisión de si hay permiso la
-   * toma la base, no un `if` del navegador. */
+  /* `status` se envía siempre: desde SEGURIDAD 92 `DB.patchCustomer` va
+   * SIEMPRE por `admin_guardar_cliente` (vale del panel). */
   data.status      = document.getElementById('cStatus').value;
 
   /* 🔴 BUILD 425 · `loyaltyTier` YA NO SE ENVÍA DESDE AQUÍ. NO LO VUELVAS A AÑADIR.
@@ -7074,11 +7044,6 @@ function viewCustomerDetail(id) {
       <button style="flex:1;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:.88rem;display:flex;align-items:center;justify-content:center;gap:6px" onclick="closeOrderModal();openAdjustPointsModal('${c.id}')"><i class="fas fa-star"></i> Gestionar puntos</button>
     </div>`;
   document.getElementById('orderModalBackdrop').classList.remove('hidden');
-}
-
-// saveCustomers() ya no usa localStorage — operaciones individuales con DB
-function saveCustomers() {
-  // Deprecated: cada operación ahora llama directamente a DB.updateCustomer / DB.createCustomer
 }
 
 // ─── PERSONAL (CRUD completo) ─────────────────────────────────────────────────
@@ -9168,6 +9133,12 @@ async function bkStartImport() {
         if (tableName === 'categories')          await DB.saveCategory(null, body);
         else if (tableName === 'drivers')        await DB.createDriver(body);
         else if (tableName === 'notificaciones') await DB.crearNotificacion(body);
+        // SEGURIDAD 92/93 · pedidos y clientes por sus funciones del panel.
+        // El personal NO se importa: el respaldo no trae contraseñas y un
+        // empleado sin clave no podría entrar; se da de alta en Personal.
+        else if (tableName === 'orders')         await DB.createOrder(_orderFromSupa(body));
+        else if (tableName === 'customers')      await DB.createCustomer(body);
+        else if (tableName === 'staff')          throw new Error('El personal se da de alta desde Personal.');
         else await _supaFetch(`${tableName}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },

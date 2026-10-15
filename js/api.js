@@ -104,21 +104,9 @@ const _SELECT_FIELDS = {
     products:       'id,name,category,price,originalPrice,unit,stock,badge,rating,reviews,barcode,isNew,deleted,description,es_alcohol,itbis_tasa,solo_caja,barcode_alt',
   // Tienda fase 2 — solo image para actualizar imágenes
   products_imgs:  'id,image',
-  orders:    '*',
-  // BUILD 395 · `customers` y `staff` YA NO piden '*'.
-  //
-  // Pedir '*' incluye la columna `password`. Desde seguridad/31-contrasenas.sql
-  // `anon` no tiene permiso de lectura sobre esa columna, así que un '*' hace
-  // que PostgREST rechace la petición ENTERA con un 403: las secciones Clientes
-  // y Personal se quedarían vacías, sin explicación visible.
-  //
-  // `has_password` es una columna calculada por la base (true/false). Sirve para
-  // pintar el sello "Acceso / Sin contraseña" sin descargar la contraseña.
-  /* BUILD 424 · `ranking` FUERA. La tabla tenía DOS columnas para el nivel de
-   * fidelidad (`ranking` y `loyaltyTier`) y eso causó el fallo del 423e: se
-   * guardaba en una y se leía la otra. Ahora la única es `loyaltyTier`. */
-  customers: 'id,created_at,updated_at,name,email,phone,address,city,cedula,status,access,deleted,notes,avatar,mapLink,loyaltyTier,loyaltyPoints,loyaltyHistory,loyaltyLastActivity,orders,spent,lastOrder,lastLogin,authProvider,has_password',
-  staff:     'id,created_at,updated_at,firstName,lastName,email,phone,cedula,role,cargo,status,avatar,notes,lastLogin,deleted,has_password',
+  // SEGURIDAD 92/93 · `orders`, `customers` y `staff` ya no se leen con la
+  // clave pública: todo pasa por funciones con vale (ver DB.getOrders,
+  // DB.misPedidos, DB.getCustomers, DB.getStaff y DB.exportTable).
   categories:'*',
   /* 🔴 BUILD 415 · `settings` YA NO pide '*', por el mismo motivo que
    * `customers` y `staff` arriba: el asterisco incluía `groqApiKey`, columna
@@ -280,61 +268,6 @@ function _orderFromSupa(o) {
 }
 
 
-// PostgREST usa Range header: "0-199" para la primera página, etc.
-async function _apiGetAll(table, opts = {}) {
-  const PAGE    = 200;  // Bajado de 500 → menos carga por query en Supabase
-  const TIMEOUT = 12000; // 12s máximo por página
-  const fields  = _SELECT_FIELDS[table] || '*';
-  const extra   = opts.filter ? `&${opts.filter}` : '';
-  const order   = opts.sort   ? `&order=${opts.sort}.asc` : '&order=created_at.asc';
-
-  let all  = [];
-  let from = 0;
-  let keepGoing = true;
-
-  while (keepGoing) {
-    const to   = from + PAGE - 1;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
-
-    let res;
-    try {
-      res = await fetch(`${_SB_URL}/${table}?select=${encodeURIComponent(fields)}${extra}${order}`, {
-        headers: { ..._SB_HEADERS, 'Range': `${from}-${to}` },
-        signal: ctrl.signal,
-      });
-    } catch(e) {
-      clearTimeout(timer);
-      if (e.name === 'AbortError') throw new Error(`Timeout cargando ${table} (>${TIMEOUT}ms)`);
-      throw e;
-    }
-    clearTimeout(timer);
-
-    // 416 = Range Not Satisfiable → ya no hay más registros
-    if (res.status === 416) break;
-
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`API error ${res.status}: ${t}`);
-    }
-
-    const text  = await res.text();
-    const batch = text ? JSON.parse(text) : [];
-
-    if (!Array.isArray(batch) || batch.length === 0) break;
-
-    all = all.concat(batch);
-
-    if (batch.length < PAGE) {
-      keepGoing = false;
-    } else {
-      from += PAGE;
-    }
-  }
-
-  return { data: all, total: all.length };
-}
-
 // ─── CRUD helpers ─────────────────────────────────────────────────────────────
 
 // Convierte cualquier timestamp a ISO 8601 que Supabase (timestamptz) acepta.
@@ -347,110 +280,10 @@ function _toIso(val) {
   return new Date().toISOString(); // fallback
 }
 
-async function _apiGet(table, id) {
-  // BUILD 395 · '*' incluiría `password` en staff/customers → 403. Ver _devuelve().
-  const _sel = _SELECT_FIELDS[table] || '*';
-  const res = await fetch(`${_SB_URL}/${table}?id=eq.${id}&select=${encodeURIComponent(_sel)}`, {
-    headers: _SB_HEADERS,
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  const arr = await res.json();
-  return arr[0] ?? null;
-}
-
-// BUILD 395 · `Prefer: return=representation` hace que PostgREST devuelva la
-// fila COMPLETA tras escribir — y "completa" incluye `password`. Desde
-// seguridad/31-contrasenas.sql `anon` no puede leer esa columna, así que
-// devolverla entera provoca un 403 y el guardado falla.
-//
-// `_devuelveSel(table)` produce el trozo de URL que limita las columnas devueltas.
-//
-// 🔴 BUILD 396 · CORRIGE UN ERROR DEL BUILD 395.
-// La primera versión metía `select=` DENTRO de la cabecera `Prefer`:
-//     'Prefer': 'return=representation&select=id,email,...'   ← INVÁLIDO
-// En PostgREST `select` es un PARÁMETRO DE LA URL, no una preferencia. La
-// cabecera malformada se ignoraba, PostgREST devolvía la fila completa (con
-// `password`), y el guardado seguía fallando con 401 / 42501
-// «permission denied for table staff» — exactamente el fallo que se pretendía
-// arreglar. Se detectó al intentar crear un empleado nuevo en producción.
-/* 🔴 BUILD 422b1 · LO QUE UNA ESCRITURA DEVUELVE ES TAMBIÉN UNA LECTURA
- *
- * Hasta aquí, escribir en `customers` pedía de vuelta las VEINTISIETE columnas
- * de `_SELECT_FIELDS.customers` — `cedula`, `spent` y `loyaltyPoints`
- * incluidas. Eso convierte cada INSERT y cada PATCH en una lectura de esas
- * columnas, y PostgREST rechaza **la petición ENTERA con 403** cuando una sola
- * está prohibida (la lección del 396 para `password`, y del 415 para
- * `settings`).
- *
- * Consecuencia si el 422b revocase el SELECT sin tocar esto: se romperían
- * OCHO caminos de escritura, y el peor de todos es **el checkout de la
- * tienda** (`app.js:3088`), que además lo haría en silencio porque su `catch`
- * marca el fallo como «no crítico». Sería el fallo del 420 por tercera vez:
- * revocar mirando quién lee con un SELECT, cuando también lee quien escribe.
- *
- * 🔴 POR QUÉ NO SE DEVUELVE NADA EN ABSOLUTO (lo primero que se pensó, y era
- * un error): el registro por Google **SÍ usa la fila devuelta**. En la línea
- * 2247 lanza «Supabase no devolvió el cliente creado» si llega vacía, en la
- * 2251 usa `created.id`, y en la 2267 **esa fila SE CONVIERTE en la sesión del
- * cliente**. Como `_apiFetch` (línea 71) devuelve `null` con cuerpo vacío,
- * suprimir la respuesta habría roto el registro de todo cliente nuevo — y
- * seis de los nueve clientes actuales entran con Google. Otra vez «se rompe
- * para gente que TODAVÍA NO EXISTE», como el `status` del 419.
- *
- * Se devuelve, entonces, LO MÍNIMO QUE ALGUIEN USA DE VERDAD, medido llamador
- * por llamador: `id` (registro por Google y el panel al crear), `name` y
- * `email` (la sesión del cliente nuevo), `authProvider` y `avatar` (el sello
- * de Google en la ficha). Ninguna de las cinco está en la lista de cierre del
- * 422b2, así que la escritura ya no depende de un permiso que va a
- * desaparecer.
- *
- * `staff` NO SE TOCA a propósito: el 422b va de `customers`, `staff` tiene su
- * propio cierre pendiente, y mover algo que hoy funciona y que nadie pidió
- * mover es cómo se fabrican fallos nuevos. */
-/* 🔴 BUILD 423c · `authProvider` Y `avatar` FUERA DE ESTA LISTA.
- *
- * CONTRADICCIÓN MÍA ENTRE DOS BUILDS, y salió en producción al editar un
- * cliente: el 422b1 decidió devolver `id,name,email,authProvider,avatar`
- * afirmando que «ninguna de las cinco está en la lista de cierre del 422b2»
- * — y **era falso**: el `49-cerrar-lectura-clientes.sql` que yo mismo escribí
- * revoca `authProvider` en su línea 23. `avatar` nunca se concedió.
- *
- * Resultado: cada PATCH y cada INSERT sobre `customers` pedía de vuelta dos
- * columnas prohibidas, y PostgREST rechaza **la petición ENTERA con 401 /
- * 42501** cuando una sola columna lo está. Guardar un cliente desde el panel
- * fallaba con «permission denied for table customers».
- *
- * 🔴 LA LECCIÓN, y es la misma que este proyecto ya tiene anotada dos veces:
- * afirmé una coincidencia entre dos listas **sin comprobarla**, y encima la
- * escribí en el README como si estuviera medida. La lista de cierre y la
- * lista de columnas devueltas **tienen que compararse una contra otra**, no
- * de memoria. El arnés del 423c lo hace: lee los dos ficheros y exige que la
- * intersección esté vacía, así que esta clase de contradicción ya no puede
- * volver sin ponerse roja.
- *
- * Quedan las TRES que sí están concedidas (`49-...sql:41-43`): `id`, `name`,
- * `email`. Es lo mínimo que alguien usa de verdad — `created.id` en el
- * registro por Google (`api.js:2292`) y el `saved.id` del panel. */
-const _DEVUELVE_ESCRITURA = {
-  customers: 'id,name,email',
-};
-
-function _devuelveSel(table) {
-  const minimo = _DEVUELVE_ESCRITURA[table];
-  if (minimo) return `select=${encodeURIComponent(minimo)}`;
-
-  const campos = _SELECT_FIELDS[table];
-  return table === 'staff' && campos && campos !== '*'
-    ? `select=${encodeURIComponent(campos)}`
-    : '';
-}
-
-// Une un trozo de consulta a una URL que puede tener ya parámetros o no.
-function _conSel(url, sel) {
-  if (!sel) return url;
-  return url + (url.includes('?') ? '&' : '?') + sel;
-}
-
+// SEGURIDAD 92/93 · Estos dos ayudantes solo los usan ya `products` (stock,
+// descripciones). `customers`, `orders` y `staff` se escriben siempre por
+// funciones con vale, así que aquí ya no hace falta recortar lo que devuelve
+// la escritura (eso era `_devuelveSel`, borrado).
 async function _apiCreate(table, data) {
   // Quitar campos de sistema que Supabase genera automáticamente
   // También quitar 'id' para que Supabase genere el UUID propio
@@ -459,23 +292,8 @@ async function _apiCreate(table, data) {
   payload.created_at = _toIso(payload.created_at);
   payload.updated_at = _toIso(payload.updated_at);
 
-  return _apiFetch(_conSel(`${_SB_URL}/${table}`, _devuelveSel(table)), {
+  return _apiFetch(`${_SB_URL}/${table}`, {
     method:  'POST',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
-    body:    JSON.stringify(payload),
-  });
-}
-
-async function _apiUpdate(table, id, data) {
-  const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
-  // Sanitizar created_at por si viene como número en ms (legacy)
-  if (payload.created_at) payload.created_at = _toIso(payload.created_at);
-  payload.updated_at = new Date().toISOString();
-  // PostgREST PUT requiere el id en el body para el upsert
-  payload.id = id;
-
-  return _apiFetch(_conSel(`${_SB_URL}/${table}?id=eq.${id}`, _devuelveSel(table)), {
-    method:  'PUT',
     headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
@@ -487,121 +305,23 @@ async function _apiPatch(table, id, data) {
   if (payload.created_at) payload.created_at = _toIso(payload.created_at);
   payload.updated_at = new Date().toISOString();
 
-  return _apiFetch(_conSel(`${_SB_URL}/${table}?id=eq.${id}`, _devuelveSel(table)), {
+  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
     method:  'PATCH',
     headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
     body:    JSON.stringify(payload),
   });
 }
 
-async function _apiDelete(table, id) {
-  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
-    method:  'DELETE',
-    headers: _SB_WRITE_HEADERS,
-  });
-}
-
-/* ─── BUILD 418 · `_sinClaveVacia(obj)` ──────────────────────────────────────
- * Devuelve una COPIA del objeto sin la propiedad `password` cuando esa
- * propiedad no lleva nada útil (no existe, es null, o es cadena vacía o solo
- * espacios).
- *
- * POR QUÉ EXISTE, QUE NO ES COSMÉTICA
- * ───────────────────────────────────
- * `js/admin.v33.js`, al CREAR un cliente, arma el objeto con:
- *     password: data.password || ''        (línea 5050)
- * O sea que la propiedad VIENE SIEMPRE, aunque el empleado no haya escrito
- * ninguna contraseña. Este build revoca a `anon` el permiso de INSERT y UPDATE
- * sobre la columna `password`, así que un INSERT que MENCIONE esa columna
- * —incluso para meterle una cadena vacía— lo rechaza PostgreSQL con un 403 y
- * el aviso en pantalla no explicaría el motivo. Se borra la propiedad en vez
- * de mandarla vacía.
- *
- * Vale también para el camino de Google (`createClientFromOAuth`), que no
- * manda `password` en absoluto: ahí no toca nada y devuelve la copia igual.
- *
- * 🔴 Si lo que llega NO es un objeto (null, undefined), se devuelve TAL CUAL,
- * a propósito. Antes de este build, `createCustomer(null)` reventaba en el
- * desestructurado de `_apiCreate`. Devolver `{}` aquí convertiría ese fallo
- * ruidoso en la creación silenciosa de una ficha vacía en la base — cambiar un
- * error visible por corrupción de datos callada es peor negocio. */
-/* `_tieneClave(obj)` — ÚNICA definición de «este objeto trae contraseña».
- *
- * 🔴 Existe porque la primera versión de este build tenía DOS definiciones
- * distintas de lo mismo, y no coincidían. El enrutado preguntaba
- * `if (!customer.password)` mientras `_sinClaveVacia` comparaba con `.trim()`.
- * Para `password: '   '` (solo espacios) eso daba resultados OPUESTOS: el
- * enrutado la veía como contraseña real y mandaba la petición a la RPC, que
- * exige vale de panel; la tienda, que no tiene vale, se habría quedado con un
- * «Tu sesión caducó» imposible de entender. Lo detectó el arnés de pruebas,
- * no yo leyendo el código.
- *
- * Regla que queda: quien decida el camino y quien limpie el objeto tienen que
- * preguntar a ESTA función, nunca cada uno por su cuenta. */
-function _tieneClave(obj) {
-  if (!obj || typeof obj !== 'object') return false;
-  const clave = obj.password;
-  if (clave === undefined || clave === null) return false;
-  if (typeof clave === 'string') return clave.trim() !== '';
-  return true;
-}
-
+/* SEGURIDAD 92/93 · Contraseña vacía = sin contraseña. El panel arma el
+ * cliente nuevo con `password: data.password || ''`; se quita la propiedad
+ * vacía para que `admin_guardar_cliente` no la vea como «cambiar clave». */
 function _sinClaveVacia(obj) {
   if (!obj || typeof obj !== 'object') return obj;
-  if (_tieneClave(obj)) return obj;
+  const clave = obj.password;
+  if (typeof clave === 'string' ? clave.trim() !== '' : clave != null) return obj;
   const copia = { ...obj };
   delete copia.password;
   return copia;
-}
-
-/* 🔴 BUILD 423d · COLUMNAS QUE `anon` NO PUEDE ESCRIBIR DIRECTAMENTE.
- *
- * EL FALLO QUE ESTO ARREGLA, y era SILENCIOSO: el dueño cambiaba el ranking de
- * un cliente de Bronce a Plata, el panel decía «Cliente actualizado
- * correctamente», y al reabrir la ficha seguía en Bronce. **Guardaba sin
- * error y no persistía nada.**
- *
- * CAUSA: `46-cerrar-fidelidad.sql:107` revocó a `anon` el UPDATE de
- * `loyaltyTier` (y de `status`, `access`, `deleted`, `loyaltyPoints`…). El
- * build 420, para no dar un 403, hizo que `admin.v33.js` **solo añadiera esos
- * campos al objeto CUANDO había contraseña nueva** (`if (password)`), porque
- * `patchCustomer` solo enrutaba por la RPC en ese caso. Aquello quitó el error
- * visible pero **convirtió el problema en una pérdida de datos muda**: editar
- * un cliente sin tocarle la clave —el caso normal— descartaba el ranking
- * antes de enviarlo.
- *
- * 🔴 UN ERROR QUE NO SE VE ES PEOR QUE UN ERROR QUE SE VE. El 420 cambió un
- * 403 ruidoso por un «guardado correctamente» que mentía.
- *
- * ARREGLO DE RAÍZ: el camino no lo decide «¿trae contraseña?» sino
- * **«¿menciona alguna columna que `anon` no pueda escribir?»**. Si la
- * menciona, la petición va por `admin_guardar_cliente`, que es
- * `SECURITY DEFINER`, valida el vale del empleado y **ya acepta `loyaltyTier`
- * y `ranking` en su lista blanca desde el build 43** (`43-cerrar-clientes.sql:27`)
- * — no hay que crear ni ampliar nada en la base.
- *
- * Así `admin.v33.js` puede mandar el ranking SIEMPRE, sin condiciones, y es la
- * base la que decide si quien pide tiene derecho. Es el mismo principio del
- * resto del proyecto: el permiso viene del vale, no de la llave publicada.
- *
- * ⚠️ La tienda NO se rompe: un cliente nunca manda estas columnas. El
- * checkout escribe `spent`, `orders`, `lastOrder` y `loyaltyLastActivity`, que
- * NO están en esta lista a propósito — su cierre es el build 423, y hasta
- * entonces deben seguir yendo por el camino directo. */
-const _COLS_SOLO_RPC = [
-  'loyaltyTier',
-  'loyaltyPoints',
-  'loyaltyHistory',
-  'status',
-  'access',
-  'deleted',
-  'password',
-];
-
-function _exigeRpcCliente(obj) {
-  if (!obj || typeof obj !== 'object') return false;
-  if (_tieneClave(obj)) return true;
-  return _COLS_SOLO_RPC.some(c => c !== 'password' && Object.prototype.hasOwnProperty.call(obj, c));
 }
 
 // ─── ESCRITURA EN `staff` VÍA FUNCIÓN DE BASE DE DATOS (build 397) ───────────
@@ -718,6 +438,16 @@ function _soloCamposOrder(datos) {
   return limpio;
 }
 
+// SEGURIDAD 92 · Pedido nuevo listo para la base. El número lo pone la
+// secuencia de Postgres y el id lo genera la base; el resto lo filtra la
+// lista blanca de `cliente_crear_pedido` / `admin_crear_pedido`.
+function _pedidoNuevo(order) {
+  const datos = _orderToSupa(order);
+  delete datos.order_number;
+  delete datos.id;
+  return datos;
+}
+
 const _ERRORES_ORDER = {
   SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar al panel.',
   SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar al panel.',
@@ -729,6 +459,18 @@ const _ERRORES_ORDER = {
   SOLO_FINALIZADOS:   'Solo puedes ocultar pedidos entregados o cancelados.',
   CAMPO_NO_PERMITIDO: 'Ese campo no se puede desvincular.',
   FALTA_ID:           'Falta indicar el pedido.',
+  // SEGURIDAD 92
+  NO_CANCELABLE:      'Este pedido ya no puede cancelarse.',
+  DATOS_INVALIDOS:    'Los datos del pedido no llegaron correctamente.',
+};
+
+// SEGURIDAD 92 · Las mismas claves, con el texto pensado para el CLIENTE
+// (no le decimos «vuelve a entrar al panel»).
+const _ERRORES_PEDIDO_CLIENTE = {
+  ..._ERRORES_ORDER,
+  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar.',
+  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar.',
+  CUENTA_DESACTIVADA: 'Tu cuenta está desactivada. Contacta al supermercado.',
 };
 
 /* ─── BUILD 418 · Mensajes de las RPC de CLIENTES ────────────────────────────
@@ -939,7 +681,7 @@ const _ERRORES_CLIENTE_SESION = {
  * con `res.text()` y se desenvuelve el arreglo de `RETURNS TABLE` UNA sola vez,
  * aquí. Quien llame a esta función NO debe volver a desenvolver: recibiría el
  * primer CAMPO de la fila en vez de la fila. */
-async function _rpcClient(funcion, params, dicc = _ERRORES_CLIENTE_SESION) {
+async function _rpcClient(funcion, params, dicc = _ERRORES_CLIENTE_SESION, devolverArreglo = false) {
   if (!params.p_vale) {
     throw new Error('Tu sesión caducó. Vuelve a entrar a la tienda.');
   }
@@ -967,8 +709,11 @@ async function _rpcClient(funcion, params, dicc = _ERRORES_CLIENTE_SESION) {
   }
 
   const texto = await res.text();
-  if (!texto || texto === 'null') return null;
+  if (!texto || texto === 'null') return devolverArreglo ? [] : null;
   const datos = JSON.parse(texto);
+  // SEGURIDAD 92 · mismo interruptor que `_rpcStaff`: las listas (mis pedidos)
+  // se devuelven enteras; lo demás se desenvuelve una vez.
+  if (devolverArreglo) return Array.isArray(datos) ? datos : (datos == null ? [] : [datos]);
   return Array.isArray(datos) ? (datos[0] ?? null) : datos;
 }
 
@@ -1003,6 +748,16 @@ async function _rpcOrder(funcion, params, exigeVale = true) {
 // sin usar desde los builds 410 y 418 y conservadas «hasta cerrar `drivers`».
 // `drivers` ya está cerrado (su borrado lo hace `admin_borrar_repartidor` en la
 // base, en una transacción), así que se borraron como pedían sus propias notas.
+
+// Tablas que el respaldo ya no puede leer con la clave pública: se piden con
+// el vale del panel. `customers` y `staff` llegan SIN contraseñas.
+const _RPC_RESPALDO = {
+  drivers:        'admin_exportar_tabla',   // SEGURIDAD 89
+  notificaciones: 'admin_exportar_tabla',   // SEGURIDAD 89
+  customers:      'admin_respaldo_tabla',   // SEGURIDAD 92b
+  orders:         'admin_respaldo_tabla',   // SEGURIDAD 92b
+  staff:          'admin_respaldo_tabla',   // SEGURIDAD 92b
+};
 
 // ─── PRODUCTOS ────────────────────────────────────────────────────────────────
 let _totalProductsInDB = 0;
@@ -1165,73 +920,63 @@ const DB = {
   },
 
   // ── Pedidos ────────────────────────────────────────────────────────────────
+  /* 🔴 SEGURIDAD 92/93 · `orders` ya no se lee ni se escribe con la clave
+   * pública. Con ella cualquiera podía leer nombre, teléfono, dirección y
+   * compras de TODOS los pedidos, y crear o cambiar pedidos ajenos.
+   *
+   *   getOrders()     PANEL  → `admin_leer_pedidos` (vale del panel)
+   *   misPedidos()    TIENDA → `cliente_mis_pedidos` (la base filtra por el
+   *                            dueño del vale; el navegador ya no filtra)
+   *   createOrder()   las dos caras; la base decide el número, y en la tienda
+   *                   además fuerza `clientId` = dueño del vale y estado
+   *                   `pendiente`. Los contadores del cliente (pedidos, gasto,
+   *                   último pedido) los suma LA BASE en la misma transacción.
+   *
+   * `devolverArreglo = true` en las listas: sin él se quedaría solo la 1ª fila. */
   async getOrders() {
     if (_IS_GENSPARK) {
       const res  = await fetch('tables/orders?limit=2000');
       const json = await res.json();
       return Array.isArray(json.data) ? json.data.map(_orderFromSupa) : [];
     }
-    // Fetch directo con campos específicos y límite para evitar statement timeout
-    const fields = _SELECT_FIELDS.orders;
-    const ctrl   = new AbortController();
-    const timer  = setTimeout(() => ctrl.abort(), 12000);
-    let res;
-    try {
-      res = await fetch(
-        `${_SB_URL}/orders?select=${encodeURIComponent(fields)}&order=created_at.desc&limit=1000`,
-        { headers: _SB_HEADERS, signal: ctrl.signal }
-      );
-    } catch(e) { clearTimeout(timer); throw e; }
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const list = await res.json();
-    return Array.isArray(list) ? list.map(_orderFromSupa) : [];
+    const lista = await _rpcStaff('admin_leer_pedidos', { p_vale: _valeAdmin() }, _ERRORES_ORDER, true);
+    return lista.map(_orderFromSupa);
   },
 
-  // El número de pedido lo asigna LA BASE DE DATOS, no el navegador.
-  //
-  // Antes se enviaba `order_number` calculado en JS como max()+1. Eso reutilizaba
-  // números al borrar el pedido más alto, podía dar el mismo número a dos
-  // clientes simultáneos, y ante un fallo de red generaba un número aleatorio de
-  // 5 cifras (`Date.now() % 100000`).
-  //
-  // Ahora la columna tiene DEFAULT nextval(orders_order_number_seq) — ver
-  // `supabase_alter.sql` bloque 12.1. Basta con NO enviar el campo para
-  // que Postgres ponga el siguiente número de forma atómica.
-  //
-  // Devuelve la fila creada, que ya incluye el `order_number` real: quien llama
-  // debe usar ESE valor para mostrárselo al cliente, no uno calculado antes.
-  async createOrder(order) {
-    const payload = _orderToSupa(order);
-
-    // Nunca imponer el número: se deja que lo ponga la secuencia.
-    delete payload.order_number;
-
-    const creado = await _apiCreate('orders', payload);
-
-    // Red de seguridad para el caso de que el SQL de la secuencia aún no se haya
-    // ejecutado en esta base de datos: sin DEFAULT, la columna quedaría NULL.
-    // Se rellena entonces con el método antiguo, avisando en consola. Es un
-    // camino de emergencia, no el normal.
-    if (creado && (creado.order_number === null || creado.order_number === undefined)) {
-      console.warn(
-        '[DB.createOrder] La base de datos no asignó order_number. '
-      + '¿Falta ejecutar el bloque 12.1 de supabase_alter.sql? '
-      + 'Asignando número de reserva.'
-      );
-      try {
-        const todos = await DB.getOrders();
-        const max = todos.reduce(
-          (m, o) => Math.max(m, Number(o.order_number) || 0), 0
-        );
-        const parche = await _apiPatch('orders', creado.id, { order_number: max + 1 });
-        return parche || { ...creado, order_number: max + 1 };
-      } catch (e) {
-        console.error('[DB.createOrder] tampoco se pudo asignar el número de reserva:', e);
-      }
+  async misPedidos() {
+    if (_IS_GENSPARK) {
+      const res  = await fetch('tables/orders?limit=2000');
+      const json = await res.json();
+      return Array.isArray(json.data) ? json.data.map(_orderFromSupa) : [];
     }
+    const vale = _valeCliente();
+    if (!vale) return [];
+    const lista = await _rpcClient('cliente_mis_pedidos', { p_vale: vale }, _ERRORES_PEDIDO_CLIENTE, true);
+    return lista.map(_orderFromSupa);
+  },
 
-    return creado;
+  // Un pedido propio por id. Sale de la misma lista (la base ya filtra): un
+  // cliente no puede pedir por id un pedido que no es suyo.
+  async miPedido(id) {
+    const lista = await DB.misPedidos();
+    return lista.find(o => String(o.id) === String(id)) || null;
+  },
+
+  // Dos métodos separados A PROPÓSITO (no uno que mire qué vale hay): un
+  // empleado que pase del panel a la tienda en la misma pestaña tiene los dos
+  // vales, y el checkout no debe ir nunca por la puerta del panel.
+  async createOrder(order) {          // PANEL · modal «Nuevo pedido»
+    const fila = await _rpcOrder('admin_crear_pedido', {
+      p_vale: _valeAdmin(), p_datos: _pedidoNuevo(order),
+    });
+    return fila ? _orderFromSupa(fila) : null;
+  },
+
+  async crearMiPedido(order) {        // TIENDA · checkout
+    const fila = await _rpcClient('cliente_crear_pedido', {
+      p_vale: _valeCliente(), p_datos: _pedidoNuevo(order),
+    }, _ERRORES_PEDIDO_CLIENTE);
+    return fila ? _orderFromSupa(fila) : null;
   },
 
   /**
@@ -1254,12 +999,21 @@ const DB = {
     return fila ? _orderFromSupa(fila) : null;
   },
 
-  // Sigue siendo un PATCH normal: las columnas que toca la TIENDA (status,
-  // cancelledAt, cancelledBy, cuponUsado, cuponId, descuento) son las únicas
-  // que el SQL 39 deja abiertas a `anon`. Un comprador no tiene vale, así que
-  // esta ruta no puede pasar por la función de administración.
-  async patchOrder(id, fields) {
-    return _apiPatch('orders', id, _orderToSupa(fields));
+  /* SEGURIDAD 92 · Lo que la TIENDA puede hacer con un pedido suyo. Antes era
+   * un PATCH abierto (`patchOrder`) con el que cualquiera podía cancelar o
+   * quitar el descuento de un pedido AJENO. Ahora la base comprueba que el
+   * pedido es del dueño del vale, y al cancelar resta ella los contadores. */
+  async cancelarMiPedido(id) {
+    const fila = await _rpcClient('cliente_cancelar_pedido', {
+      p_vale: _valeCliente(), p_id: id,
+    }, _ERRORES_PEDIDO_CLIENTE);
+    return fila ? _orderFromSupa(fila) : null;
+  },
+
+  async quitarCuponDeMiHistorial(id) {
+    return _rpcClient('cliente_quitar_cupon_historial', {
+      p_vale: _valeCliente(), p_id: id,
+    }, _ERRORES_PEDIDO_CLIENTE);
   },
 
   /**
@@ -1421,35 +1175,8 @@ const DB = {
     return true;
   },
 
-  /* 🔴 BUILD 422a · AHORA EXIGE VALE DE PANEL.
-   *
-   * Esta función era el agujero de lectura más directo del proyecto: bastaba
-   * ADIVINAR UN CORREO para obtener nombre, teléfono, dirección, cédula,
-   * cuánto ha gastado alguien, sus puntos y su historial completo — con la
-   * llave `anon` publicada. Y los correos de Gmail no son secretos.
-   *
-   * La TIENDA ya no la usa desde el 421 (usa `misDatos()`, donde la base mira
-   * de quién es el vale). El único llamador legítimo que queda es el PANEL,
-   * que sí tiene vale propio. Así que en vez de borrarla —lo que rompería al
-   * panel— pasa por la RPC y **la base decide si quien pregunta tiene derecho
-   * a preguntar.**
-   *
-   * Devuelve `null` en vez de lanzar cuando no hay resultado, igual que antes,
-   * para no cambiar el comportamiento de quien la llama. */
-  async getCustomerByEmail(email) {
-    if (!email) return null;
-    try {
-      const fila = await _rpcStaff('admin_ficha_cliente_email', {
-        p_vale:  _valeAdmin(),
-        p_email: String(email).trim(),
-      }, _ERRORES_CLIENTE);
-      if (!fila) return null;
-      return Array.isArray(fila) ? (fila[0] || null) : fila;
-    } catch (e) {
-      console.warn('[getCustomerByEmail] no se pudo leer la ficha:', e?.message || e);
-      return null;
-    }
-  },
+  // SEGURIDAD 92 · `getCustomerByEmail` borrada: su último llamador era el
+  // registro antiguo por OAuth. La tienda usa `misDatos()`.
 
   /* ─── BUILD 418 · CREAR Y EDITAR CLIENTES DESDE EL PANEL ───────────────────
    *
@@ -1474,60 +1201,39 @@ const DB = {
    * `admin_guardar_cliente` sirve para las dos cosas: si `p_id` es null crea,
    * si no, edita. Una sola función porque la validación (correo duplicado,
    * longitud de la clave) es idéntica en ambos casos y duplicarla garantiza
-   * que algún día divergan.
+   * que algún día divergan. */
+  /* 🔴 SEGURIDAD 92/93 · `customers` ya no se escribe con la clave pública.
    *
-   * LO QUE **NO** CAMBIA, Y ES DELIBERADO
-   * ─────────────────────────────────────
-   * `patchCustomer` sigue escribiendo directamente. La TIENDA lo usa en cinco
-   * sitios (contadores del pedido, GPS, mapLink, lastLogin) y los clientes NO
-   * TIENEN VALE — no existe `cliente_sesiones` en la base. Enrutarlo por una
-   * RPC de admin habría roto el checkout. Cerrar esas columnas es el paso B y
-   * exige antes crear el vale de cliente. Aquí se cierra solo `password`,
-   * que es lo grave y lo que no tiene ningún uso legítimo desde la tienda. */
+   *   createCustomer / patchCustomer → PANEL, siempre `admin_guardar_cliente`
+   *                                    (vale del panel). Crear exige clave.
+   *   actualizarMisDatos             → TIENDA, `cliente_actualizar_mis_datos`:
+   *                                    solo dirección, ciudad, GPS, teléfono,
+   *                                    enlace de mapa y último acceso.
+   *
+   * Los contadores (pedidos, gasto, último pedido) ya no los manda nadie: los
+   * suma y resta la base al crear o cancelar un pedido. Antes el navegador
+   * mandaba el número ya hecho y cualquiera podía ponerse el gasto que quisiera.
+   * El registro con Google lo hace el servidor (`/api/oauth`), no esta capa. */
   async createCustomer(customer) {
-    // Sin contraseña no hay nada que proteger: sigue el camino directo, que es
-    // el que usa el registro por Google (`createClientFromOAuth`), donde no
-    // hay vale de panel porque no hay ningún empleado delante.
-    //
-    // 🔴 `_sinClaveVacia` NO es cosmético. `admin.v33.js` construye el objeto
-    // de creación con `password: data.password || ''`, o sea que la propiedad
-    // VIENE SIEMPRE, aunque vacía. Enviarla vacía por el camino directo sería
-    // un INSERT que menciona la columna `password` → 403 por el REVOKE de este
-    // mismo build, y el aviso en pantalla no diría por qué. Se borra la
-    // propiedad en vez de mandar una cadena vacía.
-    if (!_tieneClave(customer)) {
-      return _apiCreate('customers', _sinClaveVacia(customer));
-    }
     return _rpcStaff('admin_guardar_cliente', {
       p_vale:  _valeAdmin(),
       p_id:    null,
-      p_datos: customer,
+      p_datos: _sinClaveVacia(customer),
     }, _ERRORES_CLIENTE);
   },
 
-  async updateCustomer(id, customer) {
-    if (!_exigeRpcCliente(customer)) {
-      return _apiUpdate('customers', id, _sinClaveVacia(customer));
-    }
-    return _rpcStaff('admin_guardar_cliente', {
-      p_vale:  _valeAdmin(),
-      p_id:    id,
-      p_datos: customer,
-    }, _ERRORES_CLIENTE);
-  },
-
-  /* BUILD 423d · El camino lo decide `_exigeRpcCliente`, no «¿trae clave?».
-   * Ver la nota larga sobre `_COLS_SOLO_RPC`: preguntar por la contraseña
-   * hacía que el ranking se perdiera en silencio al editar un cliente. */
   async patchCustomer(id, fields) {
-    if (!_exigeRpcCliente(fields)) {
-      return _apiPatch('customers', id, _sinClaveVacia(fields));
-    }
     return _rpcStaff('admin_guardar_cliente', {
       p_vale:  _valeAdmin(),
       p_id:    id,
-      p_datos: fields,
+      p_datos: _sinClaveVacia(fields),
     }, _ERRORES_CLIENTE);
+  },
+
+  async actualizarMisDatos(campos) {
+    return _rpcClient('cliente_actualizar_mis_datos', {
+      p_vale: _valeCliente(), p_datos: campos,
+    }, { ..._ERRORES_CLIENTE_SESION, DATOS_INVALIDOS: 'Los datos no llegaron correctamente.' });
   },
 
   /**
@@ -1749,32 +1455,8 @@ const DB = {
       const json = await res.json();
       return json.data || [];
     }
-    const fields = _SELECT_FIELDS.staff;
-    const ctrl   = new AbortController();
-    const timer  = setTimeout(() => ctrl.abort(), 10000);
-    let res;
-    try {
-      res = await fetch(
-        `${_SB_URL}/staff?select=${encodeURIComponent(fields)}&order=created_at.asc&limit=500`,
-        { headers: _SB_HEADERS, signal: ctrl.signal }
-      );
-    } catch(e) { clearTimeout(timer); throw e; }
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const list = await res.json();
-    return Array.isArray(list) ? list : [];
-  },
-
-  async getStaffByEmail(email) {
-    const encoded = encodeURIComponent(email.toLowerCase());
-    const res = await fetch(
-      // BUILD 395 · antes '*' → incluía `password` → 403 tras el SQL de seguridad.
-      `${_SB_URL}/staff?email=ilike.${encoded}&select=${encodeURIComponent(_SELECT_FIELDS.staff)}`,
-      { headers: _SB_HEADERS }
-    );
-    if (!res.ok) return null;
-    const arr = await res.json();
-    return arr.find(s => s.email.toLowerCase() === email.toLowerCase()) || null;
+    // SEGURIDAD 92/93 · con el vale del panel; la base quita `password`.
+    return _rpcStaff('admin_listar_personal', { p_vale: _valeAdmin() }, _ERRORES_STAFF, true);
   },
 
   // ── ESCRITURA EN `staff` — BUILD 397 ───────────────────────────────────────
@@ -2171,8 +1853,9 @@ const DB = {
     // SEGURIDAD 89/90 · Estas dos tablas ya no se leen con la clave pública:
     // el respaldo las pide con el vale del panel (todas las filas, borradas
     // incluidas, sin transformar — igual que el resto del respaldo).
-    if (tabla === 'drivers' || tabla === 'notificaciones') {
-      const filas = await _rpcStaff('admin_exportar_tabla', {
+    const _rpc = _RPC_RESPALDO[tabla];
+    if (_rpc) {
+      const filas = await _rpcStaff(_rpc, {
         p_vale: _valeAdmin(), p_tabla: tabla,
       }, _ERRORES_TABLAS, true);
       if (onProgress) onProgress(filas.length, filas.length);
@@ -2185,10 +1868,6 @@ const DB = {
     let desde = 0;
     while (true) {
       const hasta = desde + pageSize - 1;
-      // BUILD 395 · '*' incluiría `password` en staff/customers → 403 y el
-      // respaldo de esas dos tablas fallaría entero. El respaldo NO debe
-      // llevarse las contraseñas: son un dato que no sirve de nada fuera de
-      // la base (van cifradas) y que no queremos en un fichero descargado.
       const _selExp = _SELECT_FIELDS[tabla] || '*';
       const res = await fetch(
         `${_SB_URL}/${tabla}?select=${encodeURIComponent(_selExp)}&order=id.asc`,
@@ -2241,8 +1920,8 @@ const DB = {
         const json = await res.json();
         return json.total ?? 0;
       }
-      if (tabla === 'drivers' || tabla === 'notificaciones') {
-        const filas = await _rpcStaff('admin_exportar_tabla', {
+      if (_RPC_RESPALDO[tabla]) {
+        const filas = await _rpcStaff(_RPC_RESPALDO[tabla], {
           p_vale: _valeAdmin(), p_tabla: tabla,
         }, _ERRORES_TABLAS, true);
         return filas.length;
@@ -2411,222 +2090,11 @@ async function abrirSesionGoogle(credential, opciones) {
   return { cliente: datos.cliente, creado: Boolean(datos.creado) };
 }
 
-/**
- * createClientFromOAuth(profile)
- *
- * 🔴 BUILD 421 · EN DESUSO PARA GOOGLE. Usa `abrirSesionGoogle(credential)`.
- *
- * Se conserva porque Apple Sign In todavía no está activo
- * (`login-cliente.html:1071` responde «estará disponible muy pronto») y cuando
- * se active necesitará el mismo tratamiento: verificar la firma en
- * `/api/oauth` antes de crear nada. Borrarla ahora obligaría a reescribirla;
- * dejarla EN USO sería mantener el agujero abierto por la puerta de Apple.
- *
- * Si al activar Apple esta función sigue sin usarse, bórrala: código muerto que
- * parece vivo es peor que no tenerlo.
- *
- * Dado un perfil normalizado de Google/Apple, busca al cliente por email en
- * Supabase. Si no existe, lo crea con status='habilitado' y authProvider marcado.
- * Devuelve el objeto cliente listo para guardar en sesión (sin password).
- *
- * @param {object} profile
- *   { email, name, given_name?, picture?, authProvider: 'google'|'apple', sub }
- * @returns {Promise<object>} cliente de Supabase
- */
-async function createClientFromOAuth(profile) {
-  const email = (profile.email || '').toLowerCase().trim();
-  if (!email) throw new Error('OAuth: email no disponible en el perfil.');
-
-  // 1) Buscar cliente existente por email
-  let existing = null;
-  try {
-    existing = await DB.getCustomerByEmail(email);
-  } catch(e) { /* continuar — red fallida */ }
-
-  if (existing) {
-    // Actualizar lastLogin siempre.
-    // BUILD 421b · `_nowMs()`, no `_nowTs()`: la columna es BIGINT y hasta
-    // ahora esta escritura fallaba en silencio en cada entrada por Google.
-    const safePatch = { lastLogin: _nowMs() };
-    try { await DB.patchCustomer(existing.id, safePatch); } catch(e) { /* no crítico */ }
-
-    // Patch authProvider + avatar — intentarlo aunque falle (schema cache puede estar desact.)
-    const optPatch = {};
-    if (profile.authProvider && !existing.authProvider) optPatch.authProvider = profile.authProvider;
-    if (profile.picture      && !existing.avatar)       optPatch.avatar       = profile.picture;
-    if (Object.keys(optPatch).length > 0) {
-      try {
-        await DB.patchCustomer(existing.id, optPatch);
-        console.log('[OAuth] authProvider actualizado en Supabase ✅', optPatch);
-      } catch(e) {
-        console.warn('[OAuth] patch authProvider falló (schema cache?) — solo se actualiza en sesión local.', e?.message || e);
-      }
-    }
-
-    // SIEMPRE incluir authProvider en la sesión local aunque el patch haya fallado,
-    // así el admin muestra el badge correcto en esta sesión.
-    const sessionOverride = {};
-    if (profile.authProvider) sessionOverride.authProvider = profile.authProvider;
-    if (profile.picture && !existing.avatar) sessionOverride.avatar = profile.picture;
-
-    const { password: _pw, ...safe } = { ...existing, ...safePatch, ...sessionOverride };
-    return safe;
-  }
-
-  // 2) No existe → crear cliente nuevo
-  // Se intenta en 3 niveles descendentes de columnas para tolerar schema cache desactualizado.
-
-  const _name = profile.name || profile.given_name || email.split('@')[0];
-
-  /* 🔴 BUILD 419 · `status: 'habilitado'` SE QUITÓ de los tres niveles.
-   *
-   * `46-cerrar-fidelidad.sql` revoca a `anon` el INSERT de `status`, porque el
-   * panel es el único que debe decidir si un cliente está habilitado. Pero este
-   * INSERT corre en el navegador DEL CLIENTE al entrar con Google por primera
-   * vez — ahí no hay ningún empleado ni ningún vale.
-   *
-   * Si la columna se quedaba mencionada aquí, el INSERT daba 403 y el registro
-   * por Google se rompía... para gente que TODAVÍA NO EXISTE. O sea que nadie
-   * lo habría notado hasta que un cliente nuevo se quejara, y el mensaje en
-   * pantalla solo diría "no se pudo crear el cliente".
-   *
-   * Peor: los tres niveles de reintento de abajo capturan el error y bajan a un
-   * INSERT más pequeño, pero el nivel C TAMBIÉN mencionaba `status`. Los tres
-   * habrían fallado por la misma causa, dando la falsa impresión de un problema
-   * de schema cache.
-   *
-   * La solución no es dejar la columna abierta: es que la BASE ponga el valor.
-   * El mismo SQL hace `ALTER COLUMN status SET DEFAULT 'habilitado'`, así que
-   * un cliente creado sin mencionarla queda igual que antes. */
-
-  /* 🔴 BUILD 424 · `ranking: 'bronce'` SE QUITÓ DE LOS DOS NIVELES.
-   *
-   * Esa columna ya no existe (se renombró y se borrará). Mencionarla en un
-   * INSERT daría error de columna inexistente y **rompería el registro de
-   * todo cliente nuevo por Google** — el mismo tipo de fallo que el `status`
-   * del build 419: invisible hasta que alguien que todavía no existe se
-   * quejara.
-   *
-   * NO se sustituye por `loyaltyTier: 'bronce'`: la columna tiene DEFAULT
-   * 'bronce' en la base (`31-contrasenas.sql`), así que un cliente creado sin
-   * mencionarla queda igual. Y además `loyaltyTier` está revocada a `anon` al
-   * insertar (`46-cerrar-fidelidad.sql:115`), así que mencionarla aquí sería
-   * un 403. La base pone el valor; el navegador no decide el nivel. */
-
-  // Nivel A — todos los campos conocidos (incluyendo authProvider/avatar)
-  const clientFull = {
-    name: _name, email, phone: '', address: '', city: '',
-    cedula: '', notes: '',
-    orders: 0, spent: 0,
-    // BUILD 421b · `lastOrder` es TEXT; `lastLogin` y `createdAt` son BIGINT.
-    lastOrder: '', lastLogin: _nowMs(), createdAt: _nowMs(),
-    authProvider: profile.authProvider || 'google',
-    avatar: profile.picture || '',
-  };
-
-  // Nivel B — sin authProvider/avatar (columnas nuevas que pueden faltar)
-  const clientBase = {
-    name: _name, email, phone: '', address: '', city: '',
-    cedula: '', notes: '',
-    orders: 0, spent: 0,
-    lastOrder: '', lastLogin: _nowMs(), createdAt: _nowMs(),
-  };
-
-  // Nivel C — solo lo absolutamente mínimo (name, email)
-  // Útil cuando el schema cache de PostgREST no reconoce columnas que SÍ existen
-  // BUILD 419 · `status` fuera: la base la pone por DEFAULT.
-  const clientMinimal = {
-    name: _name, email,
-  };
-
-  function _isSchemaErr(e) {
-    const m = (e.message || '').toLowerCase();
-    return m.includes('pgrst204') || m.includes('schema cache') ||
-           m.includes('could not find') || m.includes('400');
-  }
-
-  let created = null;
-  let createdWithAuthProvider = false;
-
-  try {
-    created = await DB.createCustomer(clientFull);
-    createdWithAuthProvider = true;  // Nivel A incluye authProvider
-  } catch(e1) {
-    if (!_isSchemaErr(e1)) throw e1;
-    console.warn('[OAuth] Nivel A falló — reintentando sin authProvider/avatar.');
-    try {
-      created = await DB.createCustomer(clientBase);
-      // Nivel B: creado sin authProvider — intentar parchear inmediatamente
-    } catch(e2) {
-      if (!_isSchemaErr(e2)) throw e2;
-      console.warn('[OAuth] Nivel B falló — reintentando con campos mínimos.');
-      try {
-        created = await DB.createCustomer(clientMinimal);
-        // Nivel C: creado sin authProvider — intentar parchear inmediatamente
-      } catch(e3) {
-        throw new Error('OAuth: no se pudo crear el cliente. Verifica el schema de Supabase. Detalle: ' + (e3.message || e3));
-      }
-    }
-  }
-
-  if (!created) throw new Error('OAuth: Supabase no devolvió el cliente creado.');
-
-  // Si el cliente fue creado sin authProvider (Nivel B o C),
-  // intentar parchear authProvider + avatar de inmediato
-  if (!createdWithAuthProvider && created.id) {
-    const postPatch = {};
-    if (profile.authProvider || 'google') postPatch.authProvider = profile.authProvider || 'google';
-    if (profile.picture) postPatch.avatar = profile.picture;
-    try {
-      await DB.patchCustomer(created.id, postPatch);
-      // Incorporar al objeto local aunque el patch haya ido bien
-      Object.assign(created, postPatch);
-      console.log('[OAuth] authProvider parcheado post-creación ✅');
-    } catch(ep) {
-      // El patch falló — al menos el objeto local en sesión tendrá authProvider correcto
-      Object.assign(created, postPatch);
-      console.warn('[OAuth] post-patch authProvider falló — solo en sesión local.', ep?.message || ep);
-    }
-  }
-
-  const { password: _pw, ...safe } = created;
-  return safe;
-}
-
-/** Timestamp legible: "31/07/2026 14:30".
- *
- * 🔴 BUILD 421b · SOLO PARA MOSTRAR EN PANTALLA. NO SE MANDA A LA BASE.
- * Ver `_nowMs()` justo debajo para el motivo. */
-function _nowTs() {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-}
-
-/* Marca de tiempo NUMÉRICA (milisegundos desde 1970) para las columnas que la
- * base declara `BIGINT`.
- *
- * 🔴 BUILD 421b · ESTO ARREGLA UN FALLO QUE YA ESTABA EN PRODUCCIÓN, y que
- * salió a la luz porque la función SQL nueva se quejó del tipo:
- *
- *     column "lastLogin" is of type bigint but expression is of type text
- *
- * `supabase_alter.sql` declara **`lastLogin` BIGINT** (línea 161) y
- * **`createdAt` BIGINT** (línea 142). Pero todo el JS les metía `_nowTs()`,
- * que devuelve una CADENA ("01/09/2026 14:30"). Postgres rechaza la escritura.
- *
- * ¿Por qué nadie lo notó nunca? Porque las tres llamadas están envueltas en un
- * `catch` que descarta el error como «no crítico», y el panel solo pinta el
- * dato `if (c.lastLogin)` — así que la ficha simplemente NO mostraba «Último acceso
- * tienda» y no había ningún error a la vista. Es el mismo patrón exacto que el
- * `loyaltyLastActivity` que no se enviaba nunca (build 419): un fallo que no
- * se queja no es un fallo que no exista.
- *
- * `lastOrder` (TEXT, línea 160) y `loyaltyLastActivity` (TEXT, línea 166) SÍ
- * llevan texto: esos siguen usando `_nowTs()`. No se puede aplicar la misma
- * regla a toda la tabla — hay que mirar columna por columna. */
-function _nowMs() {
-  return Date.now();
-}
+/* SEGURIDAD 92 · Aquí vivía `createClientFromOAuth`, el registro antiguo por
+ * Google/Apple desde el navegador. Sin uso desde el build 421 (Google entra
+ * por `/api/oauth`, verificado en el servidor) y con el cierre de `customers`
+ * ya no podría funcionar. Apple, cuando se active, irá por el mismo camino
+ * que Google. Se borró junto con `_processOAuthProfile` de login-cliente.html. */
 
 // ─── Helper de error legible ──────────────────────────────────────────────────
 function _friendlyApiError(err) {

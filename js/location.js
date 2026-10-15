@@ -261,8 +261,9 @@ async function locConfirmAddress() {
     // Guardar teléfono solo si el usuario escribió algo
     if (phone) patch.phone = phone;
 
-    // Guardar en Supabase
-    await DB.patchCustomer(client.id, patch);
+    // Guardar en Supabase. SEGURIDAD 92 · con el vale del cliente: la base
+    // solo deja tocar su propia ficha y solo estos campos.
+    await DB.actualizarMisDatos(patch);
 
     // Actualizar sesión local
     const updated = { ...client, ...patch };

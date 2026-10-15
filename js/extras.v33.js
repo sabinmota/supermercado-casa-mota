@@ -1040,11 +1040,12 @@ async function loadNotificaciones() {
      *     habría convertido en una lista de destinatarios vacía, sin ningún
      *     error visible.
      *
-     * Se piden las tres columnas que el desplegable realmente usa. No hace
-     * falta RPC aquí: `id`, `name` y `email` no son datos sensibles y el
-     * 422b no las va a revocar. */
-    const jc = await _supaFetch('customers?select=id,name,email&limit=500&order=created_at.asc', {});
-    _notiClientes = Array.isArray(jc) ? jc : [];
+     * SEGURIDAD 92/93 · Ya no se lee `customers` con la clave pública: la
+     * lista sale de la misma función del panel que la sección Clientes, y
+     * aquí se queda solo con lo que el desplegable usa. */
+    const jc = await DB.getCustomers();
+    _notiClientes = (Array.isArray(jc) ? jc : [])
+      .map(c => ({ id: c.id, name: c.name, email: c.email, phone: c.phone }));
   } catch(e) { _notiClientes = []; }
 
   _poblarDestinatarios();

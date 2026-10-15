@@ -3600,7 +3600,7 @@ async function confirmOrder() {
 
     // Guardar pedido en la API. La respuesta trae el order_number que asignó
     // Postgres — ese es el número que se le muestra al cliente.
-    const pedidoCreado = await DB.createOrder(newOrder);
+    const pedidoCreado = await DB.crearMiPedido(newOrder);
     const numeroPedido = (pedidoCreado && pedidoCreado.order_number != null)
       ? String(pedidoCreado.order_number)
       : null;
@@ -3627,13 +3627,10 @@ async function confirmOrder() {
       } catch (e) {
         console.error('[426c] el canje no se pudo aplicar:', e?.message || e);
 
-        const totalSinPuntos = +(Math.max(0, subtotal + envio - descuento) - ceroCentavos).toFixed(2);
-        try {
-          await DB.updateOrder(pedidoCreado.id, { total: totalSinPuntos });
-        } catch (e2) {
-          console.error('[426c] tampoco se pudo corregir el total:', e2?.message || e2);
-        }
-
+        // SEGURIDAD 92 · Aquí había un `DB.updateOrder` para «corregir el
+        // total», que es una función del PANEL: en la tienda fallaba siempre
+        // por falta de vale. Y no hacía falta: el pedido NACE ya sin el
+        // descuento de puntos (ver arriba), así que su total ya es el correcto.
         showToast(
           'No se pudieron aplicar tus puntos a este pedido (' +
           (e?.message || 'error') + '). El pedido se registró SIN el descuento ' +
@@ -3660,19 +3657,19 @@ async function confirmOrder() {
       }
     }).catch(logFail('leer el stock para descontarlo'));
 
-    // Actualizar estadísticas del cliente
-    const updFields = {
-      orders:              (currentClient.orders || 0) + 1,
-      spent:               +((currentClient.spent || 0) + total).toFixed(2),
-      lastOrder:           dateStr,
-      loyaltyLastActivity: new Date().toISOString(),
-    };
-    DB.patchCustomer(currentClient.id, updFields).then(() => {
-      const updClient = { ...currentClient, ...updFields };
-      const { password: _pw, ...safe } = updClient;
+    // SEGURIDAD 92 · Los contadores del cliente (pedidos, gasto, último pedido)
+    // ya los sumó LA BASE al crear el pedido. Aquí solo se refleja en la
+    // sesión para que «Mi cuenta» lo muestre sin recargar.
+    {
+      const { password: _pw, ...safe } = {
+        ...currentClient,
+        orders:    (currentClient.orders || 0) + 1,
+        spent:     +((currentClient.spent || 0) + (pedidoCreado?.total ?? total)).toFixed(2),
+        lastOrder: dateStr,
+      };
       setClientSession(safe);
       currentClient = safe;
-    }).catch(logFail('actualizar los contadores del cliente tras el pedido'));
+    }
 
     // Incrementar uso del cupón si se usó uno
     if (cuponId && typeof incrementCuponUso === 'function') {
@@ -4661,7 +4658,8 @@ async function renderMyOrders() {
 
   let myOrders = [];
   try {
-    const allOrders = await DB.getOrders();
+    // SEGURIDAD 92 · la base devuelve SOLO los pedidos del dueño del vale.
+    const allOrders = await DB.misPedidos();
     /* BUILD 413 · se descartan los que el cliente ocultó de SU historial.
      * `oculto_cliente` no borra nada: el pedido sigue entero en la base y en
      * el panel de administración, con sus ventas, puntos y estadísticas. Aquí
@@ -4785,29 +4783,9 @@ async function renderMyOrders() {
 async function repeatOrder(orderId) {
   if (!currentClient) return;
 
-  // Buscar el pedido en los datos ya cargados
+  // SEGURIDAD 92 · solo entre los pedidos propios (la base filtra).
   let order = null;
-  try {
-    const allOrders = await DB.getOrders();
-    order = allOrders.find(o => o.id === orderId);
-  } catch(e) { order = null; }
-
-  // Si no está en caché, buscarlo en Supabase directamente
-  if (!order) {
-    try {
-      if (_IS_GENSPARK) {
-        order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
-      } else {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
-        const res = await fetch(`${_SB_URL}/orders?id=eq.${orderId}&select=*`,
-          { headers: _SB_HEADERS, signal: ctrl.signal });
-        clearTimeout(timer);
-        const list = res.ok ? await res.json() : [];
-        order = list.length > 0 ? _orderFromSupa(list[0]) : null;
-      }
-    } catch(e) { order = null; }
-  }
+  try { order = await DB.miPedido(orderId); } catch(e) { order = null; }
 
   const lines = order?.productLines || [];
   if (lines.length === 0) {
@@ -4898,35 +4876,14 @@ async function cancelClientOrder(orderId) {
   }
 
   try {
-    // 1) Leer el pedido para validar y obtener productLines
-    //    En Genspark (dev) se usa la API interna; en producción se consulta Supabase directamente.
+    // 1) Leer el pedido para validar y obtener productLines.
+    //    SEGURIDAD 92 · solo entre los pedidos propios: si no es tuyo, no aparece.
     let order = null;
-    if (_IS_GENSPARK) {
-      order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
-    } else {
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
-        const res = await fetch(
-          `${_SB_URL}/orders?id=eq.${orderId}&select=*`,
-          { headers: _SB_HEADERS, signal: ctrl.signal }
-        );
-        clearTimeout(timer);
-        const list = res.ok ? await res.json() : [];
-        order = list.length > 0 ? _orderFromSupa(list[0]) : null;
-      } catch (fetchErr) {
-        console.warn('[cancelClientOrder] fetch Supabase falló:', fetchErr);
-        order = null;
-      }
-    }
+    try { order = await DB.miPedido(orderId); }
+    catch (e) { console.warn('[cancelClientOrder] no se pudo leer el pedido:', e?.message || e); }
     if (!order) {
       if (card) { card.style.opacity = ''; card.style.pointerEvents = ''; }
       showToast('Pedido no encontrado', 'error');
-      return;
-    }
-    if (order.clientId !== currentClient.id && order.email !== currentClient.email) {
-      if (card) { card.style.opacity = ''; card.style.pointerEvents = ''; }
-      showToast('No tienes permiso para cancelar este pedido', 'error');
       return;
     }
     if (!['pendiente', 'procesando'].includes(order.status)) {
@@ -4935,13 +4892,10 @@ async function cancelClientOrder(orderId) {
       return;
     }
 
-    // 2) Marcar el pedido como cancelado — ÚNICA operación crítica que el usuario espera
-    // cancelledAt como bigint (ms) — la columna en Supabase es type bigint, no timestamptz
-    await DB.patchOrder(orderId, {
-      status:      'cancelado',
-      cancelledBy: 'cliente',
-      cancelledAt: Date.now(),
-    });
+    // 2) Marcar el pedido como cancelado — ÚNICA operación crítica que el usuario espera.
+    //    SEGURIDAD 92 · la base comprueba que es tuyo y que aún se puede
+    //    cancelar, pone la hora, y resta ella los contadores del cliente.
+    await DB.cancelarMiPedido(orderId);
 
     // ── Feedback de éxito inmediato — el usuario ya puede seguir ──
     // orderLabel(order), no orderId: orderId es el UUID de Supabase.
@@ -4964,20 +4918,19 @@ async function cancelClientOrder(orderId) {
       }));
     };
 
-    const updateStats = async () => {
-      const newOrders = Math.max(0, (currentClient.orders || 0) - 1);
-      const newSpent  = Math.max(0, (currentClient.spent  || 0) - (order.total || 0));
-      await DB.patchCustomer(currentClient.id, { orders: newOrders, spent: newSpent })
-        .catch(logFail('restar los contadores del cliente al cancelar'));
-      const updClient = { ...currentClient, orders: newOrders, spent: newSpent };
-      const { password: _pw, ...safe } = updClient;
+    // Contadores: ya los restó la base; solo se refleja en la sesión.
+    {
+      const { password: _pw, ...safe } = {
+        ...currentClient,
+        orders: Math.max(0, (currentClient.orders || 0) - 1),
+        spent:  Math.max(0, (currentClient.spent  || 0) - (order.total || 0)),
+      };
       setClientSession(safe);
       currentClient = safe;
-    };
+    }
 
-    // Ejecutar en paralelo, sin await — el usuario ya recibió su feedback
-    Promise.all([restoreStock(), updateStats()])
-      .catch(logFail('las tareas de fondo de la cancelación'));
+    // Sin await — el usuario ya recibió su feedback
+    restoreStock().catch(logFail('reponer el stock al cancelar'));
 
   } catch(e) {
     console.error('[cancelClientOrder]', e);
@@ -5045,32 +4998,12 @@ async function deleteClientOrder(orderId) {
   if (!confirm('¿Eliminar este pedido cancelado de tu historial? Esta acción no se puede deshacer.')) return;
 
   try {
-    // Verificar que el pedido pertenece al cliente y está cancelado
-    // En Genspark (dev) se usa la API interna; en producción se consulta Supabase directamente.
+    // Verificar que está cancelado. SEGURIDAD 92 · solo entre los pedidos
+    // propios: si no es tuyo, no aparece.
     let order = null;
-    if (_IS_GENSPARK) {
-      order = await _apiFetch(`tables/orders/${orderId}`).catch(() => null);
-    } else {
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
-        const res = await fetch(
-          `${_SB_URL}/orders?id=eq.${orderId}&select=*`,
-          { headers: _SB_HEADERS, signal: ctrl.signal }
-        );
-        clearTimeout(timer);
-        const list = res.ok ? await res.json() : [];
-        order = list.length > 0 ? _orderFromSupa(list[0]) : null;
-      } catch (fetchErr) {
-        console.warn('[deleteClientOrder] fetch Supabase falló:', fetchErr);
-        order = null;
-      }
-    }
+    try { order = await DB.miPedido(orderId); }
+    catch (e) { console.warn('[deleteClientOrder] no se pudo leer el pedido:', e?.message || e); }
     if (!order) { showToast('Pedido no encontrado', 'error'); return; }
-    if (order.clientId !== currentClient.id && order.email !== currentClient.email) {
-      showToast('No tienes permiso para eliminar este pedido', 'error');
-      return;
-    }
     if (order.status !== 'cancelado') {
       showToast('Solo puedes eliminar pedidos cancelados', 'warning');
       return;
@@ -5107,11 +5040,8 @@ async function clearCancelledOrders() {
   if (!confirm('¿Eliminar todos los pedidos cancelados de tu historial? Esta acción no se puede deshacer.')) return;
 
   try {
-    const allOrders = await DB.getOrders();
-    const cancelled = allOrders.filter(o =>
-      (o.clientId === currentClient.id || o.email === currentClient.email) &&
-      o.status === 'cancelado'
-    );
+    const allOrders = await DB.misPedidos();
+    const cancelled = allOrders.filter(o => o.status === 'cancelado');
 
     if (cancelled.length === 0) {
       showToast('No hay pedidos cancelados para eliminar', 'info');
@@ -5145,13 +5075,9 @@ async function renderMyCoupons() {
 
   let myOrders = [];
   try {
-    const allOrders = await DB.getOrders();
-    // Filtrar solo pedidos del cliente que tienen cupón
-    myOrders = allOrders.filter(o =>
-      (o.clientId === currentClient.id || o.email === currentClient.email) &&
-      o.cuponUsado &&
-      o.descuento > 0
-    );
+    const allOrders = await DB.misPedidos();
+    // Solo los pedidos con cupón (la base ya devolvió solo los propios)
+    myOrders = allOrders.filter(o => o.cuponUsado && o.descuento > 0);
   } catch(e) {
     container.innerHTML = `<div class="account-empty"><i class="fas fa-exclamation-circle"></i><span>Error al cargar cupones</span></div>`;
     return;
@@ -5217,11 +5143,7 @@ async function renderMyCoupons() {
 async function deleteCouponEntry(orderId) {
   if (!confirm('¿Eliminar esta entrada del historial de cupones? El pedido seguirá visible en Mis pedidos.')) return;
   try {
-    await DB.patchOrder(orderId, {
-      cuponUsado: '',
-      cuponId:    '',
-      descuento:  0,
-    });
+    await DB.quitarCuponDeMiHistorial(orderId);
 
     // Animación de salida
     const card = document.getElementById(`coupon-entry-${orderId}`);
@@ -5245,12 +5167,8 @@ async function clearAllCouponHistory() {
   if (!currentClient) return;
   if (!confirm('¿Limpiar todo el historial de cupones usados? Los pedidos seguirán visibles en Mis pedidos.')) return;
   try {
-    const allOrders = await DB.getOrders();
-    const withCoupon = allOrders.filter(o =>
-      (o.clientId === currentClient.id || o.email === currentClient.email) &&
-      o.cuponUsado &&
-      o.descuento > 0
-    );
+    const allOrders = await DB.misPedidos();
+    const withCoupon = allOrders.filter(o => o.cuponUsado && o.descuento > 0);
 
     if (withCoupon.length === 0) {
       showToast('No hay entradas para limpiar', 'info');
@@ -5259,7 +5177,7 @@ async function clearAllCouponHistory() {
 
     // Limpiar campos de cupón en todos los pedidos afectados (en paralelo)
     await Promise.all(withCoupon.map(o =>
-      DB.patchOrder(o.id, { cuponUsado: '', cuponId: '', descuento: 0 })
+      DB.quitarCuponDeMiHistorial(o.id)
         .catch(logFail(`limpiar el cupón del pedido #${o.order_number || o.id}`))
     ));
 
@@ -5474,7 +5392,7 @@ function deleteMyLocation() {
 function _saveClientMapLink(link) {
   if (!currentClient) return;
   // Actualizar en la API
-  DB.patchCustomer(currentClient.id, { mapLink: link })
+  DB.actualizarMisDatos({ mapLink: link })
     .catch(logFail('guardar el enlace de Google Maps del cliente'));
   // Actualizar sesión
   const updClient = { ...currentClient, mapLink: link };
