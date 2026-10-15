@@ -1007,23 +1007,11 @@ let _notiClientes   = [];
 let _notiTimer      = null;
 
 /* ── Carga desde la API ────────────────────────────────────────── */
-/* SEGURIDAD 89/90 · TODAS las lecturas de la campana pasan por aquí, con el
- * vale del panel. Antes había cinco copias de la misma consulta con la clave
- * pública, que además pedían las 300 MÁS ANTIGUAS y les daban la vuelta: a
- * partir de la 301 los avisos nuevos no habrían aparecido nunca. La función
- * de la base devuelve las más RECIENTES primero. */
-async function _leerNotificacionesPanel(limite = 300) {
-  const lista = await DB.getNotificacionesAdmin(limite);
-  return (Array.isArray(lista) ? lista : []).filter(n => !n.deleted);
-}
-
 async function loadNotificaciones() {
   try {
-    notificaciones = await _leerNotificacionesPanel();
-  } catch(e) {
-    console.warn('[noti] no se pudieron cargar:', e && e.message);
-    notificaciones = [];
-  }
+    const json = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(json) ? json : [])].filter(n => !n.deleted).reverse();
+  } catch(e) { notificaciones = []; }
 
   try {
     /* 🔴 BUILD 422a · ANTES PEDÍA `select=*` Y ESO ERA DOS PROBLEMAS EN UNO.
@@ -1226,7 +1214,10 @@ async function markNotiRead(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n || n.leido !== false) return;
   try {
-    await DB.patchNotificacion(id, { leido: true });
+    await _supaFetch(`notificaciones?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ leido: true })
+    });
     n.leido = true;
     renderNotificaciones();
     _renderNotificacionesLaterales();
@@ -1238,7 +1229,12 @@ async function markAllNotiRead() {
   const sinLeer = notificaciones.filter(n => n.leido === false);
   if (!sinLeer.length) return;
   try {
-    await Promise.all(sinLeer.map(n => DB.patchNotificacion(n.id, { leido: true })));
+    await Promise.all(sinLeer.map(n =>
+      _supaFetch(`notificaciones?id=eq.${n.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ leido: true })
+      })
+    ));
     notificaciones.forEach(n => { n.leido = true; });
     renderNotificaciones();
     _renderNotificacionesLaterales();
@@ -1251,16 +1247,14 @@ async function markAllNotiRead() {
 async function deleteNoti(id) {
   if (!confirm('Eliminar esta notificacion?')) return;
   try {
-    await DB.patchNotificacion(id, { deleted: true });
+    await _supaFetch(`notificaciones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ deleted: true }) });
     notificaciones = notificaciones.filter(n => n.id !== id);
     _notiSel.delete(id);
     renderNotificaciones();
     _renderNotificacionesLaterales();
     updateNavBadge();
     _showAdminToast('Notificacion eliminada', 'success');
-  } catch(e) {
-    _showAdminToast('No se pudo eliminar: ' + (e?.message || e), 'error');
-  }
+  } catch(e) {}
 }
 
 /* ═══ BUILD 429 · BORRADO MÚLTIPLE DE NOTIFICACIONES ═══════════════════════
@@ -1368,7 +1362,10 @@ async function borrarNotiSeleccionadas() {
    * Es la misma lección del build 427 en la carga del panel. Aquí se borra todo
    * lo que se pueda y se informa exactamente de cuántas quedaron. */
   const res = await Promise.allSettled(
-    visibles.map(n => DB.patchNotificacion(n.id, { deleted: true }))
+    visibles.map(n => _supaFetch('notificaciones?id=eq.' + n.id, {
+      method: 'PATCH',
+      body: JSON.stringify({ deleted: true })
+    }))
   );
 
   const okIds = [];
@@ -1446,12 +1443,15 @@ async function sendNotificacion() {
   };
 
   try {
-    await DB.crearNotificacion(payload);
+    await _supaFetch('notificaciones', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
     closeNotiModal();
     await loadNotificaciones();
     _showAdminToast('Notificacion enviada', 'success');
   } catch(e) {
-    alert('Error al enviar la notificacion: ' + (e?.message || e));
+    alert('Error al enviar la notificacion.');
   }
 }
 
@@ -1485,15 +1485,18 @@ async function sendNewOrderNotification(order, recargar = true) {
   const total   = Number(order.total) || 0;
 
   try {
-    await DB.crearNotificacion({
-      titulo              : `Pedido nuevo #${numero}`,
-      mensaje             : `${cliente} · RD$ ${total.toFixed(2)}`,
-      tipo                : 'nuevo_pedido',
-      destinatario_id     : null,
-      destinatario_nombre : cliente,
-      cliente_email       : null,   // ← interno: no visible para el cliente
-      leido               : false,
-      pedido_id           : order.id,
+    await _supaFetch('notificaciones', {
+      method: 'POST',
+      body: JSON.stringify({
+        titulo              : `Pedido nuevo #${numero}`,
+        mensaje             : `${cliente} · RD$ ${total.toFixed(2)}`,
+        tipo                : 'nuevo_pedido',
+        destinatario_id     : null,
+        destinatario_nombre : cliente,
+        cliente_email       : null,   // ← interno: no visible para el cliente
+        leido               : false,
+        pedido_id           : order.id,
+      })
     });
     if (recargar) await _recargarNotificaciones();
     return true;
@@ -1548,11 +1551,13 @@ async function sincronizarNotificacionesPedidos(lista) {
 
   let yaRegistrados;
   try {
-    // La base devuelve la lista de ids SIN tope: antes `limit=1000` dejaba de
-    // ver lo registrado a partir del aviso 1.001 y empezaba a duplicar.
-    const ids = await DB.notiPedidosRegistrados();
+    const filas = await _supaFetch(
+      'notificaciones?select=pedido_id&tipo=eq.nuevo_pedido&limit=1000', {}
+    );
     yaRegistrados = new Set(
-      (Array.isArray(ids) ? ids : []).map(String).filter(Boolean)
+      (Array.isArray(filas) ? filas : [])
+        .map(f => String(f.pedido_id || ''))
+        .filter(Boolean)
     );
   } catch (e) {
     // Sin poder leer lo ya registrado, NO se escribe: crear a ciegas duplicaria
@@ -1583,7 +1588,8 @@ async function sincronizarNotificacionesPedidos(lista) {
 /** Relee las notificaciones y repinta campana, lista y panel lateral. */
 async function _recargarNotificaciones() {
   try {
-    notificaciones = await _leerNotificacionesPanel();
+    const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
     if (typeof updateNavBadge === 'function') updateNavBadge();
     if (typeof renderNotifDropdown === 'function') renderNotifDropdown();
     if (document.getElementById('notiList') && typeof renderNotificaciones === 'function') {
@@ -1653,7 +1659,9 @@ async function sendOrderStatusNotification(order, nuevoEstado) {
   const correo = order.email || order.customer_email || order.customerEmail || '';
 
   try {
-    await DB.crearNotificacion({
+    await _supaFetch('notificaciones', {
+      method: 'POST',
+      body: JSON.stringify({
         titulo,
         mensaje,
         tipo                : 'cambio_estado',
@@ -1672,6 +1680,7 @@ async function sendOrderStatusNotification(order, nuevoEstado) {
         // el estado, que es lo que importa. Si algun dia se quiere el badge,
         // primero hay que anadir la columna con ALTER TABLE.
         pedido_id           : order.id,
+      })
     });
 
     // Si el pedido no tiene correo, el aviso queda solo en el panel. Conviene
@@ -1685,13 +1694,11 @@ async function sendOrderStatusNotification(order, nuevoEstado) {
     }
     const badge = document.getElementById('navBadgeNoti');
     if (badge) {
-      notificaciones = await _leerNotificacionesPanel();
+      const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+      notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
       updateNavBadge();
     }
-  } catch(e) {
-    // Antes `catch(e) {}`: si el aviso al cliente fallaba, nadie se enteraba.
-    console.warn('[noti] no se pudo avisar al cliente del cambio de estado:', e && e.message);
-  }
+  } catch(e) {}
 }
 
 /* ── Búsqueda de cliente en el panel lateral ───────────────────── */
@@ -1740,7 +1747,8 @@ function selectNotiClient(clienteId) {
 /* ── Fetch rápido del badge ────────────────────────────────────── */
 async function _fetchBadge() {
   try {
-    notificaciones = await _leerNotificacionesPanel();
+    const j = await _supaFetch('notificaciones?select=*&limit=300&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
     updateNavBadge();
     if (typeof renderDashboardKpis === 'function') renderDashboardKpis();
   } catch(e) {}
@@ -1779,9 +1787,8 @@ async function openNotifDropdown() {
   _renderNotifDd();
 
   try {
-    // 300, no 100: con 100 la campana sobrescribía la lista de 300 de la
-    // sección Notificaciones y los contadores bajaban al abrirla.
-    notificaciones = await _leerNotificacionesPanel();
+    const j = await _supaFetch('notificaciones?select=*&limit=100&order=created_at.asc', {});
+    notificaciones = [...(Array.isArray(j) ? j : [])].filter(n => !n.deleted).reverse();
     _renderNotifDd();
     updateNavBadge();
     _updateNotifDot();
@@ -1884,8 +1891,7 @@ async function notifDdMarkRead(id, el) {
     n.leido = true;
     _updateNotifDot();
     updateNavBadge();
-    try { await DB.patchNotificacion(id, { leido: true }); }
-    catch (e) { console.warn('[noti] no se pudo marcar como leída:', e && e.message); }
+    try { await _supaFetch(`notificaciones?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ leido: true }) }); } catch(_) {}
   }
 }
 
@@ -1896,7 +1902,10 @@ async function notifMarkAllRead() {
   _updateNotifDot();
   updateNavBadge();
   await Promise.allSettled(
-    unread.map(n => DB.patchNotificacion(n.id, { leido: true }))
+    unread.map(n => _supaFetch(`notificaciones?id=eq.${n.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ leido: true })
+    }))
   );
   _showAdminToast('Todas las notificaciones marcadas como leidas', 'success');
 }

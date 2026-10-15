@@ -6048,20 +6048,55 @@ function toggleFiscalForm() {
 
 let _clientNotiBadge = 0;
 
-/* SEGURIDAD 89/90 · Aquí vivía `_notiFetch` (build 391), que llamaba a la tabla
- * con la clave pública. Las notificaciones del cliente van ahora por
- * DB.misNotificaciones / DB.marcarMiNotificacion (js/api.js) con su vale,
- * así que se borró. */
+/* ─── BUILD 391 · `_notiFetch`: el fallo de raíz ──────────────────────────────
+ * Este bloque llamaba a `_supaFetch(...)`, que NO EXISTE en la tienda: solo
+ * está definido en `js/extras.v33.js:10`, y ese fichero lo carga únicamente
+ * `admin.html`. En `index.html` (línea 1274-1280) no aparece.
+ *
+ * Consecuencia: `loadClientNotificaciones()` lanzaba ReferenceError en su
+ * primera línea útil. El `try/catch` que la envuelve se lo tragaba y devolvía
+ * `[]`, así que la pantalla del cliente mostraba siempre «Todo al día» —
+ * sin error visible, sin nada en rojo en la consola. Por eso el cliente no
+ * veía NADA: ni los cambios de estado ni ninguna otra notificación.
+ *
+ * O sea: el fallo del build 390 (`cliente_email` ausente) era real, pero
+ * había un segundo fallo DEBAJO que lo hacía irrelevante. Aunque el 390
+ * hubiera estado perfecto, el cliente habría seguido sin ver nada.
+ *
+ * Se define aquí un helper propio en vez de cargar `extras.v33.js` en la
+ * tienda: ese fichero son ~1.700 líneas de panel de administración (reportes,
+ * cupones, PDF) que el cliente no necesita descargar. Y usa `_SB_HEADERS` de
+ * `js/api.js`, que la tienda SÍ carga.
+ */
+async function _notiFetch(endpoint, options = {}) {
+  const method  = (options.method || 'GET').toUpperCase();
+  const headers = { ..._SB_HEADERS, ...(options.headers || {}) };
+  if (['POST', 'PATCH', 'PUT'].includes(method)) headers['Prefer'] = 'return=representation';
+
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(`${_SB_URL}/${endpoint}`, {
+      method, headers, body: options.body || undefined, signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 204) return null;
+  if (!res.ok) throw new Error(`_notiFetch ${res.status}: ${await res.text()}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
 
 async function loadClientNotificaciones() {
   if (!currentClient?.email) return [];
   let json;
   try {
-    /* SEGURIDAD 89/90 · Antes se pedían con la clave pública filtrando por
-     * correo EN EL NAVEGADOR: cualquiera podía cambiar el correo de la
-     * consulta y leer los avisos de otro cliente. Ahora la base identifica al
-     * cliente por su vale y solo le entrega los suyos y los de «todos». */
-    json = await DB.misNotificaciones();
+    const emailEnc = encodeURIComponent(currentClient.email);
+    json = await _notiFetch(
+      `notificaciones?select=*&limit=50&order=created_at.desc&or=(cliente_email.eq.${emailEnc},cliente_email.eq.todos)`
+    );
   } catch (e) {
     // Un fallo aquí ya NO se traga en silencio: antes, cualquier problema se
     // veía igual que «no tienes notificaciones», que es lo que ocultó este bug
@@ -6079,12 +6114,9 @@ async function loadClientNotificaciones() {
     // campana del panel, porque `js/extras.v33.js:933` carga TODAS las
     // notificaciones (sin filtrar por correo) y descarta las que tengan
     // `deleted`. El cliente borraría el historial del dueño de la tienda.
-    // El correo se compara igual que en la base (sin mayúsculas ni espacios):
-    // si aquí fuera exacto, un aviso a «Ana@x.com» se perdería para «ana@x.com».
-    const miCorreo = String(currentClient.email || '').trim().toLowerCase();
     const all  = (Array.isArray(json) ? json : []).filter(n =>
       !n.deleted && !n.borrada_cliente &&
-      (String(n.cliente_email || '').trim().toLowerCase() === miCorreo || n.cliente_email === 'todos')
+      (n.cliente_email === currentClient.email || n.cliente_email === 'todos')
     );
 
     // ⚠️ SOLO `leida`. NO mirar `leido` — error corregido en el build 392.
@@ -6395,7 +6427,10 @@ async function markClientNotiRead(id) {
   try {
     // Solo `leida`. NO tocar `leido`: esa es la marca del administrador, y que
     // el cliente lea su aviso no debe borrarlo de la campana del panel.
-    await DB.marcarMiNotificacion(id, 'leida');
+    await _notiFetch(`notificaciones?id=eq.${id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ leida: true })
+    });
     renderClientNotificaciones();
   } catch (e) {
     console.warn('[noti] no se pudo marcar como leida:', e && e.message);
@@ -6421,7 +6456,10 @@ async function deleteClientNoti(id) {
   if (!id) return;
   if (!confirm('¿Eliminar esta notificación? Solo se quita de tu pantalla.')) return;
   try {
-    await DB.marcarMiNotificacion(id, 'borrada_cliente');
+    await _notiFetch(`notificaciones?id=eq.${id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ borrada_cliente: true })
+    });
     await renderClientNotificaciones();
     if (typeof showToast === 'function') showToast('Notificación eliminada', 'success');
   } catch (e) {
@@ -6444,7 +6482,10 @@ async function deleteAllClientNotis() {
   if (!confirm(`¿Eliminar tus ${list.length} notificaciones? Solo se quitan de tu pantalla.`)) return;
 
   const res = await Promise.allSettled(
-    list.map(n => DB.marcarMiNotificacion(n.id, 'borrada_cliente'))
+    list.map(n => _notiFetch(`notificaciones?id=eq.${n.id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ borrada_cliente: true })
+    }))
   );
   const fallos = res.filter(r => r.status === 'rejected').length;
 

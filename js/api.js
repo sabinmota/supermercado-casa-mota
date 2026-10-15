@@ -119,6 +119,7 @@ const _SELECT_FIELDS = {
    * guardaba en una y se leía la otra. Ahora la única es `loyaltyTier`. */
   customers: 'id,created_at,updated_at,name,email,phone,address,city,cedula,status,access,deleted,notes,avatar,mapLink,loyaltyTier,loyaltyPoints,loyaltyHistory,loyaltyLastActivity,orders,spent,lastOrder,lastLogin,authProvider,has_password',
   staff:     'id,created_at,updated_at,firstName,lastName,email,phone,cedula,role,cargo,status,avatar,notes,lastLogin,deleted,has_password',
+  drivers:   '*',
   categories:'*',
   /* 🔴 BUILD 415 · `settings` YA NO pide '*', por el mismo motivo que
    * `customers` y `staff` arriba: el asterisco incluía `groqApiKey`, columna
@@ -663,17 +664,6 @@ const _ERRORES_STAFF = {
   FALTA_ID:             'Falta indicar el empleado.',
 };
 
-// SEGURIDAD 89/90 · Errores de las funciones de categorías, repartidores y
-// notificaciones.
-const _ERRORES_TABLAS = {
-  SESION_INVALIDA:    'Tu sesión no es válida. Vuelve a entrar.',
-  SESION_CADUCADA:    'Tu sesión caducó. Vuelve a entrar.',
-  CUENTA_DESACTIVADA: 'Tu cuenta ya no está activa.',
-  NO_EXISTE:          'Ese registro ya no existe. Recarga la página.',
-  SIN_DATOS:          'No hay datos que guardar.',
-  NOTIFICACION_AJENA: 'Esa notificación no es tuya.',
-};
-
 // ─── BUILD 410 · ESCRITURA EN `orders` VÍA FUNCIÓN DE BASE DE DATOS ─────────
 //
 // EL AGUJERO QUE ESTO CIERRA (auditoría del 14/08/2026, SQL 39)
@@ -999,10 +989,112 @@ async function _rpcOrder(funcion, params, exigeVale = true) {
   return Array.isArray(datos) ? (datos[0] ?? null) : datos;
 }
 
-// SEGURIDAD 89/90 · Aquí vivían `_apiPatchWhere` y `_desvincularPedidosDeCliente`,
-// sin usar desde los builds 410 y 418 y conservadas «hasta cerrar `drivers`».
-// `drivers` ya está cerrado (su borrado lo hace `admin_borrar_repartidor` en la
-// base, en una transacción), así que se borraron como pedían sus propias notas.
+// PATCH masivo por filtro en vez de por id. Sirve para desvincular de golpe
+// todos los pedidos de un cliente con UNA sola petición.
+//   _apiPatchWhere('orders', 'clientId=eq.abc', { clientId: null })
+//
+// BUILD 410 · SIN USAR AHORA MISMO, A PROPÓSITO.
+// Sus dos llamadas (desvincular pedidos al borrar un cliente o un repartidor)
+// pasaron a `admin_desvincular_pedidos`, porque `anon` ya no puede escribir
+// `clientId` ni `driverId`. Se conserva porque el paso 2 (cerrar `drivers`)
+// la va a necesitar para tablas que aún no han migrado. Si al terminar el
+// paso 2 sigue sin usarse, bórrala: código muerto que parece vivo es peor
+// que no tenerlo.
+async function _apiPatchWhere(table, filter, data) {
+  const payload = { ...data, updated_at: new Date().toISOString() };
+  return _apiFetch(_conSel(`${_SB_URL}/${table}?${filter}`, _devuelveSel(table)), {
+    method:  'PATCH',
+    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
+    body:    JSON.stringify(payload),
+  });
+}
+
+// ─── BORRADO SEGURO: DESVINCULAR ANTES DE BORRAR ──────────────────────────────
+//
+// EL BUG QUE ESTO ARREGLA (build 372)
+// ───────────────────────────────────
+// `_apiDelete` hace un DELETE REAL, no un `deleted = true`. Cuando se borraba
+// una ficha de cliente, la fila desaparecía de `customers` pero sus pedidos
+// seguían en `orders` con un `clientId` apuntando a un id que ya no existía.
+//
+// Consecuencia: pedidos HUÉRFANOS. No se los podía atribuir a nadie, no
+// aparecían en las estadísticas de ningún cliente, y su importe se esfumaba
+// de los totales. En la base de producción encontramos 4 así (RD$1.898).
+//
+// LO QUE NO SE HACE Y POR QUÉ
+// ───────────────────────────
+// · NO se borran los pedidos junto al cliente. Son registros contables:
+//   una venta entregada ocurrió, aunque la ficha del comprador se elimine.
+// · NO se usa borrado suave (`deleted = true`) en `customers`. Habría que
+//   filtrar `deleted` en getCustomers(), en el login de la tienda y en cada
+//   pantalla del panel; demasiada superficie para este arreglo. El cliente
+//   debe desaparecer de verdad, como espera quien pulsa «Eliminar».
+//
+// LO QUE SÍ SE HACE
+// ─────────────────
+// Antes del DELETE, los pedidos se vuelven autosuficientes:
+//   1. Se les copia la identidad del cliente (nombre / email / teléfono) en
+//      sus propias columnas, si les faltaba alguna.
+//   2. Se pone `clientId = null` → deja de ser una referencia rota y pasa a
+//      ser un pedido explícitamente sin ficha asociada.
+// Así el histórico de ventas sobrevive y no queda ni un puntero muerto.
+//
+// 🔴 BUILD 418 · YA NO SE USA. Su único llamador era `DB.deleteCustomer`, que
+// ahora hace todo el trabajo en la base con `admin_borrar_cliente` (una sola
+// transacción, en vez de tres viajes desde el navegador que podían quedarse a
+// medias). Se deja escrito aquí en vez de borrarla porque el paso 2 del cierre
+// de seguridad (`drivers`) necesita la misma maniobra para `driverId`, y este
+// código ya está probado en producción.
+// REGLA: si al cerrar `drivers` sigue sin usarse, BÓRRALA. Código muerto que
+// parece vivo es peor que no tenerlo — es la misma nota que dejó el build 410
+// sobre `_apiPatchWhere`, y sigue sin cumplirse.
+
+async function _desvincularPedidosDeCliente(customerId) {
+  // 1) ¿Qué pedidos cuelgan de esta ficha?
+  const url = `${_SB_URL}/orders`
+            + `?clientId=eq.${encodeURIComponent(customerId)}`
+            + `&select=id,customer,client,customer_email,email,customer_phone,phone`;
+  const res = await fetch(url, { headers: _SB_HEADERS });
+  if (!res.ok) throw new Error(`No se pudieron leer los pedidos del cliente (${res.status})`);
+  const pedidos = await res.json();
+  if (!Array.isArray(pedidos) || pedidos.length === 0) return 0;
+
+  // 2) Traer la identidad de la ficha para estamparla donde falte.
+  // 🔴 BUILD 422a · Por RPC con vale, no por SELECT con la llave `anon`.
+  // Esta lectura pide solo `name,email,phone` (no cédula ni puntos), pero el
+  // permiso que usaba era el mismo que el 422b va a revocar: sin este cambio,
+  // borrar un cliente dejaría de estampar la identidad en sus pedidos y esos
+  // pedidos quedarían huérfanos y sin nombre. El `catch` de abajo lo habría
+  // ocultado, así que el fallo no se habría notado hasta ir a buscar un
+  // pedido antiguo.
+  let ficha = null;
+  try {
+    const r = await _rpcStaff('admin_ficha_cliente', {
+      p_vale: _valeAdmin(),
+      p_id:   customerId,
+    }, _ERRORES_CLIENTE);
+    ficha = Array.isArray(r) ? (r[0] || null) : (r || null);
+  } catch (e) {
+    console.warn('[deleteCustomer] no se pudo leer la ficha para estampar identidad:', e?.message || e);
+  }
+
+  // BUILD 410 · Los pasos 2 y 3 los hace ahora LA BASE DE DATOS en una sola
+  // llamada. Motivo: `anon` ya no puede escribir `clientId`, `customer`,
+  // `customer_email` ni `customer_phone` (SQL 39), así que ni el estampado de
+  // identidad ni el PATCH masivo funcionarían desde el navegador.
+  // Ventaja añadida: al ser una sola operación en el servidor, ya no puede
+  // quedarse a medias (identidad estampada pero vínculo sin cortar).
+  const n = await _rpcOrder('admin_desvincular_pedidos', {
+    p_vale:      _valeAdmin(),
+    p_campo:     'clientId',
+    p_id:        customerId,
+    p_identidad: ficha
+      ? { name: ficha.name || null, email: ficha.email || null, phone: ficha.phone || null }
+      : null,
+  });
+
+  return Number(n) || pedidos.length;
+}
 
 // ─── PRODUCTOS ────────────────────────────────────────────────────────────────
 let _totalProductsInDB = 0;
@@ -1706,9 +1798,8 @@ const DB = {
    * Borra la ficha de un cliente SIN dejar sus pedidos huérfanos.
    *
    * Los pedidos NO se borran (son historial contable): se les estampa la
-   * identidad del cliente y se les pone `clientId = null`, así el histórico
-   * de ventas sobrevive sin referencias rotas (build 372: 4 pedidos
-   * huérfanos, RD$1.898, por borrar sin desvincular).
+   * identidad del cliente y se les pone `clientId = null`. Ver el comentario
+   * de `_desvincularPedidosDeCliente` arriba para el porqué.
    *
    * Si la desvinculación falla, el cliente NO se borra — antes un botón que
    * da error que una base de datos con referencias rotas.
@@ -1826,95 +1917,71 @@ const DB = {
   },
 
   // ── Repartidores ───────────────────────────────────────────────────────────
-  /* 🔴 SEGURIDAD 89/90 · `drivers` ya no se lee ni se escribe con la clave
-   * pública: tiene cédula, teléfono y dirección de los repartidores, y con
-   * la clave `anon` (publicada en este fichero) cualquiera podía leerlos,
-   * cambiarlos o borrarlos. Todo pasa por funciones que exigen el vale del
-   * panel. `devolverArreglo = true` porque la lectura devuelve la LISTA
-   * entera: sin él, `_rpcStaff` se quedaría solo con el primer repartidor. */
   async getDrivers() {
     if (_IS_GENSPARK) {
       const res  = await fetch('tables/drivers?limit=500');
       const json = await res.json();
       return json.data || [];
     }
-    return _rpcStaff('admin_leer_repartidores', { p_vale: _valeAdmin() },
-                     _ERRORES_TABLAS, true);
+    const fields = _SELECT_FIELDS.drivers;
+    const ctrl   = new AbortController();
+    const timer  = setTimeout(() => ctrl.abort(), 10000);
+    let res;
+    try {
+      res = await fetch(
+        `${_SB_URL}/drivers?select=${encodeURIComponent(fields)}&order=created_at.asc&limit=500`,
+        { headers: _SB_HEADERS, signal: ctrl.signal }
+      );
+    } catch(e) { clearTimeout(timer); throw e; }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
   },
 
   async createDriver(driver) {
-    return _rpcStaff('admin_guardar_repartidor', {
-      p_vale: _valeAdmin(), p_id: null, p_datos: driver,
-    }, _ERRORES_TABLAS);
+    return _apiCreate('drivers', driver);
+  },
+
+  async updateDriver(id, driver) {
+    return _apiUpdate('drivers', id, driver);
   },
 
   async patchDriver(id, fields) {
-    return _rpcStaff('admin_guardar_repartidor', {
-      p_vale: _valeAdmin(), p_id: id, p_datos: fields,
-    }, _ERRORES_TABLAS);
+    return _apiPatch('drivers', id, fields);
   },
 
-  /* Borra el repartidor y suelta sus pedidos (driverId = NULL) en UNA sola
-   * transacción en la base. Antes eran tres viajes desde el navegador y, si
-   * el último fallaba, quedaban pedidos sueltos de un repartidor que seguía
-   * existiendo. Mantiene la forma de retorno `{ pedidosDesvinculados }`. */
+  /**
+   * Borra un repartidor sin dejar pedidos apuntando a un `driverId` inexistente.
+   * Mismo criterio que deleteCustomer: los pedidos se conservan, se les copia
+   * el nombre del repartidor si la columna existe y se anula la referencia.
+   */
   async deleteDriver(id) {
-    const n = await _rpcStaff('admin_borrar_repartidor', {
-      p_vale: _valeAdmin(), p_id: id,
-    }, _ERRORES_TABLAS);
-    return { pedidosDesvinculados: Number(n) || 0 };
-  },
-
-  // ── Notificaciones ─────────────────────────────────────────────────────────
-  /* 🔴 SEGURIDAD 89/90 · Antes la tienda y el panel leían y escribían
-   * `notificaciones` con la clave pública: cualquiera podía leer los avisos
-   * de TODOS los clientes (con nombres e importes) o crear avisos falsos
-   * «de Casa Mota». Ahora:
-   *   · el PANEL lee y escribe con su vale;
-   *   · cada CLIENTE recibe solo las suyas y solo puede marcar/borrar las
-   *     suyas, con el vale de la tienda. */
-  async getNotificacionesAdmin(limite = 300) {
-    return _rpcStaff('admin_leer_notificaciones', {
-      p_vale: _valeAdmin(), p_limite: limite,
-    }, _ERRORES_TABLAS, true);
-  },
-
-  async notiPedidosRegistrados() {
-    return _rpcStaff('admin_noti_pedidos_registrados', { p_vale: _valeAdmin() },
-                     _ERRORES_TABLAS, true);
-  },
-
-  async crearNotificacion(datos) {
-    return _rpcStaff('admin_guardar_notificacion', {
-      p_vale: _valeAdmin(), p_id: null, p_datos: datos,
-    }, _ERRORES_TABLAS);
-  },
-
-  async patchNotificacion(id, campos) {
-    return _rpcStaff('admin_guardar_notificacion', {
-      p_vale: _valeAdmin(), p_id: id, p_datos: campos,
-    }, _ERRORES_TABLAS);
-  },
-
-  /* Lado del CLIENTE. Devuelve [] si no hay vale (invitado o pestaña
-   * reabierta) en vez de lanzar: la pantalla debe poder pintar «Todo al día». */
-  async misNotificaciones() {
-    const vale = _valeCliente();
-    if (!vale) return [];
-    const res = await fetch(`${_SB_URL}/rpc/cliente_mis_notificaciones`, {
-      method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }),
-    });
-    if (!res.ok) throw new Error(`No se pudieron cargar las notificaciones (${res.status}): ${(await res.text()).slice(0, 200)}`);
-    const datos = await res.json();
-    return Array.isArray(datos) ? datos : [];
-  },
-
-  /* campo: 'leida' (la leyó el cliente) o 'borrada_cliente' (la quitó de su
-   * pantalla). La base rechaza cualquier otro campo y cualquier aviso ajeno. */
-  async marcarMiNotificacion(id, campo) {
-    return _rpcClient('cliente_marcar_notificacion', {
-      p_vale: _valeCliente(), p_id: id, p_campo: campo,
-    }, { ..._ERRORES_CLIENTE_SESION, ..._ERRORES_TABLAS });
+    let pedidosDesvinculados = 0;
+    try {
+      const r = await fetch(
+        `${_SB_URL}/orders?driverId=eq.${encodeURIComponent(id)}&select=id`,
+        { headers: _SB_HEADERS }
+      );
+      if (r.ok) {
+        const arr = await r.json();
+        if (Array.isArray(arr) && arr.length > 0) {
+          // BUILD 410 · por la base de datos: `anon` ya no puede escribir driverId.
+          const n = await _rpcOrder('admin_desvincular_pedidos', {
+            p_vale:  _valeAdmin(),
+            p_campo: 'driverId',
+            p_id:    id,
+          });
+          pedidosDesvinculados = Number(n) || arr.length;
+        }
+      }
+    } catch (e) {
+      // A diferencia del cliente, aquí no bloqueamos el borrado: `driverId`
+      // suelto solo afecta a la etiqueta del repartidor, no a las ventas.
+      console.warn('[deleteDriver] no se pudo desvincular pedidos:', e?.message || e);
+    }
+    await _apiDelete('drivers', id);
+    return { pedidosDesvinculados };
   },
 
   // ── Configuración ──────────────────────────────────────────────────────────
@@ -2105,21 +2172,30 @@ const DB = {
     } catch { return []; }
   },
 
-  /* 🔴 SEGURIDAD 89/90 · La tienda sigue LEYENDO `categories` con la clave
-   * pública (getCategories, arriba). Crear, editar y borrar pasa a exigir el
-   * vale del panel: con la clave `anon` cualquiera podía borrar las 37
-   * categorías y dejar la tienda sin menú.
-   * id = null → alta; id = UUID → edición. */
-  async saveCategory(id, datos) {
-    return _rpcStaff('admin_guardar_categoria', {
-      p_vale: _valeAdmin(), p_id: id || null, p_datos: datos,
-    }, _ERRORES_TABLAS);
+  async saveCategory(cat) {
+    try {
+      if (cat._apiUuid) {
+        const { _apiUuid, ...catData } = cat;
+        return await _apiUpdate('categories', _apiUuid, catData);
+      }
+      // Buscar si ya existe por slug
+      const res  = await fetch(
+        `${_SB_URL}/categories?slug=eq.${encodeURIComponent(cat.slug)}&select=*`,
+        { headers: _SB_HEADERS }
+      );
+      const list = res.ok ? (await res.json()).filter(r => !r.deleted) : [];
+      if (list.length > 0) {
+        return await _apiUpdate('categories', list[0].id, cat);
+      }
+      return await _apiCreate('categories', cat);
+    } catch(e) {
+      console.warn('[DB.saveCategory]', e);
+      return await _apiCreate('categories', cat);
+    }
   },
 
-  async deleteCategory(id) {
-    return _rpcStaff('admin_borrar_categoria', {
-      p_vale: _valeAdmin(), p_id: id,
-    }, _ERRORES_TABLAS);
+  async deleteCategory(apiUuid) {
+    return _apiDelete('categories', apiUuid);
   },
 
   // ── Exportación genérica (respaldos) ───────────────────────────────────────
@@ -2166,17 +2242,6 @@ const DB = {
         page++;
       }
       return todo;
-    }
-
-    // SEGURIDAD 89/90 · Estas dos tablas ya no se leen con la clave pública:
-    // el respaldo las pide con el vale del panel (todas las filas, borradas
-    // incluidas, sin transformar — igual que el resto del respaldo).
-    if (tabla === 'drivers' || tabla === 'notificaciones') {
-      const filas = await _rpcStaff('admin_exportar_tabla', {
-        p_vale: _valeAdmin(), p_tabla: tabla,
-      }, _ERRORES_TABLAS, true);
-      if (onProgress) onProgress(filas.length, filas.length);
-      return filas;
     }
 
     // Producción: Supabase PostgREST. La paginación va por cabecera Range,
@@ -2240,12 +2305,6 @@ const DB = {
         if (!res.ok) return null;
         const json = await res.json();
         return json.total ?? 0;
-      }
-      if (tabla === 'drivers' || tabla === 'notificaciones') {
-        const filas = await _rpcStaff('admin_exportar_tabla', {
-          p_vale: _valeAdmin(), p_tabla: tabla,
-        }, _ERRORES_TABLAS, true);
-        return filas.length;
       }
       const res = await fetch(
         `${_SB_URL}/${tabla}?select=id`,
