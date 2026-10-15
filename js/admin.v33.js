@@ -7574,7 +7574,6 @@ function saveSettings() {
 }
 
 // ─── REPARTIDORES ─────────────────────────────────────────────────────────────
-const DRIVERS_KEY = 'cm_drivers'; // mantenido por compatibilidad
 let drivers = []; // cargado desde API en initAdminData
 let editingDriverId = null;
 let deleteDriverId  = null;
@@ -7582,7 +7581,6 @@ let deleteDriverId  = null;
 const _debouncedRenderDrivers = debounce(() => renderDrivers(), 220);
 
 function getDrivers()   { return drivers; }
-function saveDriversLS(){ /* Deprecated: usar DB.createDriver / DB.updateDriver */ }
 
 // ── Render tabla ──────────────────────────────────────────────────────────────
 function renderDrivers() {
@@ -7805,7 +7803,7 @@ function deleteDriver(id) {
   if (!confirm(`¿Eliminar al repartidor "${d.name}"? Esta acción no se puede deshacer.`)) return;
   DB.deleteDriver(id)
     .then(() => { drivers = drivers.filter(x => x.id !== id); DBCached.invalidateDrivers(); renderDrivers(); showAdminToast('Repartidor eliminado', 'info'); })
-    .catch(() => showAdminToast('Error al eliminar repartidor', 'error'));
+    .catch(err => { console.error('deleteDriver error:', err); showAdminToast('Error al eliminar repartidor: ' + (err?.message || err), 'error'); });
 }
 
 // ── Vista de perfil detallado del repartidor ──────────────────────────────────
@@ -8342,12 +8340,13 @@ async function saveCategory() {
                     sort_order: order, active };
 
   try {
+    // SEGURIDAD 89/90 · Por función con vale del panel (antes PUT/POST con la
+    // clave pública, que dejaba a cualquiera editar o borrar categorías).
     if (editingCategoryUuid) {
-      // Actualizar: usar el UUID real de la API
-      await _apiUpdate('categories', editingCategoryUuid, catData);
+      await DB.saveCategory(editingCategoryUuid, catData);
       showAdminToast(`Categoría "${name}" actualizada ✔`, 'success');
     } else {
-      await _apiCreate('categories', catData);
+      await DB.saveCategory(null, catData);
       showAdminToast(`Categoría "${name}" creada ✔`, 'success');
     }
 
@@ -8361,7 +8360,7 @@ async function saveCategory() {
 
   } catch(e) {
     console.error('[saveCategory]', e);
-    showAdminToast('Error al guardar la categoría', 'error');
+    showAdminToast('Error al guardar la categoría: ' + (e?.message || e), 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-save"></i> Guardar';
@@ -8555,13 +8554,13 @@ async function confirmDeleteCategory() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando…';
 
   try {
-    await _apiDelete('categories', deletingCategoryUuid);
+    await DB.deleteCategory(deletingCategoryUuid);
     showAdminToast('Categoría eliminada', 'success');
     closeCatDeleteModal();
     await loadCategories();
   } catch(e) {
     console.error('[deleteCategory]', e);
-    showAdminToast('Error al eliminar la categoría', 'error');
+    showAdminToast('Error al eliminar la categoría: ' + (e?.message || e), 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
@@ -9164,8 +9163,12 @@ async function bkStartImport() {
         delete body.created_at;
         delete body.updated_at;
 
-        // Usar _supaFetch para escribir directamente en Supabase
-        await _supaFetch(`${tableName}`, {
+        // SEGURIDAD 89/90 · Estas tres tablas ya no aceptan escrituras con la
+        // clave pública: se importan por sus funciones con el vale del panel.
+        if (tableName === 'categories')          await DB.saveCategory(null, body);
+        else if (tableName === 'drivers')        await DB.createDriver(body);
+        else if (tableName === 'notificaciones') await DB.crearNotificacion(body);
+        else await _supaFetch(`${tableName}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify(body)
