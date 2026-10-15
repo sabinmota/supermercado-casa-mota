@@ -2572,6 +2572,22 @@ html.es-app-nativa .barcode-scan-btn { display: flex; }
     min-width: 42px;
   }
   .action-btn i { font-size: 1rem; }
+
+  /* 505 · En el móvil el botón «Instalar app» salía cortado a la derecha:
+   * `.header-actions` no encoge (flex-shrink: 0) y el botón llevaba su tamaño
+   * de escritorio (.82rem, 8px 14px), así que saludo + 3 botones + instalar no
+   * cabían en 390 px. En el móvil se saca de esa fila y se coloca en el hueco
+   * libre a la derecha del logo, en horizontal (icono + texto). */
+  .header-main-inner { position: relative; }
+  .pwa-install-btn {
+    position: absolute !important;
+    top: 14px;
+    right: 16px;
+    flex-direction: row !important;
+    font-size: .74rem !important;
+    padding: 8px 12px !important;
+  }
+  .pwa-install-btn i { font-size: .9rem; }
   
   /* Dark mode toggle más compacto en mobile */
   .dark-mode-toggle { margin-right: 4px; }
