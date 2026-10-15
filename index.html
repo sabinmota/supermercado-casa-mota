@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '497', KEY = 'cm_app_ver';
+        var VER = '498', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=337" />
+  <link rel="stylesheet" href="css/style.css?v=338" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
     html, body {
@@ -1004,6 +1004,16 @@
   <!-- ===================== TOAST NOTIFICATIONS ===================== -->
   <div class="toast-container" id="toastContainer"></div>
 
+  <!-- 506 · Barra flotante del carrito (solo móvil y app; la pinta js/app.js) -->
+  <button class="cart-bar" id="cartBar" type="button" onclick="toggleCart()" aria-label="Ver carrito">
+    <span class="cart-bar__icon">
+      <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+      <span class="cart-bar__count" id="cartBarCount">0</span>
+    </span>
+    <span class="cart-bar__total" id="cartBarTotal">RD$ 0.00</span>
+    <span class="cart-bar__btn">Ver carrito</span>
+  </button>
+
   <!-- Banner de instalación para iOS (Safari no tiene botón automático) -->
   <div class="ios-install-banner" id="iosInstallBanner">
     <button class="ios-close" onclick="document.getElementById('iosInstallBanner').classList.remove('show')">
@@ -1396,7 +1406,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=301"></script>
   <script src="js/favorites.js?v=285"></script>
-  <script src="js/app.js?v=380"></script>
+  <script src="js/app.js?v=381"></script>
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/location.js?v=121"></script>

@@ -1001,10 +1001,65 @@ function productCardHTML(p) {
           </div>
         </div>
       </div>
-      <button class="add-cart-btn" onclick="addToCart('${p.id}')" title="Agregar al carrito">
-        <i class="fas fa-cart-plus" aria-hidden="true"></i><span>Añadir</span>
-      </button>
+      <div class="card-cart-ctl" data-cart-ctl="${p.id}">${_cardCtlInner(p.id)}</div>
     </div>`;
+}
+
+/* 506 · Botón de la tarjeta al estilo de las apps nuevas: si el producto NO
+ * está en el carrito se ve «Añadir»; si ya está, se convierte en el
+ * contador «− cantidad +», así se ajusta sin abrir el carrito. */
+function _cardCtlInner(id) {
+  const item = cart.find(c => String(c.id) === String(id));
+  if (!item) {
+    return `<button class="add-cart-btn" onclick="addToCart('${id}')" title="Agregar al carrito">
+        <i class="fas fa-cart-plus" aria-hidden="true"></i><span>Añadir</span>
+      </button>`;
+  }
+  return `<div class="card-stepper" role="group" aria-label="Cantidad en el carrito">
+        <button class="card-stepper__btn" onclick="updateQty('${id}', -1)"
+                title="${item.qty === 1 ? 'Quitar del carrito' : 'Restar uno'}">
+          <i class="fas ${item.qty === 1 ? 'fa-trash-can' : 'fa-minus'}" aria-hidden="true"></i>
+        </button>
+        <span class="card-stepper__qty">${item.qty}</span>
+        <button class="card-stepper__btn" onclick="updateQty('${id}', 1)" title="Sumar uno">
+          <i class="fas fa-plus" aria-hidden="true"></i>
+        </button>
+      </div>`;
+}
+
+/* Repinta solo el botón de las tarjetas visibles (tienda y vitrinas), sin
+ * volver a dibujar la cuadrícula ni recargar las fotos. */
+function _refreshCardCtls() {
+  document.querySelectorAll('[data-cart-ctl]').forEach(el => {
+    el.innerHTML = _cardCtlInner(el.getAttribute('data-cart-ctl'));
+  });
+}
+
+/* 506 · Barra flotante del carrito (abajo, en móvil y en la app). Aparece
+ * cuando hay algo en el carrito; muestra unidades y total de los productos
+ * y abre el carrito al tocarla. */
+function _renderCartBar(totalQty, subtotal) {
+  const bar = document.getElementById('cartBar');
+  if (!bar) return;
+  const n = document.getElementById('cartBarCount');
+  const t = document.getElementById('cartBarTotal');
+  if (n) n.textContent = totalQty;
+  if (t) t.textContent = `RD$ ${fmt$(subtotal)}`;
+  const visible = totalQty > 0;
+  bar.classList.toggle('show', visible);
+  document.body.classList.toggle('has-cart-bar', visible);
+}
+
+function _bumpCartBar() {
+  const bar = document.getElementById('cartBar');
+  if (!bar) return;
+  bar.classList.remove('bump');
+  void bar.offsetWidth;          // reinicia la animación aunque se pulse seguido
+  bar.classList.add('bump');
+}
+
+function _hayBarraCarrito() {
+  return window.matchMedia('(max-width: 900px)').matches;
 }
 
 // ─── MANEJO DE TOQUE EN TARJETA DE PRODUCTO ──────────────────────────────────
@@ -2948,7 +3003,10 @@ function addToCart(productId, qty = 1) {
 
   saveCart();
   updateCartUI();
-  showToast(`<i class="fas fa-check"></i> ${product.name} agregado al carrito`, 'success');
+  // En móvil la barra de abajo ya confirma (cambia el total y da un salto);
+  // el aviso flotante la taparía. En ordenador no hay barra: se mantiene.
+  if (_hayBarraCarrito()) _bumpCartBar();
+  else showToast(`<i class="fas fa-check"></i> ${product.name} agregado al carrito`, 'success');
 }
 
 function removeFromCart(productId) {
@@ -2972,6 +3030,7 @@ function updateQty(productId, delta) {
   saveCart();
   updateCartUI();
   renderCartItems();
+  if (delta > 0 && _hayBarraCarrito()) _bumpCartBar();
 }
 
 function saveCart() {
@@ -3005,6 +3064,10 @@ function updateCartUI() {
   // Total incluyendo envío
   const totEl = document.getElementById('cartTotal');
   if (totEl) totEl.textContent = `RD$ ${fmt$(total)}`;
+
+  // 506 · Barra flotante y contadores de las tarjetas
+  _renderCartBar(totalQty, subtotal);
+  _refreshCardCtls();
 }
 
 function renderCartItems() {
