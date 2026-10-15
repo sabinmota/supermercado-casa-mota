@@ -602,10 +602,9 @@
     // ¿Puede LEER la tabla de notificaciones? Si esto falla, la
     // sincronización sale sin escribir nada — y sin decir por qué.
     try {
-      const filas = await _supaFetch(
-        'notificaciones?select=pedido_id&tipo=eq.nuevo_pedido&limit=1000', {});
+      const filas = await DB.notiPedidosRegistrados();
       const ids = new Set((Array.isArray(filas) ? filas : [])
-        .map(f => String(f.pedido_id || '')).filter(Boolean));
+        .map(String).filter(Boolean));
       paso('lectura de la tabla `notificaciones`', true,
            ids.size + ' pedidos ya registrados');
       const faltan = recientes.filter(o => !ids.has(String(o.id)));
