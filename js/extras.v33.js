@@ -939,51 +939,10 @@ async function validateCupon(codigo, subtotal) {
   return { valid: true, cupon: c, descuento: Math.round(descuento * 100) / 100 };
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   BUILD 461 · CONTAR EL USO DE UN CUPÓN · el más grave de los tres
-
-   🔴 QUÉ ESTABA PASANDO, y es una pérdida de dinero, no un defecto visual:
-   esta función la llama LA TIENDA (`js/app.js:3562`) cuando un cliente
-   cierra un pedido con cupón. Hacía un PATCH directo, que el RLS dejaba en
-   CERO filas — igual que guardar y borrar. Y su `catch` estaba VACÍO
-   (`catch(e) {}`), así que no quedaba ni rastro en consola.
-
-   Resultado: `usos_actuales` NUNCA subía. Y como `validateCupon` comprueba
-   `usos_actuales >= usos_maximos`, siempre comparaba contra 0: **un cupón
-   limitado a 20 usos se podía canjear sin límite**.
-
-   ⚠️ NO lleva vale de empleado: quien la llama es un cliente, que no tiene
-   sesión de personal. Su seguridad es distinta — la RPC solo puede SUMAR 1
-   al contador de un cupón activo; no puede cambiar el importe, ni el
-   código, ni revivir uno vencido.
-
-   Y ahora suma EN LA BASE (`usos_actuales + 1`), no con el número que
-   tuviera el navegador en memoria. Antes enviaba `(c.usos_actuales||0)+1`
-   calculado desde su copia local: con dos clientes usando el mismo cupón a
-   la vez, los dos leían 5 y los dos escribían 6, perdiéndose un uso.
-   ══════════════════════════════════════════════════════════════════════════ */
-async function incrementCuponUso(id) {
-  if (!id) return;
-  /* Sin `try/catch` que se lo trague: quien llama es
-   * `app.js:3563 .catch(logFail('incrementar el uso del cupón'))`, que sí
-   * registra el fallo. Tragarse el error aquí fue justo lo que mantuvo este
-   * defecto invisible durante meses. */
-  const res = await fetch(`${_SB_URL}/rpc/cliente_usar_cupon`, {
-    method:  'POST',
-    headers: _SB_HEADERS,
-    body:    JSON.stringify({ p_id: id }),
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`No se pudo contar el uso del cupón (${res.status}): ${txt.slice(0, 200)}`);
-  }
-  // Refrescar la copia en memoria para que la comprobación de agotado use
-  // el número real y no el anterior.
-  const nuevo = Number(await res.text());
-  const c = cupones.find(x => x.id === id);
-  if (c && Number.isFinite(nuevo)) c.usos_actuales = nuevo;
-  return nuevo;
-}
+/* SEGURIDAD 94 · `incrementCuponUso` borrada, y con ella la función de base
+   `cliente_usar_cupon`, que cualquiera podía llamar con la clave pública para
+   gastar los usos de un cupón ajeno. El uso lo cuenta ahora la base al crear
+   el pedido, en la misma operación: ya no puede quedar contado sin pedido. */
 
 /* ── Toast helper (reutiliza el de admin si existe) ────────────── */
 function _showAdminToast(msg, type = 'success') {
@@ -1930,7 +1889,6 @@ window.saveCupon           = saveCupon;
 window.deleteCupon         = deleteCupon;
 window.updateCuponValLabel = updateCuponValLabel;
 window.validateCupon       = validateCupon;
-window.incrementCuponUso   = incrementCuponUso;
 
 // Notificaciones
 window.loadNotificaciones            = loadNotificaciones;

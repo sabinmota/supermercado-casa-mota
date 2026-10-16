@@ -868,8 +868,8 @@
        desactiva sola («entorno web: la capa nativa queda inactiva») y no toca
        nada más que `window.Capacitor` y `sessionStorage`. -->
   <script src="js/nativo.js?v=8"></script>
-  <script src="js/api.js?v=352"></script>
-  <script src="js/auth.v33.js?v=302"></script>
+  <script src="js/api.js?v=356"></script>
+  <script src="js/auth.v33.js?v=303"></script>
   <script>
     // ── Redirigir si ya hay sesión ─────────────────────────────────
     (function() {
@@ -1521,38 +1521,9 @@
       }
     }
 
-    /* En desuso para Google desde el build 421 (ver arriba). Se conserva para
-     * Apple Sign In, que todavía no está activo y necesitará el mismo trato:
-     * verificar la firma en el servidor antes de crear nada. */
-    async function _processOAuthProfile(profile) {
-      const googleBtn = document.getElementById('btnGoogleLogin');
-      const appleBtn  = document.getElementById('btnAppleLogin');
-
-      // Mostrar loading en ambos botones mientras procesamos
-      [googleBtn, appleBtn].forEach(b => { if (b) { b.classList.add('loading'); b.disabled = true; } });
-
-      try {
-        // Buscar o crear cliente en Supabase
-        const client = await createClientFromOAuth(profile);
-
-        // Guardar sesión (igual que el login normal)
-        setClientSession(client);
-
-        // Feedback visual
-        const btn = profile.authProvider === 'google' ? googleBtn : appleBtn;
-        if (btn) {
-          btn.classList.remove('loading');
-          btn.innerHTML = '<i class="fas fa-check" style="color:#1a7c3e;font-size:1rem"></i> <span class="oauth-label">¡Bienvenido/a ' + (client.name || '').split(' ')[0] + '!</span>';
-          btn.style.border = '1.5px solid #1a7c3e';
-        }
-
-        setTimeout(() => { window.location.href = 'index.html'; }, 800);
-
-      } catch(err) {
-        [googleBtn, appleBtn].forEach(b => { if (b) { b.classList.remove('loading'); b.disabled = false; } });
-        _showOAuthToast('Error al iniciar sesión: ' + (err.message || 'Intenta de nuevo'));
-      }
-    }
+    /* SEGURIDAD 92 · `_processOAuthProfile` borrada: el registro antiguo desde
+     * el navegador ya no puede escribir en `customers`. Apple irá por
+     * /api/oauth igual que Google cuando se active. */
 
     // ══════════════════════════════════════════════════════════════════
     //  TOAST de error OAuth

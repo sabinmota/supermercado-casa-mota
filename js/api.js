@@ -462,7 +462,19 @@ const _ERRORES_ORDER = {
   // SEGURIDAD 92
   NO_CANCELABLE:      'Este pedido ya no puede cancelarse.',
   DATOS_INVALIDOS:    'Los datos del pedido no llegaron correctamente.',
+  // SEGURIDAD 94 · el panel también recibe los rechazos de la base
+  CARRITO_VACIO:          'El pedido no tiene productos.',
+  PRECIO_CAMBIO:          'El precio de algún producto cambió. Vuelve a abrir «Nuevo pedido».',
+  SIN_STOCK:              'No hay stock suficiente de algún producto.',
+  SOLO_CAJA:              'Algún producto solo se vende en la caja.',
+  PRODUCTO_NO_DISPONIBLE: 'Algún producto ya no existe.',
 };
+
+// SEGURIDAD 94 · Rechazos del checkout que el carrito sabe arreglar solo.
+const _RECHAZOS_PEDIDO = [
+  'PRECIO_CAMBIO', 'SIN_STOCK', 'SOLO_CAJA', 'PRODUCTO_NO_DISPONIBLE',
+  'CUPON_INVALIDO', 'TOTAL_CAMBIO',
+];
 
 // SEGURIDAD 92 · Las mismas claves, con el texto pensado para el CLIENTE
 // (no le decimos «vuelve a entrar al panel»).
@@ -732,9 +744,21 @@ async function _rpcOrder(funcion, params, exigeVale = true) {
 
   if (!res.ok) {
     const texto = await res.text();
+    // SEGURIDAD 94 · stock y precio llevan la lista concreta en `details`
+    let j = null;
+    try { j = JSON.parse(texto); } catch (e) { /* no JSON */ }
+    if (j && (j.message === 'SIN_STOCK' || j.message === 'PRECIO_CAMBIO')) {
+      let lista = [];
+      try { lista = JSON.parse(j.details) || []; } catch (e) { /* sin detalle */ }
+      const partes = lista.map(x => j.message === 'SIN_STOCK'
+        ? `${x.nombre}: quedan ${x.quedan}`
+        : `${x.nombre}: ahora RD$ ${Number(x.ahora).toFixed(2)}`);
+      throw new Error(_ERRORES_ORDER[j.message] + (partes.length ? ' ' + partes.join(' · ') : ''));
+    }
     for (const clave in _ERRORES_ORDER) {
       if (texto.includes(clave)) throw new Error(_ERRORES_ORDER[clave]);
     }
+    console.error('[RPC ' + funcion + '] HTTP ' + res.status + ' — respuesta de la base:', texto);
     throw new Error(`No se pudo guardar el pedido (${res.status}).`);
   }
 
@@ -972,10 +996,41 @@ const DB = {
     return fila ? _orderFromSupa(fila) : null;
   },
 
+  /* SEGURIDAD 94 · La base calcula precios, envío, cupón y total, y descuenta
+   * el stock. Si algo no cuadra NO crea el pedido y explica por qué. Este
+   * método no lanza un Error genérico en esos casos: devuelve
+   * `{ rechazo: CODIGO, detalle }` para que el checkout pueda ARREGLAR el
+   * carrito (precio nuevo, cantidad disponible) en vez de solo mostrar un fallo.
+   *   PRECIO_CAMBIO           detalle: [{id, nombre, antes, ahora}]
+   *   SIN_STOCK               detalle: [{id, nombre, quedan, pedido}]
+   *   SOLO_CAJA               detalle: [{id, nombre}]
+   *   PRODUCTO_NO_DISPONIBLE  detalle: [{id}]
+   *   CUPON_INVALIDO          detalle: 'texto del motivo'
+   *   TOTAL_CAMBIO            detalle: {subtotal, envio, descuento, ceroCentavos, total} */
   async crearMiPedido(order) {        // TIENDA · checkout
-    const fila = await _rpcClient('cliente_crear_pedido', {
-      p_vale: _valeCliente(), p_datos: _pedidoNuevo(order),
-    }, _ERRORES_PEDIDO_CLIENTE);
+    const res = await fetch(`${_SB_URL}/rpc/cliente_crear_pedido`, {
+      method:  'POST',
+      headers: _SB_HEADERS,
+      body:    JSON.stringify({ p_vale: _valeCliente(), p_datos: _pedidoNuevo(order) }),
+    });
+    const texto = await res.text();
+    if (!res.ok) {
+      let j = null;
+      try { j = JSON.parse(texto); } catch (e) { /* cuerpo no JSON */ }
+      const codigo = j && j.message;
+      if (_RECHAZOS_PEDIDO.includes(codigo)) {
+        let detalle = j.details;
+        try { detalle = JSON.parse(j.details); } catch (e) { /* texto plano (cupón) */ }
+        return { rechazo: codigo, detalle };
+      }
+      for (const clave in _ERRORES_PEDIDO_CLIENTE) {
+        if (texto.includes(clave)) throw new Error(_ERRORES_PEDIDO_CLIENTE[clave]);
+      }
+      console.error('[RPC cliente_crear_pedido] HTTP ' + res.status + ' — respuesta de la base:', texto);
+      throw new Error(`No se pudo crear el pedido (${res.status}).`);
+    }
+    const datos = texto ? JSON.parse(texto) : null;
+    const fila  = Array.isArray(datos) ? datos[0] : datos;
     return fila ? _orderFromSupa(fila) : null;
   },
 

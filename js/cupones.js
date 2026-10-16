@@ -61,21 +61,7 @@ async function validateCupon(codigo, subtotal) {
   };
 }
 
-/* ─────────────────────────────────────────────────────────────
-   incrementCuponUso(id)
-   Suma +1 al contador de usos del cupón en la BD.
-──────────────────────────────────────────────────────────────── */
-async function incrementCuponUso(id) {
-  if (!id) return;
-  try {
-    // Obtener usos actuales frescos para evitar race conditions
-    const res  = await fetch(`${_SB_URL}/cupones?id=eq.${id}&select=usos_actuales`, { headers: _SB_HEADERS });
-    const json = await res.json();
-    const actual = Number((Array.isArray(json) ? json[0] : json)?.usos_actuales) || 0;
-    await fetch(`${_SB_URL}/cupones?id=eq.${id}`, {
-      method:  'PATCH',
-      headers: { ..._SB_HEADERS, 'Prefer': 'return=representation' },
-      body:    JSON.stringify({ usos_actuales: actual + 1 })
-    });
-  } catch(e) { /* fallo silencioso — no bloquear el pedido */ }
-}
+/* SEGURIDAD 94 · `incrementCuponUso` borrada: el uso del cupón lo cuenta la
+ * base al crear el pedido (`cliente_crear_pedido`), en la misma operación.
+ * `validateCupon` sigue aquí solo para mostrar el descuento antes de pagar;
+ * quien decide si el cupón vale es la base. */

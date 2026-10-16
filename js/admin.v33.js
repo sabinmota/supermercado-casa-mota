@@ -5236,28 +5236,9 @@ async function saveNewOrder() {
     createdAt:      now.toISOString(),
   };
 
-  // Descontar stock en API y en memoria
-  productLines.forEach(line => {
-    // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
-    // Con Number() un pedido creado desde el panel NO descontaba inventario.
-    const p = adminProducts.find(x => String(x.id) === String(line.productId));
-    if (p) {
-      p.stock = Math.max(0, (p.stock || 0) - line.cantidad);
-      _apiPatch('products', p.id, { stock: p.stock })
-        .catch(logFail(`descontar stock de "${p.name}" en el pedido nuevo`));
-    }
-  });
-  DBCached.invalidateProducts();
-
-  // Estadísticas del cliente: SEGURIDAD 92 · las suma LA BASE al crear el
-  // pedido (`admin_crear_pedido`). Aquí solo se refleja en memoria.
-  const cIdx = customers.findIndex(c => c.id === clientId);
-  if (cIdx !== -1) {
-    customers[cIdx].orders    = (customers[cIdx].orders || 0) + 1;
-    customers[cIdx].spent     = (customers[cIdx].spent  || 0) + total;
-    customers[cIdx].lastOrder = dateStr;
-    DBCached.invalidateCustomers();
-  }
+  // SEGURIDAD 94 · El stock, los precios, el envió y los contadores del
+  // cliente los pone LA BASE al crear el pedido (`admin_crear_pedido`), en la
+  // misma operación. Aquí solo se refleja en memoria cuando la base confirma.
 
   // Bloquear botón
   _savingNewOrder = true;
@@ -5271,6 +5252,19 @@ async function saveNewOrder() {
   // Guardar pedido en API y en memoria
   DB.createOrder(newOrder)
     .then(saved => {
+      // Reflejo en memoria con lo que guardó la base
+      (saved?.productLines || []).forEach(line => {
+        const p = adminProducts.find(x => String(x.id) === String(line.productId));
+        if (p) p.stock = Math.max(0, (Number(p.stock) || 0) - (Number(line.cantidad) || 0));
+      });
+      DBCached.invalidateProducts();
+      const cIdx = customers.findIndex(c => c.id === clientId);
+      if (cIdx !== -1) {
+        customers[cIdx].orders    = (customers[cIdx].orders || 0) + 1;
+        customers[cIdx].spent     = (customers[cIdx].spent  || 0) + (Number(saved?.total) || total);
+        customers[cIdx].lastOrder = dateStr;
+        DBCached.invalidateCustomers();
+      }
       orders.unshift(saved || newOrder);
       DBCached.invalidateOrders();
       // Registrar el pedido en la vigilancia para que no lo anuncie como
@@ -5285,7 +5279,11 @@ async function saveNewOrder() {
       const num = saved && saved.order_number != null ? ` #${saved.order_number}` : '';
       showAdminToast(`✅ Pedido${num} creado para ${client.name}`, 'success');
     })
-    .catch(() => { _unlockNO(); showAdminToast('Error al guardar el pedido', 'error'); });
+    .catch(err => {
+      _unlockNO();
+      // SEGURIDAD 94 · la base explica el motivo (stock, precio…): se muestra.
+      showAdminToast('No se creó el pedido: ' + (err?.message || 'error desconocido'), 'error');
+    });
 }
 
 function updatePendingBadge() {

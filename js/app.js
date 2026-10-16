@@ -3480,6 +3480,81 @@ function closeCheckout(reopenCart = true) {
 
 // ─── CHECKOUT — Confirmar y guardar el pedido ────────────────────────────────
 
+/* ─── SEGURIDAD 94 · La base rechazó el pedido: arreglar el carrito ──────────
+ *
+ * La base calcula precios, stock, cupón y total. Si algo no cuadra, el pedido
+ * NO se crea (no se ha cobrado ni movido nada) y aquí se deja el carrito como
+ * debe estar para que el cliente revise y vuelva a confirmar.
+ *   PRECIO_CAMBIO → se pone el precio nuevo                 (decisión 1A)
+ *   SIN_STOCK     → se baja a lo que queda, o se quita si 0 (decisión 2B)
+ *   SOLO_CAJA / PRODUCTO_NO_DISPONIBLE → se quita del carrito
+ *   CUPON_INVALIDO → se quita el cupón y se dice por qué
+ *   TOTAL_CAMBIO  → el envío u otro dato cambió: se recalcula
+ * Los nombres pasan por `_escHtml` (el que ya existe en este fichero): vienen
+ * de la base y no deben interpretarse como HTML. */
+async function _resolverRechazoPedido(codigo, detalle) {
+  const lista = Array.isArray(detalle) ? detalle : [];
+  const porId = id => cart.find(c => String(c.id) === String(id));
+  let lineas = [];
+  let volverAlCarrito = true;
+
+  if (codigo === 'PRECIO_CAMBIO') {
+    for (const x of lista) {
+      const item = porId(x.id);
+      if (item) item.price = Number(x.ahora);
+      lineas.push(`<strong>${_escHtml(x.nombre)}</strong>: antes RD$ ${fmt$(x.antes)}, ahora RD$ ${fmt$(x.ahora)}`);
+    }
+    showToast(`<i class="fas fa-tag"></i> El precio de ${lista.length === 1 ? 'un producto' : 'algunos productos'} cambió, revisa tu pedido:<br>${lineas.join('<br>')}`, 'warning');
+
+  } else if (codigo === 'SIN_STOCK') {
+    for (const x of lista) {
+      const quedan = Math.max(0, Math.floor(Number(x.quedan) || 0));
+      if (quedan > 0) {
+        const item = porId(x.id);
+        if (item) item.qty = quedan;
+        lineas.push(`Solo quedan <strong>${quedan}</strong> de <strong>${_escHtml(x.nombre)}</strong> (ajustamos tu carrito)`);
+      } else {
+        cart = cart.filter(c => String(c.id) !== String(x.id));
+        lineas.push(`<strong>${_escHtml(x.nombre)}</strong> se agotó y lo quitamos de tu carrito`);
+      }
+    }
+    showToast(`<i class="fas fa-box-open"></i> ${lineas.join('<br>')}`, 'warning');
+
+  } else if (codigo === 'SOLO_CAJA' || codigo === 'PRODUCTO_NO_DISPONIBLE') {
+    const ids = new Set(lista.map(x => String(x.id)));
+    const quitados = cart.filter(c => ids.has(String(c.id)));
+    cart = cart.filter(c => !ids.has(String(c.id)));
+    const motivo = codigo === 'SOLO_CAJA' ? 'solo se vende en la tienda física' : 'ya no está disponible';
+    showToast(`<i class="fas fa-store"></i> Quitamos de tu carrito lo que ${motivo}:<br>${quitados.map(i => `<strong>${_escHtml(i.name)}</strong>`).join('<br>')}`, 'warning');
+
+  } else if (codigo === 'CUPON_INVALIDO') {
+    _activeCupon = null;
+    const ci = document.getElementById('chkCuponInput'); if (ci) { ci.value = ''; ci.disabled = false; }
+    const cm = document.getElementById('chkCuponMsg');
+    if (cm) { cm.style.display = ''; cm.style.color = '#e53935'; cm.textContent = String(detalle || 'El cupón ya no es válido.'); }
+    const dr = document.getElementById('chkDescuentoRow'); if (dr) dr.style.display = 'none';
+    _recalcCheckoutTotals();
+    showToast(`<i class="fas fa-ticket"></i> No pudimos aplicar el cupón: ${_escHtml(detalle || 'ya no es válido')}. Revisa el total y vuelve a confirmar.`, 'warning');
+    volverAlCarrito = false;   // el carrito está bien; solo cambió el cupón
+
+  } else if (codigo === 'TOTAL_CAMBIO') {
+    // Lo más habitual: el envío cambió en Configuración. Se recargan los datos
+    // y se recalcula; el cliente ve el total real antes de confirmar.
+    try { _checkoutSettingsCache = await DB.getSettings(); } catch (e) { /* se usa el que había */ }
+    _recalcCheckoutTotals();
+    showToast(`<i class="fas fa-rotate"></i> El total de tu pedido cambió (envío o descuento). Revisa el nuevo total y vuelve a confirmar.`, 'warning');
+    volverAlCarrito = false;
+  }
+
+  saveCart();
+  updateCartUI();
+  renderCartItems();
+
+  if (volverAlCarrito) {
+    closeCheckout(true);   // vuelve al carrito para que lo revise
+  }
+}
+
 // Flag anti-doble-tap para el botón "Confirmar pedido"
 let _isConfirmingOrder = false;
 
@@ -3601,6 +3676,15 @@ async function confirmOrder() {
     // Guardar pedido en la API. La respuesta trae el order_number que asignó
     // Postgres — ese es el número que se le muestra al cliente.
     const pedidoCreado = await DB.crearMiPedido(newOrder);
+
+    // SEGURIDAD 94 · La base no creó el pedido porque algo no cuadra (precio,
+    // stock, cupón o total). Se arregla el carrito y se le explica al cliente;
+    // él revisa y vuelve a confirmar. No se ha cobrado ni movido nada.
+    if (pedidoCreado && pedidoCreado.rechazo) {
+      _resolverRechazoPedido(pedidoCreado.rechazo, pedidoCreado.detalle);
+      return;
+    }
+
     const numeroPedido = (pedidoCreado && pedidoCreado.order_number != null)
       ? String(pedidoCreado.order_number)
       : null;
@@ -3641,21 +3725,8 @@ async function confirmOrder() {
       }
     }
 
-    // Descontar stock (fire-and-forget, no bloquea el flujo)
-    DB.getProducts().then(stockActual => {
-      for (const item of cart) {
-        // 🔴 BUILD 411 · String, no Number. Los ids de producto son UUID
-        // ("9cee8fdd-…"), y `Number(uuid)` = NaN. Como `NaN === NaN` es false,
-        // este `.find()` NO encontraba nunca nada: comprar en la tienda NO
-        // descontaba inventario. Medido contra la base real.
-        const prod = stockActual.find(p => String(p.id) === String(item.id));
-        if (prod) {
-          const nuevoStock = Math.max(0, (prod.stock || 0) - item.qty);
-          _apiPatch('products', prod.id, { stock: nuevoStock })
-            .catch(logFail(`descontar stock de "${prod.name}"`));
-        }
-      }
-    }).catch(logFail('leer el stock para descontarlo'));
+    // SEGURIDAD 94 · El stock lo descontó la base en la misma operación que
+    // creó el pedido (y el uso del cupón también lo contó ella).
 
     // SEGURIDAD 92 · Los contadores del cliente (pedidos, gasto, último pedido)
     // ya los sumó LA BASE al crear el pedido. Aquí solo se refleja en la
@@ -3671,10 +3742,6 @@ async function confirmOrder() {
       currentClient = safe;
     }
 
-    // Incrementar uso del cupón si se usó uno
-    if (cuponId && typeof incrementCuponUso === 'function') {
-      incrementCuponUso(cuponId).catch(logFail('incrementar el uso del cupón'));
-    }
     _activeCupon = null;
 
     // Cerrar modal y limpiar carrito — sin reabrir el carrito (pedido ya procesado)
@@ -4893,30 +4960,15 @@ async function cancelClientOrder(orderId) {
     }
 
     // 2) Marcar el pedido como cancelado — ÚNICA operación crítica que el usuario espera.
-    //    SEGURIDAD 92 · la base comprueba que es tuyo y que aún se puede
-    //    cancelar, pone la hora, y resta ella los contadores del cliente.
+    //    SEGURIDAD 92/94 · la base comprueba que es tuyo y que aún se puede
+    //    cancelar, pone la hora, resta los contadores, repone el stock y te
+    //    devuelve los puntos que canjeaste en este pedido. Todo de una vez.
     await DB.cancelarMiPedido(orderId);
 
     // ── Feedback de éxito inmediato — el usuario ya puede seguir ──
     // orderLabel(order), no orderId: orderId es el UUID de Supabase.
     showToast(`<i class="fas fa-check-circle"></i> Pedido <strong>#${orderLabel(order)}</strong> cancelado.`, 'success');
     renderMyOrders(); // Re-renderizar la lista ya con el nuevo estado
-
-    // 3) Reponer stock y actualizar estadísticas en background (fire-and-forget)
-    //    Se ejecutan en PARALELO y no bloquean al usuario
-    const restoreStock = async () => {
-      if (!order.productLines || order.productLines.length === 0) return;
-      // Obtener todos los productos de una sola llamada (en vez de una por artículo)
-      const allProds = await DB.getProducts()
-      .catch(e => { logFail('leer productos para reponer stock')(e); return []; });
-      await Promise.all(order.productLines.map(line => {
-        const prod = allProds.find(p => String(p.id) === String(line.productId));
-        if (!prod) return Promise.resolve();
-        return _apiPatch('products', prod.id, {
-          stock: Math.max(0, (prod.stock || 0) + (line.cantidad || 0))
-        }).catch(logFail(`reponer stock de "${prod.name}" al cancelar`));
-      }));
-    };
 
     // Contadores: ya los restó la base; solo se refleja en la sesión.
     {
@@ -4928,9 +4980,6 @@ async function cancelClientOrder(orderId) {
       setClientSession(safe);
       currentClient = safe;
     }
-
-    // Sin await — el usuario ya recibió su feedback
-    restoreStock().catch(logFail('reponer el stock al cancelar'));
 
   } catch(e) {
     console.error('[cancelClientOrder]', e);
@@ -6144,6 +6193,13 @@ async function renderClientNotificaciones() {
   const tipoConfig = {
     cambio_estado: {
       icon: 'fa-truck',
+      gradient: 'linear-gradient(135deg,#1a7c3e,#27a35a)',
+      badge: '#e8f5ee', badgeText: '#1a7c3e',
+      label: 'Pedido',
+    },
+    // SEGURIDAD 94 · «Recibimos tu pedido #N», creado por la base al hacer el pedido.
+    pedido_recibido: {
+      icon: 'fa-bag-shopping',
       gradient: 'linear-gradient(135deg,#1a7c3e,#27a35a)',
       badge: '#e8f5ee', badgeText: '#1a7c3e',
       label: 'Pedido',
