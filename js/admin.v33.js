@@ -3582,7 +3582,7 @@ function saveProduct() {
 
   /* ─── BUILD 382 · CATEGORÍA OBLIGATORIA, AL CREAR Y AL EDITAR ───────────────
    * Esta función es la ÚNICA vía por la que el panel crea o edita un producto
-   * (comprobado: los demás `_apiPatch('products', …)` solo tocan `stock`), así
+   * (comprobado: las demás escrituras de productos solo tocan `stock`), así
    * que validar aquí cubre los dos casos que pedía el usuario.
    *
    * Tres agujeros que tenía la versión anterior:
@@ -4366,43 +4366,57 @@ function orderLineQty(lineIdx, delta) {
     return;
   }
 
-  // Validar stock disponible al aumentar
-  if (delta > 0) {
-    const stockAvail = _getProductStock(line.productId);
-    if (stockAvail < 1) {
-      showAdminToast(`Sin stock disponible para "${line.name}"`, 'warning');
-      return;
-    }
+  _guardarLineasPedido(o, lineIdx, newQty);
+}
+
+/* SEGURIDAD 95 · Cambiar la cantidad de una línea la hace LA BASE
+ * (`admin_editar_lineas_pedido`): comprueba el stock con la fila bloqueada,
+ * mueve solo la diferencia y recalcula importes, todo en una operación. Antes
+ * eran dos llamadas sueltas (stock y pedido) con la clave publicada: si una
+ * fallaba, quedaban descuadrados. Si no hay stock, no se acepta (decisión A)
+ * y la pantalla vuelve a la cantidad anterior. Los elementos que se repintan
+ * son los mismos de antes: la pantalla no cambia. */
+let _guardandoLineas = false;
+async function _guardarLineasPedido(o, lineIdx, newQty) {
+  if (_guardandoLineas) return;
+  _guardandoLineas = true;
+  const line   = o.productLines[lineIdx];
+  const antes  = line.cantidad;
+  const lineas = o.productLines.map((l, i) => ({ productId: l.productId, cantidad: i === lineIdx ? newQty : l.cantidad }));
+  const input  = document.getElementById(`opd-qty-${lineIdx}`);
+  try {
+    const saved = await DB.editarLineasPedido(o.id, lineas);
+    const lin   = (saved?.productLines || []).find(l => String(l.productId) === String(line.productId));
+    _reflejarStockLocal(line.productId, -(newQty - antes));
+    line.cantidad = newQty;
+    line.subtotal = lin ? Number(lin.subtotal) : parseFloat((line.price * newQty).toFixed(2));
+    if (saved) { o.total = saved.total; o.subtotal = saved.subtotal; }
+    DBCached.invalidateOrders();
+
+    const _mb1 = document.getElementById('orderModalBody');
+    const _st1 = _mb1 ? _mb1.scrollTop : 0;
+    const subEl  = document.getElementById(`opd-sub-${lineIdx}`);
+    const minBtn = document.querySelector(`#opr-${lineIdx} .opd-qty-btn`);
+    if (input)  input.value = newQty;
+    if (subEl)  subEl.textContent = `RD$ ${fmt$(line.subtotal)}`;
+    if (minBtn) minBtn.innerHTML = `<i class="fas fa-minus"></i>`;
+    const totalCell = document.getElementById('opd-total-cell');
+    if (totalCell) totalCell.textContent = `RD$ ${fmt$(o.total)}`;
+    if (_mb1) requestAnimationFrame(() => { _mb1.scrollTop = _st1; });
+    _patchOrderRow(editingOrderId);
+  } catch (e) {
+    if (input) input.value = antes;   // la base no aceptó: se vuelve a lo guardado
+    showAdminToast(e?.message || 'No se pudo cambiar la cantidad', 'warning');
+  } finally {
+    _guardandoLineas = false;
   }
+}
 
-  // Ajustar stock en cm_products
-  _adjustOrderLineStock(line.productId, -delta); // -delta: si aumenta cantidad, descuenta stock
-
-  // Actualizar línea
-  line.cantidad = newQty;
-  line.subtotal = parseFloat((line.price * newQty).toFixed(2));
-
-  // Recalcular total del pedido
-  o.total = parseFloat(o.productLines.reduce((s, l) => s + l.subtotal, 0).toFixed(2));
-
-  // Guardar en API
-  DB.updateOrder(o.id, o).catch(e => console.warn('Error guardando pedido:', e));
-  DBCached.invalidateOrders();
-
-  // Actualizar UI sin re-renderizar todo el modal
-  const _mb1 = document.getElementById('orderModalBody');
-  const _st1 = _mb1 ? _mb1.scrollTop : 0;
-  const input = document.getElementById(`opd-qty-${lineIdx}`);
-  const subEl = document.getElementById(`opd-sub-${lineIdx}`);
-  const minBtn = document.querySelector(`#opr-${lineIdx} .opd-qty-btn`);
-  if (input) input.value = newQty;
-  if (subEl) subEl.textContent = `RD$ ${fmt$(line.subtotal)}`;
-  if (minBtn) minBtn.innerHTML = `<i class="fas fa-minus"></i>`;
-  const totalCell = document.getElementById('opd-total-cell');
-  if (totalCell) totalCell.textContent = `RD$ ${fmt$(o.total)}`;
-  if (_mb1) requestAnimationFrame(() => { _mb1.scrollTop = _st1; });
-
-  _patchOrderRow(editingOrderId);
+// Refleja en la memoria del panel el stock que acaba de mover la base.
+function _reflejarStockLocal(productId, delta) {
+  const p = adminProducts.find(x => String(x.id) === String(productId));
+  if (p) p.stock = Math.max(0, (Number(p.stock) || 0) + delta);
+  DBCached.invalidateProducts();
 }
 
 // ── Cambiar cantidad via input directo ────────────────────────────────────────
@@ -4417,36 +4431,7 @@ function orderLineQtySet(lineIdx, rawVal) {
 
   if (diff === 0) return;
 
-  // Validar stock al aumentar
-  if (diff > 0) {
-    const stockAvail = _getProductStock(line.productId);
-    if (stockAvail < diff) {
-      showAdminToast(`Stock insuficiente para "${line.name}" (disponible: ${stockAvail})`, 'warning');
-      const input = document.getElementById(`opd-qty-${lineIdx}`);
-      if (input) input.value = line.cantidad; // revertir
-      return;
-    }
-  }
-
-  _adjustOrderLineStock(line.productId, -diff);
-  line.cantidad = newQty;
-  line.subtotal = parseFloat((line.price * newQty).toFixed(2));
-  o.total = parseFloat(o.productLines.reduce((s, l) => s + l.subtotal, 0).toFixed(2));
-  DB.updateOrder(o.id, o).catch(e => console.warn('Error guardando pedido:', e));
-  DBCached.invalidateOrders();
-
-  const subEl   = document.getElementById(`opd-sub-${lineIdx}`);
-  const minBtn  = document.querySelector(`#opr-${lineIdx} .opd-qty-btn`);
-  const totalCell = document.getElementById('opd-total-cell');
-  const _mb2 = document.getElementById('orderModalBody');
-  const _st2 = _mb2 ? _mb2.scrollTop : 0;
-  if (subEl)    subEl.textContent = `RD$ ${fmt$(line.subtotal)}`;
-  if (minBtn)   minBtn.innerHTML  = `<i class="fas fa-minus"></i>`;
-  if (totalCell) totalCell.textContent = `RD$ ${fmt$(o.total)}`;
-
-  if (_mb2) requestAnimationFrame(() => { _mb2.scrollTop = _st2; });
-
-  _patchOrderRow(editingOrderId);
+  _guardarLineasPedido(o, lineIdx, newQty);   // SEGURIDAD 95 · ver arriba
 }
 
 // ── Eliminar una línea de producto del pedido ─────────────────────────────────
@@ -4462,33 +4447,21 @@ function orderLineRemove(lineIdx) {
 
   if (!confirm(`¿Eliminar "${line.name}" del pedido?`)) return;
 
-  // Reponer stock del producto eliminado
-  _adjustOrderLineStock(line.productId, line.cantidad); // devolver toda la cantidad al stock
-
-  // Eliminar línea
-  o.productLines.splice(lineIdx, 1);
-  o.total = parseFloat(o.productLines.reduce((s, l) => s + l.subtotal, 0).toFixed(2));
-  DB.updateOrder(o.id, o).catch(e => console.warn('Error guardando pedido:', e));
-  DBCached.invalidateOrders();
-
-  showAdminToast(`"${line.name}" eliminado del pedido. Stock repuesto.`, 'info');
-
-  // Re-renderizar sólo la sección de productos del modal
-  _renderOrderModalProducts(o);
-  _patchOrderRow(editingOrderId); // actualiza solo la fila en la tabla de fondo
-}
-
-// ── Ajustar stock de un producto en la API (delta positivo = reponer) ────────
-function _adjustOrderLineStock(productId, delta) {
-  if (delta === 0) return;
-  // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
-  const p = adminProducts.find(x => String(x.id) === String(productId));
-  if (p) {
-    p.stock = Math.max(0, (p.stock || 0) + delta);
-    _apiPatch('products', p.id, { stock: p.stock })
-      .catch(logFail(`ajustar el stock de "${p.name}" desde el pedido`));
-    DBCached.invalidateProducts();
-  }
+  // SEGURIDAD 95 · la base quita la línea, repone su stock y recalcula, en
+  // una sola operación. Antes el aviso «Stock repuesto» salía aunque fallara.
+  const lineas = o.productLines.filter((_, i) => i !== lineIdx)
+                   .map(l => ({ productId: l.productId, cantidad: l.cantidad }));
+  DB.editarLineasPedido(o.id, lineas)
+    .then(saved => {
+      _reflejarStockLocal(line.productId, line.cantidad);
+      o.productLines.splice(lineIdx, 1);
+      if (saved) { o.total = saved.total; o.subtotal = saved.subtotal; }
+      DBCached.invalidateOrders();
+      showAdminToast(`"${line.name}" eliminado del pedido. Stock repuesto.`, 'info');
+      _renderOrderModalProducts(o);
+      _patchOrderRow(editingOrderId);
+    })
+    .catch(e => showAdminToast(e?.message || 'No se pudo quitar el producto', 'error'));
 }
 
 function closeOrderModal() {
@@ -4517,25 +4490,8 @@ function closeOrderModal() {
   }
 }
 
-// ── Reposición de stock al cancelar/eliminar un pedido ───────────────────────
-function restoreStock(order) {
-  if (!order || !order.productLines || order.productLines.length === 0) return;
-  let changed = false;
-  order.productLines.forEach(line => {
-    // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
-    // Con Number() esta reposición NO devolvía NADA al inventario: el `.find()`
-    // fallaba siempre, así que al cancelar un pedido el stock se quedaba
-    // descontado para siempre.
-    const prod = adminProducts.find(p => String(p.id) === String(line.productId));
-    if (prod) {
-      prod.stock = (prod.stock || 0) + (line.cantidad || 0);
-      _apiPatch('products', prod.id, { stock: prod.stock })
-        .catch(logFail(`reponer stock de "${prod.name}" al cancelar`));
-      changed = true;
-    }
-  });
-  if (changed) DBCached.invalidateProducts();
-}
+// SEGURIDAD 95 · `restoreStock` borrada: al cancelar o mandar a la papelera,
+// el stock lo repone la base dentro de admin_guardar_pedido / admin_borrar_pedido.
 
 let _savingOrderStatus = false;
 function saveOrderStatus() {
@@ -4570,27 +4526,15 @@ function saveOrderStatus() {
   const order      = orders[idx];
   const prevStatus = order.status;
 
-  // ── Lógica de stock ───────────────────────────────────────────────────────
-  // Caso 1: se cancela un pedido que antes NO estaba cancelado → reponer stock
-  if (newStatus === 'cancelado' && prevStatus !== 'cancelado') {
-    restoreStock(order);
-    showAdminToast('Stock repuesto al inventario por cancelación', 'info');
-  }
-  // Caso 2: se reactiva un pedido que estaba cancelado → descontar stock de nuevo
-  if (prevStatus === 'cancelado' && newStatus !== 'cancelado') {
-    (order.productLines || []).forEach(line => {
-      // BUILD 411 · String, no Number: los ids son UUID (ver _getProductStock).
-      const prod = adminProducts.find(p => String(p.id) === String(line.productId));
-      if (prod) {
-        prod.stock = Math.max(0, (prod.stock || 0) - (line.cantidad || 0));
-        _apiPatch('products', prod.id, { stock: prod.stock })
-          .catch(logFail(`volver a descontar stock de "${prod.name}"`));
-      }
-    });
-    DBCached.invalidateProducts();
-  }
-  // ─────────────────────────────────────────────────────────────────────────
-
+  /* SEGURIDAD 95 · El STOCK al cancelar o reactivar lo mueve la base dentro de
+   * `admin_guardar_pedido`, en la misma operación que cambia el estado. Si al
+   * reactivar no hay stock, la base lo rechaza (decisión A) y no se cambia nada.
+   *
+   * Por eso los PUNTOS se aplican ahora DESPUÉS de que la base confirme
+   * (`_efectosPuntos`, llamada en el `.then`). Antes iban primero: si el
+   * guardado fallaba, los puntos ya se habían movido para un cambio de estado
+   * que nunca ocurrió. */
+  const _efectosPuntos = () => {
   // ── Puntos de fidelización ────────────────────────────────────────────────
   // Caso A: pedido pasa a ENTREGADO → acumular puntos al cliente
   if (newStatus === 'entregado' && prevStatus !== 'entregado') {
@@ -4682,18 +4626,30 @@ function saveOrderStatus() {
       }
     }
   }
+  };   // fin de _efectosPuntos
   // ─────────────────────────────────────────────────────────────────────────
 
-  orders[idx].status = newStatus;
-  orders[idx].notes  = notes;
   // Guardar el repartidor. Cadena vacía → null, para no ensuciar la columna.
   // El valor '_retiro' se envía tal cual: _orderToSupa() (js/api.js) lo traduce
   // a deliveryType='retiro' y pone driverId=null, porque desde el build 378 la
   // columna es UUID con clave ajena y no acepta valores inventados.
-  if (driverSel) orders[idx].driverId = driverVal || null;
+  // SEGURIDAD 95 · se manda una copia; la memoria solo cambia si la base acepta.
+  const _cambios = { ...orders[idx], status: newStatus, notes };
+  if (driverSel) _cambios.driverId = driverVal || null;
 
-  DB.updateOrder(orders[idx].id, orders[idx])
+  DB.updateOrder(orders[idx].id, _cambios)
     .then(() => {
+      orders[idx].status = newStatus;
+      orders[idx].notes  = notes;
+      if (driverSel) orders[idx].driverId = driverVal || null;
+      // El stock que acaba de mover la base, reflejado en la memoria del panel
+      const _signo = (newStatus === 'cancelado' && prevStatus !== 'cancelado') ?  1
+                   : (prevStatus === 'cancelado' && newStatus !== 'cancelado') ? -1 : 0;
+      if (_signo) {
+        (order.productLines || []).forEach(l => _reflejarStockLocal(l.productId, _signo * (Number(l.cantidad) || 0)));
+        showAdminToast(_signo > 0 ? 'Stock repuesto al inventario por cancelación' : 'Stock descontado de nuevo al reactivar', 'info');
+      }
+      _efectosPuntos();
       DBCached.invalidateOrders();
       renderOrdersTable();
       renderInventory();
@@ -4710,7 +4666,8 @@ function saveOrderStatus() {
         sendOrderStatusNotification(orders[idx], newStatus);
       }
     })
-    .catch(() => { _unlockOS(); showAdminToast('Error al guardar el pedido', 'error'); });
+    // SEGURIDAD 95 · se muestra el motivo real (p. ej. «No hay stock… quedan 2»).
+    .catch(err => { _unlockOS(); showAdminToast('No se guardó el pedido: ' + (err?.message || 'error'), 'error'); });
 }
 
 function deleteOrder(id) {
@@ -4718,13 +4675,18 @@ function deleteOrder(id) {
   // Normalizar a string para comparaciones seguras
   const sid   = String(id);
   const order = orders.find(o => String(o.id) === sid);
-  // Reponer stock solo si el pedido NO estaba ya cancelado
-  if (order && order.status !== 'cancelado') {
-    restoreStock(order);
-    showAdminToast('Stock repuesto al inventario', 'info');
-  }
+  /* SEGURIDAD 95 · Lo hace la base (`admin_borrar_pedido`): si el pedido
+   * estaba activo lo cancela de verdad —repone stock, resta los contadores del
+   * cliente, le devuelve los puntos canjeados— y le AVISA de que fue
+   * cancelado. Si estaba entregado, no repone stock: la mercancía ya salió.
+   * Antes el stock se reponía desde aquí, también en pedidos entregados. */
   DB.deleteOrder(sid)
     .then(() => {
+      const st = order ? String(order.status || '') : '';
+      if (order && st !== 'cancelado' && st !== 'entregado') {
+        (order.productLines || []).forEach(l => _reflejarStockLocal(l.productId, Number(l.cantidad) || 0));
+        showAdminToast('Stock repuesto y cliente avisado de la cancelación', 'info');
+      }
       orders = orders.filter(o => String(o.id) !== sid);
       DBCached.invalidateOrders();
       renderOrdersTable();
@@ -5414,15 +5376,23 @@ function renderInventory() {
   _renderPaginator('invPaginator', pg, filtTotal, 'inventory', 'inventoryTable');
 }
 
+// SEGURIDAD 95 · La base suma/resta (nunca baja de 0) y devuelve el stock
+// real; la pantalla muestra ese número, no uno calculado aquí.
 function adjustStock(id, delta) {
   const p = adminProducts.find(x => x.id === id);
   if (!p) return;
-  p.stock = Math.max(0, (Number(p.stock) || 0) + delta);
-  _apiPatch('products', p.id, { stock: p.stock })
-    .catch(logFail(`guardar el stock de "${p.name}"`));
-  DBCached.invalidateProducts();
-  renderInventory();
-  renderProductsTable();
+  DB.ajustarStock(p.id, delta)
+    .then(nuevo => {
+      const n = Number(Array.isArray(nuevo) ? nuevo[0] : nuevo);
+      p.stock = Number.isFinite(n) ? n : Math.max(0, (Number(p.stock) || 0) + delta);
+      DBCached.invalidateProducts();
+      renderInventory();
+      renderProductsTable();
+    })
+    .catch(err => {
+      console.error('[adjustStock]', err);
+      showAdminToast(`No se guardó el stock de "${p.name}": ${err.message}`, 'error');
+    });
 }
 
 function exportInventory() {
@@ -8359,20 +8329,17 @@ async function _migrateProductsCategory(oldSlug, newSlug) {
       return;
     }
 
-    // 3. Actualizar en paralelo (máx 10 simultáneos para no saturar)
+    // 3. SEGURIDAD 95 · Una sola llamada: la base mueve todos los productos
+    // en una transacción (o todos o ninguno), así no puede quedar a medias.
     let updated = 0;
     let fallidos = 0;
-    const BATCH = 10;
-    for (let i = 0; i < toUpdate.length; i += BATCH) {
-      const batch = toUpdate.slice(i, i + BATCH);
-      const res = await Promise.allSettled(batch.map(p =>
-        DB.saveProduct({ id: p.id }, { category: newSlug })
-      ));
-      // Promise.allSettled en lugar de Promise.all: si un producto falla, los
-      // demás se migran igual. Con Promise.all, un solo fallo abortaba el resto
-      // y dejaba la migración a medias sin decir cuántos habían quedado atrás.
-      updated  += res.filter(r => r.status === 'fulfilled').length;
-      fallidos += res.filter(r => r.status === 'rejected').length;
+    try {
+      const r = await DB.cambiarCategoria(oldSlug, newSlug);
+      const n = Number(Array.isArray(r) ? r[0] : r);
+      updated = Number.isFinite(n) ? n : toUpdate.length;
+    } catch (e) {
+      console.error('[_migrateProductsCategory]', e);
+      fallidos = toUpdate.length;
     }
 
     if (typeof DBCached !== 'undefined' && DBCached.invalidateProducts) {
@@ -9137,6 +9104,9 @@ async function bkStartImport() {
         else if (tableName === 'orders')         await DB.createOrder(_orderFromSupa(body));
         else if (tableName === 'customers')      await DB.createCustomer(body);
         else if (tableName === 'staff')          throw new Error('El personal se da de alta desde Personal.');
+        // SEGURIDAD 95 · productos y configuración por sus funciones del panel.
+        else if (tableName === 'products')       await DB.saveProduct({}, body);
+        else if (tableName === 'settings')       await DB.saveSettings(body);
         else await _supaFetch(`${tableName}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },

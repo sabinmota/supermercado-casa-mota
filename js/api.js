@@ -27,12 +27,10 @@ const _SB_HEADERS = {
   'Authorization': `Bearer ${_SB_KEY}`,
 };
 
-// Header adicional para operaciones de escritura (INSERT/UPDATE/DELETE)
-// Requerido por las políticas RLS de Supabase para tablas protegidas
-const _SB_WRITE_HEADERS = {
-  ..._SB_HEADERS,
-  'x-admin-key': 'CM-Admin-X9k3mP19zJ',
-};
+// SEGURIDAD 95 · Aquí estaba `_SB_WRITE_HEADERS` con la cabecera
+// `x-admin-key` y su valor escrito a la vista: cualquiera que abriera este
+// fichero podía cambiar precios, stock y la Configuración. Ya no se escribe
+// ninguna tabla directamente: todo pasa por funciones con el vale del panel.
 
 // ─── Timeouts ─────────────────────────────────────────────────────────────────
 function _apiFetchTimeout(method) {
@@ -270,47 +268,10 @@ function _orderFromSupa(o) {
 
 // ─── CRUD helpers ─────────────────────────────────────────────────────────────
 
-// Convierte cualquier timestamp a ISO 8601 que Supabase (timestamptz) acepta.
-// Si ya es string ISO lo devuelve tal cual; si es número en ms lo convierte.
-function _toIso(val) {
-  if (!val) return new Date().toISOString();
-  if (typeof val === 'string' && val.includes('T')) return val; // ya es ISO
-  const n = Number(val);
-  if (!isNaN(n) && n > 1e10) return new Date(n).toISOString();  // ms → ISO
-  return new Date().toISOString(); // fallback
-}
-
-// SEGURIDAD 92/93 · Estos dos ayudantes solo los usan ya `products` (stock,
-// descripciones). `customers`, `orders` y `staff` se escriben siempre por
-// funciones con vale, así que aquí ya no hace falta recortar lo que devuelve
-// la escritura (eso era `_devuelveSel`, borrado).
-async function _apiCreate(table, data) {
-  // Quitar campos de sistema que Supabase genera automáticamente
-  // También quitar 'id' para que Supabase genere el UUID propio
-  const { gs_project_id, gs_table_name, id, ...payload } = data;
-  // Asegurar timestamps en formato ISO 8601 (Supabase timestamptz)
-  payload.created_at = _toIso(payload.created_at);
-  payload.updated_at = _toIso(payload.updated_at);
-
-  return _apiFetch(`${_SB_URL}/${table}`, {
-    method:  'POST',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
-    body:    JSON.stringify(payload),
-  });
-}
-
-async function _apiPatch(table, id, data) {
-  const { gs_project_id, gs_table_name, id: _id, ...payload } = data;
-  // Sanitizar created_at por si viene como número en ms (legacy)
-  if (payload.created_at) payload.created_at = _toIso(payload.created_at);
-  payload.updated_at = new Date().toISOString();
-
-  return _apiFetch(`${_SB_URL}/${table}?id=eq.${id}`, {
-    method:  'PATCH',
-    headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
-    body:    JSON.stringify(payload),
-  });
-}
+// SEGURIDAD 95 · `_apiCreate`, `_apiPatch` y `_toIso` borradas: eran la
+// escritura directa con la clave del panel. Sus últimos usos (productos,
+// stock, descripciones de la IA) van ahora por DB.saveProduct,
+// DB.ajustarStock y DB.guardarDescripcion.
 
 /* SEGURIDAD 92/93 · Contraseña vacía = sin contraseña. El panel arma el
  * cliente nuevo con `password: data.password || ''`; se quita la propiedad
@@ -464,6 +425,9 @@ const _ERRORES_ORDER = {
   DATOS_INVALIDOS:    'Los datos del pedido no llegaron correctamente.',
   // SEGURIDAD 94 · el panel también recibe los rechazos de la base
   CARRITO_VACIO:          'El pedido no tiene productos.',
+  // SEGURIDAD 95
+  SOLO_PENDIENTES:        'Solo se pueden cambiar productos de un pedido pendiente.',
+  PRODUCTO_NUEVO_NO_PERMITIDO: 'No se pueden añadir productos nuevos a un pedido ya hecho.',
   PRECIO_CAMBIO:          'El precio de algún producto cambió. Vuelve a abrir «Nuevo pedido».',
   SIN_STOCK:              'No hay stock suficiente de algún producto.',
   SOLO_CAJA:              'Algún producto solo se vende en la caja.',
@@ -552,6 +516,12 @@ const _ERRORES_PRODUCTO = {
   CUENTA_DESACTIVADA:  'Tu cuenta ya no está activa.',
   FALTA_ID:            'Falta indicar el producto.',
   PRODUCTO_NO_EXISTE:  'Ese producto ya no existe.',
+  // SEGURIDAD 95
+  NO_EXISTE:           'Ese producto ya no existe. Recarga la página.',
+  PRECIO_INVALIDO:     'El precio debe ser mayor a 0.',
+  STOCK_INVALIDO:      'El stock no puede ser negativo.',
+  DATOS_INVALIDOS:     'Los datos del producto no llegaron correctamente.',
+  SIN_DATOS:           'No hay datos que guardar.',
 };
 
 /* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
@@ -843,13 +813,36 @@ const DB = {
     return all;
   },
 
+  /* SEGURIDAD 95 · Productos y stock con el vale del panel. La base aplica
+   * una lista de campos permitidos: `solo_caja`, ITBIS y borrar tienen sus
+   * propias funciones y no se pueden cambiar por aquí.
+   *   saveProduct(product, cambios)  crear (sin id) o editar (con id)
+   *   ajustarStock(id, delta)        suma o resta; nunca baja de 0
+   *   cambiarCategoria(viejo, nuevo) mueve todos los productos de una vez
+   *   guardarDescripcion(id, texto)  descripciones de la IA */
   async saveProduct(product, changedFields = null) {
-    if (product.id) {
-      const payload = changedFields || product;
-      return _apiPatch('products', product.id, payload);
-    } else {
-      return _apiCreate('products', product);
-    }
+    const datos = changedFields || product;
+    return _rpcStaff('admin_guardar_producto', {
+      p_vale: _valeAdmin(), p_id: product.id || null, p_datos: datos,
+    }, _ERRORES_PRODUCTO);
+  },
+
+  async ajustarStock(id, delta) {
+    return _rpcStaff('admin_ajustar_stock', {
+      p_vale: _valeAdmin(), p_id: id, p_delta: Math.trunc(Number(delta) || 0),
+    }, _ERRORES_PRODUCTO);
+  },
+
+  async cambiarCategoria(viejo, nuevo) {
+    return _rpcStaff('admin_cambiar_categoria', {
+      p_vale: _valeAdmin(), p_viejo: viejo, p_nuevo: nuevo,
+    }, _ERRORES_PRODUCTO);
+  },
+
+  async guardarDescripcion(id, texto) {
+    return _rpcStaff('admin_guardar_descripcion', {
+      p_vale: _valeAdmin(), p_id: id, p_texto: texto,
+    }, _ERRORES_PRODUCTO);
   },
 
   // Carga el carrusel (`images`) de UN producto, bajo demanda al abrir el modal.
@@ -1045,11 +1038,28 @@ const DB = {
    * Solo lo usa el panel. La tienda no llama aquí nunca.
    */
   async updateOrder(id, order) {
+    /* SEGURIDAD 95 · Las líneas ya no viajan por aquí: cambiarlas mueve
+     * stock, y eso lo hace `editarLineasPedido` en la base. Esta función
+     * guarda estado, notas, repartidor… y la base repone o descuenta el
+     * stock al cancelar o reactivar. */
     const datos = _soloCamposOrder(_orderToSupa(order));
+    delete datos.productLines;
     const fila  = await _rpcOrder('admin_guardar_pedido', {
       p_vale:  _valeAdmin(),
       p_id:    id,
       p_datos: datos,
+    });
+    return fila ? _orderFromSupa(fila) : null;
+  },
+
+  /* SEGURIDAD 95 · Cambiar cantidades o quitar líneas de un pedido
+   * pendiente. La base mueve solo la diferencia de stock y recalcula los
+   * importes; si no hay stock suficiente no se acepta (decisión A). */
+  async editarLineasPedido(id, lineas) {
+    const fila = await _rpcOrder('admin_editar_lineas_pedido', {
+      p_vale:   _valeAdmin(),
+      p_id:     id,
+      p_lineas: (lineas || []).map(l => ({ productId: String(l.productId), cantidad: Number(l.cantidad) || 0 })),
     });
     return fila ? _orderFromSupa(fila) : null;
   },
@@ -1740,70 +1750,15 @@ const DB = {
     });
   },
 
+  /* SEGURIDAD 95 · Configuración con el vale del panel. La base guarda en la
+   * MISMA fila que leen la tienda y el cálculo del envío, con una lista de
+   * campos permitidos (datos de la tienda, envío, horarios, fidelización).
+   * La clave de la IA no entra aquí: tiene `saveAiKey`. Si no existe aún
+   * ninguna fila, la base la crea. */
   async saveSettings(data) {
-    // Traer solo el id del registro activo — no mezclar existing en el payload.
-    // PostgREST hace UPDATE parcial: solo se sobreescriben los campos enviados.
-    // Mezclar existing causaba que campos nuevos (ej. storeWhatsapp) llegaran
-    // contaminados con valores stale o fueran ignorados por el schema cache.
-    const res  = await fetch(
-      `${_SB_URL}/settings?select=id&deleted=is.false&order=created_at.desc&limit=1`,
-      { headers: _SB_HEADERS }
-    );
-    const list = res.ok ? (await res.json()) : [];
-    if (list.length > 0) {
-      const id = list[0].id;
-      // PATCH directo — solo los campos de data, updated_at calculado aquí
-      const payload = { ...data, updated_at: new Date().toISOString() };
-      delete payload.id;             // id va en la URL, no en el body
-      delete payload.created_at;     // nunca sobreescribir created_at
-      delete payload.deleted;        // nunca sobreescribir deleted por aquí
-      /* 🔴 BUILD 415 · El `select=id` de esta URL NO es cosmético.
-       *
-       * `Prefer: return=representation` hace que PostgREST devuelva la fila
-       * actualizada, y por omisión la devuelve COMPLETA. Desde este build
-       * `anon` ya no puede leer la columna `groqApiKey`, así que devolver la
-       * fila entera exigiría un permiso que ya no tiene: el PATCH entero
-       * fallaría con 403 y el botón «Guardar cambios» dejaría de funcionar.
-       *
-       * Con `select=id` solo se devuelve el identificador, que sí es legible.
-       * Nadie usa el resto de la respuesta: `saveSettings` solo se comprueba
-       * por su éxito o su error. */
-      const patchRes = await fetch(
-        `${_SB_URL}/settings?id=eq.${id}&select=id`,
-        {
-          method:  'PATCH',
-          headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
-          body:    JSON.stringify(payload),
-        }
-      );
-      if (!patchRes.ok) {
-        const err = await patchRes.json().catch(() => ({}));
-        throw new Error(`API error ${patchRes.status}: ${JSON.stringify(err)}`);
-      }
-      return await patchRes.json();
-    }
-    // No existe registro — crear uno nuevo
-    const createPayload = { ...data };
-    delete createPayload.id;
-    delete createPayload.created_at;
-    delete createPayload.deleted;
-    /* BUILD 415 · `&select=id` por el mismo motivo que en el PATCH de arriba:
-     * `return=representation` devolvería la fila COMPLETA, y `anon` ya no
-     * puede leer la columna `groqApiKey`. Sin esto, crear la primera fila de
-     * configuración fallaría con 403. */
-    const createRes = await fetch(
-      `${_SB_URL}/settings?select=id`,
-      {
-        method:  'POST',
-        headers: { ..._SB_WRITE_HEADERS, 'Prefer': 'return=representation' },
-        body:    JSON.stringify(createPayload),
-      }
-    );
-    if (!createRes.ok) {
-      const err = await createRes.json().catch(() => ({}));
-      throw new Error(`API error ${createRes.status}: ${JSON.stringify(err)}`);
-    }
-    return await createRes.json();
+    return _rpcStaff('admin_guardar_configuracion', {
+      p_vale: _valeAdmin(), p_datos: data,
+    }, { ..._ERRORES_TABLAS, VALOR_INVALIDO: 'Algún importe no es válido (no puede ser negativo, y el valor del punto debe ser mayor que 0).' });
   },
 
   // ── Categorías ─────────────────────────────────────────────────────────────

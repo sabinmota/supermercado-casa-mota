@@ -734,7 +734,7 @@ async function aiBulkDescribe() {
         const desc = await _bulkGenerateOne(p);
 
         if (desc && desc.length > 5) {
-          await _apiPatch('products', p.id, { description: desc });
+          await DB.guardarDescripcion(p.id, desc);   // SEGURIDAD 95 · con el vale del panel
           done++;
           _bulkSetProgress(done, todo.length,
             `✅ ${p.name}`,
@@ -1019,7 +1019,7 @@ async function _aiBulkDescribe_UNUSED_LEGACY() {
         const desc = (results[String(j + 1)] || '').trim();
         if (desc) {
           try {
-            await _apiPatch('products', p.id, { description: desc });
+            await DB.guardarDescripcion(p.id, desc);   // SEGURIDAD 95
             done++;
             _bulkSetProgress(done, todo.length, `✅ ${p.name}`, `Lote ${Math.ceil((i + BULK_BATCH_SIZE) / BULK_BATCH_SIZE)} — ${done}/${todo.length} guardados`);
           } catch (_) {
