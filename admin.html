@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '490';
+      const VER = '491';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -47,7 +47,7 @@
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
        pantallas. 🔴 Borrando esta línea, el panel vuelve exactamente a como
        estaba: el rediseño es reversible sin deshacer nada. -->
-  <link rel="stylesheet" href="css/panel-2026.css?v=19" />
+  <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -155,42 +155,42 @@
       <ul>
         <li>
           <a href="#" class="nav-link active" data-section="dashboard" onclick="showSection('dashboard',this)">
-            <i class="fa-regular fa-compass"></i><span>Dashboard</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Dashboard</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="products" onclick="showSection('products',this)">
-            <i class="fa-solid fa-cube"></i><span>Productos</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Productos</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="orders" onclick="showSection('orders',this)">
-            <i class="fa-solid fa-cart-shopping"></i><span>Pedidos</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg><span>Pedidos</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="inventory" onclick="showSection('inventory',this)">
-            <i class="fa-solid fa-database"></i><span>Inventario</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg><span>Inventario</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="customers" onclick="showSection('customers',this)">
-            <i class="fa-solid fa-user-group"></i><span>Clientes</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clientes</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="staff" onclick="showSection('staff',this)">
-            <i class="fa-regular fa-user"></i><span>Personal</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Personal</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="drivers" onclick="showSection('drivers',this)">
-            <i class="fa-solid fa-truck"></i><span>Repartidores</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg><span>Repartidores</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="loyalty" onclick="showSection('loyalty',this)">
-            <i class="fa-regular fa-heart"></i><span>Fidelización</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg><span>Fidelización</span>
           </a>
         </li>
         <!-- BUILD 456 · `dsh-sep` abre aquí el segundo bloque del menú
@@ -199,27 +199,27 @@
              ni toca showSection(). -->
         <li class="dsh-sep">
           <a href="#" class="nav-link" data-section="reportes" onclick="showSection('reportes',this)">
-            <i class="fa-solid fa-chart-simple"></i><span>Reportes</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20v-4"/><path d="M12 20V10"/><path d="M18 20V4"/></svg><span>Reportes</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="categories" onclick="showSection('categories',this)">
-            <i class="fa-solid fa-tag"></i><span>Categorías</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5"/></svg><span>Categorías</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="cupones" onclick="showSection('cupones',this)">
-            <i class="fa-solid fa-ticket"></i><span>Cupones</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg><span>Cupones</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="notificaciones" onclick="showSection('notificaciones',this)">
-            <i class="fa-regular fa-bell"></i><span>Notificaciones</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span>Notificaciones</span>
           </a>
         </li>
         <li>
           <a href="#" class="nav-link" data-section="settings" onclick="showSection('settings',this)">
-            <i class="fa-solid fa-gear"></i><span>Configuración</span>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>Configuración</span>
           </a>
         </li>
         <!-- 469b · «··· Más» justo después de Configuración (decisión del dueño:
@@ -229,18 +229,18 @@
         <li class="dsh-more-li">
           <a href="#" class="nav-link dsh-more" id="navMas" role="button"
              aria-expanded="false" aria-controls="navMasLista">
-            <i class="fa-solid fa-ellipsis"></i><span>Más</span>
-            <i class="fa-solid fa-chevron-down dsh-more__chevron" aria-hidden="true"></i>
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg><span>Más</span>
+            <svg class="nav-ico dsh-more__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </a>
           <ul class="dsh-more__lista" id="navMasLista" hidden>
             <li>
               <a href="#" class="nav-link nav-link-respaldo" data-section="respaldo" onclick="showSection('respaldo',this)">
-                <i class="fa-regular fa-shield"></i><span>Respaldo</span>
+                <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg><span>Respaldo</span>
               </a>
             </li>
             <li>
               <a href="#" class="nav-link" data-section="ventaspos" onclick="showSection('ventaspos',this)">
-                <i class="fa-solid fa-cash-register"></i><span>Ventas POS</span>
+                <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg><span>Ventas POS</span>
               </a>
             </li>
           </ul>

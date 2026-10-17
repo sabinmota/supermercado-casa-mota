@@ -238,6 +238,16 @@
 }
 .nav-link.active i { color: var(--dsh-sidebar); }
 
+/* 511 · Iconos del menú en trazo fino (estilo Lucide), como el diseño
+ * original: contorno redondeado, sin relleno, a 23 px y trazo 2. Se dibujan con
+ * `currentColor`, así que toman el color del texto (blanco suave / verde en
+ * la opción activa) sin reglas aparte. */
+.nav-link .nav-ico {
+  width: 23px; height: 23px; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
 /* Separador entre bloques del menú. Una clase en el <li>, sin reordenar
  * nada ni tocar showSection(). */
 .dsh-sep {
@@ -248,6 +258,7 @@
 
 /* Fila «Más», con su flecha a la derecha. */
 .dsh-more__chevron { margin-left: auto; font-size: .7rem; transition: transform .2s; }
+.nav-link .nav-ico.dsh-more__chevron { width: 17px; height: 17px; stroke-width: 2; }
 .dsh-more[aria-expanded="true"] .dsh-more__chevron { transform: rotate(180deg); }
 /* 469 · lista del desplegable «Más»: mismas filas, con sangría ligera. */
 .dsh-more-li { border-top: 1px solid rgba(255,255,255,.14); margin-top: 6px; padding-top: 6px; }
