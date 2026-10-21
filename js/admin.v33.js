@@ -653,11 +653,12 @@ function _checkBarcodeUnique(val, excludeId = null) {
  * sea principal o alternativo, identifica a UN solo producto: por eso los
  * dos se comprueban contra los dos campos de todos los demás. */
 function _codigoEnUso(code, excludeId) {
-  const c = String(code || '').trim();
+  // 513 · sin distinguir mayúsculas: «abc123» y «ABC123» son el mismo código
+  const c = String(code || '').trim().toUpperCase();
   if (!c) return null;
   return adminProducts.find(p =>
     String(p.id) !== String(excludeId) &&
-    (String(p.barcode || '').trim() === c || String(p.barcode_alt || '').trim() === c)
+    (String(p.barcode || '').trim().toUpperCase() === c || String(p.barcode_alt || '').trim().toUpperCase() === c)
   ) || null;
 }
 
@@ -672,16 +673,27 @@ function _checkBarcodeAlt(val) {
     inputEl.style.borderColor = color || '';
     inputEl.style.boxShadow   = color ? `0 0 0 3px ${color}26` : '';
   };
-  const v = String(val || '').trim();
+  /* 513 · ALFANUMÉRICO (pedido del dueño): letras y números. Las letras se
+   * guardan en MAYÚSCULAS, que es como las manda la pistola, para que un
+   * código tecleado a mano coincida con el escaneado. */
+  if (inputEl && inputEl.value !== inputEl.value.toUpperCase()) {
+    const pos = inputEl.selectionStart;
+    inputEl.value = inputEl.value.toUpperCase();
+    try { inputEl.setSelectionRange(pos, pos); } catch (e) { /* sin cursor */ }
+  }
+  const v = String(val || '').trim().toUpperCase();
   if (!v) { pinta('', ''); return; }
-  if (!/^\d+$/.test(v)) { pinta('<span style="color:#e53935">❌ Solo números</span>', '#e53935'); return; }
-  if (v.length < 6) { pinta(`<span style="color:#9ca3af">Escribe ${6 - v.length} dígito(s) más…</span>`, ''); return; }
+  if (!/^[A-Z0-9]+$/.test(v)) { pinta('<span style="color:#e53935">❌ Solo letras y números</span>', '#e53935'); return; }
+  if (v.length < 6) { pinta(`<span style="color:#9ca3af">Escribe ${6 - v.length} carácter(es) más…</span>`, ''); return; }
 
-  const principal = (document.getElementById('pBarcode')?.value || '').trim();
+  const principal = (document.getElementById('pBarcode')?.value || '').trim().toUpperCase();
   if (v === principal) { pinta('<span style="color:#e53935">❌ Es igual al código principal</span>', '#e53935'); return; }
 
   const dup = _codigoEnUso(v, editingProductId);
   if (dup) { pinta(`<span style="color:#e65100">⚠️ Ya asignado a "${_escAdm(dup.name)}"</span>`, '#e65100'); return; }
+
+  // Con letras no es un EAN/UPC: no hay dígito de control que comprobar.
+  if (!/^\d+$/.test(v)) { pinta('<span style="color:#1a7c3e;font-weight:600">✅ Código alfanumérico</span>', '#1a7c3e'); return; }
 
   const ean = _validateEAN(v);
   if (!ean.valid && ean.soloDigito) {
@@ -3691,12 +3703,15 @@ function saveProduct() {
     }
   }
 
-  /* 5) 494 · Código ALTERNATIVO (opcional). Mismas reglas que el principal:
-   *    solo números, longitud estándar, sin repetir (contra los dos campos de
-   *    los demás), distinto del principal; si solo falla el dígito de
-   *    control, se pide confirmar (y solo si cambió). */
+  /* 5) 494 · Código ALTERNATIVO (opcional). Sin repetir (contra los dos
+   *    campos de los demás) y distinto del principal.
+   *    513 · ALFANUMÉRICO: letras y números, en mayúsculas. Si es solo
+   *    números se comprueba como EAN/UPC igual que antes (si solo falla el
+   *    dígito de control se pide confirmar); con letras no hay estándar que
+   *    comprobar. */
   const altField = document.getElementById('pBarcodeAlt');
-  const altVal   = (altField?.value || '').trim();
+  const altVal   = (altField?.value || '').trim().toUpperCase();
+  if (altField) altField.value = altVal;
   const _altError = (msg) => {
     showAdminToast(msg, 'error');
     altField?.focus();
@@ -3705,7 +3720,13 @@ function saveProduct() {
       altField.style.boxShadow   = '0 0 0 3px rgba(229,57,53,.18)';
     }
   };
-  if (altVal) {
+  if (altVal && !/^\d+$/.test(altVal)) {
+    if (!/^[A-Z0-9]+$/.test(altVal)) { _altError('⚠️ El código alternativo solo admite letras y números (sin espacios ni signos).'); _unlock(); return; }
+    if (altVal.length < 6) { _altError('⚠️ El código alternativo debe tener al menos 6 caracteres.'); _unlock(); return; }
+    if (altVal === String(barcodeVal || '').trim().toUpperCase()) { _altError('⚠️ El código alternativo es igual al principal. Bórrelo o ponga otro.'); _unlock(); return; }
+    const altDupL = _codigoEnUso(altVal, editingProductId);
+    if (altDupL) { _altError(`⚠️ El código alternativo ya está asignado a "${altDupL.name}"`); _unlock(); return; }
+  } else if (altVal) {
     if (altVal === barcodeVal) { _altError('⚠️ El código alternativo es igual al principal. Bórrelo o ponga otro.'); _unlock(); return; }
     const altEan = _validateEAN(altVal);
     if (!altEan.valid && !altEan.soloDigito) { _altError(`⚠️ Código alternativo inválido: ${altEan.error}`); _unlock(); return; }

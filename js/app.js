@@ -746,7 +746,8 @@ function getFilteredProducts() {
       const bcStr = String(p.barcode || '').trim();
       if (bcStr && bcStr.includes(q)) return true;
       const bcAlt = String(p.barcode_alt || '').trim();   // 494 · código alternativo
-      if (bcAlt && bcAlt.includes(q)) return true;
+      // 513 · puede llevar letras: sin distinguir mayúsculas
+      if (bcAlt && bcAlt.toUpperCase().includes(q.toUpperCase())) return true;
 
       // Si es puramente numérico y no hubo match por barcode → no mostrar
       // resultados de texto para evitar confusión (ej: "12345" no debería
@@ -2610,7 +2611,7 @@ function barcodeLiveSearch(query) {
       const tokens = _tokensBusqueda(q);
       const hallados = prods.filter(p => {
         if (p.barcode && String(p.barcode).trim().includes(q)) return true;
-        if (p.barcode_alt && String(p.barcode_alt).trim().includes(q)) return true;   // 494
+        if (p.barcode_alt && String(p.barcode_alt).trim().toUpperCase().includes(q.toUpperCase())) return true;   // 494 · 513
         return _coincidenTokens(_textoBuscable(p), tokens);
       });
       // Relevancia: nombre que empieza por la 1ª palabra va primero
@@ -2865,7 +2866,7 @@ function _beepScanner(found = true) {
  * Generamos todas las variantes para comparar contra lo que esté guardado.
  */
 function _barcodeVariants(code) {
-  const clean = String(code).trim().replace(/\s+/g, '');
+  const clean = String(code).trim().replace(/\s+/g, '').toUpperCase();   // 513 · alfanumérico
   const v = new Set([clean]);
   if (clean.length === 13 && clean.startsWith('0')) v.add(clean.slice(1)); // EAN-13 → UPC-A
   if (clean.length === 12) v.add('0' + clean);                              // UPC-A → EAN-13
@@ -2875,7 +2876,7 @@ function _barcodeVariants(code) {
 /* 494 · ¿El producto tiene este código, como principal o como alternativo
  * (seguridad/86)? `variants` es el Set de _barcodeVariants. */
 function _coincideCodigo(p, variants) {
-  const limpio = c => String(c).trim().replace(/\s+/g, '');
+  const limpio = c => String(c).trim().replace(/\s+/g, '').toUpperCase();   // 513
   return !!((p.barcode     && variants.has(limpio(p.barcode))) ||
             (p.barcode_alt && variants.has(limpio(p.barcode_alt))));
 }

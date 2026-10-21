@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '491';
+      const VER = '492';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1709,7 +1709,7 @@
             <input type="text" class="form-input" id="pBarcodeAlt" placeholder="Otro código del mismo producto"
                    style="flex:1;font-family:monospace;letter-spacing:.08em;font-size:.95rem"
                    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                   inputmode="numeric" maxlength="14"
+                   inputmode="text" maxlength="30"
                    oninput="_checkBarcodeAlt(this.value)" />
             <span id="pBarcodeAltStatus" style="font-size:.75rem;white-space:nowrap;min-width:160px"></span>
           </div>
@@ -3416,7 +3416,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=417"></script>
+  <script src="js/admin.v33.js?v=418"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

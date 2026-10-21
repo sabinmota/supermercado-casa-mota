@@ -373,7 +373,7 @@
     for (var j = 0; j < _productos.length; j++) {
       var q = _productos[j];
       if (q.deleted === true) { continue; }
-      var a = String(q.barcode_alt || '').trim();
+      var a = String(q.barcode_alt || '').trim().toUpperCase();   // 513 · alfanumérico
       if (a && !_porBarcode[a]) { _porBarcode[a] = q; }
     }
   }
@@ -438,6 +438,12 @@
    * Devuelve { s, p, cantidad, esPeso } o, si no lo encuentra, { s, p:null, bas }. */
   function identificar(codigo) {
     var s = String(codigo).replace(/\s/g, '');
+
+    /* 513 · El código alternativo puede llevar letras: tecleado en
+     *       minúsculas también se reconoce. */
+    if (!_porBarcode[s] && _porBarcode[s.toUpperCase()]) {
+      return { s: s, p: _porBarcode[s.toUpperCase()], cantidad: 1, esPeso: false };
+    }
 
     /* 1 · ¿El código existe TAL CUAL en el catálogo? Entonces es ese producto.
      *     Va primero a propósito: un dato real gana a cualquier heurística. */
