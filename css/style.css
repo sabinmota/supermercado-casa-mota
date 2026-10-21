@@ -4129,6 +4129,21 @@ html.es-app-nativa .header {
 .modal-add-btn { width: 100%; padding: 14px; background: var(--green-primary); color: white; border-radius: var(--radius); font-size: .95rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background var(--transition); }
 .modal-add-btn:hover { background: var(--green-dark); }
 
+/* 514 · ANDROID: la ventana del producto «se ladeaba» de lado a lado.
+ * Causa medida: la columna del grid (`1fr`) no puede encoger por debajo del
+ * ancho mínimo de su contenido. La fila [– 1 +][♥][Compartir] + el relleno de
+ * 32 px por lado exigían 367 px, más que la ventana en un móvil de 360–390 px
+ * (Android suele tener 360–412), así que el contenido se salía 17–47 px por
+ * la derecha y la ventana se podía arrastrar de lado. En el iPhone grande
+ * cabía justo y no se notaba.
+ * Arreglo: la columna sí puede encoger (minmax(0,1fr)), la ventana no se
+ * desplaza en horizontal, y solo en pantallas estrechas se ajustan rellenos y
+ * huecos lo justo para que todo quepa. En pantallas anchas no cambia nada. */
+.modal-content  { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.modal-details  { min-width: 0; }
+.product-modal  { overflow-x: hidden; overscroll-behavior: contain; }
+.modal-share-btn { min-width: 0; white-space: nowrap; }
+
 /* ============================================================
    RESPONSIVE
    ============================================================ */
@@ -4142,7 +4157,7 @@ html.es-app-nativa .header {
   .hero-image { width: 100%; max-width: 320px; height: 220px; }
   .products-grid { grid-template-columns: repeat(2,1fr); }
   .category-grid { grid-template-columns: repeat(2,1fr); }
-  .modal-content { grid-template-columns: 1fr; }
+  .modal-content { grid-template-columns: minmax(0, 1fr); }   /* 514 */
   .modal-img { height: 240px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .modal-img img { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .car-viewport { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
@@ -4150,6 +4165,15 @@ html.es-app-nativa .header {
   .car-arrow--prev { left: 6px; }
   .car-arrow--next { right: 6px; }
   .car-arrow { width: 30px; height: 30px; font-size: .75rem; }
+}
+/* 514 · móviles estrechos (Android 360–412 px): todo cabe sin salirse */
+@media (max-width: 480px) {
+  .modal-overlay { padding: 12px; }
+  .modal-details { padding: 22px 20px; }
+  .modal-actions-row { gap: 8px; }
+  .modal-qty { gap: 6px; }
+  .modal-actions { gap: 8px; }
+  .modal-share-btn { padding: 12px 10px; gap: 6px; }
 }
 @media (max-width: 680px) {
   .header-main-inner { flex-wrap: wrap; }
