@@ -4175,6 +4175,29 @@ html.es-app-nativa .header {
   .modal-actions { gap: 8px; }
   .modal-share-btn { padding: 12px 10px; gap: 6px; }
 }
+/* 517 · MÓVILES ESTRECHOS (casi todos los Android: 360–412 px, y los iPhone
+ * normales): el logo y la fila [Hola, Nombre][Mi cuenta][Favoritos][Avisos]
+ * no cabían juntos (medido: hacían falta 382 px y había 320–372), así que los
+ * botones bajaban a una línea propia y el logo quedaba solo encima. En el
+ * iPhone grande (430 px) sí cabían. Pedido del dueño: todo en UNA línea, como
+ * en ese iPhone.
+ * Arreglo: la fila de botones ocupa el sitio que queda a la derecha del logo
+ * (nunca baja de línea) y, solo aquí, los márgenes y huecos se reducen lo
+ * justo; si el nombre del cliente es largo se acorta con «…». En pantallas de
+ * 430 px o más no cambia nada. */
+@media (max-width: 429px) {
+  .header-main-inner { padding-left: 10px; padding-right: 10px; gap: 6px; }
+  .header-actions {
+    flex: 1 1 0; min-width: 0;
+    justify-content: flex-end; gap: 0;
+  }
+  .header-actions .action-btn { padding: 6px 4px; min-width: 0; flex-shrink: 0; }
+  .client-greeting { min-width: 0; flex-shrink: 1; gap: 6px; padding: 4px 8px 4px 5px; margin-right: 2px; }
+  .client-greeting-text { min-width: 0; }
+  .client-name, .client-hello { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .client-avatar { width: 28px; height: 28px; }
+  .client-logout-btn { padding: 3px 2px; }
+}
 @media (max-width: 680px) {
   .header-main-inner { flex-wrap: wrap; }
   .search-bar { order: 3; flex-basis: 100%; }
