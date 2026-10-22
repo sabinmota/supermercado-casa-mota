@@ -61,8 +61,12 @@
 
 /* ── 501 · Pantalla de entrada del panel (login.html) ─────────────────────
    Mismo logo animado que la barra lateral. El marco es el que ya tenía la
-   imagen fija (.login-logo): 130 px, blanco, radio 20, relleno 10, sombra. */
-.login-logo-wrap {
+   imagen fija (.login-logo): 130 px, blanco, radio 20, relleno 10, sombra.
+   🔴 503 · Clase con nombre PROPIO (.cm-marco-login). Se llamaba
+      .login-logo-wrap, que es el mismo nombre que ya usa login-cliente.html
+      para su segunda pantalla: al cargar este CSS en la app, esa pantalla
+      habría cogido este marco sin que nadie lo pidiera. */
+.cm-marco-login {
   width: 130px; height: 130px;
   margin: 0 auto 14px;
   padding: 10px;
@@ -71,10 +75,21 @@
   box-shadow: 0 8px 32px rgba(0,0,0,.35);
   box-sizing: border-box;
 }
-.login-logo-wrap .cm-logo-anim { width: 100%; height: 100%; }
+.cm-marco-login .cm-logo-anim { width: 100%; height: 100%; }
 @media (max-width: 480px) {
-  .login-logo-wrap { width: 100px; height: 100px; padding: 8px; border-radius: 16px; }
+  .cm-marco-login { width: 100px; height: 100px; padding: 8px; border-radius: 16px; }
 }
+
+/* ── 503 · Pantalla de bienvenida de la app (login-cliente.html) ──────────
+   El marco (.welcome-logo-wrap: 110 px, blanco, radio 28, sombra y su
+   entrada «logoIn») es el de la propia página y no se toca: aquí solo se
+   dice que el SVG ocupe la caja, igual que hacía la <img>. */
+.welcome-logo-wrap .cm-logo-anim { width: 100%; height: 100%; }
+
+/* ── 515 · Cabecera de la tienda (index.html: web, app iPhone y Android) ──
+   Mismo tamaño que tenía la imagen fija (.logo-img: 48 px de alto, cuadrada).
+   Sin marco: la cabecera ya es blanca, como el fondo del logo. */
+.logo .cm-logo-anim { width: 48px; height: 48px; }
 .cm-logo-anim g { transform-box: view-box; }
 /* .cm-todo agrupa las piezas que se mueven; lleva la misma mezcla para que
    el blanco de las piezas no tape la casa que hay debajo del grupo. */
