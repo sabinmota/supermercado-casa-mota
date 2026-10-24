@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '492';
+      const VER = '493';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -683,6 +683,10 @@
                   Precio <span class="sort-icon" id="sort-icon-price">⇅</span>
                 </th>
                 <!-- 477 · columna ITBIS (pedido del dueño: después de Precio) -->
+                <!-- 518 · margen (precio − costo) / precio · seguridad/97 -->
+                <th class="th-sortable" onclick="sortProductsBy('_margen')" title="Ordenar por margen">
+                  Margen <span class="sort-icon" id="sort-icon-_margen">⇅</span>
+                </th>
                 <th class="th-sortable" onclick="sortProductsBy('itbis_tasa')" title="Ordenar por ITBIS">
                   ITBIS <span class="sort-icon" id="sort-icon-itbis_tasa">⇅</span>
                 </th>
@@ -1647,11 +1651,25 @@
         <div class="form-row">
           <div class="form-group">
             <label>Precio actual (RD$) <span class="req">*</span></label>
-            <input type="number" class="form-input" id="pPrice" placeholder="0.00" min="0" />
+            <input type="number" class="form-input" id="pPrice" placeholder="0.00" min="0" oninput="_pintarMargen()" />
           </div>
           <div class="form-group">
             <label>Precio original (RD$)</label>
             <input type="number" class="form-input" id="pOriginalPrice" placeholder="Dejar vacío si no hay descuento" min="0" />
+          </div>
+        </div>
+        <!-- 518 · Costo del artículo (seguridad/97). Privado: la tienda no lo ve.
+             Lo rellena la sincronización (CostoUltimo, ya con su ITBIS) o se
+             escribe aquí. El margen se calcula solo. -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="pCosto">Costo (RD$)</label>
+            <input type="number" class="form-input" id="pCosto" placeholder="Lo trae la sincronización" min="0" step="0.01"
+                   oninput="_pintarMargen()" />
+          </div>
+          <div class="form-group">
+            <label>Margen</label>
+            <div class="form-input" id="pMargen" style="background:#f7f8f7;color:#6b7280">—</div>
           </div>
         </div>
         <div class="form-row">
@@ -3405,7 +3423,7 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=357"></script>
+  <script src="js/api.js?v=358"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
 <script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
@@ -3416,7 +3434,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=418"></script>
+  <script src="js/admin.v33.js?v=419"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
