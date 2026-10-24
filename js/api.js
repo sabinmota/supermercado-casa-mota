@@ -522,6 +522,7 @@ const _ERRORES_PRODUCTO = {
   STOCK_INVALIDO:      'El stock no puede ser negativo.',
   DATOS_INVALIDOS:     'Los datos del producto no llegaron correctamente.',
   SIN_DATOS:           'No hay datos que guardar.',
+  COSTO_INVALIDO:      'El costo debe ser un número igual o mayor que 0.',   // 97
 };
 
 /* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
@@ -810,6 +811,16 @@ const DB = {
     }
 
     _totalProductsInDB = all.length;
+
+    /* SEGURIDAD 97 · Solo el panel (opts.full + sesión de empleado) recibe el
+     * costo de cada artículo. La tienda y la caja sin sesión no lo piden. */
+    if (opts.full && opts.costos !== false && _valeAdmin()) {
+      const costos = await this.leerCostos();
+      all.forEach(p => {
+        const c = costos[String(p.id)];
+        p.costo = (c === undefined || !isFinite(c)) ? null : c;
+      });
+    }
     return all;
   },
 
@@ -837,6 +848,44 @@ const DB = {
     return _rpcStaff('admin_cambiar_categoria', {
       p_vale: _valeAdmin(), p_viejo: viejo, p_nuevo: nuevo,
     }, _ERRORES_PRODUCTO);
+  },
+
+  /* SEGURIDAD 97 · Costos de los artículos. Viven en una tabla aparte que
+   * la tienda NO puede leer; el panel los pide con el vale. Devuelve un mapa
+   * { idProducto: costo }. Si falla (SQL 97 aún sin ejecutar, sesión
+   * caducada…) devuelve {} y el panel sigue funcionando sin costos.
+   * El costo se guarda con saveProduct, añadiendo `costo` a los datos. */
+  /* 🔴 518b · POR PÁGINAS. Supabase devuelve como MÁXIMO 1.000 filas por
+   * petición, también en las funciones. Con 2.106 costos guardados, la
+   * primera versión pedía todo de una vez, recibía 1.000 y el resto de
+   * productos (el Filete de Bacalao, por ejemplo) se quedaba sin costo en el
+   * panel aunque estuviera en la base. Ahora se piden de 1.000 en 1.000, en
+   * orden fijo, hasta que no llega ninguno más. */
+  async leerCostos() {
+    const vale = _valeAdmin();
+    if (!vale) return {};
+    const mapa = {};
+    try {
+      let desde = 0;
+      for (let vuelta = 0; vuelta < 100; vuelta++) {
+        const res = await fetch(
+          `${_SB_URL}/rpc/admin_leer_costos?order=producto_id.asc&limit=1000&offset=${desde}`,
+          { method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }) }
+        );
+        if (!res.ok) {
+          const texto = await res.text();
+          throw new Error(`HTTP ${res.status}: ${texto.slice(0, 200)}`);
+        }
+        const filas = await res.json();
+        if (!Array.isArray(filas) || filas.length === 0) break;
+        filas.forEach(f => { if (f && f.producto_id != null) mapa[String(f.producto_id)] = Number(f.costo); });
+        desde += filas.length;
+      }
+      return mapa;
+    } catch (e) {
+      console.warn('[costos] no se pudieron leer:', e.message || e);
+      return mapa;
+    }
   },
 
   async guardarDescripcion(id, texto) {

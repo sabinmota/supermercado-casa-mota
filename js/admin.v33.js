@@ -2194,7 +2194,7 @@ function sortProductsBy(field) {
     _prodSortDir   = 'asc';
   }
   // Actualizar íconos en los headers
-  ['name','category','price','itbis_tasa','stock'].forEach(f => {   // 477 · + ITBIS
+  ['name','category','price','_margen','itbis_tasa','stock'].forEach(f => {   // 477 · + ITBIS · 518 + margen
     const icon = document.getElementById(`sort-icon-${f}`);
     const th   = icon?.closest('th');
     if (!icon) return;
@@ -2394,6 +2394,41 @@ function _pasaFiltroVenta(p) {
   return true;
 }
 
+/* 518 · MARGEN (seguridad/97). (precio − costo) / precio, en %.
+ * El costo es `CostoUltimo` del programa viejo, que ya trae su ITBIS, igual
+ * que el precio de venta: se comparan los dos tal cual, sin quitar impuestos.
+ * Sin costo (o sin precio) no hay margen: null, y se pinta «—». */
+function _margenDe(p) {
+  const precio = Number(p && p.price);
+  const costo  = (p && p.costo !== null && p.costo !== undefined && p.costo !== '') ? Number(p.costo) : NaN;
+  if (!isFinite(precio) || precio <= 0 || !isFinite(costo)) return null;
+  return (precio - costo) / precio * 100;
+}
+// Color del margen: rojo si se vende con pérdida, ámbar si es bajo (< 10 %).
+function _colorMargen(m) {
+  return m === null ? '#9ca3af' : m < 0 ? '#c62828' : m < 10 ? '#b45309' : '#1a7c3e';
+}
+function _celdaMargen(p) {
+  const m = _margenDe(p);
+  if (m === null) return '<span style="color:#ccc;font-size:.78rem" title="Sin costo">—</span>';
+  const ganancia = Number(p.price) - Number(p.costo);
+  return `<span style="font-weight:700;color:${_colorMargen(m)}">${m.toFixed(1)} %</span>` +
+         `<br><small style="color:#888" title="Costo">costo RD$ ${fmt$(p.costo)}</small>` +
+         (ganancia < 0 ? '<br><small style="color:#c62828">vende con pérdida</small>' : '');
+}
+// Margen en vivo en el formulario del producto (precio y costo del propio formulario).
+function _pintarMargen() {
+  const el = document.getElementById('pMargen');
+  if (!el) return;
+  const precio = parseFloat(document.getElementById('pPrice')?.value);
+  const cRaw   = (document.getElementById('pCosto')?.value || '').trim();
+  const m = _margenDe({ price: precio, costo: cRaw === '' ? null : parseFloat(cRaw) });
+  if (m === null) { el.textContent = '—'; el.style.color = '#6b7280'; el.style.fontWeight = ''; return; }
+  el.textContent = `${m.toFixed(1)} %  ·  gana RD$ ${fmt$(precio - parseFloat(cRaw))}`;
+  el.style.color = _colorMargen(m);
+  el.style.fontWeight = '700';
+}
+
 /* 477 · Columna ITBIS de la tabla de Productos (pedido del dueño, 26-sep).
  * Mismos colores que la ficha de detalle (css/panel-2026.css · .itl-pill). */
 function _celdaItbis(t) {
@@ -2423,6 +2458,13 @@ function renderProductsTable() {
     .sort((a, b) => {
       if (_prodSortField) {
         let va = a[_prodSortField], vb = b[_prodSortField];
+        // 518 · margen calculado; los que no tienen costo van al final
+        if (_prodSortField === '_margen') {
+          va = _margenDe(a); vb = _margenDe(b);
+          if (va === null && vb === null) return 0;
+          if (va === null) return 1;
+          if (vb === null) return -1;
+        }
         // Normalizar para comparación
         if (typeof va === 'string') va = va.toLowerCase();
         if (typeof vb === 'string') vb = vb.toLowerCase();
@@ -2481,6 +2523,7 @@ function renderProductsTable() {
       <td>${p.name}${_esSoloCajaAdm(p) ? ' <span class="sc-pill" title="Se factura en la caja; no se muestra en la tienda ni en la app">Solo caja</span>' : ''}</td>
       <td><span class="td-cat">${catLabel(p.category)}</span></td>
       <td><strong>RD$ ${fmt$(p.price)}</strong>${p.originalPrice ? `<br><small style="text-decoration:line-through;color:#aaa">RD$ ${fmt$(p.originalPrice)}</small>` : ''}</td>
+      <td>${_celdaMargen(p)}</td>
       <td>${_celdaItbis(p.itbis_tasa)}</td>
       <td><span class="${stockClass}">${p.stock}</span></td>
       <td>${p.unit ? `<span class="td-unit-pill">${p.unit}</span>` : `<span style="color:#ddd;font-size:.78rem">—</span>`}</td>
@@ -2513,6 +2556,10 @@ function openProductModal(id = null) {
     document.getElementById('pName').value          = p.name;
     document.getElementById('pPrice').value         = p.price;
     document.getElementById('pOriginalPrice').value = p.originalPrice || '';
+    // 518 · costo (seguridad/97). Si el campo no está (admin.html viejo), se salta.
+    const _costoEl = document.getElementById('pCosto');
+    if (_costoEl) _costoEl.value = (p.costo === null || p.costo === undefined) ? '' : p.costo;
+    _pintarMargen();
     document.getElementById('pUnit').value          = p.unit;
     // BUILD 412: `?? 0` para que un producto con stock nulo en la base no
     // escriba el texto "undefined" en un <input type="number">, que el
@@ -2584,8 +2631,9 @@ function openProductModal(id = null) {
     // Cargar imágenes adicionales
     _loadExtraImages(Array.isArray(p.images) ? p.images : []);
   } else {
-    ['pName','pPrice','pOriginalPrice','pUnit','pStock','pRating','pDescription','pImage','pBarcode','pBarcodeAlt']
+    ['pName','pPrice','pOriginalPrice','pCosto','pUnit','pStock','pRating','pDescription','pImage','pBarcode','pBarcodeAlt']
       .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    _pintarMargen();   // 518
     _checkBarcodeAlt('');   // 494 · limpia el aviso y el borde del alternativo
     /* BUILD 452 · La casilla es un checkbox, no un input de texto: no se limpia
      * con `.value = ''` (eso la dejaría marcada con el estado del producto
@@ -3805,6 +3853,25 @@ function saveProduct() {
    * alternativo que ya tuviera el producto, sin avisar. */
   if (altField) data.barcode_alt = altVal || null;   // seguridad/86
 
+  /* 518 · COSTO (seguridad/97). Igual que el alternativo: solo si el campo
+   * existe en la página, para que un admin.html viejo no BORRE el costo que
+   * puso la sincronización. Vacío = sin costo. La base lo guarda aparte
+   * (la tienda no lo puede leer) en la misma operación que el producto. */
+  const costoField = document.getElementById('pCosto');
+  let costoVal = null;
+  if (costoField) {
+    const cRaw = (costoField.value || '').trim();
+    if (cRaw !== '') {
+      costoVal = parseFloat(cRaw);
+      if (!isFinite(costoVal) || costoVal < 0) {
+        showAdminToast('⚠️ El costo debe ser un número igual o mayor que 0 (o déjelo vacío).', 'error');
+        costoField.focus(); _unlock(); return;
+      }
+      costoVal = Math.round(costoVal * 100) / 100;
+    }
+    data.costo = costoVal;
+  }
+
   // ── El bloqueo y _unlock ya están definidos al inicio de la función ──────────
 
   if (editingProductId) {
@@ -3885,9 +3952,11 @@ function saveProduct() {
         });
     } else {
       // ── Producción/Supabase: usar DB.saveProduct ─────────────────────────
+      if (costoVal !== null) newProd.costo = costoVal;   // 518
       DB.saveProduct(newProd)
         .then(saved => {
           const finalProd = saved || newProd;
+          finalProd.costo = costoVal;                      // 518 · para el margen en pantalla
           if (!finalProd.created_at) finalProd.created_at = new Date().toISOString();
           adminProducts.unshift(finalProd);
           if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;

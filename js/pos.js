@@ -339,7 +339,8 @@
     try {
       /* full:true → hacen falta `barcode`, `itbis_tasa` y `es_pesado`, que no
        * están en el select ligero de la tienda. */
-      _productos = await DB.getProducts({ full: true });
+      // 518 · costos:false → la caja no necesita el costo (seguridad/97).
+      _productos = await DB.getProducts({ full: true, costos: false });
       indexar();
       montarPromo();
       $('pos-cargando').hidden = true;
