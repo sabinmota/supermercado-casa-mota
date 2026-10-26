@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '495';
+      const VER = '496';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -41,7 +41,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Caveat:wght@600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
-  <link rel="stylesheet" href="css/admin.v33.css?v=260" />
+  <link rel="stylesheet" href="css/admin.v33.css?v=261" />
   <!-- BUILD 456 · Rediseño del panel (barra lateral, barra superior y
        dashboard). Hoja INDEPENDIENTE: se carga DESPUÉS de admin.v33.css y
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
@@ -3327,6 +3327,9 @@
         onkeydown="chatInputKeydown(event)"
         oninput="chatInputAutoResize(this)"
       ></textarea>
+      <button class="chat-mic-btn" id="chatMicBtn" onclick="chatToggleMic()" aria-label="Hablar con Maya" aria-pressed="false" title="Hablar con Maya" hidden>
+        <i class="fas fa-microphone"></i>
+      </button>
       <button class="chat-send-btn" id="chatSendBtn" onclick="chatSend()" aria-label="Enviar">
         <i class="fas fa-paper-plane"></i>
       </button>
@@ -3457,7 +3460,7 @@
   <script src="js/ai.js?v=260"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=243"></script>
+  <script src="js/chat.js?v=244"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 

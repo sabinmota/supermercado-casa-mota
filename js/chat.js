@@ -400,6 +400,7 @@ const _QUICK_SUGGESTIONS_STORE = [
 
 // Sugerencias para el equipo admin (gestión de la tienda)
 const _QUICK_SUGGESTIONS_ADMIN = [
+  '¿Cuánto me cuesta el aceite?',
   '¿Cuáles productos tienen poco stock?',
   '¿Cuántos pedidos pendientes hay?',
   '¿Cuántos pedidos entregados tiene Sabin Mota?',
@@ -437,6 +438,8 @@ async function _chatLoadProducts(force = false) {
         price:    p.price,
         badge:    p.badge,
         unit:     p.unit,                 // faltaba: el catálogo lo usaba y siempre era undefined
+        barcode:     p.barcode || '',     // 520 · para buscar costos por código
+        barcode_alt: p.barcode_alt || '',
         stock:    Number(p.stock) || 0,   // faltaba: sin esto Maya no podía hablar de inventario
         /* 478 · la tasa de ITBIS que tiene ASIGNADA en la base (null = sin asignar).
          * Solo se muestra en el panel (_IS_ADMIN). */
@@ -760,6 +763,252 @@ function _chatInventarioResumen() {
   ].join('\n');
 }
 
+// ─── 520 · COSTOS DE PRODUCTOS (solo panel) ──────────────────────────────────
+/* El admin escribe (o dicta) «¿cuánto me cuesta el aceite de soya?» y Maya
+ * contesta con COSTO, PRECIO y MARGEN de los productos que coinciden.
+ *
+ * 🔒 La respuesta se calcula AQUÍ, en el navegador, y NO pasa por Groq: los
+ * costos viven en `producto_costos` precisamente para que nadie de fuera los
+ * vea (seguridad/97). Mandarlos a un tercero para que los «lea» deshacería eso.
+ * Por la misma razón, ni la pregunta ni la respuesta entran en `_chatHistory`
+ * — ese historial se reenvía a Groq en el siguiente mensaje.
+ *
+ * El margen usa la MISMA regla que la columna Margen de Productos
+ * (`_margenDe` en js/admin.v33.js): (precio − costo) / precio. */
+
+let _chatCostos      = null;   // { idProducto: costo }
+let _chatCostosHora  = 0;
+const _CHAT_COSTOS_TTL = 60 * 1000;   // 1 min: si se edita un costo, se ve enseguida
+
+async function _chatCargarCostos(force = false) {
+  if (!force && _chatCostos && (Date.now() - _chatCostosHora) < _CHAT_COSTOS_TTL) return _chatCostos;
+  if (typeof DB === 'undefined' || typeof DB.leerCostos !== 'function') return null;
+  const mapa = await DB.leerCostos();          // paginado (518b) · {} si falla
+  _chatCostos = mapa || {};
+  _chatCostosHora = Date.now();
+  return _chatCostos;
+}
+
+/** ¿El mensaje pregunta por costos o márgenes? (sin acentos, minúsculas) */
+function _esPreguntaCosto(msg) {
+  if (!_IS_ADMIN) return false;
+  const m = _norm(msg);
+  return /\bcost(o|os|e|ea|ean|ear|ado)\b/.test(m)
+      || /\bmargen(es)?\b/.test(m)
+      || /\bganancia(s)?\b/.test(m)
+      || /\bme (cuesta|cuestan|sale|salen)\b/.test(m)
+      || /\bprecio(s)? de compra\b/.test(m)
+      || /\b(con|en) perdida\b/.test(m);
+}
+
+// Palabras que no describen el producto: se quitan antes de buscar.
+const _COSTO_VACIAS = new Set((
+  'el la los las lo un una unos unas de del al a en y o u que cual cuales cuanto cuanta cuantos cuantas ' +
+  'es son esta estan me mi mis te se su sus nos dime dame decime busca buscame buscar buscarme quiero ' +
+  'saber ver ponme pon muestrame muestra ensename dice cual por para con sin favor porfa maya hola oye ' +
+  'costo costos coste costea costean costear costado margen margenes ganancia ganancias precio precios ' +
+  'compra cuesta cuestan sale salen tiene tienen tengo hay producto productos articulo articulos ' +
+  'perdida vendo vende vendemos bajo baja bajos bajas menor menores peor peores mayor mejor mejores ' +
+  'alto alta altos altas minimo maximo mas menos muy cada todos todas cuales'
+).split(/\s+/));
+
+function _terminosCosto(msg) {
+  return _norm(msg)
+    .replace(/[^a-z0-9ñ\s]/g, ' ')
+    .split(/\s+/)
+    // Un número suelto corto («los 10») no es un producto; un código de barras sí.
+    .filter(t => t && t.length >= 2 && !_COSTO_VACIAS.has(t) && !/^\d{1,3}$/.test(t));
+}
+
+/** Busca productos por nombre o código. Devuelve { lista, parcial }. */
+function _buscarProductosCosto(terminos) {
+  if (!terminos.length) return { lista: [], parcial: false };
+  // Plural sencillo: «aceites» también encuentra «aceite».
+  const variantes = terminos.map(t => {
+    const v = [t];
+    if (t.length > 4 && t.endsWith('es')) v.push(t.slice(0, -2));
+    if (t.length > 3 && t.endsWith('s'))  v.push(t.slice(0, -1));
+    return v;
+  });
+  const puntuados = _chatProdCache.map(p => {
+    const texto = _norm(p.name) + ' ' + _norm(p.barcode) + ' ' + _norm(p.barcode_alt);
+    const aciertos = variantes.filter(v => v.some(x => texto.includes(x))).length;
+    return { p, aciertos };
+  }).filter(x => x.aciertos > 0);
+  if (!puntuados.length) return { lista: [], parcial: false };
+
+  const max = Math.max(...puntuados.map(x => x.aciertos));
+  const lista = puntuados
+    .filter(x => x.aciertos === max)
+    .sort((a, b) => String(a.p.name).length - String(b.p.name).length
+                 || String(a.p.name).localeCompare(String(b.p.name), 'es'))
+    .map(x => x.p);
+  return { lista, parcial: max < terminos.length };
+}
+
+function _margenChat(precio, costo) {
+  const pr = Number(precio);
+  if (!isFinite(pr) || pr <= 0 || costo === null || costo === undefined || !isFinite(costo)) return null;
+  return (pr - costo) / pr * 100;
+}
+
+const _rd = n => 'RD$ ' + Number(n).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function _lineaCosto(p, costos) {
+  const c = costos[String(p.id)];
+  const costo = (c === undefined || c === null || !isFinite(c)) ? null : Number(c);
+  const m = _margenChat(p.price, costo);
+  const partes = [
+    costo === null ? 'Costo: sin cargar' : `Costo ${_rd(costo)}`,
+    `Precio ${_rd(p.price || 0)}`,
+    m === null ? 'Margen —' : `Margen ${m.toFixed(1)} %${m < 0 ? ' ⚠️ vende con pérdida' : m < 10 ? ' (bajo)' : ''}`,
+  ];
+  return `• **${p.name}**${p.unit ? ' / ' + p.unit : ''}\n   ${partes.join(' · ')}`;
+}
+
+const _COSTO_MAX = 8;
+
+/** Construye la respuesta completa. Devuelve el texto para el chat. */
+async function _chatRespuestaCosto(msg) {
+  await _chatLoadProducts();
+  const costos = await _chatCargarCostos();
+  if (!costos || !Object.keys(costos).length) {
+    return '🔒 No pude leer los costos. Puede que la sesión del panel haya caducado: '
+         + 'sal y vuelve a entrar, y pregúntame otra vez.';
+  }
+  const m = _norm(msg);
+  const terminos = _terminosCosto(msg);
+
+  // «¿Qué productos vendo con pérdida?» — no nombra ningún producto.
+  if (/\bperdida\b/.test(m) && !terminos.length) {
+    const malos = _chatProdCache
+      .map(p => ({ p, mg: _margenChat(p.price, costos[String(p.id)]) }))
+      .filter(x => x.mg !== null && x.mg < 0)
+      .sort((a, b) => a.mg - b.mg);
+    if (!malos.length) return '✅ Ningún producto con costo cargado se está vendiendo con pérdida.';
+    return `⚠️ **${malos.length}** producto(s) se venden por debajo del costo:\n`
+         + malos.slice(0, 15).map(x => _lineaCosto(x.p, costos)).join('\n')
+         + (malos.length > 15 ? `\n…y ${malos.length - 15} más. Los ves todos ordenando Productos por Margen.` : '');
+  }
+
+  // «¿Cuáles tienen el margen más bajo?»
+  if (/\bmargen(es)?\b/.test(m) && /\b(bajo|baja|menor|peor|peores|minimo)\b/.test(m) && !terminos.length) {
+    const lista = _chatProdCache
+      .map(p => ({ p, mg: _margenChat(p.price, costos[String(p.id)]) }))
+      .filter(x => x.mg !== null)
+      .sort((a, b) => a.mg - b.mg)
+      .slice(0, 10);
+    if (!lista.length) return 'Todavía no hay productos con costo cargado.';
+    return '📉 Los 10 productos con **menor margen**:\n' + lista.map(x => _lineaCosto(x.p, costos)).join('\n');
+  }
+
+  if (!terminos.length) {
+    return '🧾 ¿De qué producto quieres el costo? Escríbelo o díctalo, por ejemplo: '
+         + '«costo del aceite de soya» o el código de barras.';
+  }
+
+  const { lista, parcial } = _buscarProductosCosto(terminos);
+  const buscado = terminos.join(' ');
+  if (!lista.length) {
+    return `🔎 No encontré ningún producto que coincida con «${buscado}». `
+         + 'Prueba con otra palabra del nombre o con el código de barras.';
+  }
+
+  const cab = parcial
+    ? `🔎 No hay ninguno con todas las palabras «${buscado}». Lo más parecido:`
+    : `🧾 ${lista.length === 1 ? 'Encontré 1 producto' : `Encontré ${lista.length} productos`} con «${buscado}»:`;
+  const extra = lista.length > _COSTO_MAX
+    ? `\n…y ${lista.length - _COSTO_MAX} más. Escribe un nombre más concreto para afinar.`
+    : '';
+  return `${cab}\n${lista.slice(0, _COSTO_MAX).map(p => _lineaCosto(p, costos)).join('\n')}${extra}`;
+}
+
+// ─── 520 · DICTADO POR VOZ (micrófono del móvil o del PC) ────────────────────
+/* Usa el reconocimiento de voz del propio navegador (Web Speech API):
+ * Chrome y Edge en PC, Chrome en Android y Safari en iPhone/iPad.
+ * Firefox no lo tiene: ahí el botón no aparece. Exige HTTPS (el dominio ya lo
+ * tiene). Lo dicho se escribe en la caja y, al callarte, se envía solo. */
+
+const _ChatVoz = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let _chatRec       = null;
+let _chatEscuchando = false;
+let _chatVozTexto  = '';
+
+function _chatMicPintar() {
+  const b = document.getElementById('chatMicBtn');
+  if (!b) return;
+  b.classList.toggle('chat-mic-on', _chatEscuchando);
+  b.setAttribute('aria-pressed', _chatEscuchando ? 'true' : 'false');
+  b.title = _chatEscuchando ? 'Escuchando… pulsa para parar' : 'Hablar con Maya';
+  const input = document.getElementById('chatMsgInput');
+  if (input) input.placeholder = _chatEscuchando ? '🎙️ Te escucho…' : (input.dataset.ph || input.placeholder);
+}
+
+function _chatMicIniciar() {
+  const b = document.getElementById('chatMicBtn');
+  const input = document.getElementById('chatMsgInput');
+  if (input && !input.dataset.ph) input.dataset.ph = input.placeholder;
+  if (!_ChatVoz) { if (b) b.hidden = true; return; }
+  if (b) b.hidden = false;
+}
+
+function chatToggleMic() {
+  if (!_ChatVoz) return;
+  if (_chatEscuchando && _chatRec) { _chatRec.stop(); return; }
+  if (_chatTyping) return;
+
+  const input = document.getElementById('chatMsgInput');
+  const rec = new _ChatVoz();
+  rec.lang = 'es-DO';
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
+  _chatVozTexto = '';
+  let fallo = null;
+
+  rec.onresult = (ev) => {
+    let final = '', provisional = '';
+    for (let i = 0; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) final += r[0].transcript; else provisional += r[0].transcript;
+    }
+    _chatVozTexto = (final || provisional).trim();
+    if (input) { input.value = _chatVozTexto; chatInputAutoResize(input); }
+  };
+  rec.onerror = (ev) => { fallo = ev.error; };
+  rec.onend = () => {
+    _chatEscuchando = false;
+    _chatRec = null;
+    _chatMicPintar();
+    if (fallo && fallo !== 'no-speech' && fallo !== 'aborted') {
+      const avisos = {
+        'not-allowed':         '🎙️ El navegador no dio permiso al micrófono. Actívalo en el candado de la barra de direcciones (o en Ajustes del móvil) y vuelve a pulsar el micrófono.',
+        'service-not-allowed': '🎙️ Este navegador no permite el dictado aquí. Prueba con Chrome (PC o Android) o Safari (iPhone).',
+        'audio-capture':       '🎙️ No se encontró ningún micrófono en este equipo.',
+        'network':             '📡 El dictado necesita internet y no pudo conectar. Inténtalo de nuevo.',
+      };
+      _chatAppendMsg('bot', avisos[fallo] || `🎙️ No se pudo usar el micrófono (${fallo}).`);
+      return;
+    }
+    if (fallo === 'no-speech') {
+      _chatAppendMsg('bot', '🎙️ No te escuché. Pulsa el micrófono y habla cerca del teléfono o del PC.');
+      return;
+    }
+    if (_chatVozTexto && input && input.value.trim()) chatSend();
+  };
+
+  try {
+    rec.start();
+    _chatRec = rec;
+    _chatEscuchando = true;
+    _chatMicPintar();
+  } catch (e) {
+    console.warn('[Chat] voz:', e);
+    _chatEscuchando = false;
+    _chatMicPintar();
+  }
+}
+
 // ─── TOGGLE CHAT ─────────────────────────────────────────────────────────────
 
 function toggleChat() {
@@ -780,6 +1029,7 @@ function toggleChat() {
     if (!_chatInited) {
       _chatInited = true;
       _chatRenderWelcome();
+      _chatMicIniciar();         // 520 · muestra el micrófono si el navegador sabe dictar
       // Pre-cargar en paralelo: productos, info de tienda y clave Groq
       // Para que el primer mensaje del usuario NO tenga que esperar ningún fetch
       Promise.all([
@@ -934,11 +1184,31 @@ async function _chatSendMsg(msg) {
 
   // Mostrar mensaje usuario
   _chatAppendMsg('user', msg);
-  _chatHistory.push({ role: 'user', content: msg });
 
   // Actualizar estado del botón de envío
   const sendBtn = document.getElementById('chatSendBtn');
   if (sendBtn) sendBtn.disabled = true;
+
+  /* 520 · Costos: se contestan aquí, sin Groq y FUERA de `_chatHistory`
+   * (ese historial se reenvía a Groq en el mensaje siguiente). */
+  if (_esPreguntaCosto(msg)) {
+    _chatTyping = true;
+    const burbuja = _chatAppendMsg('bot', '', true);
+    let texto;
+    try {
+      texto = await _chatRespuestaCosto(msg);
+    } catch (e) {
+      console.error('[Chat] costos:', e);
+      texto = '😕 No pude buscar los costos ahora mismo. Inténtalo de nuevo.';
+    }
+    if (burbuja && burbuja.isConnected) burbuja.remove();
+    _chatAppendMsg('bot', texto);
+    _chatTyping = false;
+    if (sendBtn) sendBtn.disabled = false;
+    return;
+  }
+
+  _chatHistory.push({ role: 'user', content: msg });
 
   // Esperar productos si no están listos
   await _chatLoadProducts();
@@ -1258,6 +1528,9 @@ INSTRUCCIONES:
   sistema. Si dice SIN ASIGNAR, dilo y recuerda que la caja no lo factura hasta
   que se le ponga en Productos. NO afirmes qué dice la DGII ni deduzcas una tasa
   por el nombre: no consultas la DGII, y la tasa la decide el dueño.
+- COSTOS Y MÁRGENES: tú NO los tienes (son privados y no salen del panel). Si te
+  preguntan por el costo o el margen de algo, NO inventes cifras: di que escriban
+  «costo de» y el nombre del producto, y el panel se lo mostrará.
 - Si una lista está vacía ("ninguno"), dilo con claridad: es un dato válido, no una falta de información.
 - No reveles teléfonos ni direcciones: no los tienes y no debes inventarlos.
 - Español dominicano profesional. Máx 3 oraciones, salvo que te pidan una lista.
