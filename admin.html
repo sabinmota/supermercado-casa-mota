@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '494';
+      const VER = '495';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -3587,45 +3587,25 @@
   </script>
 
   <!-- ═══ Registrar Service Worker (PWA) ══════════════════════════════════ -->
+  <!-- 🔴 519 · BUCLE DE CARGA EN EL MÓVIL (pedido del dueño).
+       Antes, en CADA carga: se borraba la caché, se desregistraba el service
+       worker, se registraba otro y, al tomar el control, se RECARGABA la
+       página. En el ordenador ocurría tan rápido que no se notaba; en el
+       móvil la recarga llegaba cuando el panel casi había cargado → volvía a
+       empezar: borrar, registrar, recargar… («parece que entra y vuelve a
+       cargar»). La tienda tuvo el mismo fallo y se arregló así (index.html):
+       registrar en silencio y NUNCA recargar. Las versiones nuevas del panel
+       llegan igual por el `VER` de arriba y los `?v=` de cada fichero; el
+       service worker no guarda código en caché (sw.js: «network only»). -->
   <script>
-    (async () => {
-      // 1. Limpiar TODO el caché del navegador (Cache API)
-      if (window.caches) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
-
-      if (!('serviceWorker' in navigator)) return;
-
-      // 2. Desregistrar TODOS los Service Workers activos
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
-
-      // 3. Registrar el nuevo SW
-      try {
-        const reg = await navigator.serviceWorker.register('/sw.js?v=290', { updateViaCache: 'none' });
-
-        // Forzar actualización inmediata si hay nuevo SW esperando
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-
-        reg.addEventListener('updatefound', () => {
-          const sw = reg.installing;
-          if (!sw) return;
-          sw.addEventListener('statechange', () => {
-            if (sw.state === 'installed') {
-              sw.postMessage({ type: 'SKIP_WAITING' });
-            }
-          });
-        });
-
-        // Recargar cuando el nuevo SW tome el control
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        });
-      } catch(e) { /* SW no disponible en este entorno */ }
-    })();
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js?v=292')
+          .then(reg => { reg.update(); })
+          .catch(() => {});
+        // NO escuchar controllerchange ni recargar.
+      });
+    }
   </script>
   <!-- ════════════════════════════════════════════════════════════════════ -->
 
