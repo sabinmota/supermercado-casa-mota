@@ -523,6 +523,12 @@ const _ERRORES_PRODUCTO = {
   DATOS_INVALIDOS:     'Los datos del producto no llegaron correctamente.',
   SIN_DATOS:           'No hay datos que guardar.',
   COSTO_INVALIDO:      'El costo debe ser un número igual o mayor que 0.',   // 97
+  // 98 · al por mayor
+  MAYOR_SIN_UNIDAD:      'Para vender al por mayor hay que indicar la unidad (Caja, Fardo, Saco…).',
+  MAYOR_SIN_PRECIO:      'Para vender al por mayor hay que poner un precio al por mayor mayor que 0.',
+  MAYOR_PRECIO_INVALIDO: 'El precio al por mayor debe ser un número igual o mayor que 0.',
+  MAYOR_COSTO_INVALIDO:  'El costo al por mayor debe ser un número igual o mayor que 0.',
+  MAYOR_UNIDAD_LARGA:    'La unidad al por mayor admite como máximo 30 caracteres.',
 };
 
 /* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
@@ -815,10 +821,12 @@ const DB = {
     /* SEGURIDAD 97 · Solo el panel (opts.full + sesión de empleado) recibe el
      * costo de cada artículo. La tienda y la caja sin sesión no lo piden. */
     if (opts.full && opts.costos !== false && _valeAdmin()) {
-      const costos = await this.leerCostos();
+      /* 98 · En paralelo con los costos: los datos al por mayor (privados). */
+      const [costos, mayor] = await Promise.all([this.leerCostos(), this.leerMayor()]);
       all.forEach(p => {
         const c = costos[String(p.id)];
         p.costo = (c === undefined || !isFinite(c)) ? null : c;
+        p.mayor = mayor[String(p.id)] || null;
       });
     }
     return all;
@@ -886,6 +894,53 @@ const DB = {
       console.warn('[costos] no se pudieron leer:', e.message || e);
       return mapa;
     }
+  },
+
+  /* SEGURIDAD 98 · AL POR MAYOR. Tabla privada `producto_mayor`: unidad,
+   * precio y costo al por mayor que el dueño pone A MANO. La sincronización
+   * no los toca. Mismo esquema que leerCostos: por páginas de 1.000 y, si
+   * falla (SQL 98 sin ejecutar, sesión caducada…), {} sin romper el panel.
+   * Devuelve { idProducto: { activo, unidad, precio, costo } }. */
+  async leerMayor() {
+    const vale = _valeAdmin();
+    if (!vale) return {};
+    const mapa = {};
+    const num = v => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : Number(v);
+    try {
+      let desde = 0;
+      for (let vuelta = 0; vuelta < 100; vuelta++) {
+        const res = await fetch(
+          `${_SB_URL}/rpc/admin_leer_mayor?order=producto_id.asc&limit=1000&offset=${desde}`,
+          { method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }) }
+        );
+        if (!res.ok) {
+          const texto = await res.text();
+          throw new Error(`HTTP ${res.status}: ${texto.slice(0, 200)}`);
+        }
+        const filas = await res.json();
+        if (!Array.isArray(filas) || filas.length === 0) break;
+        filas.forEach(f => {
+          if (!f || f.producto_id == null) return;
+          mapa[String(f.producto_id)] = {
+            activo: f.activo === true, unidad: f.unidad || '',
+            precio: num(f.precio), costo: num(f.costo),
+          };
+        });
+        desde += filas.length;
+      }
+      return mapa;
+    } catch (e) {
+      console.warn('[al por mayor] no se pudo leer:', e.message || e);
+      return mapa;
+    }
+  },
+
+  /* datos = { activo, unidad, precio, costo } · precio/costo '' = sin dato.
+   * Todo vacío y activo=false → la base borra la fila. */
+  async guardarMayor(id, datos) {
+    return _rpcStaff('admin_guardar_mayor', {
+      p_vale: _valeAdmin(), p_id: id, p_datos: datos,
+    }, _ERRORES_PRODUCTO);
   },
 
   async guardarDescripcion(id, texto) {

@@ -2429,6 +2429,66 @@ function _pintarMargen() {
   el.style.fontWeight = '700';
 }
 
+/* 521 · AL POR MAYOR (seguridad/98). Margen al por mayor en vivo y, como
+ * referencia para la multiplicación del dueño, el costo unitario del
+ * programa viejo. Misma regla y colores que el margen normal. */
+function _pintarMayor() {
+  const el = document.getElementById('pMayorMargen');
+  if (!el) return;
+  const precio = parseFloat(document.getElementById('pMayorPrecio')?.value);
+  const cRaw   = (document.getElementById('pMayorCosto')?.value || '').trim();
+  const m = _margenDe({ price: precio, costo: cRaw === '' ? null : parseFloat(cRaw) });
+  if (m === null) { el.textContent = '—'; el.style.color = '#6b7280'; el.style.fontWeight = ''; }
+  else {
+    el.textContent = `${m.toFixed(1)} %  ·  gana RD$ ${fmt$(precio - parseFloat(cRaw))}`;
+    el.style.color = _colorMargen(m);
+    el.style.fontWeight = '700';
+  }
+  const ref = document.getElementById('pMayorRef');
+  if (ref) {
+    const cu  = (document.getElementById('pCosto')?.value || '').trim();
+    const uni = (document.getElementById('pUnit')?.value || '').trim() || 'unidad';
+    ref.textContent = cu === '' ? 'Sin costo unitario cargado' : `Costo unitario: RD$ ${fmt$(parseFloat(cu))} por ${uni}`;
+  }
+}
+
+/* Lee el bloque «Al por mayor». Devuelve null si el bloque no existe (admin.html
+ * viejo: no se toca nada), { error } si un dato no vale, o los datos a guardar. */
+function _leerBloqueMayor() {
+  if (!document.getElementById('pMayorBox')) return null;
+  const activo = !!document.getElementById('pMayorActivo')?.checked;
+  const unidad = (document.getElementById('pMayorUnidad')?.value || '').trim();
+  const pRaw   = (document.getElementById('pMayorPrecio')?.value || '').trim();
+  const cRaw   = (document.getElementById('pMayorCosto')?.value || '').trim();
+  const precio = pRaw === '' ? null : parseFloat(pRaw);
+  const costo  = cRaw === '' ? null : parseFloat(cRaw);
+  if (precio !== null && (!isFinite(precio) || precio < 0)) return { error: 'El precio al por mayor debe ser un número igual o mayor que 0.', campo: 'pMayorPrecio' };
+  if (costo  !== null && (!isFinite(costo)  || costo  < 0)) return { error: 'El costo al por mayor debe ser un número igual o mayor que 0.',  campo: 'pMayorCosto' };
+  if (activo && !unidad)                     return { error: 'Para vender al por mayor indique la unidad (Caja, Fardo, Saco…).', campo: 'pMayorUnidad' };
+  if (activo && !(precio > 0))               return { error: 'Para vender al por mayor ponga un precio al por mayor mayor que 0.', campo: 'pMayorPrecio' };
+  const r2 = n => n === null ? null : Math.round(n * 100) / 100;
+  return { datos: { activo, unidad, precio: precio === null ? '' : r2(precio), costo: costo === null ? '' : r2(costo) },
+           mayor: (!activo && !unidad && precio === null && costo === null) ? null
+                  : { activo, unidad, precio: r2(precio), costo: r2(costo) } };
+}
+
+function _cargarBloqueMayor(m) {
+  if (!document.getElementById('pMayorBox')) return;
+  document.getElementById('pMayorActivo').checked = !!(m && m.activo);
+  document.getElementById('pMayorUnidad').value   = (m && m.unidad) || '';
+  document.getElementById('pMayorPrecio').value   = (m && m.precio !== null && m.precio !== undefined) ? m.precio : '';
+  document.getElementById('pMayorCosto').value    = (m && m.costo  !== null && m.costo  !== undefined) ? m.costo  : '';
+  _pintarMayor();
+}
+
+/* ¿Cambió algo del bloque respecto a lo guardado? Evita una llamada inútil. */
+function _mayorCambio(antes, ahora) {
+  const a = antes || { activo: false, unidad: '', precio: null, costo: null };
+  const b = ahora || { activo: false, unidad: '', precio: null, costo: null };
+  return !!a.activo !== !!b.activo || (a.unidad || '') !== (b.unidad || '')
+      || (a.precio ?? null) !== (b.precio ?? null) || (a.costo ?? null) !== (b.costo ?? null);
+}
+
 /* 477 · Columna ITBIS de la tabla de Productos (pedido del dueño, 26-sep).
  * Mismos colores que la ficha de detalle (css/panel-2026.css · .itl-pill). */
 function _celdaItbis(t) {
@@ -2561,6 +2621,7 @@ function openProductModal(id = null) {
     if (_costoEl) _costoEl.value = (p.costo === null || p.costo === undefined) ? '' : p.costo;
     _pintarMargen();
     document.getElementById('pUnit').value          = p.unit;
+    _cargarBloqueMayor(p.mayor);   // 521 · al por mayor (después de unidad y costo: los usa de referencia)
     // BUILD 412: `?? 0` para que un producto con stock nulo en la base no
     // escriba el texto "undefined" en un <input type="number">, que el
     // navegador descarta dejando el campo en blanco sin avisar.
@@ -2634,6 +2695,7 @@ function openProductModal(id = null) {
     ['pName','pPrice','pOriginalPrice','pCosto','pUnit','pStock','pRating','pDescription','pImage','pBarcode','pBarcodeAlt']
       .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     _pintarMargen();   // 518
+    _cargarBloqueMayor(null);   // 521
     _checkBarcodeAlt('');   // 494 · limpia el aviso y el borde del alternativo
     /* BUILD 452 · La casilla es un checkbox, no un input de texto: no se limpia
      * con `.value = ''` (eso la dejaría marcada con el estado del producto
@@ -3872,19 +3934,41 @@ function saveProduct() {
     data.costo = costoVal;
   }
 
+  /* 521 · AL POR MAYOR (seguridad/98). Se valida AQUÍ, antes de guardar nada,
+   * para no dejar el producto guardado y el bloque al por mayor a medias.
+   * Va en su propia función de la base (no dentro de admin_guardar_producto),
+   * así que se guarda DESPUÉS del producto, cuando ya hay id. */
+  const _bm = _leerBloqueMayor();
+  if (_bm && _bm.error) {
+    showAdminToast('⚠️ ' + _bm.error, 'error');
+    document.getElementById(_bm.campo)?.focus(); _unlock(); return;
+  }
+  const _guardarMayorDe = async (prodId, antes) => {
+    if (!_bm || !prodId || !_mayorCambio(antes, _bm.mayor)) return { ok: true, mayor: antes || null };
+    try {
+      await DB.guardarMayor(prodId, _bm.datos);
+      return { ok: true, mayor: _bm.mayor };
+    } catch (e) {
+      return { ok: false, mayor: antes || null, msg: (e && e.message) || String(e) };
+    }
+  };
+
   // ── El bloqueo y _unlock ya están definidos al inicio de la función ──────────
 
   if (editingProductId) {
     const idx = adminProducts.findIndex(p => String(p.id) === String(editingProductId));
     const updated = idx > -1 ? { ...adminProducts[idx], ...data } : { id: editingProductId, ...data };
     // Usar PATCH con solo los campos editados (data) → mucho más rápido que PUT completo
+    const _mayorAntes = idx > -1 ? adminProducts[idx].mayor : null;
     DB.saveProduct(updated, data)
-      .then(saved => {
-        if (idx > -1) adminProducts[idx] = { ...updated, ...(saved || {}) };
+      .then(async saved => {
+        const rm = await _guardarMayorDe(editingProductId, _mayorAntes);   // 521
+        if (idx > -1) adminProducts[idx] = { ...updated, ...(saved || {}), mayor: rm.mayor };
         DBCached.invalidateProducts();
         _unlock();                    // ← desbloquear ANTES de cerrar el modal
         closeProductModal();
-        showAdminToast('Producto actualizado ✅', 'success');
+        if (rm.ok) showAdminToast('Producto actualizado ✅', 'success');
+        else showAdminToast('Producto guardado, pero NO el precio al por mayor: ' + rm.msg, 'error');
         requestAnimationFrame(() => {
           const sec = document.querySelector('.section-content.active')?.id;
           if (sec === 'sec-inventory') renderInventory();
@@ -3954,9 +4038,11 @@ function saveProduct() {
       // ── Producción/Supabase: usar DB.saveProduct ─────────────────────────
       if (costoVal !== null) newProd.costo = costoVal;   // 518
       DB.saveProduct(newProd)
-        .then(saved => {
+        .then(async saved => {
           const finalProd = saved || newProd;
           finalProd.costo = costoVal;                      // 518 · para el margen en pantalla
+          const rm = await _guardarMayorDe(finalProd.id, null);   // 521
+          finalProd.mayor = rm.mayor;
           if (!finalProd.created_at) finalProd.created_at = new Date().toISOString();
           adminProducts.unshift(finalProd);
           if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
@@ -3964,7 +4050,8 @@ function saveProduct() {
           _pages.products = 1;
           _unlock();
           closeProductModal();
-          showAdminToast('Producto creado ✅', 'success');
+          if (rm.ok) showAdminToast('Producto creado ✅', 'success');
+          else showAdminToast('Producto creado, pero NO el precio al por mayor: ' + rm.msg + ' — ábralo y guárdelo de nuevo.', 'error');
           requestAnimationFrame(() => {
             const sec = document.querySelector('.section-content.active')?.id;
             if (sec === 'sec-inventory') renderInventory();

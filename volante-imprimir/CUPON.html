@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cupón de regalo · Casa Mota</title>
+<!-- Todo lo que usa está DENTRO de esta carpeta (imagenes/ y recursos/).
+     Si se abre el HTML suelto, el logo y el QR se piden a internet como
+     respaldo, y los iconos van dibujados dentro del propio fichero. -->
+<style>
+@font-face { font-family: 'Poppins'; font-weight: 400; src: url('recursos/poppins/poppins-400.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-weight: 600; src: url('recursos/poppins/poppins-600.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-weight: 700; src: url('recursos/poppins/poppins-700.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-weight: 800; src: url('recursos/poppins/poppins-800.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-weight: 900; src: url('recursos/poppins/poppins-900.woff2') format('woff2'); }
+
+:root {
+  --verde: #1a7c3e; --verde-osc: #0f4a24; --verde-cl: #27a35a; --verde-palido: #e8f5ee;
+  --naranja: #f57c00; --amarillo: #f9a825; --rojo: #e53935; --tinta: #1a1a2e;
+  --fondo: #dfe5df;
+  --letra: 'Poppins', 'Segoe UI', Arial, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--letra); background: var(--fondo); color: var(--tinta);
+       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.ico { width: 1em; height: 1em; fill: currentColor; vertical-align: -.14em; flex-shrink: 0; }
+
+/* ── Barra de pantalla (no se imprime) ── */
+.barra { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.1); padding: 12px 16px; }
+.barra h1 { font-size: 15px; font-weight: 700; color: var(--verde); margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
+.campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 12px; max-width: 980px; }
+.campos label { font-size: 12px; font-weight: 600; color: #4b5563; display: flex; flex-direction: column; gap: 3px; }
+.campos input { font: 500 14px var(--letra); padding: 7px 10px; border: 2px solid #d6dfd8; border-radius: 9px; outline: none; }
+.campos input:focus { border-color: var(--verde-cl); }
+.acciones { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.acciones button { background: var(--verde); color: #fff; border: 0; border-radius: 30px; padding: 9px 20px; font: 600 14px var(--letra); cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+.acciones small { color: #555; font-size: 12.5px; }
+.acciones button.secundario { background: #fff; color: var(--verde); border: 2px solid var(--verde); padding: 7px 18px; }
+.acciones button[disabled] { opacity: .6; cursor: wait; }
+.aviso-ok { color: var(--verde); font-weight: 700; font-size: 13px; }
+
+.escenario { display: flex; justify-content: center; padding: 36px 12px 60px; }
+
+/* ══════════ CUPÓN · 7 × 3.2 pulgadas ══════════ */
+.cupon { width: 7in; height: 3.2in; display: flex; position: relative; filter: drop-shadow(0 12px 26px rgba(0,0,0,.22)); }
+
+/* Talón verde (izquierda) */
+.talon { width: 2.35in; flex-shrink: 0; position: relative; overflow: hidden; color: #fff;
+  border-radius: 18px 0 0 18px; padding: 18px 16px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(249,168,37,.38) 0 46px, transparent 47px),
+    radial-gradient(circle at 92% 96%, rgba(255,255,255,.08) 0 70px, transparent 71px),
+    linear-gradient(160deg, var(--verde-cl) 0%, var(--verde) 45%, var(--verde-osc) 100%); }
+.talon::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.10) 1.1px, transparent 1.2px); background-size: 13px 13px; pointer-events: none; }
+.talon > * { position: relative; z-index: 1; }
+.talon__logo { width: 84px; height: 84px; object-fit: contain; background: #fff; border-radius: 16px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+/* Si no hay logo de ninguna forma: placa con el nombre, nunca el icono roto */
+.talon__logo-txt { width: 84px; height: 84px; background: #fff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  display: none; align-items: center; justify-content: center; text-align: center; color: var(--verde); font-weight: 900; font-size: 15px; line-height: 1.05; }
+.talon__regalo { font-size: 30px; color: var(--amarillo); filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
+.talon__tit { font-weight: 900; font-size: 19px; line-height: 1.05; letter-spacing: .5px; text-transform: uppercase; }
+.talon__tit span { display: block; font-weight: 600; font-size: 11px; letter-spacing: 2.5px; color: #d9f2e2; margin-top: 3px; }
+.talon__lema { font-size: 10.5px; font-weight: 600; color: #e7f7ec; font-style: italic; }
+
+/* Línea de corte con muescas */
+.corte { width: 0; position: relative; border-left: 2.5px dashed #c9d3cb; }
+.corte::before, .corte::after { content: ''; position: absolute; left: -15px; width: 28px; height: 28px; border-radius: 50%; background: var(--fondo); }
+.corte::before { top: -14px; }
+.corte::after  { bottom: -14px; }
+
+/* Cuerpo (derecha) */
+.cuerpo { flex: 1; background: #fff; border-radius: 0 18px 18px 0; position: relative; overflow: hidden;
+  padding: 18px 22px 16px 24px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; gap: 4px 16px; }
+.cuerpo::before { content: ''; position: absolute; right: -60px; top: -60px; width: 190px; height: 190px; border-radius: 50%; background: var(--verde-palido); }
+.cuerpo::after { content: ''; position: absolute; left: -30px; bottom: -50px; width: 140px; height: 140px; border-radius: 50%; background: #fff6e5; }
+.cuerpo > * { position: relative; z-index: 1; }
+
+.para { grid-column: 1 / 3; font-size: 17px; color: #374151; font-weight: 600; line-height: 1.25; }
+.para b { color: var(--verde-osc); font-weight: 800; font-size: 20px; }
+
+.valor { align-self: center; }
+.valor__num { font-weight: 900; font-size: 54px; line-height: .95; color: var(--verde); letter-spacing: -1px;
+  background: linear-gradient(180deg, var(--verde-cl), var(--verde-osc)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.valor__num.es-texto { font-size: 34px; line-height: 1.05; }
+.valor__txt { font-weight: 800; font-size: 15px; letter-spacing: 2px; color: var(--naranja); text-transform: uppercase; margin-top: 2px; }
+
+.codigo { margin-top: 10px; display: inline-flex; align-items: center; gap: 10px; border: 2.5px dashed var(--verde); border-radius: 12px; padding: 6px 14px; background: #fbfefc; }
+.codigo__eti { display: block; font-size: 9.5px; font-weight: 600; letter-spacing: 1.5px; color: #6b7280; line-height: 1.3; }
+.codigo__txt { display: flex; flex-direction: column; }
+.codigo strong { font-weight: 900; font-size: 26px; letter-spacing: 4px; color: var(--tinta); line-height: 1.1; word-break: break-all; }
+/* El código cambia por cliente: la letra se ajusta al largo para que quepa */
+.codigo strong.c-medio { font-size: 21px; letter-spacing: 3px; }
+.codigo strong.c-largo { font-size: 17px; letter-spacing: 2px; }
+.codigo strong.c-xl    { font-size: 14px; letter-spacing: 1.5px; }
+.codigo strong.vacio   { color: #c0c7c2; letter-spacing: 6px; }
+.campos input.falta    { border-color: var(--rojo); background: #fff5f5; }
+.campos .clave input   { text-transform: uppercase; font-weight: 700; letter-spacing: 1px; }
+.aviso-falta { color: var(--rojo); font-weight: 700; font-size: 13px; }
+.codigo .ico { color: var(--verde); font-size: 22px; }
+
+.qr-caja { grid-row: 2 / 3; align-self: center; text-align: center; }
+.qr { width: 132px; height: 132px; background: #fff; padding: 7px; border-radius: 12px; border: 2px solid var(--verde-palido);
+      display: flex; align-items: center; justify-content: center; font-size: 8.5px; font-weight: 700; color: var(--verde); line-height: 1.2; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.qr-caja span { display: block; font-size: 11px; font-weight: 700; color: var(--verde); margin-top: 4px; letter-spacing: .5px; }
+
+.pie { grid-column: 1 / 3; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; font-size: 10px; color: #4b5563; border-top: 1px solid #edf1ee; padding-top: 7px; }
+.pie p { line-height: 1.45; }
+.pie b { color: var(--tinta); }
+.pie .vence { text-align: right; white-space: nowrap; }
+.pie .vence b { color: var(--rojo); }
+.oculto { display: none !important; }
+
+/* ── Impresión: carta, cupón arriba centrado, sin barra ── */
+@page { size: letter; margin: 0.5in; }
+@media print {
+  body { background: #fff; --fondo: #fff; }
+  .barra { display: none; }
+  .escenario { padding: 0; }
+  .cupon { filter: none; }
+  .corte::before, .corte::after { background: #fff; border: 1px solid #e5e7eb; }
+}
+@media (max-width: 760px) {
+  .escenario { overflow-x: auto; justify-content: flex-start; }
+}
+
+/* ── Mientras se genera la imagen PNG (lo que el dibujante no sabe pintar) ──
+   · sin sombra exterior (sale como mancha);
+   · muescas en blanco, como el fondo de la imagen;
+   · el valor en verde liso: el texto con degradado no se puede dibujar. */
+.cupon.exportando { filter: none; }
+.cupon.exportando .corte::before, .cupon.exportando .corte::after { background: #fff; }
+.cupon.exportando .valor__num { background: none; -webkit-text-fill-color: var(--verde); color: var(--verde); }
+/* 🔴 El recuadro del código salía VACÍO en el PNG (html2canvas no lo pinta).
+   Para la imagen, su contenido y su borde se dejan invisibles SIN mover nada
+   (mismo tamaño) y se dibujan después a mano encima, con las medidas y la
+   letra del cupón de la pantalla (ver `dibujarCodigo`). */
+.cupon.exportando .codigo { border-style: solid; border-color: transparent; }
+.cupon.exportando .codigo > * { visibility: hidden; }
+</style>
+</head>
+<body>
+
+<!-- Iconos dibujados aquí mismo: no dependen de ningún fichero ni de internet -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-regalo" viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M22 10V6c0-1.11-.9-2-2-2H4c-1.1 0-1.99.89-1.99 2v4c1.1 0 1.99.9 1.99 2s-.89 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2s.9-2 2-2zm-9 7.5h-2v-2h2v2zm0-4.5h-2v-2h2v2zm0-4.5h-2v-2h2v2z"/></symbol>
+  <symbol id="i-calendario" viewBox="0 0 24 24"><path d="M16.53 11.06L15.47 10l-4.88 4.88-2.12-2.12-1.06 1.06L10.59 17l5.94-5.94zM19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></symbol>
+  <symbol id="i-imprimir" viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></symbol>
+</svg>
+
+<header class="barra" aria-label="Datos del cupón (no se imprime)">
+  <h1><svg class="ico"><use href="#i-regalo"/></svg> Cupón de regalo — escriba los datos y el cupón se actualiza</h1>
+  <div class="campos">
+    <label class="clave">Código del cupón *
+      <input id="inCodigo" placeholder="Ej.: MYR4584" maxlength="16" autocomplete="off" spellcheck="false"></label>
+    <label>Para (nombre del cliente)
+      <input id="inPara" placeholder="Ej.: María Rodríguez" autocomplete="off"></label>
+    <label>Valor del cupón
+      <input id="inValor" placeholder="Ej.: 10 %  ó  RD$ 500" autocomplete="off"></label>
+    <label>Texto debajo del valor
+      <input id="inTexto" value="de descuento" autocomplete="off"></label>
+    <label>Válido hasta (vacío = no se muestra)
+      <input id="inVence" placeholder="Ej.: 31 de diciembre de 2026" autocomplete="off"></label>
+    <label>Condición (vacío = no se muestra)
+      <input id="inCond" placeholder="Ej.: En compras desde RD$ 1,500" autocomplete="off"></label>
+  </div>
+  <div class="acciones">
+    <button type="button" id="btnPNG"><svg class="ico" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Descargar imagen PNG</button>
+    <button type="button" id="btnImprimir" class="secundario"><svg class="ico"><use href="#i-imprimir"/></svg> Imprimir / Guardar PDF</button>
+    <span class="aviso-falta oculto" id="avisoFalta">⚠️ Escriba el código del cupón.</span>
+    <span class="aviso-ok oculto" id="avisoPNG"></span>
+    <small><b>PNG</b>: la mejor calidad para WhatsApp y redes. Al imprimir: activar <b>Gráficos de fondo</b>.</small>
+  </div>
+</header>
+
+<main class="escenario">
+  <article class="cupon" id="cupon" aria-label="Cupón de regalo Casa Mota">
+
+    <aside class="talon">
+      <!-- Logo: lo pone el script de abajo (sin src aquí, a propósito).
+           Orden: imagenes/logo-casamota.jpg (volante-imprimir) →
+           imagenes/logo-casamota.png (cupon-regalo) → el de la web →
+           placa con el nombre. -->
+
+      <img class="talon__logo" id="logo" alt="Supermercado Casa Mota" style="display:none">
+      <div class="talon__logo-txt" id="logoTxt">CASA<br>MOTA</div>
+      <!-- Iconos del cupón con el dibujo DENTRO (sin <use>): así también salen en la imagen PNG -->
+      <svg class="ico talon__regalo" width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>
+      <h2 class="talon__tit">Cupón de<br>regalo<span>Casa Mota</span></h2>
+      <p class="talon__lema">Más que un súper, ¡una familia!</p>
+    </aside>
+
+    <div class="corte" aria-hidden="true"></div>
+
+    <section class="cuerpo">
+      <p class="para">Un regalo especial para <b id="outPara">ti</b> 🧡</p>
+
+      <div class="valor">
+        <div class="valor__num" id="outValor">¡Regalo!</div>
+        <div class="valor__txt" id="outTexto">de descuento</div>
+        <div class="codigo">
+          <svg class="ico" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#1a7c3e" d="M22 10V6c0-1.11-.9-2-2-2H4c-1.1 0-1.99.89-1.99 2v4c1.1 0 1.99.9 1.99 2s-.89 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2s.9-2 2-2zm-9 7.5h-2v-2h2v2zm0-4.5h-2v-2h2v2zm0-4.5h-2v-2h2v2z"/></svg>
+          <div class="codigo__txt"><span class="codigo__eti">TU CÓDIGO</span><strong id="outCodigo">••••••</strong></div>
+        </div>
+      </div>
+
+      <div class="qr-caja">
+        <div class="qr" id="qr" aria-label="Código QR de la app Casa Mota en el App Store"></div>
+        <span>Descarga la app</span>
+      </div>
+
+      <footer class="pie">
+        <p>Escribe el código <b id="outCodigo2">del cupón</b> al pagar tu pedido en<br>
+           <b>supermercadocasamota.com</b> o en la app <b>Casa Mota</b>.<br>
+           <span id="outCond" class="oculto"></span></p>
+        <p class="vence oculto" id="outVenceFila"><svg class="ico" width="10" height="10" viewBox="0 0 24 24"><path fill="#e53935" d="M16.53 11.06L15.47 10l-4.88 4.88-2.12-2.12-1.06 1.06L10.59 17l5.94-5.94zM19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg> Válido hasta<br><b id="outVence"></b></p>
+      </footer>
+    </section>
+
+  </article>
+</main>
+
+<script src="recursos/qrcode.js"></script>
+<!-- Dibuja el cupón como imagen PNG. Si falta el fichero, se pide a internet. -->
+<script src="recursos/html2canvas.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var URL_TIENDA = 'https://supermercadocasamota.com';
+  // El QR lleva directo a la app en el App Store (mismo enlace que el volante).
+  var URL_APP = 'https://apps.apple.com/app/casa-mota/id6811365677';
+
+  // ── Logo ──
+  // 🔴 El <img> NO lleva src en el HTML a propósito. Abierto desde el PC
+  // (file://), un fichero que no existe falla AL INSTANTE, antes de que este
+  // script llegue a escuchar el error: el aviso se perdía y quedaba el icono
+  // de imagen rota. Ahora primero se escucha y DESPUÉS se pide el logo.
+  // Orden: .jpg (carpeta volante-imprimir) → .png (carpeta cupon-regalo)
+  //        → el de la web → placa con el nombre. Nunca la imagen rota.
+  var logo = $('logo');
+  var candidatos = [
+    'imagenes/logo-casamota.jpg',
+    'imagenes/logo-casamota.png',
+    URL_TIENDA + '/images/logo-casamota.png'
+  ];
+  function siguienteLogo() {
+    var sig = candidatos.shift();
+    if (sig) { logo.src = sig; return; }
+    logo.style.display = 'none';
+    $('logoTxt').style.display = 'flex';
+  }
+  logo.addEventListener('load', function () {
+    // Un fichero vacío o dañado puede «cargar» sin dibujar nada.
+    if (!logo.naturalWidth) { siguienteLogo(); return; }
+    logo.style.display = '';
+  });
+  logo.addEventListener('error', siguienteLogo);
+  siguienteLogo();
+
+  // ── QR vectorial hacia la tienda (nítido a cualquier tamaño) ──
+  function pintarQR() {
+    if (typeof qrcode !== 'function') return false;
+    var qr = qrcode(0, 'M');
+    qr.addData(URL_APP);
+    qr.make();
+    $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    return true;
+  }
+  if (!pintarQR()) {
+    // recursos/qrcode.js no está (HTML abierto suelto): se pide a internet.
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+    s.onload = function () { if (!pintarQR()) $('qr').textContent = 'App Store: Casa Mota'; };
+    s.onerror = function () { $('qr').textContent = 'App Store: Casa Mota'; };
+    document.head.appendChild(s);
+  }
+
+  // ── Datos del cupón ──
+  // El código va en MAYÚSCULAS y sin espacios: la tienda lo compara así
+  // (la base usa upper(btrim(codigo))), y en papel no hay duda entre o/O.
+  function codigoLimpio() {
+    return $('inCodigo').value.toUpperCase().replace(/\s+/g, '');
+  }
+
+  function pintar() {
+    var codigo = codigoLimpio();
+    var oc = $('outCodigo');
+    oc.textContent = codigo || '••••••';
+    oc.className = !codigo ? 'vacio'
+                 : codigo.length <= 7  ? ''
+                 : codigo.length <= 9  ? 'c-medio'
+                 : codigo.length <= 12 ? 'c-largo' : 'c-xl';
+    $('outCodigo2').textContent = codigo || 'del cupón';
+    $('cupon').setAttribute('aria-label', 'Cupón de regalo Casa Mota' + (codigo ? ' ' + codigo : ''));
+    if (codigo) { $('inCodigo').classList.remove('falta'); $('avisoFalta').classList.add('oculto'); }
+
+    var para  = $('inPara').value.trim();
+    var valor = $('inValor').value.trim();
+    var texto = $('inTexto').value.trim();
+    var vence = $('inVence').value.trim();
+    var cond  = $('inCond').value.trim();
+
+    $('outPara').textContent = para || 'ti';
+    // Sin valor escrito: «¡Regalo!» — nunca se imprime un descuento inventado.
+    $('outValor').textContent = valor || '¡Regalo!';
+    $('outValor').classList.toggle('es-texto', !valor || valor.length > 8);
+    $('outTexto').textContent = valor ? texto : 'especial para ti';
+    $('outVence').textContent = vence;
+    $('outVenceFila').classList.toggle('oculto', !vence);
+    $('outCond').textContent = cond;
+    $('outCond').classList.toggle('oculto', !cond);
+
+    // Nombre del PDF al «Guardar como PDF»: Cupon Casa Mota - CODIGO - Cliente
+    document.title = 'Cupon Casa Mota' + (codigo ? ' - ' + codigo : '') + (para ? ' - ' + para : '');
+  }
+  ['inCodigo', 'inPara', 'inValor', 'inTexto', 'inVence', 'inCond'].forEach(function (id) {
+    $(id).addEventListener('input', pintar);
+  });
+
+  // Sin código no se imprime ni se descarga: un cupón sin código no sirve.
+  function faltaCodigo() {
+    if (codigoLimpio()) return false;
+    $('inCodigo').classList.add('falta');
+    $('avisoFalta').classList.remove('oculto');
+    $('inCodigo').focus();
+    return true;
+  }
+  $('btnImprimir').addEventListener('click', function () {
+    if (faltaCodigo()) return;
+    window.print();
+  });
+
+  // ── DESCARGAR COMO IMAGEN PNG ──
+  // PNG y no JPG: el JPG emborrona los bordes de las letras y del QR.
+  // Escala 4: 7 in × 96 × 4 ≈ 2.700 px de ancho (≈ 380 ppp), nítido en el
+  // móvil y también si se imprime.
+  //
+  // 🔴 Abierto desde el PC, Chrome NO deja convertir en imagen una página que
+  // usa fotos del disco (lo considera un riesgo de seguridad). Por eso, para
+  // la imagen se usa el logo de supermercadocasamota.com, que sí lo permite
+  // (comprobado). Sin internet, el PNG sale con la placa «CASA MOTA».
+  var ESCALA = 4;
+  var MARGEN = 24;                              // borde blanco alrededor (px de pantalla)
+
+  function cargarScript(src) {
+    return new Promise(function (ok, mal) {
+      var s = document.createElement('script');
+      s.src = src; s.onload = ok; s.onerror = mal;
+      document.head.appendChild(s);
+    });
+  }
+  function asegurarDibujante() {
+    if (typeof html2canvas === 'function') return Promise.resolve();
+    return cargarScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js')
+      .then(function () { if (typeof html2canvas !== 'function') throw new Error('SIN_DIBUJANTE'); });
+  }
+
+  // ¿Esta imagen se puede meter en un PNG? (cargada con permiso y sin «manchar»)
+  function probarLimpio(url) {
+    return new Promise(function (ok) {
+      if (!url) { ok(null); return; }
+      var im = new Image();
+      im.crossOrigin = 'anonymous';
+      im.onload = function () {
+        try {
+          var c = document.createElement('canvas'); c.width = c.height = 2;
+          var x = c.getContext('2d'); x.drawImage(im, 0, 0, 2, 2); x.getImageData(0, 0, 1, 1);
+          ok(im.naturalWidth ? url : null);
+        } catch (e) { ok(null); }
+      };
+      im.onerror = function () { ok(null); };
+      im.src = url;
+    });
+  }
+  // Primero el logo que ya se ve; si no sirve para la imagen (o no cargó),
+  // el de la web, que sí lo permite. Si nada sirve: null → placa CASA MOTA.
+  function buscarLogoLimpio() {
+    var visto = (logo.style.display !== 'none' && logo.naturalWidth) ? (logo.currentSrc || logo.src) : '';
+    return probarLimpio(visto).then(function (u) {
+      return u || probarLimpio(URL_TIENDA + '/images/logo-casamota.png?png=1');
+    });
+  }
+
+  // Recuadro del código (borde punteado, icono, «TU CÓDIGO» y el código),
+  // dibujado a mano sobre la imagen ya hecha. Las posiciones, tamaños, colores
+  // y letra se toman del cupón REAL de la pantalla, así que queda igual.
+  var PATH_TICKET = 'M22 10V6c0-1.11-.9-2-2-2H4c-1.1 0-1.99.89-1.99 2v4c1.1 0 1.99.9 1.99 2s-.89 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2s.9-2 2-2zm-9 7.5h-2v-2h2v2zm0-4.5h-2v-2h2v2zm0-4.5h-2v-2h2v2z';
+
+  function dibujarCodigo(canvas) {
+    var base = $('cupon').getBoundingClientRect();
+    var k = canvas.width / base.width;
+    var c = canvas.getContext('2d');
+    // 🔴 html2canvas deja su lienzo con escala ×4 y desplazado: sin poner la
+    // transformación a cero, todo lo de aquí se dibujaba FUERA de la imagen.
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    var X = function (v) { return (v - base.left) * k; };
+    var Y = function (v) { return (v - base.top) * k; };
+
+    // 1 · Borde punteado
+    var caja = document.querySelector('#cupon .codigo');
+    var r = caja.getBoundingClientRect();
+    var g = (parseFloat(getComputedStyle(caja).borderTopWidth) || 2.5) * k;
+    c.save();
+    c.strokeStyle = '#1a7c3e';
+    c.lineWidth = g;
+    c.setLineDash([7 * k, 4.5 * k]);
+    c.beginPath();
+    var bx = X(r.left) + g / 2, by = Y(r.top) + g / 2, bw = r.width * k - g, bh = r.height * k - g;
+    if (c.roundRect) c.roundRect(bx, by, bw, bh, 12 * k); else c.rect(bx, by, bw, bh);
+    c.stroke();
+    c.restore();
+
+    // 2 · Icono del ticket
+    var ico = caja.querySelector('svg');
+    if (ico && window.Path2D) {
+      var ri = ico.getBoundingClientRect();
+      c.save();
+      c.translate(X(ri.left), Y(ri.top));
+      c.scale(ri.width * k / 24, ri.height * k / 24);
+      c.fillStyle = '#1a7c3e';
+      c.fill(new Path2D(PATH_TICKET));
+      c.restore();
+    }
+
+    // 3 · Textos con su letra, tamaño, color y espaciado reales
+    function texto(el) {
+      if (!el || !el.textContent) return;
+      var cs = getComputedStyle(el);
+      var re = el.getBoundingClientRect();
+      var tam = parseFloat(cs.fontSize) * k;
+      var esp = (parseFloat(cs.letterSpacing) || 0) * k;
+      c.save();
+      c.font = cs.fontWeight + ' ' + tam + 'px ' + cs.fontFamily;
+      c.fillStyle = cs.color;
+      c.textBaseline = 'middle';
+      var x = X(re.left), y = Y(re.top + re.height / 2);
+      // letra a letra para respetar el espaciado (igual en todos los navegadores)
+      Array.from(el.textContent).forEach(function (ch) {
+        c.fillText(ch, x, y);
+        x += c.measureText(ch).width + esp;
+      });
+      c.restore();
+    }
+    texto(caja.querySelector('.codigo__eti'));
+    texto(caja.querySelector('strong'));
+    c.restore();
+    return canvas;
+  }
+
+  function generarCanvas(forzarPlaca) {
+    var cupon = $('cupon');
+    return asegurarDibujante()
+      .then(function () { return document.fonts ? document.fonts.ready : null; })
+      .then(function () { return forzarPlaca ? null : buscarLogoLimpio(); })
+      .then(function (logoOk) {
+        return html2canvas(cupon, {
+          scale: ESCALA, backgroundColor: '#ffffff', useCORS: true, logging: false,
+          onclone: function (doc) {
+            doc.getElementById('cupon').classList.add('exportando');
+            var l = doc.getElementById('logo'), t = doc.getElementById('logoTxt');
+            if (logoOk) { l.crossOrigin = 'anonymous'; l.src = logoOk; l.style.display = ''; t.style.display = 'none'; }
+            else        { l.style.display = 'none'; t.style.display = 'flex'; }
+          }
+        });
+      })
+      .then(dibujarCodigo);
+  }
+
+  // Añade el borde blanco y lo convierte en fichero PNG.
+  function aPNG(canvas) {
+    var m = MARGEN * ESCALA;
+    var f = document.createElement('canvas');
+    f.width = canvas.width + 2 * m; f.height = canvas.height + 2 * m;
+    var x = f.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, f.width, f.height);
+    x.drawImage(canvas, m, m);
+    return new Promise(function (ok, mal) {
+      try { f.toBlob(function (b) { b ? ok(b) : mal(new Error('VACIO')); }, 'image/png'); }
+      catch (e) { mal(e); }                       // imagen «manchada»: SecurityError
+    });
+  }
+
+  function nombreFichero() {
+    var para = $('inPara').value.trim();
+    return ('Cupon Casa Mota - ' + codigoLimpio() + (para ? ' - ' + para : ''))
+      .replace(/[\\/:*?"<>|]+/g, '').slice(0, 120) + '.png';
+  }
+
+  function bajar(blob, nombre) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+  }
+
+  $('btnPNG').addEventListener('click', function () {
+    if (faltaCodigo()) return;
+    var btn = $('btnPNG'), aviso = $('avisoPNG');
+    var original = btn.innerHTML;
+    btn.disabled = true; btn.textContent = 'Generando imagen…';
+    aviso.className = 'aviso-ok oculto';
+    var conPlaca = false;
+
+    generarCanvas(false)
+      .then(aPNG)
+      .catch(function (e) {
+        if (e && e.message === 'SIN_DIBUJANTE') throw e;
+        // El logo «manchó» la imagen: se repite con la placa CASA MOTA.
+        conPlaca = true;
+        return generarCanvas(true).then(aPNG);
+      })
+      .then(function (blob) {
+        bajar(blob, nombreFichero());
+        aviso.textContent = conPlaca
+          ? '✅ Imagen descargada (con la placa «CASA MOTA»: el logo necesita internet).'
+          : '✅ Imagen descargada. Búscala en «Descargas».';
+        aviso.className = 'aviso-ok';
+      })
+      .catch(function (e) {
+        console.error('[cupón PNG]', e);
+        aviso.textContent = (e && e.message === 'SIN_DIBUJANTE')
+          ? '⚠️ Falta recursos/html2canvas.min.js y no hay internet para descargarlo.'
+          : '⚠️ No se pudo generar la imagen: ' + ((e && e.message) || e);
+        aviso.className = 'aviso-falta';
+      })
+      .then(function () { btn.disabled = false; btn.innerHTML = original; });
+  });
+
+  // Para comprobar la imagen sin descargarla (se usa en las pruebas).
+  window.CuponCM = { generarCanvas: generarCanvas, buscarLogoLimpio: buscarLogoLimpio };
+
+  // También por la dirección: CUPON.html?codigo=MYR4584&para=Ana&valor=10%20%25
+  var q = new URLSearchParams(location.search);
+  [['codigo', 'inCodigo'], ['para', 'inPara'], ['valor', 'inValor'], ['texto', 'inTexto'], ['vence', 'inVence'], ['cond', 'inCond']]
+    .forEach(function (par) { if (q.has(par[0])) $(par[1]).value = q.get(par[0]); });
+
+  pintar();
+})();
+</script>
+</body>
+</html>

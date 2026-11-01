@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '496';
+      const VER = '497';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1672,6 +1672,46 @@
             <div class="form-input" id="pMargen" style="background:#f7f8f7;color:#6b7280">—</div>
           </div>
         </div>
+        <!-- 521 · AL POR MAYOR (seguridad/98). Privado: la tienda no lo ve.
+             Lo pone el dueño A MANO; la sincronización nunca lo toca. -->
+        <fieldset id="pMayorBox" style="border:1px solid #dbe4dd;border-radius:10px;padding:10px 12px 4px;margin:0 0 14px;min-width:0">
+          <legend style="padding:0 6px;font-weight:700;font-size:.9rem;color:#1a7c3e">
+            <i class="fas fa-boxes-stacked" style="margin-right:5px"></i>Al por mayor
+          </legend>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;font-weight:600">
+            <input type="checkbox" id="pMayorActivo" onchange="_pintarMayor()" style="width:18px;height:18px">
+            Vender este producto al por mayor
+          </label>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pMayorUnidad">Unidad al por mayor</label>
+              <input type="text" class="form-input" id="pMayorUnidad" list="pMayorUnidades" maxlength="30"
+                     placeholder="Caja, Fardo, Saco…" oninput="_pintarMayor()" />
+              <datalist id="pMayorUnidades">
+                <option value="Caja"></option><option value="Fardo"></option><option value="Saco"></option>
+                <option value="Paca"></option><option value="Bulto"></option><option value="Paquete"></option>
+                <option value="Docena"></option><option value="Galón"></option><option value="Quintal"></option>
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label for="pMayorPrecio">Precio al por mayor (RD$)</label>
+              <input type="number" class="form-input" id="pMayorPrecio" placeholder="0.00" min="0" step="0.01"
+                     oninput="_pintarMayor()" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pMayorCosto">Costo al por mayor (RD$)</label>
+              <input type="number" class="form-input" id="pMayorCosto" placeholder="0.00" min="0" step="0.01"
+                     oninput="_pintarMayor()" />
+              <small id="pMayorRef" style="color:#6b7280;font-size:.78rem"></small>
+            </div>
+            <div class="form-group">
+              <label>Margen al por mayor</label>
+              <div class="form-input" id="pMayorMargen" style="background:#f7f8f7;color:#6b7280">—</div>
+            </div>
+          </div>
+        </fieldset>
         <div class="form-row">
           <div class="form-group">
             <label>Unidad <span style="color:#e53935">*</span></label>
@@ -3426,7 +3466,7 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=359"></script>
+  <script src="js/api.js?v=360"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
 <script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
@@ -3437,7 +3477,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=419"></script>
+  <script src="js/admin.v33.js?v=420"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
