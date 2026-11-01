@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Mayoristas · Supermercado Casa Mota</title>
+  <meta name="description" content="Compras al por mayor en Supermercado Casa Mota. Pago contra entrega o al recoger en el almacén." />
+  <meta name="theme-color" content="#1a7c3e" />
+  <link rel="icon" href="images/icons/touch-icon-casamota.png" />
+  <link rel="apple-touch-icon" href="images/icons/touch-icon-casamota.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <!-- Mismo diseño que la tienda + lo propio de mayoristas -->
+  <link rel="stylesheet" href="css/style.css?v=340" />
+  <link rel="stylesheet" href="css/mayor.css?v=1" />
+  <script>
+    /* Versión: si cambia, recarga una vez para no quedarse con ficheros viejos */
+    (function () {
+      try {
+        var VER = 'M1', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
+        if (s !== VER) { sessionStorage.setItem(KEY, VER); if (s !== null) location.reload(); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body class="mayor">
+
+<header class="header">
+  <div class="header-main">
+    <div class="container header-main-inner">
+      <a class="logo" href="/mayor" aria-label="Casa Mota Mayoristas">
+        <img class="logo-img" src="images/logo-casamota-anim.jpg" alt="Supermercado Casa Mota" />
+      </a>
+      <span class="mz-badge"><i class="fas fa-boxes-stacked"></i> Mayoristas</span>
+      <nav class="mz-acciones" id="mzAcciones" hidden aria-label="Mi cuenta">
+        <button type="button" class="mz-hbtn" id="btnPedidos" title="Mis pedidos">
+          <i class="fas fa-receipt"></i><span class="mz-hbtn__txt">Mis pedidos</span>
+        </button>
+        <button type="button" class="mz-hbtn mz-hbtn--carrito" id="btnCarrito" title="Carrito">
+          <i class="fas fa-cart-shopping"></i><span class="mz-cuenta" id="cuentaCarrito" hidden>0</span>
+        </button>
+        <button type="button" class="mz-hbtn" id="btnSalir" title="Salir">
+          <i class="fas fa-right-from-bracket"></i>
+        </button>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ═══════════ ENTRAR / CREAR CUENTA ═══════════ -->
+  <section id="vAuth" class="mz-auth" hidden>
+    <div class="mz-auth__caja">
+      <h1>Compras al por mayor</h1>
+      <p class="mz-auth__sub">Precios especiales para colmados, negocios y revendedores.</p>
+
+      <div class="mz-tabs" role="tablist">
+        <button type="button" role="tab" class="mz-tab activo" id="tabEntrar" aria-selected="true">Entrar</button>
+        <button type="button" role="tab" class="mz-tab" id="tabRegistro" aria-selected="false">Crear cuenta</button>
+      </div>
+
+      <form id="fEntrar" class="mz-form" novalidate>
+        <label>Teléfono
+          <input type="tel" id="eTel" inputmode="tel" autocomplete="tel" placeholder="809-000-0000" required />
+        </label>
+        <label>Contraseña
+          <span class="mz-clave">
+            <input type="password" id="eClave" autocomplete="current-password" required />
+            <button type="button" class="mz-ver" data-para="eClave" aria-label="Mostrar contraseña"><i class="fas fa-eye"></i></button>
+          </span>
+        </label>
+        <p class="mz-error" id="eError" role="alert" hidden></p>
+        <button type="submit" class="mz-btn" id="eBtn">Entrar</button>
+        <p class="mz-nota">¿Olvidaste tu contraseña? Llámanos y te ayudamos.</p>
+      </form>
+
+      <form id="fRegistro" class="mz-form" novalidate hidden>
+        <label>Nombre o negocio
+          <input type="text" id="rNombre" autocomplete="organization" maxlength="80" placeholder="Ej.: Colmado La Esquina" required />
+        </label>
+        <label>Teléfono
+          <input type="tel" id="rTel" inputmode="tel" autocomplete="tel" placeholder="809-000-0000" required />
+        </label>
+        <label>Contraseña (mínimo 6)
+          <span class="mz-clave">
+            <input type="password" id="rClave" autocomplete="new-password" minlength="6" maxlength="72" required />
+            <button type="button" class="mz-ver" data-para="rClave" aria-label="Mostrar contraseña"><i class="fas fa-eye"></i></button>
+          </span>
+        </label>
+        <label>Repite la contraseña
+          <input type="password" id="rClave2" autocomplete="new-password" maxlength="72" required />
+        </label>
+        <p class="mz-error" id="rError" role="alert" hidden></p>
+        <button type="submit" class="mz-btn" id="rBtn">Crear cuenta</button>
+        <p class="mz-nota">Revisamos cada cuenta. Verás los precios en cuanto la aprobemos.</p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ═══════════ TIENDA ═══════════ -->
+  <section id="vTienda" hidden>
+    <div class="container">
+      <div class="mz-aviso" id="avisoPendiente" hidden>
+        <i class="fas fa-hourglass-half"></i>
+        <div>
+          <b>Tu cuenta está pendiente de aprobación.</b>
+          Ya puedes ver el catálogo; los precios y los pedidos se activan en cuanto la aprobemos.
+        </div>
+        <button type="button" class="mz-btn mz-btn--sec" id="btnComprobar">Comprobar</button>
+      </div>
+
+      <div class="mz-cab">
+        <p class="mz-hola">Hola, <b id="nombreMayorista"></b> 👋</p>
+        <div class="mz-filtros">
+          <label class="mz-buscar">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" id="fBuscar" placeholder="Buscar producto…" autocomplete="off" />
+          </label>
+          <select id="fCategoria" aria-label="Categoría"><option value="">Todas las categorías</option></select>
+        </div>
+      </div>
+
+      <p class="mz-estado" id="estadoCatalogo">Cargando catálogo…</p>
+      <div class="products-grid mz-grid" id="grid"></div>
+      <div class="mz-mas" id="masWrap" hidden><button type="button" class="mz-btn mz-btn--sec" id="btnMas">Ver más productos</button></div>
+    </div>
+  </section>
+</main>
+
+<!-- ═══════════ CARRITO ═══════════ -->
+<div class="mz-fondo" id="fondoPanel" hidden></div>
+<aside class="mz-panel" id="panelCarrito" aria-label="Carrito" hidden>
+  <header class="mz-panel__cab">
+    <h2><i class="fas fa-cart-shopping"></i> Tu pedido</h2>
+    <button type="button" class="mz-cerrar" data-cerrar aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
+  </header>
+  <div class="mz-panel__cuerpo">
+    <div id="lineasCarrito"></div>
+    <div id="checkout" hidden>
+      <h3>¿Cómo lo recibes?</h3>
+      <label class="mz-opcion"><input type="radio" name="entrega" value="domicilio" checked />
+        <span><b>Entrega a domicilio</b><small>Pago contra entrega</small></span></label>
+      <label class="mz-opcion"><input type="radio" name="entrega" value="recogida" />
+        <span><b>Recoger en el almacén</b><small>Pago al recoger · sin envío</small></span></label>
+      <div id="campoDireccion">
+        <label class="mz-campo">Dirección de entrega
+          <textarea id="cDireccion" rows="2" maxlength="300" placeholder="Calle, número, sector, referencia"></textarea></label>
+        <label class="mz-campo">Ciudad
+          <input type="text" id="cCiudad" maxlength="80" value="Hato Mayor" /></label>
+      </div>
+      <label class="mz-campo">Notas (opcional)
+        <textarea id="cNotas" rows="2" maxlength="500" placeholder="Ej.: llamar antes de llegar"></textarea></label>
+    </div>
+  </div>
+  <footer class="mz-panel__pie" id="pieCarrito" hidden>
+    <div class="mz-fila"><span>Subtotal</span><b id="tSub">RD$ 0.00</b></div>
+    <div class="mz-fila"><span>Envío</span><b id="tEnv">RD$ 0.00</b></div>
+    <div class="mz-fila mz-fila--total"><span>Total</span><b id="tTot">RD$ 0.00</b></div>
+    <p class="mz-error" id="cError" role="alert" hidden></p>
+    <button type="button" class="mz-btn" id="btnConfirmar"><i class="fas fa-check"></i> Confirmar pedido</button>
+  </footer>
+</aside>
+
+<!-- ═══════════ MIS PEDIDOS ═══════════ -->
+<aside class="mz-panel" id="panelPedidos" aria-label="Mis pedidos" hidden>
+  <header class="mz-panel__cab">
+    <h2><i class="fas fa-receipt"></i> Mis pedidos</h2>
+    <button type="button" class="mz-cerrar" data-cerrar aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
+  </header>
+  <div class="mz-panel__cuerpo" id="listaPedidos"></div>
+</aside>
+
+<div class="mz-toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- api.js solo aporta la dirección y la clave pública de la base (_SB_URL, _SB_HEADERS) -->
+<script src="js/api.js?v=360"></script>
+<script src="js/mayor.js?v=1"></script>
+</body>
+</html>
