@@ -625,11 +625,19 @@ const _ERRORES_CUPON = {
 };
 
 /* ── Carga desde la API ────────────────────────────────────────── */
+/* 524 · La tabla ya no se lee con la clave pública (seguridad/101): se pide
+ * con el vale del panel, sin el antiguo tope de 200 filas. Si falla se avisa,
+ * en vez de pintar una lista vacía que parecería «no hay cupones». */
 async function loadCupones() {
   try {
-    const json = await _supaFetch('cupones?select=*&limit=200&order=created_at.asc', {});
-    cupones = (Array.isArray(json) ? json : []).filter(c => !c.deleted);
-  } catch(e) { cupones = []; }
+    const filas = await DB.leerCupones();
+    cupones = filas
+      .filter(c => !(c.deleted === true || c.deleted === 'true'))
+      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  } catch(e) {
+    cupones = [];
+    _showAdminToast(e.message || 'No se pudieron leer los cupones.', 'error');
+  }
   // Solo llamar funciones de render si existen (en admin); en tienda no existen
   if (typeof renderCupones          === 'function') renderCupones();
   if (typeof _renderCuponesLaterales === 'function') _renderCuponesLaterales();
@@ -922,22 +930,8 @@ async function deleteCupon(id) {
   }
 }
 
-/* ── Validar cupón (usado desde el checkout) ───────────────────── */
-async function validateCupon(codigo, subtotal) {
-  await loadCupones();
-  const now = new Date();
-  const c = cupones.find(x => x.codigo === (codigo || '').toUpperCase());
-  if (!c)                              return { valid: false, msg: 'Cupon no encontrado.' };
-  if (c.activo === false)              return { valid: false, msg: 'Cupon inactivo.' };
-  if (c.fecha_inicio && new Date(c.fecha_inicio) > now) return { valid: false, msg: 'Cupon aun no valido.' };
-  if (c.fecha_fin    && new Date(c.fecha_fin)    < now) return { valid: false, msg: 'Cupon vencido.' };
-  if (c.usos_maximos && (c.usos_actuales || 0) >= c.usos_maximos) return { valid: false, msg: 'Cupon agotado.' };
-  if (c.compra_minima && subtotal < c.compra_minima) return { valid: false, msg: `Compra minima: RD$ ${_fmt(c.compra_minima)}.` };
-  const descuento = c.tipo === 'monto_fijo'
-    ? Math.min(Number(c.valor), subtotal)
-    : subtotal * (Number(c.valor) / 100);
-  return { valid: true, cupon: c, descuento: Math.round(descuento * 100) / 100 };
-}
+/* 524 · `validateCupon` borrada de aquí: el panel no la usaba (solo la tienda,
+ * que tiene la suya en js/cupones.js) y leía la tabla entera. */
 
 /* SEGURIDAD 94 · `incrementCuponUso` borrada, y con ella la función de base
    `cliente_usar_cupon`, que cualquiera podía llamar con la clave pública para
@@ -1888,7 +1882,6 @@ window.closeCuponModal     = closeCuponModal;
 window.saveCupon           = saveCupon;
 window.deleteCupon         = deleteCupon;
 window.updateCuponValLabel = updateCuponValLabel;
-window.validateCupon       = validateCupon;
 
 // Notificaciones
 window.loadNotificaciones            = loadNotificaciones;

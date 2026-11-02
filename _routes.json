@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "include": [
+    "/api/*",
+    "/backup/*",
+    "/migration/*",
+    "/documentos/*",
+    "/seguridad/*",
+    "/sync/*",
+    "/claude-skills/*",
+    "/supabase_*",
+    "/README.md",
+    "/casamota-estado.md",
+    "/importar-backup*",
+    "/diagnostico-categorias*",
+    "/diag2*",
+    "/migracion-codimentos*",
+    "/capturas-ipad-temp*",
+    "/preview-slogans*",
+    "/app-store-assets*"
+  ],
+  "exclude": []
+}

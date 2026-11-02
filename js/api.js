@@ -1147,6 +1147,44 @@ const DB = {
     return o;
   },
 
+  /* ── 524 · CUPONES (seguridad/101) ── La tabla ya no se lee con la clave
+   * pública. El panel y el respaldo la piden con el vale del empleado, por
+   * páginas de 1.000 (límite de Supabase); todas las filas, borradas incluidas. */
+  async leerCupones() {
+    const vale = _valeAdmin();
+    if (!vale) throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
+    const todo = [];
+    for (let desde = 0, vuelta = 0; vuelta < 100; vuelta++) {
+      const res = await fetch(
+        `${_SB_URL}/rpc/admin_leer_cupones?order=id.asc&limit=1000&offset=${desde}`,
+        { method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }) }
+      );
+      if (!res.ok) {
+        const texto = await res.text();
+        for (const clave in _ERRORES_TABLAS) {
+          if (texto.includes(clave)) throw new Error(_ERRORES_TABLAS[clave]);
+        }
+        console.error('[RPC admin_leer_cupones] HTTP ' + res.status + ' — respuesta de la base:', texto);
+        throw new Error(`No se pudieron leer los cupones (${res.status}).`);
+      }
+      const filas = await res.json();
+      if (!Array.isArray(filas) || !filas.length) break;
+      todo.push(...filas);
+      if (filas.length < 1000) break;
+      desde += filas.length;
+    }
+    return todo;
+  },
+
+  /* La tienda pregunta por UN código. Devuelve { ok, msg } o
+   * { ok:true, id, codigo, tipo, valor, descuento }. No cuenta el uso: lo
+   * cuenta la base al crear el pedido (seguridad/94). */
+  async comprobarCupon(codigo, subtotal) {
+    return _rpcClient('cliente_comprobar_cupon', {
+      p_vale: _valeCliente(), p_codigo: codigo, p_subtotal: subtotal,
+    });
+  },
+
   async misPedidos() {
     if (_IS_GENSPARK) {
       const res  = await fetch('tables/orders?limit=2000');
@@ -2047,6 +2085,13 @@ const DB = {
       return todo;
     }
 
+    // 524 · cupones: con el vale del panel (seguridad/101).
+    if (tabla === 'cupones') {
+      const filas = await this.leerCupones();
+      if (onProgress) onProgress(filas.length, filas.length);
+      return filas;
+    }
+
     // SEGURIDAD 89/90 · Estas dos tablas ya no se leen con la clave pública:
     // el respaldo las pide con el vale del panel (todas las filas, borradas
     // incluidas, sin transformar — igual que el resto del respaldo).
@@ -2117,6 +2162,7 @@ const DB = {
         const json = await res.json();
         return json.total ?? 0;
       }
+      if (tabla === 'cupones') return (await this.leerCupones()).length;   // 524
       if (_RPC_RESPALDO[tabla]) {
         const filas = await _rpcStaff(_RPC_RESPALDO[tabla], {
           p_vale: _valeAdmin(), p_tabla: tabla,

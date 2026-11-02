@@ -9302,6 +9302,8 @@ async function bkStartImport() {
         // SEGURIDAD 95 · productos y configuración por sus funciones del panel.
         else if (tableName === 'products')       await DB.saveProduct({}, body);
         else if (tableName === 'settings')       await DB.saveSettings(body);
+        // 524 · cupones por su función del panel (seguridad/101 cerró la tabla).
+        else if (tableName === 'cupones')        await _rpcStaff('admin_guardar_cupon', { p_vale: _valeAdmin(), p_id: null, p_datos: body }, _ERRORES_CUPON);
         else await _supaFetch(`${tableName}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
