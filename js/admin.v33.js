@@ -1001,6 +1001,7 @@ function showSection(id, el) {
   if (id === 'settings')        { loadSettings(); if (typeof loadAiKeysDisplay === 'function') loadAiKeysDisplay(); initAutoReload(); }
   if (id === 'reportes')       { if (typeof loadReportes       === 'function') loadReportes(); }
   if (id === 'cupones')        { if (typeof loadCupones        === 'function') loadCupones(); }
+  if (id === 'mayoristas')     { if (typeof loadMayoristas     === 'function') loadMayoristas(); }   // 523
   if (id === 'notificaciones') { if (typeof loadNotificaciones === 'function') loadNotificaciones(); }
   if (id === 'categories')      loadCategories();
   if (id === 'respaldo')        initRespaldo();
@@ -4141,13 +4142,15 @@ function _patchOrderRow(orderId) {
 function renderOrdersTable() {
   const q      = document.getElementById('orderSearch')?.value || '';
   const status = document.getElementById('orderStatusFilter')?.value || '';
+  const canal  = document.getElementById('orderCanalFilter')?.value || '';   // 523
 
   let list = orders.filter(o => {
     // BUILD 399: por palabras sueltas. Se añaden id y teléfono al texto
     // buscable para poder localizar un pedido por cualquiera de los dos.
     const matchQ = _admBuscar(q, o.customer, o.id, o.email, o.phone);
     const matchS = !status || o.status === status;
-    return matchQ && matchS;
+    const matchC = !canal || (canal === 'mayor' ? !!o.esMayor : !o.esMayor);
+    return matchQ && matchS && matchC;
   });
 
   // Ordenar por fecha más reciente primero (formato DD/MM/YYYY HH:MM)
@@ -4185,9 +4188,13 @@ function renderOrdersTable() {
     const sourceBadge = o.source === 'tienda'
       ? `<span style="font-size:.68rem;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:700;margin-left:4px"><i class="fas fa-store"></i> Tienda</span>`
       : '';
+    // 523 · pedido al por mayor (seguridad/99-100)
+    const mayorBadge = o.esMayor
+      ? `<span class="myr-badge" title="Pedido al por mayor"><i class="fas fa-boxes-stacked"></i> MAYOR</span>`
+      : '';
     return `
     <tr${o.source==='tienda' ? ' style="background:rgba(29,78,216,.03)"' : ''}>
-      <td><strong>#${o.order_number || o.id}</strong>${sourceBadge}</td>
+      <td><strong>#${o.order_number || o.id}</strong>${sourceBadge}${mayorBadge}</td>
       <td>${o.customer}</td>
       <td>${o.email}</td>
       <td>${o.items} productos</td>
@@ -4223,7 +4230,10 @@ function openOrderModal(id) {
 
 // ── Renderiza (o re-renderiza) la sección de productos + resto del modal ──────
 function _renderOrderModalProducts(o) {
-  const isPending = o.status === 'pendiente';
+  /* 523 · Un pedido AL POR MAYOR no se edita aquí: el editor recalcula con
+   * el precio de la TIENDA, y la base lo rechaza (PEDIDO_MAYOR_LINEAS). Se
+   * muestra en solo lectura con su propio aviso. */
+  const isPending = o.status === 'pendiente' && !o.esMayor;
   const lines     = o.productLines || [];
   const subtotal  = lines.reduce((s, l) => s + l.subtotal, 0);
 
@@ -4317,7 +4327,11 @@ function _renderOrderModalProducts(o) {
     <div class="opd-edit-banner">
       <i class="fas fa-pen-to-square"></i>
       <span>Pedido <b>pendiente</b> — puedes ajustar cantidades o eliminar productos. Los cambios afectan el inventario y el total del pedido.</span>
-    </div>` : '';
+    </div>` : (o.esMayor ? `
+    <div class="opd-edit-banner myr-banner">
+      <i class="fas fa-boxes-stacked"></i>
+      <span>Pedido <b>al por mayor</b> — precios al por mayor y no descuenta inventario. Sus productos no se cambian aquí (si hace falta, cancélalo y toma uno nuevo); sí puedes cambiar el estado, el repartidor y las notas.</span>
+    </div>` : '');
 
   // Cabecera de tabla (columna extra de acciones si es editable)
   const thActions = isPending ? `<th style="width:44px"></th>` : '';
@@ -4822,11 +4836,15 @@ function saveOrderStatus() {
       // El stock que acaba de mover la base, reflejado en la memoria del panel
       const _signo = (newStatus === 'cancelado' && prevStatus !== 'cancelado') ?  1
                    : (prevStatus === 'cancelado' && newStatus !== 'cancelado') ? -1 : 0;
-      if (_signo) {
+      // 523 · un pedido al por mayor nunca movió stock: no se refleja nada.
+      if (_signo && !order.esMayor) {
         (order.productLines || []).forEach(l => _reflejarStockLocal(l.productId, _signo * (Number(l.cantidad) || 0)));
         showAdminToast(_signo > 0 ? 'Stock repuesto al inventario por cancelación' : 'Stock descontado de nuevo al reactivar', 'info');
       }
-      _efectosPuntos();
+      /* 523 · Un mayorista no es un cliente de la tienda: sin puntos. Además su
+       * pedido no lleva correo ni clientId, y la búsqueda por correo vacío
+       * podría acreditar puntos a un cliente cualquiera sin correo. */
+      if (!order.esMayor) _efectosPuntos();
       DBCached.invalidateOrders();
       renderOrdersTable();
       renderInventory();
@@ -4839,7 +4857,7 @@ function saveOrderStatus() {
       closeOrderModal();
       showAdminToast('Pedido actualizado correctamente', 'success');
       // ── Notificación automática al cliente ──────────────────────
-      if (newStatus !== prevStatus && typeof sendOrderStatusNotification === 'function') {
+      if (newStatus !== prevStatus && !order.esMayor && typeof sendOrderStatusNotification === 'function') {
         sendOrderStatusNotification(orders[idx], newStatus);
       }
     })

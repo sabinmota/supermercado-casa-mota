@@ -1051,6 +1051,78 @@ input, select, textarea { font-family: var(--font); }
 }
 @media (prefers-reduced-motion: reduce) { .chat-mic-btn.chat-mic-on { animation: none; } }
 
+/* ═══ 523 · MAYORISTAS (js/mayoristas-panel.js) ═══════════════════════════ */
+.myr-badge {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 6px;
+  background: var(--green); color: #fff; border-radius: 999px;
+  padding: 2px 8px; font-size: .66rem; font-weight: 800; letter-spacing: .4px;
+  vertical-align: middle; white-space: nowrap;
+}
+.myr-banner { background: var(--green-pale); border-color: var(--green-border); color: var(--green-dark); }
+.myr-banner i { color: var(--green); }
+.myr-vacio { text-align: center; color: var(--text-mid); padding: 28px 12px !important; line-height: 1.5; }
+.myr-chip {
+  background: #fff4e0; color: var(--yellow); border: 1px solid #f0d6a6;
+  border-radius: 999px; padding: 4px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap;
+}
+.myr-chip[hidden] { display: none; }
+.myr-est {
+  display: inline-block; border-radius: 999px; padding: 3px 10px;
+  font-size: .74rem; font-weight: 700; white-space: nowrap;
+}
+.myr-est--pendiente { background: #fff4e0; color: var(--yellow); }
+.myr-est--aprobado  { background: var(--green-pale); color: var(--green); }
+.myr-est--rechazado { background: var(--red-pale); color: var(--red-dark); }
+.btn-myr {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  border: 1.5px solid var(--green-border); background: var(--white); color: var(--green);
+  border-radius: 8px; padding: 5px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.btn-myr:hover, .btn-myr--ok { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-myr--ok:hover { background: var(--green-dark); }
+.myr-nota { margin: 10px 0 0; font-size: .8rem; color: var(--text-mid); line-height: 1.45; }
+.myr-aviso, .myr-error {
+  border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; font-size: .84rem; line-height: 1.45;
+}
+.myr-aviso { background: #fff4e0; color: #7a5c00; border: 1px solid #f0d6a6; }
+.myr-error { background: var(--red-pale); color: var(--red-dark); border: 1px solid #eec3b8; font-weight: 600; margin-top: 12px; }
+.myr-aviso[hidden], .myr-error[hidden], #mpDireccionBox[hidden] { display: none; }
+
+.mp-buscar { position: relative; }
+.mp-resultados {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 5;
+  background: var(--white); border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.14);
+  max-height: 300px; overflow-y: auto;
+}
+.mp-resultados:empty { display: none; }
+.mp-res {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%; border: none; border-bottom: 1px solid var(--border); background: none;
+  padding: 10px 12px; text-align: left; cursor: pointer; font: inherit; color: var(--text-dark);
+}
+.mp-res:hover { background: var(--green-pale); }
+.mp-res small { display: block; color: var(--text-mid); font-size: .75rem; }
+.mp-res__precio { font-weight: 800; color: var(--green); white-space: nowrap; }
+.mp-res-vacio { padding: 12px; font-size: .82rem; color: var(--text-mid); }
+.mp-lineas {
+  border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; margin-bottom: 14px;
+}
+.mp-vacio { padding: 18px 0; text-align: center; color: var(--text-mid); font-size: .86rem; }
+.mp-entrega { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.mp-entrega label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
+.mp-entrega i { color: var(--green); }
+.mp-totales {
+  background: var(--green-pale); border-radius: 10px; padding: 10px 14px; margin-top: 4px;
+}
+.mp-totales > div { display: flex; justify-content: space-between; padding: 3px 0; font-size: .9rem; }
+.mp-totales__tot { border-top: 1px solid var(--green-border); margin-top: 4px; padding-top: 7px !important; font-size: 1.05rem !important; }
+.mp-totales__tot b { color: var(--green); }
+@media (max-width: 600px) {
+  .mp-entrega { flex-direction: column; }
+  .no-prod-line .no-prod-select { min-width: 100%; }
+}
+
 /* ── Footer nota ── */
 .chat-footer-note {
   text-align: center;

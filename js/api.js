@@ -432,6 +432,26 @@ const _ERRORES_ORDER = {
   SIN_STOCK:              'No hay stock suficiente de algún producto.',
   SOLO_CAJA:              'Algún producto solo se vende en la caja.',
   PRODUCTO_NO_DISPONIBLE: 'Algún producto ya no existe.',
+  // SEGURIDAD 99/100 · pedidos al por mayor
+  PEDIDO_MAYOR_LINEAS:    'Es un pedido al por mayor: sus productos y su importe no se cambian desde aquí. Cancélalo y toma uno nuevo.',
+  MAYORISTA_NO_APROBADO:  'Ese mayorista todavía no está aprobado. Apruébalo en «Mayoristas».',
+  MAYORISTA_NO_EXISTE:    'Ese mayorista ya no existe.',
+  TOTAL_CAMBIO:           'El total cambió (envío o precios). Revisa el pedido y confírmalo de nuevo.',
+  FALTA_DIRECCION:        'Escribe la dirección de entrega.',
+  ENTREGA_INVALIDA:       'Elige entrega a domicilio o recogida en el almacén.',
+};
+
+/* SEGURIDAD 99/100 · Mensajes de las funciones de mayoristas del panel. */
+const _ERRORES_MAYORISTA = {
+  SESION_INVALIDA:        'Tu sesión no es válida. Vuelve a entrar al panel.',
+  SESION_CADUCADA:        'Tu sesión caducó. Vuelve a entrar al panel.',
+  CUENTA_DESACTIVADA:     'Tu cuenta ya no está activa.',
+  NOMBRE_INVALIDO:        'Escribe el nombre o el negocio (2 a 80 letras).',
+  TELEFONO_INVALIDO:      'El teléfono debe tener 10 números, por ejemplo 809-555-1234.',
+  CLAVE_CORTA:            'La contraseña debe tener al menos 6 caracteres.',
+  TELEFONO_YA_REGISTRADO: 'Ese teléfono ya tiene una cuenta de mayorista.',
+  ESTADO_INVALIDO:        'Estado no válido.',
+  MAYORISTA_NO_EXISTE:    'Ese mayorista ya no existe.',
 };
 
 // SEGURIDAD 94 · Rechazos del checkout que el carrito sabe arreglar solo.
@@ -1061,7 +1081,70 @@ const DB = {
       return Array.isArray(json.data) ? json.data.map(_orderFromSupa) : [];
     }
     const lista = await _rpcStaff('admin_leer_pedidos', { p_vale: _valeAdmin() }, _ERRORES_ORDER, true);
-    return lista.map(_orderFromSupa);
+    const pedidos = lista.map(_orderFromSupa);
+    /* 523 · Marca los pedidos AL POR MAYOR (seguridad/99-100). Si el SQL 100
+     * aún no está, `pedidosMayor` devuelve {} y no pasa nada. */
+    const mayor = await this.pedidosMayor();
+    pedidos.forEach(o => {
+      const m = mayor[String(o.id)];
+      if (m !== undefined || o.canal === 'mayor') { o.esMayor = true; o.mayoristaId = m || o.mayorista_id || null; }
+    });
+    return pedidos;
+  },
+
+  /* 523 · { idPedido: idMayorista } de los pedidos al por mayor. Por páginas
+   * de 1.000 (límite de Supabase). Si falla, {}: la lista sale igual. */
+  async pedidosMayor() {
+    const vale = _valeAdmin();
+    if (!vale) return {};
+    const mapa = {};
+    try {
+      for (let desde = 0, vuelta = 0; vuelta < 100; vuelta++) {
+        const res = await fetch(
+          `${_SB_URL}/rpc/admin_pedidos_mayor?order=pedido_id.asc&limit=1000&offset=${desde}`,
+          { method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }) }
+        );
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const filas = await res.json();
+        if (!Array.isArray(filas) || !filas.length) break;
+        filas.forEach(f => { if (f && f.pedido_id) mapa[String(f.pedido_id)] = f.mayorista_id || null; });
+        if (filas.length < 1000) break;
+        desde += filas.length;
+      }
+    } catch (e) {
+      console.warn('[al por mayor] no se pudieron marcar los pedidos:', e.message || e);
+    }
+    return mapa;
+  },
+
+  /* ── 523 · MAYORISTAS (panel) · seguridad/99-100 ── */
+  async leerMayoristas() {
+    return _rpcStaff('admin_mayoristas_leer', { p_vale: _valeAdmin() }, _ERRORES_MAYORISTA, true);
+  },
+  async mayoristaEstado(id, estado) {
+    return _rpcStaff('admin_mayorista_estado', { p_vale: _valeAdmin(), p_id: id, p_estado: estado }, _ERRORES_MAYORISTA);
+  },
+  async mayoristaCrear(nombre, telefono, clave) {
+    return _rpcStaff('admin_mayorista_crear', {
+      p_vale: _valeAdmin(), p_nombre: nombre, p_telefono: telefono, p_clave: clave,
+    }, _ERRORES_MAYORISTA);
+  },
+  async mayoristaClave(id, clave) {
+    return _rpcStaff('admin_mayorista_clave', { p_vale: _valeAdmin(), p_id: id, p_clave: clave }, _ERRORES_MAYORISTA);
+  },
+  async mayorEnvio() {
+    return _rpcStaff('admin_mayor_envio', { p_vale: _valeAdmin() }, _ERRORES_MAYORISTA);
+  },
+  /* El vendedor toma el pedido. La base pone precios al por mayor, envío y
+   * total; si algo no cuadra lo rechaza (PRECIO_CAMBIO, TOTAL_CAMBIO…). */
+  async crearPedidoMayor(mayoristaId, datos) {
+    const fila = await _rpcOrder('admin_crear_pedido_mayor', {
+      p_vale: _valeAdmin(), p_mayorista: mayoristaId, p_datos: datos,
+    });
+    if (!fila) return null;
+    const o = _orderFromSupa(fila);
+    o.esMayor = true; o.mayoristaId = mayoristaId;
+    return o;
   },
 
   async misPedidos() {

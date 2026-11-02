@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '497';
+      const VER = '498';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -41,7 +41,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Caveat:wght@600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
-  <link rel="stylesheet" href="css/admin.v33.css?v=261" />
+  <link rel="stylesheet" href="css/admin.v33.css?v=262" />
   <!-- BUILD 456 · Rediseño del panel (barra lateral, barra superior y
        dashboard). Hoja INDEPENDIENTE: se carga DESPUÉS de admin.v33.css y
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
@@ -176,6 +176,11 @@
         <li>
           <a href="#" class="nav-link" data-section="customers" onclick="showSection('customers',this)">
             <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clientes</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="nav-link" data-section="mayoristas" onclick="showSection('mayoristas',this)">
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Mayoristas</span>
           </a>
         </li>
         <li>
@@ -720,6 +725,10 @@
                   title="Buscar pedidos nuevos ahora mismo, sin esperar los 30 s">
             <i class="fas fa-rotate"></i> Refrescar
           </button>
+          <!-- 523 · pedido al por mayor (js/mayoristas-panel.js); también para operadores -->
+          <button class="btn-secondary" type="button" onclick="openPedidoMayorModal()">
+            <i class="fas fa-boxes-stacked"></i> Pedido al por mayor
+          </button>
           <button class="btn-primary" onclick="openNewOrderModal()">
             <i class="fas fa-plus"></i> Nuevo pedido
           </button>
@@ -735,6 +744,11 @@
           <option value="enviado">Enviado</option>
           <option value="entregado">Entregado</option>
           <option value="cancelado">Cancelado</option>
+        </select>
+        <select class="filter-select" id="orderCanalFilter" onchange="_pages.orders=1; renderOrdersTable()">
+          <option value="">Todos los canales</option>
+          <option value="mayor">Al por mayor</option>
+          <option value="tienda">Tienda</option>
         </select>
         <span class="filter-count" id="orderCount"></span>
       </div>
@@ -859,6 +873,42 @@
           </table>
         </div>
         <div id="custPaginator"></div>
+      </div>
+    </section>
+
+    <!-- ─── MAYORISTAS (523 · js/mayoristas-panel.js) ─── -->
+    <section class="section-content" id="sec-mayoristas">
+      <div class="page-header">
+        <h1>Mayoristas</h1>
+        <div class="orders-header-actions">
+          <button class="btn-secondary" type="button" onclick="openPedidoMayorModal()">
+            <i class="fas fa-cart-plus"></i> Pedido al por mayor
+          </button>
+          <button class="btn-primary" type="button" onclick="openMayoristaModal()">
+            <i class="fas fa-user-plus"></i> Nuevo mayorista
+          </button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <input type="text" class="filter-input" placeholder="Buscar por nombre o teléfono…" id="myrSearch" oninput="renderMayoristas()" />
+        <select class="filter-select" id="myrEstadoFilter" onchange="renderMayoristas()">
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="aprobado">Aprobados</option>
+          <option value="rechazado">Rechazados</option>
+        </select>
+        <span class="myr-chip" id="myrPendientes" hidden></span>
+        <span class="filter-count" id="myrCount"></span>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table" id="mayoristasTable">
+            <thead>
+              <tr><th>Nombre</th><th>Teléfono</th><th>Estado</th><th>Alta</th><th>Pedidos</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="myrTbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -2406,6 +2456,98 @@
     </div>
   </div>
 
+  <!-- 523 · Modal nuevo mayorista (queda aprobado) -->
+  <div class="modal-backdrop hidden" id="myrModalBackdrop">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <h3><i class="fas fa-user-plus"></i> Nuevo mayorista</h3>
+        <button class="modal-close-btn" onclick="closeMayoristaModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Nombre o negocio <span class="req">*</span></label>
+          <input type="text" class="form-input" id="myrNombre" maxlength="120" placeholder="Ej: Colmado La Esquina" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Teléfono <span class="req">*</span></label>
+            <input type="tel" class="form-input" id="myrTelefono" maxlength="14" placeholder="809-000-0000" />
+          </div>
+          <div class="form-group">
+            <label>Contraseña <span class="req">*</span></label>
+            <input type="text" class="form-input" id="myrClave" maxlength="72" placeholder="Mínimo 6 caracteres" autocomplete="off" />
+          </div>
+        </div>
+        <p class="myr-nota"><i class="fas fa-circle-info"></i> Entra en <b>supermercadocasamota.com/mayor</b> con este teléfono y esta contraseña. Queda aprobado.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeMayoristaModal()">Cancelar</button>
+        <button class="btn-primary" id="myrSaveBtn" onclick="saveMayorista()"><i class="fas fa-save"></i> Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 523 · Modal pedido al por mayor (lo toma el vendedor) -->
+  <div class="modal-backdrop hidden" id="myrPedBackdrop">
+    <div class="modal" style="max-width:720px">
+      <div class="modal-header">
+        <h3><i class="fas fa-boxes-stacked"></i> Pedido al por mayor</h3>
+        <button class="modal-close-btn" onclick="closePedidoMayorModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Mayorista <span class="req">*</span></label>
+          <select class="form-input" id="mpMayorista"></select>
+        </div>
+        <div class="myr-aviso" id="mpAvisoProductos" hidden>
+          <i class="fas fa-triangle-exclamation"></i> No hay productos al por mayor activos. Actívalos en Productos → «Al por mayor».
+        </div>
+        <div class="form-group mp-buscar">
+          <label>Añadir producto</label>
+          <input type="text" class="form-input" id="mpBuscar" oninput="mpBuscar()" placeholder="Nombre o código de barras…" autocomplete="off" />
+          <div class="mp-resultados" id="mpResultados"></div>
+        </div>
+        <div class="mp-lineas" id="mpLineas"></div>
+
+        <div class="form-group">
+          <label>Entrega</label>
+          <div class="mp-entrega">
+            <label><input type="radio" name="mpEntrega" value="domicilio" checked onchange="_mpTotales()" /> <i class="fas fa-truck"></i> A domicilio (pago al recibir)</label>
+            <label><input type="radio" name="mpEntrega" value="recogida" onchange="_mpTotales()" /> <i class="fas fa-warehouse"></i> Recoger en el almacén</label>
+          </div>
+        </div>
+        <div id="mpDireccionBox">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Dirección <span class="req">*</span></label>
+              <input type="text" class="form-input" id="mpDireccion" maxlength="300" placeholder="Calle, número, sector" />
+            </div>
+            <div class="form-group">
+              <label>Ciudad</label>
+              <input type="text" class="form-input" id="mpCiudad" maxlength="80" value="Hato Mayor" />
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notas</label>
+          <input type="text" class="form-input" id="mpNotas" maxlength="500" placeholder="Opcional" />
+        </div>
+
+        <div class="mp-totales">
+          <div><span>Subtotal</span><b id="mpSub">RD$ 0.00</b></div>
+          <div><span>Envío</span><b id="mpEnv">—</b></div>
+          <div class="mp-totales__tot"><span>Total</span><b id="mpTot">RD$ 0.00</b></div>
+        </div>
+        <div class="myr-error" id="mpError" hidden></div>
+        <p class="myr-nota"><i class="fas fa-circle-info"></i> No descuenta inventario. La base comprueba precios y total antes de guardar.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closePedidoMayorModal()">Cancelar</button>
+        <button class="btn-primary" id="mpSaveBtn" onclick="savePedidoMayor()"><i class="fas fa-check-circle"></i> Confirmar pedido</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════ SECCIÓN REPORTES ══════════════ -->
   <section class="section-content" id="sec-reportes">
 
@@ -3466,18 +3608,20 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=360"></script>
+  <script src="js/api.js?v=361"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
 <script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
        El panel lo necesita porque chat.js (Maya) lee los favoritos del
        cliente. Debe cargarse ANTES de chat.js. -->
   <script src="js/almacen-cliente.js?v=1"></script>
-  <script src="js/auth.v33.js?v=303"></script>
+  <script src="js/auth.v33.js?v=304"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=420"></script>
+  <script src="js/admin.v33.js?v=421"></script>
+  <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
+  <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
