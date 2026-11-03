@@ -102,6 +102,18 @@ function getRole(roleKey) {
  * es intencionado — antes había un respaldo que dejaba entrar igual, y eso
  * convertía «la protección está rota» en «parece que funciona».
  * ─────────────────────────────────────────────────────────────────────────── */
+/* 526 · seguridad/102. Tras 5 contraseñas incorrectas con un correo, la base
+ * responde DEMASIADOS_INTENTOS (minutos que faltan en `details`). Sin esto,
+ * la pantalla diría «No se pudo conectar», que es falso. Devuelve el texto
+ * para el cliente, o null si el error es otro. */
+async function _msgBloqueoLogin(res) {
+  let j = null;
+  try { j = JSON.parse(await res.text()); } catch (e) { /* cuerpo no JSON */ }
+  if (!j || j.message !== 'DEMASIADOS_INTENTOS') return null;
+  const min = parseInt(j.details, 10) > 0 ? parseInt(j.details, 10) : 15;
+  return `Demasiados intentos fallidos. Por seguridad, espera ${min} minuto${min === 1 ? '' : 's'} y vuelve a intentarlo.`;
+}
+
 async function login(email, password) {
   const correo = (email || '').trim();
   const clave  = (password || '').trim();
@@ -114,7 +126,11 @@ async function login(email, password) {
       headers: _SB_HEADERS,
       body:    JSON.stringify({ p_email: correo, p_password: clave })
     });
-    if (!res.ok) throw new Error(`RPC ${res.status}`);
+    if (!res.ok) {
+      const bloqueo = await _msgBloqueoLogin(res);
+      if (bloqueo) return { ok: false, msg: bloqueo, bloqueado: true };
+      throw new Error(`RPC ${res.status}`);
+    }
     const rows = await res.json();
     user = Array.isArray(rows) ? rows[0] : rows;
   } catch (e) {
@@ -262,7 +278,11 @@ async function loginCliente(email, password) {
       headers: _SB_HEADERS,
       body:    JSON.stringify({ p_email: correo, p_password: clave })
     });
-    if (!res.ok) throw new Error(`RPC ${res.status}`);
+    if (!res.ok) {
+      const bloqueo = await _msgBloqueoLogin(res);   // 526 · seguridad/102
+      if (bloqueo) return { ok: false, msg: bloqueo, bloqueado: true };
+      throw new Error(`RPC ${res.status}`);
+    }
     const rows = await res.json();
     client = Array.isArray(rows) ? rows[0] : rows;
   } catch (e) {
