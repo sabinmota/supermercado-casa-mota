@@ -1028,11 +1028,40 @@ function _cardCtlInner(id) {
       </div>`;
 }
 
-/* Repinta solo el botón de las tarjetas visibles (tienda y vitrinas), sin
- * volver a dibujar la cuadrícula ni recargar las fotos. */
+/* Pone al día el botón de las tarjetas visibles (tienda y vitrinas), sin
+ * volver a dibujar la cuadrícula ni recargar las fotos.
+ *
+ * 525 · Antes se reescribía el botón de TODAS las tarjetas en cada pulsación.
+ * Al recrear el contador «− cantidad +», su animación de entrada
+ * (`card-stepper-in`, opacidad .6 → 1) se repetía en todas a la vez y parecía
+ * que se estaban pulsando todos los productos. Ahora solo se recrea el botón
+ * de la tarjeta que pasa de «Añadir» a contador (o al revés); si ya era un
+ * contador, se cambia solo el número y el icono, sin animación. */
 function _refreshCardCtls() {
   document.querySelectorAll('[data-cart-ctl]').forEach(el => {
-    el.innerHTML = _cardCtlInner(el.getAttribute('data-cart-ctl'));
+    const id      = el.getAttribute('data-cart-ctl');
+    const item    = cart.find(c => String(c.id) === String(id));
+    const stepper = el.querySelector('.card-stepper');
+
+    // Mismo estado que antes: sin carrito y ya muestra «Añadir» → nada que hacer.
+    if (!item && !stepper && el.querySelector('.add-cart-btn')) return;
+
+    // Sigue en el carrito y ya muestra el contador → solo número e icono.
+    if (item && stepper) {
+      const qtyEl = stepper.querySelector('.card-stepper__qty');
+      const menos = stepper.querySelector('.card-stepper__btn');
+      const icono = menos && menos.querySelector('i');
+      if (qtyEl && menos && icono) {
+        if (qtyEl.textContent !== String(item.qty)) qtyEl.textContent = item.qty;
+        const uno = item.qty === 1;
+        icono.className = `fas ${uno ? 'fa-trash-can' : 'fa-minus'}`;
+        menos.title     = uno ? 'Quitar del carrito' : 'Restar uno';
+        return;
+      }
+    }
+
+    // Cambió de estado (entra o sale del carrito): se recrea solo este botón.
+    el.innerHTML = _cardCtlInner(id);
   });
 }
 
