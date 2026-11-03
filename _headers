@@ -1,0 +1,58 @@
+# ════════════════════════════════════════════════════════════════════════════
+# 527 · CABECERAS DE SEGURIDAD (Cloudflare Pages) · auditoría S-09/S-10
+#
+# Cloudflare las añade a todo lo que se sirve como fichero (páginas, JS, CSS,
+# imágenes). NO se aplican a /api/* ni a los 404 de functions/_middleware.js
+# (las Functions ponen sus propias cabeceras).
+#
+# Lo que hace cada una y por qué está así:
+#
+#  · Strict-Transport-Security → el navegador usa SIEMPRE https durante 1 año,
+#    aunque alguien escriba http:// o le pasen un enlace http://.
+#    Sin includeSubDomains ni preload a propósito: si algún día hay un
+#    subdominio sin https no se rompe, y no queda inscrito en listas de los
+#    navegadores, que tardan meses en deshacerse.
+#
+#  · X-Frame-Options + frame-ancestors → ninguna OTRA web puede meter la tienda
+#    o el panel dentro de un marco (engaño de «clic encima»). Las páginas del
+#    propio sitio sí pueden (marketing/index.html muestra sus posts así).
+#    No afecta a la app de iPhone/Android: carga la web como página principal.
+#
+#  · X-Content-Type-Options → el navegador no «adivina» el tipo de un fichero.
+#
+#  · Referrer-Policy → a otras webs solo se les dice «vengo de
+#    supermercadocasamota.com», nunca la página exacta.
+#
+#  · Permissions-Policy → cámara (escáner), micrófono (chat del panel) y
+#    ubicación (dirección del cliente) solo para el propio sitio; pagos y USB
+#    apagados. Ningún mapa ni script de otra web puede pedirlos.
+#
+#  · Content-Security-Policy → bloquea plugins antiguos (object-src), que un
+#    código inyectado cambie la dirección base de los enlaces (base-uri), que
+#    un formulario envíe datos a otra web (form-action) y convierte cualquier
+#    recurso http:// en https://.
+#    NO restringe scripts: la tienda y el panel tienen cientos de onclick="…"
+#    en el HTML, y una lista de scripts exigiría 'unsafe-inline', que anula
+#    casi toda su protección. Restringir scripts de verdad es otro trabajo
+#    (sacar los onclick a ficheros JS), no un ajuste de esta cabecera.
+#
+# 🔴 NO ampliar `_routes.json` a "/*": Cloudflare NO aplica este fichero a lo
+#    que responde una Function, así que toda la web se quedaría sin estas
+#    cabeceras, sin ningún aviso. Por eso `_routes.json` solo lista /api/* y
+#    las rutas internas bloqueadas.
+#
+# Para quitarlas todas de golpe: borrar este fichero y volver a subir.
+#
+# NO se ponen, a propósito:
+#  · Cross-Origin-Opener-Policy → interfiere con el inicio de sesión de Google.
+#  · Cross-Origin-Resource-Policy / Embedder-Policy → impedirían que el cupón y
+#    el volante (que se abren desde el ordenador) carguen el logo de la web.
+# ════════════════════════════════════════════════════════════════════════════
+
+/*
+  Strict-Transport-Security: max-age=31536000
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()
+  Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests
