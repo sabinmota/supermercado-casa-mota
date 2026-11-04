@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '512', KEY = 'cm_app_ver';
+        var VER = '513', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -130,7 +130,7 @@
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
 
   <link rel="stylesheet" href="css/style.css?v=341" />
   <link rel="stylesheet" href="css/logo-animado.css?v=7" />
@@ -1423,9 +1423,9 @@
        en jsDelivr: la librería NUNCA se cargaba y `window.ZXingBrowser` era
        siempre undefined. Comprobado con un banco de pruebas.
        Este paquete SÍ existe y expone el global `ZXing`. -->
-  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <script src="vendor/zxing-library-0.21.3.min.js"></script>
   <!-- Quagga2: decodificador de foto estática (el más fiable de los tres) -->
-  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
+  <script src="vendor/quagga2-1.2.6.min.js"></script>
   <!-- BUILD 432 · Capa nativa: escáner de códigos y push cuando la tienda
        corre dentro de la app de iOS/Android. En un navegador normal no hace
        nada. DEBE ir antes de app.js, que pregunta por CasaMotaNativo dentro

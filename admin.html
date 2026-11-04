@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '502';
+      const VER = '503';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -39,7 +39,7 @@
        renderizado de la hoja entera hasta que la fuente responde, y esta hoja
        pinta el panel completo. -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Caveat:wght@600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
   <link rel="stylesheet" href="css/admin.v33.css?v=262" />
   <!-- BUILD 456 · Rediseño del panel (barra lateral, barra superior y
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- JSZip para generar ZIP de imágenes -->
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
 <body>
 
@@ -3605,8 +3605,9 @@
   </style>
   <!-- ===== FIN OVERLAY BULK DESCRIBE ===== -->
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js · 531 · versión FIJA (antes «la última» del CDN, que podía
+       cambiar sola un día cualquiera y romper los gráficos) -->
+  <script src="vendor/chart-4.6.1.umd.min.js"></script>
   <!-- Auth & Roles -->
   <script src="js/api.js?v=364"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
