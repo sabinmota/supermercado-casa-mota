@@ -8824,8 +8824,7 @@ function generateDemoOrders() {
 /* BUILD 395 · generateDemoCustomers() BORRADO.
  *
  * Generaba 12 clientes de ejemplo, y los 5 primeros llevaban la contraseña
- * escrita en claro ('Ana2024!', 'Carlos2024!', 'Maria2024!', 'Luis2024!',
- * 'Carmen2024!') dentro de un fichero que descarga cualquiera que abra el panel.
+ * escrita en claro dentro de un fichero que descarga cualquiera que abra el panel.
  *
  * Estaba definida y NO la llamaba nadie: ni un solo `.js` ni un solo `.html` del
  * proyecto la usaba. Cinco contraseñas publicadas a cambio de nada.

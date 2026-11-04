@@ -45,20 +45,10 @@ const ROLES = {
 
 /* ─── BUILD 395 · DEFAULT_STAFF BORRADO ────────────────────────────────────────
  *
- * Aquí había 4 empleados de ejemplo con la contraseña escrita en claro:
- *   admin@casamota.com.do / Admin2024!   ← superadmin
- *   ana.ramirez@…         / Ana2024!
- *   pedro.sanchez@…       / Pedro2024!
- *   maria.fernandez@…     / Maria2024!
- *
- * Este fichero lo descarga cualquiera que abra la web, así que esas cuatro
- * contraseñas eran públicas.
- *
- * 🔴 Y eran una trampa activa: login() las usaba como respaldo cuando fallaba
- * la consulta a `staff`. Al quitarle a `anon` el permiso de leer esa tabla,
- * la consulta EMPEZARÍA a fallar siempre… y el panel habría pasado a aceptar
- * 'Admin2024!' como contraseña de superadministrador. El propio arreglo de
- * seguridad habría abierto una puerta peor que la que cerraba.
+ * Aquí había empleados de ejemplo con la contraseña escrita en claro, en un
+ * fichero que descarga cualquiera, y login() los usaba de respaldo si fallaba
+ * la consulta a `staff`. Esas cuentas se cerraron en la base (seguridad/33-34).
+ * NUNCA volver a poner un respaldo de acceso en el navegador.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 // ─── Helpers de sesión ───────────────────────────────────────────────────────
@@ -134,9 +124,7 @@ async function login(email, password) {
     const rows = await res.json();
     user = Array.isArray(rows) ? rows[0] : rows;
   } catch (e) {
-    // Un fallo de red NO puede dejar entrar a nadie. Antes se caía a
-    // DEFAULT_STAFF, una lista con 'Admin2024!' escrita en un fichero que
-    // cualquiera descarga desde la web.
+    // Un fallo de red NO puede dejar entrar a nadie (ver BUILD 395 arriba).
     console.warn('[auth] no se pudo verificar la contraseña:', e && e.message);
     return { ok: false, msg: 'No se pudo conectar para verificar tu acceso. Revisa tu conexión e inténtalo de nuevo.' };
   }
@@ -338,8 +326,8 @@ async function loginCliente(email, password) {
 
 /* BUILD 395 · _getDefaultClients() BORRADO.
  *
- * Eran 5 fichas de cliente con contraseñas escritas en claro
- * ('Ana2024!', 'Carlos2024!'…) en un fichero que sirve la web a cualquiera.
+ * Eran 5 fichas de cliente con contraseñas escritas en claro en un fichero
+ * que sirve la web a cualquiera.
  * Solo se usaban como respaldo de loginCliente() cuando fallaba la red — es
  * decir, justo cuando más peligroso era dejar entrar a alguien.
  *
