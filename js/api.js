@@ -416,8 +416,6 @@ const _ERRORES_ORDER = {
   PEDIDO_NO_EXISTE:   'Ese pedido ya no existe.',
   PEDIDO_AJENO:       'Ese pedido no es tuyo.',
   SOLO_CANCELADOS:    'Solo puedes eliminar pedidos cancelados.',
-  // BUILD 413 · ocultar del historial: solo pedidos ya finalizados.
-  SOLO_FINALIZADOS:   'Solo puedes ocultar pedidos entregados o cancelados.',
   CAMPO_NO_PERMITIDO: 'Ese campo no se puede desvincular.',
   FALTA_ID:           'Falta indicar el pedido.',
   // SEGURIDAD 92
@@ -727,7 +725,7 @@ async function _rpcClient(funcion, params, dicc = _ERRORES_CLIENTE_SESION, devol
 }
 
 // BUILD 410 · Igual que `_rpcStaff` pero con los mensajes de pedidos.
-// 529 · Ya no hay llamadas sin vale: borrar u ocultar desde la tienda van por
+// 529 · Ya no hay llamadas sin vale: borrar un pedido desde la tienda va por
 // `_rpcClient` con el vale del CLIENTE (seguridad/104).
 async function _rpcOrder(funcion, params) {
   if (!params.p_vale) {
@@ -1326,39 +1324,9 @@ const DB = {
     }, _ERRORES_PEDIDO_CLIENTE);
   },
 
-  /**
-   * BUILD 413 · Ocultar un pedido del historial DEL CLIENTE — sin borrarlo.
-   *
-   * Por qué existe y por qué NO es `deleteOrder`:
-   * Un pedido entregado es una VENTA. Si el comprador lo borrase de verdad
-   * desaparecerían con él el registro contable, los puntos de fidelidad ya
-   * otorgados (admin.v33.js:3227), el contador de entregas del repartidor
-   * (admin.v33.js:5823) y el histórico del panel. Por eso la base solo permite
-   * borrar de verdad los CANCELADOS (`SOLO_CANCELADOS` en 39-*.sql), y esa
-   * regla se queda como está.
-   *
-   * Aquí solo se marca `oculto_cliente = true`: el pedido deja de verse en
-   * «Mis pedidos» y sigue entero en la base y en el panel. Es lo que hacen
-   * Amazon o Uber Eats con «Archivar pedido».
-   *
-   * Va por RPC y no por PATCH directo a propósito: `anon` NO tiene permiso de
-   * UPDATE sobre la columna `oculto_cliente` (el GRANT de 39-*.sql enumera las
-   * columnas escribibles y esta no está). Así nadie puede ocultarle pedidos a
-   * otra persona: la BASE comprueba que el pedido es suyo y que está
-   * finalizado. Las comprobaciones del navegador solo sirven para dar buenos
-   * mensajes; la defensa real está en el servidor.
-   *
-   * 529 · Con el VALE del cliente (seguridad/104). Antes se mandaba su
-   * correo, y quien lo supiera podía ocultarle pedidos.
-   *
-   * @param {string}  id
-   * @param {boolean} [ocultar=true] false para volver a mostrarlo.
-   */
-  async ocultarMiPedido(id, ocultar = true) {
-    return _rpcClient('cliente_ocultar_mi_pedido', {
-      p_vale: _valeCliente(), p_id: id, p_ocultar: ocultar !== false,
-    }, _ERRORES_PEDIDO_CLIENTE);
-  },
+  /* 529b · `ocultarMiPedido` borrada: el cliente ya no oculta pedidos
+   * (decisión del dueño). Los pedidos entregados son ventas y se ven siempre;
+   * solo los cancelados se pueden borrar (`borrarMiPedido`). Ver seguridad/105. */
 
   /* ── Clientes ─────────────────────────────────────────────────────────────
    *
