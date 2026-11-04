@@ -65,6 +65,8 @@
     TELEFONO_INVALIDO:      'El teléfono debe tener 10 números, por ejemplo 809-555-1234.',
     CLAVE_CORTA:            'La contraseña debe tener al menos 6 caracteres.',
     TELEFONO_YA_REGISTRADO: 'Ese teléfono ya tiene una cuenta. Pulsa «Entrar».',
+    // 529 · seguridad/104: como mucho 5 cuentas nuevas por hora y 20 por día.
+    REGISTRO_SATURADO:      'Ahora mismo no se pueden crear más cuentas. Inténtalo más tarde o contacta al supermercado y te damos de alta.',
     DATOS_INCORRECTOS:      'Teléfono o contraseña incorrectos.',
     CUENTA_RECHAZADA:       'Esta cuenta no está habilitada para compras al por mayor. Contáctanos.',
     SESION_INVALIDA:        'Tu sesión terminó. Vuelve a entrar.',
@@ -319,23 +321,27 @@
     });
   }
 
-  function tarjeta(p) {
+  /* Botón de la tarjeta. `entra` = el mayorista acaba de añadirlo: solo
+   * entonces lleva la animación de entrada (`.card-stepper--entra`). */
+  function botonTarjeta(p, entra) {
     var cant = carrito[p.id] || 0;
+    if (!aprobado()) {
+      return '<button type="button" class="add-cart-btn" disabled><i class="fas fa-lock"></i> Pendiente</button>';
+    }
+    if (cant > 0) {
+      return '<div class="card-stepper' + (entra ? ' card-stepper--entra' : '') + '">' +
+        '<button type="button" class="card-stepper__btn" data-menos="' + esc(p.id) + '" aria-label="Quitar uno"><i class="fas fa-minus"></i></button>' +
+        '<span class="card-stepper__qty">' + cant + '</span>' +
+        '<button type="button" class="card-stepper__btn" data-mas="' + esc(p.id) + '" aria-label="Añadir uno"><i class="fas fa-plus"></i></button></div>';
+    }
+    return '<button type="button" class="add-cart-btn" data-mas="' + esc(p.id) + '"><i class="fas fa-cart-plus"></i> Añadir</button>';
+  }
+
+  function tarjeta(p) {
     var img = imagenes[p.id] || 'images/placeholder-product.png';
     var precio = (aprobado() && p.precio != null)
       ? '<span class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></span>'
       : '<span class="mz-sinprecio"><i class="fas fa-lock"></i> Precio al aprobar tu cuenta</span>';
-    var boton;
-    if (!aprobado()) {
-      boton = '<button type="button" class="add-cart-btn" disabled><i class="fas fa-lock"></i> Pendiente</button>';
-    } else if (cant > 0) {
-      boton = '<div class="card-stepper">' +
-        '<button type="button" class="card-stepper__btn" data-menos="' + esc(p.id) + '" aria-label="Quitar uno"><i class="fas fa-minus"></i></button>' +
-        '<span class="card-stepper__qty">' + cant + '</span>' +
-        '<button type="button" class="card-stepper__btn" data-mas="' + esc(p.id) + '" aria-label="Añadir uno"><i class="fas fa-plus"></i></button></div>';
-    } else {
-      boton = '<button type="button" class="add-cart-btn" data-mas="' + esc(p.id) + '"><i class="fas fa-cart-plus"></i> Añadir</button>';
-    }
     return '<div class="product-card" data-id="' + esc(p.id) + '">' +
       '<div class="product-img-wrap"><img src="' + esc(img) + '" alt="' + esc(p.name) + '" loading="lazy" ' +
       'onerror="this.onerror=null;this.src=\'images/placeholder-product.png\'"></div>' +
@@ -344,7 +350,7 @@
         '<div class="product-name">' + esc(p.name) + '</div>' +
         '<span class="mz-unidad"><i class="fas fa-box"></i> ' + esc(p.unidad) + '</span>' +
         '<div class="product-price-row"><div class="price-group">' + precio + '</div></div>' +
-      '</div>' + boton + '</div>';
+      '</div><div class="mz-ctl">' + botonTarjeta(p, false) + '</div></div>';
   }
 
   function pintarCatalogo() {
@@ -378,9 +384,19 @@
     }
   }
 
+  /* 525 · Antes se reemplazaba la TARJETA entera (foto incluida) en cada
+   * pulsación. Ahora solo el botón, y solo lo que cambió: si ya era contador,
+   * el número; si entra o sale del carrito, el botón (con animación al entrar). */
   function repintarTarjeta(id) {
-    var el = document.querySelector('.product-card[data-id="' + String(id).replace(/"/g, '') + '"]');
-    if (el && porId[id]) el.outerHTML = tarjeta(porId[id]);
+    var ctl = document.querySelector('.product-card[data-id="' + String(id).replace(/"/g, '') + '"] .mz-ctl');
+    if (!ctl || !porId[id]) return;
+    var cant = carrito[id] || 0;
+    var qty = ctl.querySelector('.card-stepper__qty');
+    if (cant > 0 && qty) {
+      if (qty.textContent !== String(cant)) qty.textContent = cant;
+      return;
+    }
+    ctl.innerHTML = botonTarjeta(porId[id], cant > 0);
   }
 
   // ─── Carrito ───────────────────────────────────────────────────────────────

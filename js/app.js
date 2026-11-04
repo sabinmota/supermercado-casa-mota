@@ -1008,15 +1008,17 @@ function productCardHTML(p) {
 
 /* 506 · Botón de la tarjeta al estilo de las apps nuevas: si el producto NO
  * está en el carrito se ve «Añadir»; si ya está, se convierte en el
- * contador «− cantidad +», así se ajusta sin abrir el carrito. */
-function _cardCtlInner(id) {
+ * contador «− cantidad +», así se ajusta sin abrir el carrito.
+ * 525 · `entra = true` solo cuando el cliente ACABA de añadirlo: es lo único
+ * que lleva la animación de entrada (ver `.card-stepper--entra`). */
+function _cardCtlInner(id, entra = false) {
   const item = cart.find(c => String(c.id) === String(id));
   if (!item) {
     return `<button class="add-cart-btn" onclick="addToCart('${id}')" title="Agregar al carrito">
         <i class="fas fa-cart-plus" aria-hidden="true"></i><span>Añadir</span>
       </button>`;
   }
-  return `<div class="card-stepper" role="group" aria-label="Cantidad en el carrito">
+  return `<div class="card-stepper${entra ? ' card-stepper--entra' : ''}" role="group" aria-label="Cantidad en el carrito">
         <button class="card-stepper__btn" onclick="updateQty('${id}', -1)"
                 title="${item.qty === 1 ? 'Quitar del carrito' : 'Restar uno'}">
           <i class="fas ${item.qty === 1 ? 'fa-trash-can' : 'fa-minus'}" aria-hidden="true"></i>
@@ -1031,37 +1033,44 @@ function _cardCtlInner(id) {
 /* Pone al día el botón de las tarjetas visibles (tienda y vitrinas), sin
  * volver a dibujar la cuadrícula ni recargar las fotos.
  *
- * 525 · Antes se reescribía el botón de TODAS las tarjetas en cada pulsación.
- * Al recrear el contador «− cantidad +», su animación de entrada
- * (`card-stepper-in`, opacidad .6 → 1) se repetía en todas a la vez y parecía
- * que se estaban pulsando todos los productos. Ahora solo se recrea el botón
- * de la tarjeta que pasa de «Añadir» a contador (o al revés); si ya era un
- * contador, se cambia solo el número y el icono, sin animación. */
+ * 525 · Antes se reescribía el botón de TODAS las tarjetas en cada pulsación
+ * y cada contador recreado repetía su animación de entrada: parecía que se
+ * pulsaban todos los productos (vídeo del dueño, 02-nov). Ahora cada tarjeta
+ * se compara con el carrito y solo se toca lo que de verdad cambió:
+ *   · seguía igual                → no se toca;
+ *   · seguía en el carrito        → solo número, icono y título del «−»;
+ *   · acaba de entrar al carrito  → se crea su contador CON animación;
+ *   · acaba de salir del carrito  → vuelve a «Añadir».
+ * La animación ya no está en `.card-stepper`, así que redibujar la
+ * cuadrícula (página, búsqueda, sincronización) tampoco hace parpadear. */
 function _refreshCardCtls() {
   document.querySelectorAll('[data-cart-ctl]').forEach(el => {
     const id      = el.getAttribute('data-cart-ctl');
     const item    = cart.find(c => String(c.id) === String(id));
     const stepper = el.querySelector('.card-stepper');
+    const anadir  = el.querySelector('.add-cart-btn');
 
-    // Mismo estado que antes: sin carrito y ya muestra «Añadir» → nada que hacer.
-    if (!item && !stepper && el.querySelector('.add-cart-btn')) return;
-
-    // Sigue en el carrito y ya muestra el contador → solo número e icono.
-    if (item && stepper) {
-      const qtyEl = stepper.querySelector('.card-stepper__qty');
-      const menos = stepper.querySelector('.card-stepper__btn');
-      const icono = menos && menos.querySelector('i');
-      if (qtyEl && menos && icono) {
-        if (qtyEl.textContent !== String(item.qty)) qtyEl.textContent = item.qty;
-        const uno = item.qty === 1;
-        icono.className = `fas ${uno ? 'fa-trash-can' : 'fa-minus'}`;
-        menos.title     = uno ? 'Quitar del carrito' : 'Restar uno';
-        return;
-      }
+    if (!item) {
+      if (anadir && !stepper) return;               // seguía fuera del carrito
+      el.innerHTML = _cardCtlInner(id);             // acaba de salir
+      return;
     }
 
-    // Cambió de estado (entra o sale del carrito): se recrea solo este botón.
-    el.innerHTML = _cardCtlInner(id);
+    const qtyEl = stepper && stepper.querySelector('.card-stepper__qty');
+    const menos = stepper && stepper.querySelector('.card-stepper__btn');
+    const icono = menos && menos.querySelector('i');
+    if (!qtyEl || !icono) {                         // acaba de entrar
+      el.innerHTML = _cardCtlInner(id, !!anadir);   // anima solo si venía de «Añadir»
+      return;
+    }
+
+    // Seguía en el carrito: solo lo que cambió.
+    const uno = item.qty === 1;
+    if (qtyEl.textContent !== String(item.qty)) qtyEl.textContent = item.qty;
+    const clase = `fas ${uno ? 'fa-trash-can' : 'fa-minus'}`;
+    if (icono.className !== clase) icono.className = clase;
+    const titulo = uno ? 'Quitar del carrito' : 'Restar uno';
+    if (menos.title !== titulo) menos.title = titulo;
   });
 }
 
@@ -5048,7 +5057,7 @@ async function hideClientOrder(orderId) {
   const card = document.getElementById(`order-card-${orderId}`);
 
   try {
-    await DB.hideOrderForClient(orderId, currentClient.email, currentClient.id, true);
+    await DB.ocultarMiPedido(orderId, true);   // 529 · con el vale del cliente
 
     // Misma animación de salida que al eliminar, para que el gesto se sienta igual.
     if (card) {
@@ -5064,7 +5073,7 @@ async function hideClientOrder(orderId) {
   } catch(e) {
     console.error('[hideClientOrder]', e);
     if (card) { card.style.opacity = ''; card.style.transform = ''; }
-    // `DB.hideOrderForClient` ya traduce los errores de la base
+    // `DB.ocultarMiPedido` ya traduce los errores de la base
     // (PEDIDO_AJENO, SOLO_FINALIZADOS…) a un mensaje entendible.
     showToast(e.message || 'No se pudo ocultar el pedido. Intenta de nuevo.', 'error');
   }
@@ -5089,11 +5098,10 @@ async function deleteClientOrder(orderId) {
     }
 
     // Eliminar el pedido de la API.
-    // BUILD 410 · se pasa el correo: la BASE comprueba que el pedido es de este
-    // cliente y que está cancelado antes de borrar nada. Las comprobaciones de
-    // arriba siguen ahí para dar buenos mensajes, pero ya no son la única
-    // defensa: antes vivían solo en el navegador, o sea en nada.
-    await DB.deleteOrder(orderId, currentClient.email, currentClient.id);
+    // 529 · con el VALE del cliente (seguridad/104): la BASE saca de la sesión
+    // quién es y comprueba que el pedido es suyo y está cancelado. Las
+    // comprobaciones de arriba siguen ahí solo para dar buenos mensajes.
+    await DB.borrarMiPedido(orderId);
 
     // Animación de salida en la tarjeta antes de re-renderizar
     const card = document.getElementById(`order-card-${orderId}`);
@@ -5109,7 +5117,9 @@ async function deleteClientOrder(orderId) {
 
   } catch(e) {
     console.error('[deleteClientOrder]', e);
-    showToast('Error al eliminar el pedido. Intenta de nuevo.', 'error');
+    // `DB.borrarMiPedido` ya traduce los errores de la base (sesión caducada,
+    // PEDIDO_AJENO, SOLO_CANCELADOS…).
+    showToast(e.message || 'Error al eliminar el pedido. Intenta de nuevo.', 'error');
   }
 }
 
@@ -5129,8 +5139,8 @@ async function clearCancelledOrders() {
 
     // Eliminar todos en paralelo
     await Promise.all(cancelled.map(o =>
-      // BUILD 410 · el correo va como segundo argumento (ver DB.deleteOrder).
-      DB.deleteOrder(o.id, currentClient.email, currentClient.id)
+      // 529 · con el vale del cliente (ver DB.borrarMiPedido).
+      DB.borrarMiPedido(o.id)
         .catch(logFail(`eliminar el pedido #${o.order_number || o.id}`))
     ));
 

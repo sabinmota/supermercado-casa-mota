@@ -726,10 +726,11 @@ async function _rpcClient(funcion, params, dicc = _ERRORES_CLIENTE_SESION, devol
   return Array.isArray(datos) ? (datos[0] ?? null) : datos;
 }
 
-// BUILD 410 · Igual que `_rpcStaff` pero con los mensajes de pedidos, y sin
-// exigir vale: `cliente_borrar_pedido` la llama un comprador, que no tiene.
-async function _rpcOrder(funcion, params, exigeVale = true) {
-  if (exigeVale && !params.p_vale) {
+// BUILD 410 · Igual que `_rpcStaff` pero con los mensajes de pedidos.
+// 529 · Ya no hay llamadas sin vale: borrar u ocultar desde la tienda van por
+// `_rpcClient` con el vale del CLIENTE (seguridad/104).
+async function _rpcOrder(funcion, params) {
+  if (!params.p_vale) {
     throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
   }
 
@@ -1307,37 +1308,22 @@ const DB = {
   },
 
   /**
-   * BUILD 410 · Borrar un pedido.
-   *
-   * `anon` ya no tiene DELETE sobre `orders`, así que hay dos caminos:
-   *   · Con vale (panel)  → `admin_borrar_pedido`, borra cualquier pedido.
-   *   · Sin vale (tienda) → `cliente_borrar_pedido`, que la BASE comprueba:
-   *     solo borra si el pedido está CANCELADO y el correo coincide con el del
-   *     pedido. Antes, cualquiera con la clave pública podía borrar el pedido
-   *     de otra persona, en cualquier estado.
-   *
-   * Se mandan LOS DOS identificadores del comprador (correo y ficha) porque hay
-   * pedidos antiguos con `customer_email` vacío que solo se reconocen por
-   * `clientId`; la base acepta el borrado si coincide CUALQUIERA de los dos,
-   * igual que el filtro de «Mis pedidos» en la tienda.
-   *
-   * @param {string} id
-   * @param {string} [emailCliente]  correo del comprador (vía tienda).
-   * @param {string} [clienteId]     id de su ficha (vía tienda).
+   * BUILD 410 · Borrar un pedido desde el PANEL (`admin_borrar_pedido`, con el
+   * vale del empleado; borra cualquier pedido). La tienda usa `borrarMiPedido`.
    */
-  async deleteOrder(id, emailCliente, clienteId) {
-    const vale = _valeAdmin();
-    if (vale) {
-      return _rpcOrder('admin_borrar_pedido', { p_vale: vale, p_id: id });
-    }
-    if (!emailCliente && !clienteId) {
-      throw new Error('No se puede eliminar el pedido sin identificar al cliente.');
-    }
-    return _rpcOrder(
-      'cliente_borrar_pedido',
-      { p_id: id, p_email: emailCliente || null, p_cliente_id: clienteId || null },
-      false
-    );
+  async deleteOrder(id) {
+    return _rpcOrder('admin_borrar_pedido', { p_vale: _valeAdmin(), p_id: id });
+  },
+
+  /* 529 · TIENDA · borrar un pedido CANCELADO propio (seguridad/104).
+   * Antes se mandaba el correo y el id de la ficha, y la base se los creía:
+   * quien supiera el correo de otro cliente podía borrarle un pedido. Ahora
+   * la base saca de la SESIÓN quién es (y su correo, para los pedidos
+   * antiguos sin ficha) y mantiene sus reglas: solo lo suyo y solo cancelado. */
+  async borrarMiPedido(id) {
+    return _rpcClient('cliente_borrar_mi_pedido', {
+      p_vale: _valeCliente(), p_id: id,
+    }, _ERRORES_PEDIDO_CLIENTE);
   },
 
   /**
@@ -1362,25 +1348,16 @@ const DB = {
    * finalizado. Las comprobaciones del navegador solo sirven para dar buenos
    * mensajes; la defensa real está en el servidor.
    *
+   * 529 · Con el VALE del cliente (seguridad/104). Antes se mandaba su
+   * correo, y quien lo supiera podía ocultarle pedidos.
+   *
    * @param {string}  id
-   * @param {string}  [emailCliente] correo del comprador.
-   * @param {string}  [clienteId]    id de su ficha.
    * @param {boolean} [ocultar=true] false para volver a mostrarlo.
    */
-  async hideOrderForClient(id, emailCliente, clienteId, ocultar = true) {
-    if (!emailCliente && !clienteId) {
-      throw new Error('No se puede ocultar el pedido sin identificar al cliente.');
-    }
-    return _rpcOrder(
-      'cliente_ocultar_pedido',
-      {
-        p_id:         id,
-        p_email:      emailCliente || null,
-        p_cliente_id: clienteId || null,
-        p_ocultar:    ocultar !== false,
-      },
-      false
-    );
+  async ocultarMiPedido(id, ocultar = true) {
+    return _rpcClient('cliente_ocultar_mi_pedido', {
+      p_vale: _valeCliente(), p_id: id, p_ocultar: ocultar !== false,
+    }, _ERRORES_PEDIDO_CLIENTE);
   },
 
   /* ── Clientes ─────────────────────────────────────────────────────────────
