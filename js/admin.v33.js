@@ -9416,6 +9416,11 @@ function _bkDownloadJSON(json, filename) {
 
 let _migProducts  = [];   // todos los productos cargados
 let _migImageList = [];   // [{name, url, isCdn}]
+/* 532 · Generación del ZIP en curso (AbortController) o null si no hay ninguna.
+ * Sirve para tres cosas: el botón «Cancelar» corta la descarga de la imagen
+ * que esté bajando en ese momento (no espera a que termine), impide lanzar
+ * dos ZIP a la vez y bloquea «Re-escanear» mientras tanto. */
+let _migZipCancelar = null;
 
 // ── Detecta si una URL es del CDN de Genspark ────────────────────────────
 function _migIsCdn(url) {
@@ -9586,14 +9591,45 @@ function _migRenderTable() {
 }
 
 // ── PASO 2: Descargar ZIP ─────────────────────────────────────────────────
+/* 532 · Botón «Cancelar». Corta YA la imagen que esté bajando (no espera a
+ * que termine) y la generación no descarga nada. Si se pulsa en el último
+ * paso («Comprimiendo…», unos segundos), ese paso termina pero el ZIP se
+ * descarta: tampoco se descarga. */
+function migCancelZip() {
+  if (!_migZipCancelar || _migZipCancelar.signal.aborted) return;
+  _migZipCancelar.abort();
+  const b = document.getElementById('migBtnCancel');
+  if (b) {
+    b.disabled = true;
+    b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelando...';
+  }
+  _migLog('⏹️ Cancelando por petición del usuario...', 'warn');
+}
+
 async function migDownloadZip() {
+  if (_migZipCancelar) return;               // ya hay un ZIP generándose
   if (_migImageList.length === 0) {
     showAdminToast('Primero haz clic en "Escanear imágenes"', 'error'); return;
   }
 
-  const btn = document.getElementById('migBtnZip');
+  const ctrl = new AbortController();
+  _migZipCancelar = ctrl;
+  /* 532 · Copia de la lista: «Re-escanear» la sustituye, y antes podía
+   * cambiarla a mitad de la descarga (el bucle leía la lista nueva con el
+   * total de la vieja). Además, «Re-escanear» queda bloqueado hasta el final. */
+  const lista = _migImageList.slice();
+
+  const btn       = document.getElementById('migBtnZip');
+  const btnScan   = document.getElementById('migBtnScan');
+  const btnCancel = document.getElementById('migBtnCancel');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando ZIP...';
+  if (btnScan) btnScan.disabled = true;
+  if (btnCancel) {
+    btnCancel.disabled = false;
+    btnCancel.innerHTML = '<i class="fas fa-xmark"></i> Cancelar';
+    btnCancel.style.display = '';
+  }
 
   const logEl  = document.getElementById('migLog');
   const progWr = document.getElementById('migProgressWrap');
@@ -9603,19 +9639,21 @@ async function migDownloadZip() {
   _migLog('📦 Iniciando descarga de imágenes...');
   _migSetProgress(0, 'Iniciando...');
 
-  const zip      = new JSZip();
+  let zip        = new JSZip();
   const folder   = zip.folder('casamota-imagenes');
-  const total    = _migImageList.length;
+  const total    = lista.length;
   let ok = 0, fail = 0;
 
+  try {
   for (let i = 0; i < total; i++) {
-    const img = _migImageList[i];
+    if (ctrl.signal.aborted) break;
+    const img = lista[i];
     const pct = Math.round(((i+1)/total)*85);
     _migSetProgress(pct, `Descargando ${i+1}/${total}: ${img.name.substring(0,30)}...`);
 
     try {
-      // Usar proxy CORS si es necesario
-      const resp = await fetch(img.url, { mode: 'cors' });
+      // `signal`: «Cancelar» corta esta descarga al instante
+      const resp = await fetch(img.url, { mode: 'cors', signal: ctrl.signal });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
       folder.file(img.file, blob);
@@ -9624,11 +9662,19 @@ async function migDownloadZip() {
         _migLog(`✅ ${ok}/${total} imágenes descargadas`, 'ok');
       }
     } catch(err) {
+      if (ctrl.signal.aborted) break;        // cancelado: no es un error de la imagen
       fail++;
       _migLog(`⚠️ Error en "${img.name}": ${err.message} — URL: ${img.url.substring(0,60)}`, 'warn');
       // Agregar un archivo de texto con la URL para descarga manual
       folder.file(img.file.replace(/\.\w+$/,'.url.txt'), img.url);
     }
+  }
+
+  if (ctrl.signal.aborted) {
+    _migLog(`⏹️ Generación cancelada. No se ha descargado nada (iban ${ok} de ${total} imágenes).`, 'warn');
+    _migSetProgress(0, 'Cancelado');
+    showAdminToast('Generación del ZIP cancelada', 'info');
+    return;
   }
 
   _migLog(`📦 Generando archivo ZIP (${ok} imágenes + ${fail} con error)...`);
@@ -9638,6 +9684,13 @@ async function migDownloadZip() {
     const content = await zip.generateAsync({ type:'blob', compression:'STORE' },
       meta => _migSetProgress(90 + Math.round(meta.percent * 0.1), `Comprimiendo ${Math.round(meta.percent)}%...`)
     );
+
+    if (ctrl.signal.aborted) {
+      _migLog('⏹️ Generación cancelada al comprimir. El ZIP se ha descartado, no se ha descargado.', 'warn');
+      _migSetProgress(0, 'Cancelado');
+      showAdminToast('Generación del ZIP cancelada', 'info');
+      return;
+    }
 
     const now  = new Date();
     const ts   = `${now.getFullYear()}${_bkPad(now.getMonth()+1)}${_bkPad(now.getDate())}_${_bkPad(now.getHours())}${_bkPad(now.getMinutes())}`;
@@ -9662,8 +9715,16 @@ async function migDownloadZip() {
     showAdminToast('Error generando ZIP: ' + err.message, 'error');
   }
 
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-file-zipper"></i> Descargar ZIP';
+  } finally {
+    // Pase lo que pase (terminado, cancelado o error) todo vuelve a su sitio
+    // y se sueltan las imágenes que el ZIP guardaba en memoria.
+    zip = null;
+    _migZipCancelar = null;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-file-zipper"></i> Descargar ZIP';
+    if (btnScan) btnScan.disabled = false;
+    if (btnCancel) btnCancel.style.display = 'none';
+  }
 }
 
 // ── PASO 3: Exportar lista de URLs en TXT ─────────────────────────────────

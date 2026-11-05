@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '503';
+      const VER = '504';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -3410,6 +3410,10 @@
             <button class="btn-primary" id="migBtnZip" onclick="migDownloadZip()" disabled style="background:#6b7280">
               <i class="fas fa-file-zipper"></i> Descargar ZIP
             </button>
+            <!-- 532 · Solo visible mientras se genera el ZIP (js/admin.v33.js · migCancelZip) -->
+            <button class="btn-danger" id="migBtnCancel" type="button" onclick="migCancelZip()" style="display:none">
+              <i class="fas fa-xmark"></i> Cancelar
+            </button>
             <button class="btn-secondary" id="migBtnTxt" onclick="migExportTxt()" disabled>
               <i class="fas fa-file-lines"></i> Exportar URLs (.txt)
             </button>
@@ -3620,7 +3624,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=423"></script>
+  <script src="js/admin.v33.js?v=424"></script>
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
