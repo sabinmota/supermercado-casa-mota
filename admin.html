@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '504';
+      const VER = '505';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -3644,12 +3644,12 @@
   <script src="js/cierres-pos.js?v=8"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
-  <script src="js/ia-modelos.js?v=4"></script>
+  <script src="js/ia-modelos.js?v=5"></script>
   <!-- IA: Groq integration -->
   <script src="js/ai.js?v=260"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
-  <script src="js/chat.js?v=244"></script>
+  <script src="js/chat.js?v=245"></script>
   <script>
     // ── Gestión de API Keys de IA (se guardan en localStorage, NUNCA en el código) ──
 

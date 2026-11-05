@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '513', KEY = 'cm_app_ver';
+        var VER = '514', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1027,8 +1027,8 @@
        -------------------------------------------------------------------
        Decisión de producto: no aportaba valor real al cliente final.
        · El motor js/chat.js SIGUE EXISTIENDO y lo usa el panel admin.
-       · El proxy functions/api/chat.js SE MANTIENE: lo necesita el
-         escáner de códigos de barras (visión IA) y el Maya del admin.
+       · El proxy functions/api/chat.js SE MANTIENE para el Maya del admin
+         (533: solo responde al personal con sesión; el escáner ya no lo usa).
        · Estilos .chat-* de css/style.css: neutralizados (ver ese fichero).
        Para restaurarlo: recuperar este bloque de backup/v28.0/index.html
        y volver a incluir el script de js/chat.js al final del documento.
@@ -1443,10 +1443,8 @@
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/location.js?v=122"></script>
-  <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html -->
-  <!-- IA: qué modelo usa el escáner de códigos. DEBE ir antes del script
-       del escáner, que llama a iaModeloVision() / iaModeloMuerto(). -->
-  <script src="js/ia-modelos.js?v=4"></script>
+  <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html.
+       533 · La tienda ya no usa IA: tampoco carga js/ia-modelos.js. -->
 
   <!-- ═══ Escáner: auto-abrir cámara al mostrar modo foto ════════════════ -->
   <script>
@@ -1616,44 +1614,24 @@
   </script>
 
 
-  <!-- ═══ Escáner: IA Vision para leer códigos de barras ═════════════════ -->
+  <!-- ═══ Escáner: leer el código de barras de una foto ═══════════════════ -->
   <script>
     /**
-     * handleBarcodePhoto — usa Groq Vision como motor principal + Quagga como fallback
-     * Flujo: foto → base64 → Groq Vision → código → buscar producto
+     * handleBarcodePhoto — foto → código → buscar producto.
+     * Tres lectores, por orden: BarcodeDetector nativo, Quagga2 y ZXing. Los
+     * tres leen las BARRAS y validan el dígito de control.
+     *
+     * 🔴 533 · SE QUITÓ EL PASO 4 (leer la foto con IA de Groq). En esta cuenta
+     * de Groq no hay ningún modelo que lea imágenes (verificado en el BUILD
+     * 414), así que no funcionaba nunca; y era lo único de la tienda que usaba
+     * /api/chat, que ahora solo responde al personal con sesión en el panel
+     * (seguridad/106). Si algún día hiciera falta, NO se vuelve a poner aquí:
+     * la tienda no tiene sesión de personal y la petición sería rechazada.
+     *
+     * 🔴 BUILD 415 · Este bloque llegaba a guardar la clave de Groq en el
+     * navegador de cada visitante. Se borra cualquier copia que quede de
+     * entonces: borrar el código no borra lo ya entregado.
      */
-
-    /* ═══════════════════════════════════════════════════════════════════════
-     * 🔴🔴 BUILD 415 · AQUÍ SE REGALABA LA CLAVE DE GROQ A CADA VISITANTE
-     * ═══════════════════════════════════════════════════════════════════════
-     * Este bloque leía `settings.groqApiKey` de la base de datos y la GUARDABA
-     * EN EL localStorage DEL NAVEGADOR DE CUALQUIERA que abriese la tienda.
-     *
-     * No era «la clave se podía leer»: era que se la ENTREGÁBAMOS. Cualquier
-     * visitante podía abrir la consola, escribir
-     *     localStorage.getItem('groq_api_key')
-     * y llevarse la clave para gastar la cuota de Casa Mota en lo que quisiera.
-     *
-     * 🔴 Y LO PEOR: ESTO NO SERVÍA PARA NADA. La clave alimentaba el paso 4 del
-     * escáner (leer el código de barras con IA de visión), y en esta cuenta de
-     * Groq NO EXISTE NINGÚN MODELO DE VISIÓN — verificado en el BUILD 414 sobre
-     * la lista real de 12 modelos. Se estaba publicando un secreto para
-     * sostener una función que no podía funcionar.
-     *
-     * ✅ EL ESCÁNER SIGUE FUNCIONANDO. La IA era el paso 4 de 4; los tres
-     * anteriores (BarcodeDetector nativo, Quagga2 y ZXing) leen las barras de
-     * verdad y validan el dígito de control, cosa que la IA nunca hizo — podía
-     * inventarse el número, y por eso ya estaba relegada al último puesto.
-     *
-     * Si algún día Groq añade visión a esta cuenta, se reactiva pasando por
-     * `/api/chat` (functions/api/chat.js), que usa la variable de entorno
-     * GROQ_API_KEY de Cloudflare: vive en el servidor y el navegador NO la ve.
-     * Nunca volviendo a repartir el secreto al cliente.
-     *
-     * Se limpia además cualquier copia que este navegador ya tenga guardada de
-     * cuando sí se repartía: borrar el código no borra lo ya entregado.
-     */
-    let _cachedGroqKey = null;
     (function _limpiarClaveRegalada() {
       try {
         if (localStorage.getItem('groq_api_key')) {
@@ -1675,21 +1653,15 @@
       if (_stEl) { _stEl.style.display = 'none'; _stEl.className = 'barcode-status'; }
       if (_hint) { _hint.style.display = 'none'; _hint.textContent = ''; }
 
-      // Mostrar spinner "Analizando imagen con Maya…"
-      _setScanState('<i class="fas fa-spinner fa-spin" style="color:#00e676"></i>&nbsp; Analizando imagen con Maya…');
+      // Mostrar spinner mientras se lee la foto
+      _setScanState('<i class="fas fa-spinner fa-spin" style="color:#00e676"></i>&nbsp; Leyendo el código…');
 
       try {
         let barcode = null;
         const file  = input.files[0];
 
-        // ═══ BUILD 398 · ORDEN INVERTIDO ═══════════════════════════════════
-        // Antes la IA (Groq Vision) corría ANTES que los decodificadores
-        // deterministas. Eso está al revés: un decodificador lee las barras y
-        // valida el dígito de control — no puede inventarse un número. La IA
-        // "lee" los dígitos impresos y SÍ puede alucinar.
-        // Comprobado con la foto real del usuario: Quagga acertó 5 de 5 veces
-        // con preprocesado. Ahora los deterministas van primero y la IA queda
-        // como último recurso.
+        // BUILD 398 · Comprobado con la foto real del usuario: Quagga acertó
+        // 5 de 5 veces con preprocesado.
 
         // 1) BarcodeDetector nativo — instantáneo, sin red (Android/Chrome)
         if ('BarcodeDetector' in window) {
@@ -1711,21 +1683,6 @@
           console.log('[Scanner] Intentando ZXing…');
           barcode = await _zxingReadPhoto(file);
           console.log('[Scanner] ZXing resultado:', barcode || 'null');
-        }
-
-        // 4) Último recurso → Groq Vision (Maya). Puede alucinar, por eso va
-        //    al final y su resultado se valida con el dígito de control.
-        if (!barcode) {
-          console.log('[Scanner] Intentando Groq Vision (Maya)…');
-          _setScanState('<i class="fas fa-spinner fa-spin" style="color:#00e676"></i>&nbsp; Analizando imagen con Maya…');
-          const groqKey = await _getScanGroqKey();
-          if (groqKey) {
-            const base64 = await _imageToBase64(file);
-            barcode = await _groqVisionReadBarcode(base64);
-            console.log('[Scanner] Groq Vision resultado:', barcode || 'null');
-          } else {
-            console.warn('[Scanner] Sin clave Groq — saltando Maya');
-          }
         }
 
         _setScanState(null); // ocultar spinner
@@ -1762,31 +1719,6 @@
         console.warn('[BarcodeDetector]', e.message);
         return null;
       }
-    }
-
-    // ── Convierte File a base64 ───────────────────────────────────────────────
-    function _imageToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = e => resolve(e.target.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // ── Groq Vision: lee el código de barras con IA ──────────────────────────
-    // La clave se obtiene de: 1) localStorage, 2) base de datos settings
-    // NOTA: _cachedGroqKey ya fue declarada arriba en el bloque de preload
-
-    /* 🔴 BUILD 415 · Esta función buscaba la clave de Groq en `settings` y la
-     * volvía a guardar en el localStorage del visitante. Devuelve `null` a
-     * propósito: la tienda pública NO debe tener nunca la clave.
-     *
-     * No se borra la función para no romper a quien la llame; devolver `null`
-     * hace que el paso 4 del escáner se salte limpiamente, que es justo lo
-     * que se quiere (no hay modelo de visión en esta cuenta — BUILD 414). */
-    async function _getScanGroqKey() {
-      return null;
     }
 
     // ── BUILD 398 · Aceptar un código leído por un decodificador ────────────
@@ -1832,137 +1764,6 @@
       const valid = checkDigit === parseInt(digits[len - 1], 10);
       console.log(`[Checksum] ${digits} → calculado=${checkDigit} real=${digits[len-1]} → ${valid ? '✅' : '❌'}`);
       return valid;
-    }
-
-    async function _groqVisionReadBarcode(base64Img) {
-      // Se intenta primero el proxy propio (/api/chat), donde la API key vive
-      // en el servidor. Si no está desplegado, se cae a la llamada directa
-      // siempre que este navegador tenga clave guardada.
-      const key = await _getScanGroqKey();
-
-      /* BUILD 414 · El modelo ya no se escribe aquí.
-       *
-       * 🔴 AVISO HONESTO: EN ESTA CUENTA NO HAY MODELO DE VISIÓN. Los doce
-       * modelos disponibles son de texto, de audio (whisper, orpheus) o
-       * clasificadores (prompt-guard); `meta-llama/llama-4-scout`, que era el
-       * que leía las fotos, NO FIGURA y no se puede autorizar. Se llama a
-       * `iaModeloVision()` por si Groq amplía la lista, pero lo más probable
-       * es que responda 403.
-       *
-       * Si no funciona, EL ESCÁNER NO SE ROMPE: esto es el paso 4 de 4. Los
-       * tres anteriores (BarcodeDetector nativo, Quagga2 y ZXing) leen las
-       * barras de verdad y validan el dígito de control, cosa que la IA nunca
-       * hizo — podía alucinar el número, y por eso está la última. */
-      const _modeloVision = (typeof iaModeloVision === 'function')
-        ? iaModeloVision()
-        : 'groq/compound';
-
-      // Construye la petición: por proxy va sin Authorization
-      const _enviar = (usarProxy, modelo) => fetch(
-        usarProxy ? '/api/chat' : 'https://api.groq.com/openai/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: usarProxy
-            ? { 'Content-Type': 'application/json' }
-            : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({
-            model: modelo || _modeloVision,
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: `You are a barcode scanner. Look at the image and find the STRIPED BARCODE — the one made of many vertical black and white lines/bars of different widths arranged in a rectangle. That stripe pattern is the barcode.
-
-STEP 1 — LOCATE THE STRIPES: Find the rectangular area filled with vertical black and white bars (thin and thick alternating). This is the only real barcode.
-
-STEP 2 — READ THE NUMBER: Read the digits printed IMMEDIATELY below (or above) those black/white stripes. Those digits are part of the stripe pattern itself.
-
-STEP 3 — VALIDATE: The number must be EXACTLY 8, 12, or 13 digits. Remove all spaces.
-
-CRITICAL — WHAT TO IGNORE (these are NOT barcodes):
-- Numbers printed alone without stripes next to them (lot codes, serial numbers, reference codes)
-- Numbers inside boxes or rectangles drawn on the label
-- Numbers with letters mixed in (e.g. "5043-28N")
-- QR codes (square pixel patterns)
-- Phone numbers like "1-888-FOR-PREGO"
-- Any number that is NOT directly touching or immediately adjacent to the stripe pattern
-
-REAL EXAMPLES:
-✅ CORRECT: The number "051000050434" printed below the tall striped rectangle = return 051000050434
-❌ WRONG: The number "910001038051" printed separately below the barcode in a box = IGNORE IT
-❌ WRONG: "5043-28N" = has letters, ignore
-❌ WRONG: any 14+ digit number = ignore
-
-Return ONLY the digits of the striped barcode number. No spaces. No letters. No explanation.
-If you cannot clearly see a stripe barcode, return: NULL`
-
-                },
-                {
-                  type: 'image_url',
-                  image_url: { url: `data:image/jpeg;base64,${base64Img}` }
-                }
-              ]
-            }],
-            max_tokens: 50,
-            temperature: 0
-          })
-        }
-      );
-
-      try {
-        // 1) Proxy propio; 2) si no está desplegado, llamada directa con clave
-        let res = await _enviar(true, _modeloVision);
-        if (res.status === 404 || res.status === 501) {
-          if (!key) { console.warn('[GroqVision] Sin proxy ni clave'); return null; }
-          res = await _enviar(false, _modeloVision);
-        }
-
-        if (!res.ok) {
-          const errTexto = await res.text().catch(() => '');
-          /* Si el modelo de visión no existe o no está autorizado, se prueba
-           * el siguiente de la lista antes de rendirse. Con un 401 o un 429
-           * no se reintenta: cambiar de modelo no arregla ninguno de los dos
-           * y solo gastaría cuota (250 peticiones al día). */
-          if (typeof iaModeloMuerto === 'function' && iaModeloMuerto(res.status, errTexto)) {
-            const alterno = (typeof iaListaVision === 'function' ? iaListaVision() : [])
-              .find(m => m !== _modeloVision);
-            if (alterno) {
-              console.warn(`[GroqVision] «${_modeloVision}» no disponible — probando «${alterno}»`);
-              res = await _enviar(true, alterno);
-              if ((res.status === 404 || res.status === 501) && key) res = await _enviar(false, alterno);
-              if (res.ok && typeof iaRecordarVision === 'function') iaRecordarVision(alterno);
-            }
-          }
-          if (!res.ok) {
-            console.warn('[GroqVision] Error HTTP', res.status, errTexto.slice(0, 200));
-            return null;
-          }
-        }
-        const data = await res.json();
-        const text = (data.choices?.[0]?.message?.content || '').trim();
-        console.log('[GroqVision] Respuesta raw:', text);
-
-        // Extraer primero cualquier número de 8, 12 o 13 dígitos
-        const match = text.match(/\b(\d{13}|\d{12}|\d{8})\b/);
-        if (!match) { console.warn('[GroqVision] Sin código válido en respuesta'); return null; }
-
-        const candidate = match[0];
-
-        // ── Validar checksum EAN/UPC ─────────────────────────────────────────
-        // Si el dígito de control no cuadra matemáticamente → no es un barcode real
-        if (!_validateBarcodeChecksum(candidate)) {
-          console.warn('[GroqVision] Checksum inválido para:', candidate, '— descartado');
-          return null;
-        }
-
-        console.log('[GroqVision] ✅ Código válido:', candidate);
-        return candidate;
-
-      } catch (e) {
-        console.warn('[GroqVision]', e.message);
-        return null;
-      }
     }
 
     /* ═══ BUILD 398 · PREPROCESADO Y MULTI-INTENTO ═══════════════════════════

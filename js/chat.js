@@ -40,9 +40,13 @@ async function _chatLLMFetch(body, groqKey) {
   // 1) Proxy propio — sin cabecera Authorization: la pone el servidor
   if (_CHAT_USE_PROXY && !_chatProxyCaido) {
     try {
+      /* 533 · El proxy solo responde al personal con sesión en el panel: se le
+       * manda el vale (el mismo que usan todas las funciones del panel) y él
+       * lo comprueba en la base antes de gastar cuota (seguridad/106). */
+      const vale = (typeof _valeAdmin === 'function') ? _valeAdmin() : '';
       const res = await _chatFetch(_CHAT_PROXY_URL, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CM-Vale': vale },
         body:    JSON.stringify(body),
       });
       // 404/501 = la Function no existe en este despliegue → usar plan B
@@ -1382,6 +1386,15 @@ function _chatMotivoFallo(status, data) {
   const crudo = (() => {
     try { return JSON.stringify(data || '').toLowerCase(); } catch (e) { return ''; }
   })();
+
+  /* 533 · Respuestas del propio proxy sobre la SESIÓN (no de Groq). Van antes
+   * que la regla del 401 de abajo, que culparía a la clave de Groq. */
+  if (data && data.codigo === 'sesion_panel') {
+    return '🔒 Tu sesión del panel caducó. Cierra sesión y vuelve a entrar para usar a Maya.';
+  }
+  if (data && data.codigo === 'sesion_no_verificable') {
+    return '⚠️ ' + (data.error || 'No se pudo comprobar la sesión del panel. Vuelve a intentarlo en un momento.');
+  }
 
   /* 401/403 con «api key» = la clave que usa el PROXY no sirve. Ojo: es la
    * variable GROQ_API_KEY de Cloudflare Pages, NO la que se guarda en

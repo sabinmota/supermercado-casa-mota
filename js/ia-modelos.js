@@ -203,26 +203,15 @@ const IA_MODELOS_TEXTO = [
   'groq/compound',
 ];
 
-/* ─── MODELOS CON VISIÓN (leer fotos) ────────────────────────────────────────
- * 🔴 AVISO HONESTO: EN ESTA CUENTA NO HAY NINGÚN MODELO DE VISIÓN. Los doce
- * disponibles son de texto, de audio o clasificadores. `meta-llama/llama-4-
- * scout`, que era el que leía las fotos, no figura y no se puede autorizar.
- * Se dejan estos por si Groq amplía la lista, pero lo más probable es que
- * fallen con 403.
- *
- * EL ESCÁNER NO SE ROMPE POR ESTO: la IA es el paso 4 de 4 (index.html ~1585)
- * y los tres anteriores —BarcodeDetector nativo, Quagga2 y ZXing— leen las
- * barras de verdad y validan el dígito de control, cosa que la IA nunca hizo;
- * podía inventarse el número, y por eso está la última. Se pierde algo de
- * tolerancia con fotos malas; no se pierde el escáner.
- */
-const IA_MODELOS_VISION = [
-  'groq/compound',
-];
+/* 🔴 533 · MODELOS CON VISIÓN: BORRADOS. Solo los usaba el paso 4 del escáner
+ * de la tienda (leer la foto con IA), que se quitó: en esta cuenta de Groq no
+ * hay ningún modelo que lea imágenes, así que nunca funcionó. /api/chat ya no
+ * admite imágenes (functions/api/chat.js). */
 
 // Dónde se recuerda el modelo que sí funcionó, para no reintentar los muertos.
 const _IA_LS_TEXTO  = 'ia_modelo_texto';
-const _IA_LS_VISION = 'ia_modelo_vision';
+// 533 · Lo que quedara guardado de los modelos de visión ya no sirve.
+try { localStorage.removeItem('ia_modelo_vision'); } catch (e) {}
 
 /* ─── MODELOS CON LA CUOTA DEL DÍA YA GASTADA ────────────────────────────────
  * 🔴 POR QUÉ HACE FALTA ESTO (fallo mío detectado al contrastar las cifras
@@ -264,7 +253,6 @@ function iaAgotadoHoy(modelo) {
       JSON.stringify({ fecha: _iaHoy(), modelos: ya.concat([modelo]) }));
     // Si era el «modelo que funcionó», dejar de empezar por él.
     if (localStorage.getItem(_IA_LS_TEXTO)  === modelo) localStorage.removeItem(_IA_LS_TEXTO);
-    if (localStorage.getItem(_IA_LS_VISION) === modelo) localStorage.removeItem(_IA_LS_VISION);
   } catch (e) {}
 }
 
@@ -286,7 +274,6 @@ function _iaOrden(lista, clave) {
 }
 
 function iaModeloTexto()  { return _iaOrden(IA_MODELOS_TEXTO,  _IA_LS_TEXTO)[0]; }
-function iaModeloVision() { return _iaOrden(IA_MODELOS_VISION, _IA_LS_VISION)[0]; }
 
 /* ─── 🔴 EL FALLO DE «RESPONDIÓ PERO SIN TEXTO» ──────────────────────────────
  * Síntoma real del dueño (captura 2026-08-22): «Probar conexión» decía
@@ -336,7 +323,6 @@ function iaTokensSeguros(modelo, maxTokens) {
  * (con timeout y caída a Groq directo) y esa lógica no cabe aquí sin
  * duplicarla. Se le da la lista y él hace su propio bucle. */
 function iaListaTexto()  { return _iaOrden(IA_MODELOS_TEXTO,  _IA_LS_TEXTO); }
-function iaListaVision() { return _iaOrden(IA_MODELOS_VISION, _IA_LS_VISION); }
 
 function _iaRecordar(clave, modelo) {
   try { localStorage.setItem(clave, modelo); } catch (e) {}
@@ -344,7 +330,6 @@ function _iaRecordar(clave, modelo) {
 
 /** Apunta el modelo que sí respondió, para empezar por él la próxima vez. */
 function iaRecordarTexto(modelo)  { _iaRecordar(_IA_LS_TEXTO,  modelo); }
-function iaRecordarVision(modelo) { _iaRecordar(_IA_LS_VISION, modelo); }
 
 /**
  * ¿El fallo se arregla probando OTRO modelo?
@@ -397,7 +382,6 @@ function iaModeloMuerto(status, texto) { return _iaModeloMuerto(status, texto); 
  * @param {object}      body       cuerpo de la petición SIN el campo `model`.
  * @param {object}      headers    cabeceras completas (con Authorization si toca).
  * @param {object}      [opts]
- * @param {boolean}     [opts.vision] usar la lista de modelos con visión.
  * @param {AbortSignal} [opts.signal] permite CANCELAR — lo usa la generación
  *                      masiva de descripciones, que tiene botón de cancelar.
  * @param {function}    [opts.onEstado] se llama con (status, texto) cuando el
@@ -408,13 +392,8 @@ function iaModeloMuerto(status, texto) { return _iaModeloMuerto(status, texto); 
  * @throws  {Error} si fallan todos, con el mensaje real del último intento.
  */
 async function iaLlamarGroq(url, body, headers, opts = {}) {
-  // Compatibilidad: si alguien pasa `true` como 4º argumento, es `vision`.
-  const cfg    = (typeof opts === 'boolean') ? { vision: opts } : (opts || {});
-  const vision = !!cfg.vision;
-
-  const lista = vision
-    ? _iaOrden(IA_MODELOS_VISION, _IA_LS_VISION)
-    : _iaOrden(IA_MODELOS_TEXTO,  _IA_LS_TEXTO);
+  const cfg   = opts || {};
+  const lista = _iaOrden(IA_MODELOS_TEXTO, _IA_LS_TEXTO);
 
   let ultimoError = 'No hay ningún modelo de IA disponible.';
 
@@ -473,7 +452,7 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
 
       // Solo se recuerda como "bueno" el modelo que DEVOLVIÓ TEXTO. Recordar
       // uno que contesta vacío haría que se intentara primero siempre.
-      if (!_vacio) _iaRecordar(vision ? _IA_LS_VISION : _IA_LS_TEXTO, modelo);
+      if (!_vacio) _iaRecordar(_IA_LS_TEXTO, modelo);
       return { datos, modelo };
     }
 

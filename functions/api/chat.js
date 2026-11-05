@@ -1,10 +1,10 @@
 /**
  * SUPERMERCADO CASA MOTA — PROXY DE IA (Cloudflare Pages Function)
  * ---------------------------------------------------------------
- * Ruta pública: POST /api/chat
+ * Ruta: POST /api/chat · SOLO PARA EL PERSONAL CON SESIÓN EN EL PANEL (533)
  *
- * Reenvía la petición del chat a Groq añadiendo la API key EN EL SERVIDOR.
- * La clave nunca viaja al navegador del cliente.
+ * Reenvía la petición de Maya (el asistente del panel) a Groq añadiendo la API
+ * key EN EL SERVIDOR. La clave nunca viaja al navegador.
  *
  * CONFIGURACIÓN REQUERIDA (una sola vez, en el panel de Cloudflare):
  *   Pages → supermercado-casa-mota → Settings → Environment variables
@@ -15,125 +15,197 @@
  *
  * NO escribas la clave en este archivo: acabaría en GitHub.
  *
- * LIMITACIÓN DE USO (rate-limiting) — añadido en el build 371:
- *   El proxy protegía la clave, pero no la cuota: cualquiera con la URL podía
- *   quemar los créditos de Groq a base de POSTs. Ahora hay tres topes:
- *     · por IP y minuto        (RL.MAX_POR_IP)
- *     · por IP y minuto, visión (RL.MAX_VISION_POR_IP — el escáner es caro)
- *     · global por minuto      (RL.MAX_GLOBAL — cortafuegos de cuota)
- *   Se responde 429 con cabecera Retry-After.
+ * ════════════════════════════════════════════════════════════════════════════
+ * 🔒 533 · SOLO RESPONDE AL PERSONAL CON SESIÓN EN EL PANEL
+ * ════════════════════════════════════════════════════════════════════════════
+ * Antes respondía a cualquiera que conociera la dirección: con un programa se
+ * podía gastar la cuota de Groq de la tienda. Los topes por minuto de abajo no
+ * lo impedían (viven en la memoria de cada copia del servidor, y Cloudflare
+ * ejecuta varias a la vez).
  *
- *   ⚠️ HONESTIDAD TÉCNICA: el contador vive en la memoria del isolate de
- *   Cloudflare. Los isolates se reciclan y hay varios por región, así que
- *   esto frena ráfagas y bots simples, pero NO es un límite duro global.
- *   Para una garantía real añade en el panel de Cloudflare:
- *     Security → WAF → Rate limiting rules → (la cuota gratuita incluye 1)
- *     Expresión:  (http.request.uri.path eq "/api/chat")
- *     Límite:     20 peticiones / 1 minuto por IP → Block 10 minutos
- *   Esa regla se aplica en el borde, antes de ejecutar este código.
+ * Ahora cada petición trae el vale de sesión del panel en la cabecera
+ * `X-CM-Vale` (lo pone js/chat.js) y, ANTES de llamar a Groq, se pregunta a la
+ * base `admin_vale_vigente(vale)` (seguridad/106). La base responde solo
+ * true/false: vale vivo de un empleado activo. Sin vale, con un vale caducado,
+ * o si la base no contesta → no se llama a Groq y no se gasta nada.
+ *
+ * La tienda ya no usa este servicio: Maya se quitó en el build 361 y el paso
+ * de IA del escáner en el 533 (en esta cuenta de Groq no hay modelos que lean
+ * fotos). Por eso tampoco se admiten imágenes.
+ *
+ * Un vale comprobado se recuerda 60 s en esta copia del servidor, para no
+ * preguntar a la base en cada mensaje. Consecuencia conocida: al cerrar sesión,
+ * ese vale aún podría usarse unos segundos más aquí. No da acceso a nada más.
+ * ════════════════════════════════════════════════════════════════════════════
  */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-/* Modelos permitidos — evita que un tercero use tu cuota con modelos caros.
+/* Supabase: la MISMA dirección y la MISMA clave pública que js/api.js (esa
+ * clave ya se publica en la web y solo abre lo que las funciones permiten).
+ * Si algún día cambia el proyecto de Supabase, hay que cambiarla en LOS DOS
+ * sitios. */
+const SB_URL  = 'https://lpnkdlfejsesxozowlda.supabase.co/rest/v1';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwbmtkbGZlanNlc3hvem93bGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTk2MTQsImV4cCI6MjA5NjQ5NTYxNH0.Q_n9DA1RaruL5oSVPJjbu4GX-wm_8s4UZM1HMw8IaBo';
+
+/* Modelos permitidos — evita que se use la cuota con modelos caros.
  *
  * 🔴 BUILD 414 · ESTA LISTA HAY QUE MANTENERLA A MANO, EN PAREJA CON
- * js/ia-modelos.js. Es la única duplicación que queda del nombre del modelo y
- * es inevitable: este fichero es una Cloudflare Pages Function que corre en el
- * servidor y no puede importar un script pensado para el navegador (ia-modelos
- * .js no exporta nada y toca `localStorage`). Si algún día se añade un modelo,
- * hay que tocar LOS DOS SITIOS o el proxy devolverá «Modelo no permitido: …».
+ * js/ia-modelos.js (IA_MODELOS_TEXTO). Este fichero corre en el servidor y no
+ * puede importar un script del navegador. Si se añade un modelo, hay que
+ * tocar LOS DOS SITIOS o el proxy devolverá «Modelo no permitido: …».
  *
- * 🔴 Esta lista se equivocó DOS VECES en este mismo build: primero se quitaron
- * los «llama» creyéndolos retirados (estaban bloqueados, que es distinto) y
- * después se volvieron a poner creyendo que bastaba con autorizarlos. Ninguna
- * de las dos cosas: la pantalla «Base Models» de esta cuenta NO OFRECE ningún
- * modelo llama de chat, así que no se pueden activar. Los de aquí son los
- * únicos disponibles que saben conversar (los `whisper` son de audio, los
- * `orpheus` de voz y los `prompt-guard`/`safeguard` son clasificadores).
- *
- * Esta lista solo evita que un tercero gaste la cuota. Que un modelo esté
- * aquí NO significa que funcione: la última palabra la tiene «Allowed Models»
- * en console.groq.com, donde hay que MARCAR SU CASILLA. */
+ * Que un modelo esté aquí NO significa que funcione: la última palabra la
+ * tiene «Allowed Models» en console.groq.com, donde hay que MARCAR SU CASILLA. */
 const MODELOS_PERMITIDOS = new Set([
-  'openai/gpt-oss-20b',   // principal (chat Maya y descripciones)
+  'openai/gpt-oss-20b',   // principal (Maya y descripciones)
   'openai/gpt-oss-120b',  // respaldo
   'qwen/qwen3.6-27b',     // segundo respaldo
   'groq/compound-mini',   // último recurso
   'groq/compound',
 ]);
 
-// El escáner envía fotos en base64, por eso el límite es amplio.
-// El chat de texto ronda los 10-20 KB.
-const MAX_BODY_BYTES  = 6 * 1024 * 1024; // 6 MB
+/* Maya manda texto: su contexto ronda los 10-30 KB. 1 MB es un techo de
+ * sobra. (Antes eran 6 MB porque el escáner mandaba fotos; ya no.) */
+const MAX_BODY_BYTES = 1024 * 1024;
 
-/* 🔴 BUILD 414 · Este techo era 400 y ANULABA EN SILENCIO el arreglo del
- * cliente. Los `openai/gpt-oss-*` son modelos de RAZONAMIENTO: gastan tokens
- * «pensando» antes de escribir, y ese gasto sale del mismo `max_tokens`. Si el
- * presupuesto se agota razonando, Groq devuelve 200 OK con el texto VACÍO
- * (`finish_reason: "length"`) — que es exactamente el «Groq respondió pero sin
- * texto» que veía el dueño.
- *
- * js/ia-modelos.js sube el presupuesto a 512 como mínimo, pero toda petición
- * de Maya pasa por AQUÍ, y aquí se recortaba otra vez a 400: por debajo del
- * mínimo necesario. El chat habría seguido devolviendo respuestas vacías
- * aunque el cliente estuviera arreglado.
- *
- * Se sube a 1024. Sigue siendo un techo real contra abusos (una respuesta de
- * Maya son ~200 tokens visibles) y solo se paga lo que de verdad se gasta:
- * subir el LÍMITE no obliga a consumirlo. */
-const MAX_TOKENS_TOPE = 1024;            // techo de respuesta, por coste
+/* 🔴 BUILD 414 · Los `openai/gpt-oss-*` son modelos de RAZONAMIENTO: gastan
+ * tokens «pensando» antes de escribir, y ese gasto sale del mismo
+ * `max_tokens`. Con un techo bajo, Groq devuelve 200 OK con el texto VACÍO.
+ * 1024 sigue siendo un techo real contra abusos (una respuesta de Maya son
+ * ~200 tokens visibles) y solo se paga lo que de verdad se gasta. */
+const MAX_TOKENS_TOPE = 1024;
 
 const json = (obj, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(obj), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...extraHeaders },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...extraHeaders },
   });
 
 /* ════════════════════════════════════════════════════════════════════════════
-   RATE-LIMITING (ventana deslizante en memoria del isolate)
+   SESIÓN DEL PANEL (seguridad/106)
    ════════════════════════════════════════════════════════════════════════════ */
 
+const VALE_MIN_LARGO  = 32;        // los vales reales tienen 32+ caracteres
+const VALE_CACHE_MS   = 60_000;    // un vale comprobado se recuerda 60 s
+const VALE_TIMEOUT_MS = 5_000;     // si la base no contesta en 5 s, no se entra
+const VALE_MAX_CACHE  = 500;
+
+/** vale -> instante (ms) hasta el que se da por bueno sin volver a preguntar */
+const _valesOk = new Map();
+
+/**
+ * ¿El vale es de un empleado activo con sesión viva?
+ * Solo se recuerdan los SÍ. Ante cualquier duda (sin red, error, respuesta
+ * rara) la respuesta es NO: nunca se llama a Groq sin confirmar la sesión.
+ * @returns {Promise<{ok: true} | {ok: false, motivo: 'sesion'|'no_verificable'|'falta_sql'}>}
+ */
+async function comprobarVale(vale, ahora = Date.now()) {
+  const hasta = _valesOk.get(vale);
+  if (hasta && hasta > ahora) return { ok: true };
+  if (hasta) _valesOk.delete(vale);
+
+  let res;
+  try {
+    res = await fetch(`${SB_URL}/rpc/admin_vale_vigente`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey:          SB_ANON,
+        Authorization:   `Bearer ${SB_ANON}`,
+      },
+      body:   JSON.stringify({ p_vale: vale }),
+      signal: AbortSignal.timeout(VALE_TIMEOUT_MS),
+    });
+  } catch {
+    return { ok: false, motivo: 'no_verificable' };
+  }
+
+  // 404 = la función no existe todavía: falta ejecutar seguridad/106
+  if (res.status === 404) return { ok: false, motivo: 'falta_sql' };
+  if (!res.ok)            return { ok: false, motivo: 'no_verificable' };
+
+  let r;
+  try { r = await res.json(); } catch { return { ok: false, motivo: 'no_verificable' }; }
+
+  if (r === true) {
+    if (_valesOk.size >= VALE_MAX_CACHE) {
+      for (const [v, h] of _valesOk) if (h <= ahora) _valesOk.delete(v);
+      if (_valesOk.size >= VALE_MAX_CACHE) _valesOk.clear();
+    }
+    _valesOk.set(vale, ahora + VALE_CACHE_MS);
+    return { ok: true };
+  }
+  return { ok: false, motivo: 'sesion' };
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LÍMITE DE USO (ventana deslizante en memoria de esta copia del servidor)
+   ════════════════════════════════════════════════════════════════════════════
+   Ya no es la protección principal (lo es la sesión), pero se mantiene:
+     · por IP: frena a quien insista con vales falsos (cuenta ANTES de
+       preguntar a la base, así tampoco se la puede saturar);
+     · global: se cuenta solo DESPUÉS de una sesión válida, para que unos
+       intentos falsos no le quiten el turno al personal. */
+
 const RL = {
-  VENTANA_MS:        60_000,  // tamaño de la ventana: 1 minuto
-  MAX_POR_IP:        15,      // peticiones de chat por IP y minuto
-  MAX_VISION_POR_IP: 5,       // peticiones de visión (escáner) por IP y minuto
-  MAX_GLOBAL:        150,     // techo total del sitio por minuto
-  BLOQUEO_MS:        5 * 60_000, // penalización si se insiste tras el corte
-  ABUSOS_PARA_BLOQUEO: 5,     // nº de rechazos seguidos que activan el bloqueo
-  MAX_CUBOS:         1000,    // tope de IPs vigiladas antes de podar
+  VENTANA_MS:          60_000,      // 1 minuto
+  MAX_POR_IP:          15,          // peticiones por IP y minuto
+  MAX_GLOBAL:          150,         // techo total por minuto (sesiones válidas)
+  BLOQUEO_MS:          5 * 60_000,  // penalización si se insiste tras el corte
+  ABUSOS_PARA_BLOQUEO: 5,           // rechazos seguidos que activan el bloqueo
+  MAX_CUBOS:           1000,        // tope de IPs vigiladas antes de podar
 };
 
-/** ip -> { chat: number[], vision: number[], abusos: number, bloqueadoHasta: number } */
+/** ip -> { marcas: number[], abusos: number, bloqueadoHasta: number } */
 const _cubos = new Map();
 let _global = { inicio: 0, hits: 0 };
 
-/** Elimina cubos inactivos para que el Map no crezca sin control. */
 function _podar(ahora) {
   if (_cubos.size < RL.MAX_CUBOS) return;
   const limite = ahora - RL.VENTANA_MS;
   for (const [ip, c] of _cubos) {
-    const ultimoChat   = c.chat.length   ? c.chat[c.chat.length - 1]     : 0;
-    const ultimaVision = c.vision.length ? c.vision[c.vision.length - 1] : 0;
-    if (Math.max(ultimoChat, ultimaVision) < limite && c.bloqueadoHasta < ahora) {
-      _cubos.delete(ip);
-    }
+    const ultima = c.marcas.length ? c.marcas[c.marcas.length - 1] : 0;
+    if (ultima < limite && c.bloqueadoHasta < ahora) _cubos.delete(ip);
   }
 }
 
-/** Quita de un array las marcas de tiempo fuera de la ventana. */
-function _vigentes(marcas, ahora) {
+/** @returns {{ok: true} | {ok: false, motivo: string, esperar: number}} */
+function limitePorIp(ip, ahora = Date.now()) {
+  _podar(ahora);
+  let cubo = _cubos.get(ip);
+  if (!cubo) {
+    cubo = { marcas: [], abusos: 0, bloqueadoHasta: 0 };
+    _cubos.set(ip, cubo);
+  }
+
+  if (cubo.bloqueadoHasta > ahora) {
+    return { ok: false, motivo: 'bloqueo', esperar: Math.ceil((cubo.bloqueadoHasta - ahora) / 1000) };
+  }
+
   const limite = ahora - RL.VENTANA_MS;
-  while (marcas.length && marcas[0] < limite) marcas.shift();
-  return marcas;
+  while (cubo.marcas.length && cubo.marcas[0] < limite) cubo.marcas.shift();
+
+  if (cubo.marcas.length >= RL.MAX_POR_IP) {
+    cubo.abusos += 1;
+    if (cubo.abusos >= RL.ABUSOS_PARA_BLOQUEO) {
+      cubo.bloqueadoHasta = ahora + RL.BLOQUEO_MS;
+      cubo.abusos = 0;
+    }
+    return {
+      ok: false,
+      motivo: 'chat',
+      esperar: Math.max(1, Math.ceil((cubo.marcas[0] + RL.VENTANA_MS - ahora) / 1000)),
+    };
+  }
+
+  cubo.marcas.push(ahora);
+  cubo.abusos = 0;
+  return { ok: true, restantes: RL.MAX_POR_IP - cubo.marcas.length };
 }
 
-/**
- * Decide si la petición pasa.
- * @returns {{ok: true, restantes: number} | {ok: false, motivo: string, esperar: number}}
- */
-function comprobarLimite(ip, esVision, ahora = Date.now()) {
-  // ── Techo global: protege la cuota aunque el ataque venga de muchas IPs ──
+/** @returns {{ok: true} | {ok: false, motivo: 'global', esperar: number}} */
+function limiteGlobal(ahora = Date.now()) {
   if (ahora - _global.inicio > RL.VENTANA_MS) _global = { inicio: ahora, hits: 0 };
   if (_global.hits >= RL.MAX_GLOBAL) {
     return {
@@ -142,44 +214,27 @@ function comprobarLimite(ip, esVision, ahora = Date.now()) {
       esperar: Math.max(1, Math.ceil((_global.inicio + RL.VENTANA_MS - ahora) / 1000)),
     };
   }
-
-  _podar(ahora);
-
-  let cubo = _cubos.get(ip);
-  if (!cubo) {
-    cubo = { chat: [], vision: [], abusos: 0, bloqueadoHasta: 0 };
-    _cubos.set(ip, cubo);
-  }
-
-  // ── ¿IP penalizada por insistir? ──
-  if (cubo.bloqueadoHasta > ahora) {
-    return {
-      ok: false,
-      motivo: 'bloqueo',
-      esperar: Math.ceil((cubo.bloqueadoHasta - ahora) / 1000),
-    };
-  }
-
-  const marcas = esVision ? _vigentes(cubo.vision, ahora) : _vigentes(cubo.chat, ahora);
-  const tope   = esVision ? RL.MAX_VISION_POR_IP : RL.MAX_POR_IP;
-
-  if (marcas.length >= tope) {
-    cubo.abusos += 1;
-    if (cubo.abusos >= RL.ABUSOS_PARA_BLOQUEO) {
-      cubo.bloqueadoHasta = ahora + RL.BLOQUEO_MS;
-      cubo.abusos = 0;
-    }
-    return {
-      ok: false,
-      motivo: esVision ? 'vision' : 'chat',
-      esperar: Math.max(1, Math.ceil((marcas[0] + RL.VENTANA_MS - ahora) / 1000)),
-    };
-  }
-
-  marcas.push(ahora);
-  cubo.abusos = 0;
   _global.hits += 1;
-  return { ok: true, restantes: tope - marcas.length };
+  return { ok: true };
+}
+
+const MENSAJES_LIMITE = {
+  global:  'El asistente está recibiendo demasiadas consultas ahora mismo. Prueba en un minuto.',
+  bloqueo: 'Has superado el límite de consultas varias veces. Espera unos minutos.',
+  chat:    'Vas muy rápido 😊 Espera unos segundos antes de la siguiente pregunta.',
+};
+
+function respuestaLimite(v) {
+  return json(
+    {
+      error:   MENSAJES_LIMITE[v.motivo] || 'Demasiadas peticiones',
+      codigo:  'rate_limited',
+      motivo:  v.motivo,
+      esperar: v.esperar,
+    },
+    429,
+    { 'Retry-After': String(v.esperar) }
+  );
 }
 
 /** IP del visitante. En Cloudflare siempre viene CF-Connecting-IP. */
@@ -193,8 +248,7 @@ function ipDe(request) {
 
 /**
  * GET /api/chat — comprobación de salud.
- * Sirve para verificar el despliegue SIN exponer la clave.
- * Devuelve solo si está configurada o no.
+ * Solo dice si la clave está configurada; no la expone ni llama a Groq.
  */
 export function onRequestGet(context) {
   return json({
@@ -204,28 +258,50 @@ export function onRequestGet(context) {
   });
 }
 
-/** POST /api/chat — reenvío real a Groq */
+/** POST /api/chat — reenvío real a Groq (solo personal con sesión) */
 export async function onRequestPost(context) {
   const { request, env } = context;
 
   // 1) ¿Está configurada la clave en Cloudflare?
   if (!env || !env.GROQ_API_KEY) {
-    return json(
-      { error: 'GROQ_API_KEY no configurada en las variables de entorno' },
-      500
-    );
+    return json({ error: 'GROQ_API_KEY no configurada en las variables de entorno' }, 500);
   }
 
   // 2) Mismo origen — descarta llamadas desde otras webs
   const origin = request.headers.get('Origin');
-  if (origin) {
-    const permitido = new URL(request.url).origin;
-    if (origin !== permitido) {
-      return json({ error: 'Origen no permitido' }, 403);
-    }
+  if (origin && origin !== new URL(request.url).origin) {
+    return json({ error: 'Origen no permitido' }, 403);
   }
 
-  // 3) Leer y validar el cuerpo
+  // 3) Sin vale (o con uno que no puede ser real) → fuera, sin preguntar a nadie
+  const vale = (request.headers.get('X-CM-Vale') || '').trim();
+  if (vale.length < VALE_MIN_LARGO) {
+    return json({ error: 'Solo para el personal con sesión en el panel.', codigo: 'sesion_panel' }, 401);
+  }
+
+  // 4) Tope por IP ANTES de consultar la base (frena vales al azar)
+  const porIp = limitePorIp(ipDe(request));
+  if (!porIp.ok) return respuestaLimite(porIp);
+
+  // 5) ¿Vale vivo de un empleado activo? (seguridad/106)
+  const sesion = await comprobarVale(vale);
+  if (!sesion.ok) {
+    if (sesion.motivo === 'sesion') {
+      return json({ error: 'Tu sesión del panel caducó o no es válida.', codigo: 'sesion_panel' }, 401);
+    }
+    return json({
+      error: sesion.motivo === 'falta_sql'
+        ? 'No se puede comprobar la sesión: falta ejecutar seguridad/106-vale-panel-para-ia.sql en Supabase.'
+        : 'No se pudo comprobar la sesión del panel ahora mismo. Vuelve a intentarlo en un momento.',
+      codigo: 'sesion_no_verificable',
+    }, 503);
+  }
+
+  // 6) Tope global (solo cuentan las sesiones válidas)
+  const global = limiteGlobal();
+  if (!global.ok) return respuestaLimite(global);
+
+  // 7) Leer y validar el cuerpo
   const texto = await request.text();
   if (texto.length > MAX_BODY_BYTES) {
     return json({ error: 'Petición demasiado grande' }, 413);
@@ -238,59 +314,33 @@ export async function onRequestPost(context) {
     return json({ error: 'JSON inválido' }, 400);
   }
 
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+  if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
     return json({ error: 'Faltan los mensajes' }, 400);
   }
   if (!MODELOS_PERMITIDOS.has(body.model)) {
     return json({ error: `Modelo no permitido: ${body.model}` }, 400);
   }
 
-  /* Techo de tokens (el cliente puede pedir menos, nunca más).
-   *
-   * 🔴 Y un SUELO para los modelos que razonan: si el cliente pide 200, no le
-   * alcanza para pensar y responder, y devolvería texto vacío. Sin este suelo,
-   * el `max_tokens: 200` que manda js/chat.js dejaría a Maya muda. */
-  const _razona = /gpt-oss|qwen3|^groq\/compound/.test(String(body.model || ''));
-  let _tokens = Math.min(Number(body.max_tokens) || 200, MAX_TOKENS_TOPE);
-  if (_razona) _tokens = Math.max(_tokens, 512);
-  body.max_tokens = _tokens;
-
-  /* 4) Límite de uso — protege la CUOTA, no solo la clave
-   *
-   * 🔴 BUILD 414 · Antes esto era `body.model === 'meta-llama/llama-4-scout…'`.
-   * Ese truco ya no sirve: el escáner y el chat usan AHORA LOS MISMOS DOS
-   * modelos, así que por el nombre son indistinguibles y toda foto habría
-   * pasado por el límite laxo del chat (15/min en vez de 5/min), que es
-   * justamente el que protege contra el gasto de subir imágenes.
-   *
-   * Se mira lo que de verdad distingue una petición de visión: que algún
-   * mensaje lleve una imagen. En el formato OpenAI/Groq eso es un `content`
-   * que en vez de texto es un array con un elemento `type: 'image_url'`. */
-  const esVision = body.messages.some(m =>
+  /* 533 · Sin imágenes: nadie las usa ya (el escáner de la tienda dejó de
+   * mandarlas) y son las peticiones más caras. Una imagen es un `content` en
+   * forma de lista con un elemento `image_url` / `input_image`. */
+  const llevaImagen = body.messages.some(m =>
     Array.isArray(m && m.content) &&
     m.content.some(p => p && (p.type === 'image_url' || p.type === 'input_image'))
   );
-  const veredicto = comprobarLimite(ipDe(request), esVision);
-  if (!veredicto.ok) {
-    const mensajes = {
-      global:  'El asistente está recibiendo demasiadas consultas ahora mismo. Prueba en un minuto.',
-      bloqueo: 'Has superado el límite de consultas varias veces. Espera unos minutos.',
-      vision:  'Demasiadas fotos seguidas al escáner. Espera un momento antes de la siguiente.',
-      chat:    'Vas muy rápido 😊 Espera unos segundos antes de la siguiente pregunta.',
-    };
-    return json(
-      {
-        error:   mensajes[veredicto.motivo] || 'Demasiadas peticiones',
-        codigo:  'rate_limited',
-        motivo:  veredicto.motivo,
-        esperar: veredicto.esperar,
-      },
-      429,
-      { 'Retry-After': String(veredicto.esperar) }
-    );
+  if (llevaImagen) {
+    return json({ error: 'Este servicio no admite imágenes.' }, 400);
   }
 
-  // 5) Reenviar a Groq con la clave del servidor
+  /* Techo de tokens (se puede pedir menos, nunca más) y SUELO para los
+   * modelos que razonan: con menos de 512 se quedan pensando y devuelven
+   * texto vacío. */
+  const razona = /gpt-oss|qwen3|^groq\/compound/.test(String(body.model || ''));
+  let tokens = Math.min(Number(body.max_tokens) || 200, MAX_TOKENS_TOPE);
+  if (razona) tokens = Math.max(tokens, 512);
+  body.max_tokens = tokens;
+
+  // 8) Reenviar a Groq con la clave del servidor
   try {
     const upstream = await fetch(GROQ_URL, {
       method: 'POST',
@@ -307,10 +357,11 @@ export async function onRequestPost(context) {
       status: upstream.status,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        'X-RateLimit-Remaining': String(veredicto.restantes),
+        'Cache-Control': 'no-store',
+        'X-RateLimit-Remaining': String(porIp.restantes),
       },
     });
-  } catch (e) {
+  } catch {
     return json({ error: 'No se pudo contactar con el servicio de IA' }, 502);
   }
 }
