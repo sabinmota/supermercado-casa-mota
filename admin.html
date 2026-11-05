@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '505';
+      const VER = '506';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -41,7 +41,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Caveat:wght@600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
   <link rel="icon" type="image/png" href="images/logo-casamota.png?v=433" />
-  <link rel="stylesheet" href="css/admin.v33.css?v=262" />
+  <link rel="stylesheet" href="css/admin.v33.css?v=263" />
   <!-- BUILD 456 · Rediseño del panel (barra lateral, barra superior y
        dashboard). Hoja INDEPENDIENTE: se carga DESPUÉS de admin.v33.css y
        usa el prefijo `dsh-`, sin compartir una sola clase con las otras 19
@@ -616,10 +616,8 @@
           <!-- BUILD 409 · la variable era --text-medium, que NO existe en admin.v33.css
                (la real es --text-mid), así que la hora se veía en negro. -->
           <small id="prodRefreshStamp" style="color:var(--text-mid);font-size:.78rem"></small>
-          <!-- BUILD 409 · morado = inteligencia artificial -->
-          <button class="btn-ai" onclick="aiBulkDescribe()" id="btnBulkDesc" title="Genera descripciones con IA para todos los productos que no tienen una o tienen menos de una línea">
-            <i class="fas fa-wand-magic-sparkles"></i> Describir todos con IA
-          </button>
+          <!-- 535 · «Describir todos con IA» borrado (decisión del dueño). La
+               descripción de UN producto con IA, dentro de su ficha, sigue. -->
           <button class="btn-primary" onclick="openProductModal()">
             <i class="fas fa-plus"></i> Nuevo producto
           </button>
@@ -1724,7 +1722,8 @@
         </div>
         <!-- 521 · AL POR MAYOR (seguridad/98). Privado: la tienda no lo ve.
              Lo pone el dueño A MANO; la sincronización nunca lo toca. -->
-        <fieldset id="pMayorBox" style="border:1px solid #dbe4dd;border-radius:10px;padding:10px 12px 4px;margin:0 0 14px;min-width:0">
+        <!-- 535 · borde naranja (pedido del dueño) -->
+        <fieldset id="pMayorBox" style="border:1.5px solid #f57c00;border-radius:10px;padding:10px 12px 4px;margin:0 0 14px;min-width:0">
           <legend style="padding:0 6px;font-weight:700;font-size:.9rem;color:#1a7c3e">
             <i class="fas fa-boxes-stacked" style="margin-right:5px"></i>Al por mayor
           </legend>
@@ -3529,40 +3528,7 @@
   </div>
   <!-- ===================== FIN CHATBOT ===================== -->
 
-  <!-- ===== OVERLAY BULK DESCRIBE IA (fuera de secciones, fijo al viewport) ===== -->
-  <div id="bulkDescOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,10,40,.65);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center">
-    <div style="background:#fff;border-radius:24px;padding:36px 32px 30px;width:min(520px,94vw);box-shadow:0 32px 80px rgba(0,0,0,.32);text-align:center;display:flex;flex-direction:column;gap:0;animation:bulkFadeIn .25s ease">
-
-      <!-- Ícono animado + título -->
-      <div style="font-size:2.4rem;margin-bottom:8px;line-height:1">✨</div>
-      <h3 style="margin:0 0 4px;color:#3b0764;font-size:1.18rem;font-weight:800;letter-spacing:-.01em">Generando descripciones con IA</h3>
-      <p id="bulkDescStatus" style="color:#6b7280;font-size:.875rem;margin:0 0 22px;line-height:1.55">Iniciando…</p>
-
-      <!-- Barra de progreso -->
-      <div style="background:#ede9fe;border-radius:99px;height:10px;overflow:hidden;margin-bottom:6px">
-        <div id="bulkDescBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:99px;transition:width .45s cubic-bezier(.4,0,.2,1)"></div>
-      </div>
-      <p id="bulkDescCounter" style="font-size:.8rem;color:#a78bfa;margin:0 0 16px;font-weight:600;letter-spacing:.02em">0 / 0 productos</p>
-
-      <!-- Log -->
-      <div id="bulkDescLog" style="text-align:left;background:#faf5ff;border-radius:12px;padding:12px 14px;max-height:160px;overflow-y:auto;font-size:.8rem;color:#374151;line-height:1.75;margin-bottom:26px;border:1px solid #ede9fe"></div>
-
-      <!-- Botón Cancelar / Cerrar — el JS lo estiliza dinámicamente vía _bulkStyleBtn() -->
-      <div style="display:flex;justify-content:center">
-        <button id="btnBulkCancel" onclick="aiBulkCancel()"
-          style="background:#fff1f2;border:2px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:10px 32px;font-size:.95rem;cursor:pointer;font-weight:700;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;letter-spacing:.01em">
-          <i class="fas fa-stop-circle"></i> Cancelar proceso
-        </button>
-      </div>
-
-    </div>
-  </div>
-  <style>
-    @keyframes bulkFadeIn {
-      from { opacity:0; transform:scale(.94) translateY(10px); }
-      to   { opacity:1; transform:scale(1)   translateY(0);    }
-    }
-  </style>
+  <!-- 535 · Ventana «Generando descripciones con IA» borrada junto con su botón. -->
 
   <!-- ===== ESTILOS ADMIN TOAST ===== -->
   <style>
@@ -3607,7 +3573,6 @@
     .admin-toast.warning          { background: #e67e00; }
     .admin-toast.info             { background: #1565c0; }
   </style>
-  <!-- ===== FIN OVERLAY BULK DESCRIBE ===== -->
 
   <!-- Chart.js · 531 · versión FIJA (antes «la última» del CDN, que podía
        cambiar sola un día cualquiera y romper los gráficos) -->
@@ -3644,9 +3609,9 @@
   <script src="js/cierres-pos.js?v=8"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
-  <script src="js/ia-modelos.js?v=5"></script>
+  <script src="js/ia-modelos.js?v=6"></script>
   <!-- IA: Groq integration -->
-  <script src="js/ai.js?v=260"></script>
+  <script src="js/ai.js?v=261"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
   <script src="js/chat.js?v=245"></script>

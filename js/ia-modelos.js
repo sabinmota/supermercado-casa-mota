@@ -213,64 +213,19 @@ const _IA_LS_TEXTO  = 'ia_modelo_texto';
 // 533 · Lo que quedara guardado de los modelos de visión ya no sirve.
 try { localStorage.removeItem('ia_modelo_vision'); } catch (e) {}
 
-/* ─── MODELOS CON LA CUOTA DEL DÍA YA GASTADA ────────────────────────────────
- * 🔴 POR QUÉ HACE FALTA ESTO (fallo mío detectado al contrastar las cifras
- * con el código, no al leerlas):
- *
- * Escribí que tener dos modelos autorizados da «~2.000 peticiones al día,
- * porque al agotar uno se salta al siguiente». EL CÓDIGO NO HACÍA ESO. Solo se
- * pasaba al siguiente modelo cuando el fallo era de permisos (400/403/404); un
- * 429 de cuota diaria detenía el proceso y las otras 1.000 peticiones del
- * segundo modelo se quedaban SIN USAR. La suma que prometí era falsa.
- *
- * Ahora, al gastarse la cuota de un modelo, se apunta aquí CON LA FECHA y se
- * deja de ofrecer hasta mañana. La fecha importa: sin ella, el modelo quedaría
- * descartado para siempre y al día siguiente —con la cuota ya renovada— se
- * estaría usando el respaldo lento sin motivo.
- */
-const _IA_LS_AGOTADOS = 'ia_agotados_hoy';
-
-function _iaHoy() { return new Date().toISOString().slice(0, 10); }
-
-/** Modelos cuya cuota diaria se gastó HOY (lista vacía si cambió el día). */
-function iaAgotadosHoy() {
-  try {
-    const raw = localStorage.getItem(_IA_LS_AGOTADOS);
-    if (!raw) return [];
-    const d = JSON.parse(raw);
-    if (!d || d.fecha !== _iaHoy()) return [];   // otro día: cuota renovada
-    return Array.isArray(d.modelos) ? d.modelos : [];
-  } catch (e) { return []; }
-}
-
-/** Apunta que este modelo agotó su cuota de hoy. */
-function iaAgotadoHoy(modelo) {
-  if (!modelo) return;
-  const ya = iaAgotadosHoy();
-  if (ya.includes(modelo)) return;
-  try {
-    localStorage.setItem(_IA_LS_AGOTADOS,
-      JSON.stringify({ fecha: _iaHoy(), modelos: ya.concat([modelo]) }));
-    // Si era el «modelo que funcionó», dejar de empezar por él.
-    if (localStorage.getItem(_IA_LS_TEXTO)  === modelo) localStorage.removeItem(_IA_LS_TEXTO);
-  } catch (e) {}
-}
+/* 535 · «Modelos con la cuota del día gastada» (iaAgotadoHoy / iaAgotadosHoy)
+ * BORRADO: solo lo usaba «Describir todos con IA», que se quitó. Se borra
+ * también lo que quedara guardado de ello en este navegador. */
+try { localStorage.removeItem('ia_agotados_hoy'); } catch (e) {}
 
 /** Devuelve la lista a probar, empezando por el que funcionó la última vez. */
 function _iaOrden(lista, clave) {
-  const agotados = iaAgotadosHoy();
-  /* Los agotados van al final, NO se eliminan: si todos lo están, es mejor
-   * intentarlo y que Groq conteste 429 (con su mensaje real) que devolver una
-   * lista vacía y provocar un error confuso de «no hay modelos». */
-  let base = lista.filter(m => !agotados.includes(m));
-  const alFinal = lista.filter(m => agotados.includes(m));
-
   let recordado = null;
   try { recordado = localStorage.getItem(clave); } catch (e) {}
-  if (recordado && base.includes(recordado)) {
-    base = [recordado, ...base.filter(m => m !== recordado)];
+  if (recordado && lista.includes(recordado)) {
+    return [recordado, ...lista.filter(m => m !== recordado)];
   }
-  return [...base, ...alFinal];
+  return lista.slice();
 }
 
 function iaModeloTexto()  { return _iaOrden(IA_MODELOS_TEXTO,  _IA_LS_TEXTO)[0]; }
@@ -381,13 +336,9 @@ function iaModeloMuerto(status, texto) { return _iaModeloMuerto(status, texto); 
  * @param {string}      url        endpoint (Groq directo o el proxy /api/chat).
  * @param {object}      body       cuerpo de la petición SIN el campo `model`.
  * @param {object}      headers    cabeceras completas (con Authorization si toca).
- * @param {object}      [opts]
- * @param {AbortSignal} [opts.signal] permite CANCELAR — lo usa la generación
- *                      masiva de descripciones, que tiene botón de cancelar.
- * @param {function}    [opts.onEstado] se llama con (status, texto) cuando el
- *                      fallo NO es de modelo; si devuelve algo distinto de
- *                      undefined, ese valor se propaga. Lo usa el bulk para
- *                      tratar su propio 429 esperando y reintentando.
+ * @param {object}      [opts]  uso interno (reintento con más tokens).
+ *   535 · Quitadas `signal` y `onEstado`: solo las usaba «Describir todos
+ *   con IA», que se borró.
  * @returns {Promise<{datos:object, modelo:string}>}
  * @throws  {Error} si fallan todos, con el mensaje real del último intento.
  */
@@ -413,13 +364,8 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
         method:  'POST',
         headers,
         body:    JSON.stringify(cuerpo),
-        ...(cfg.signal ? { signal: cfg.signal } : {}),
       });
     } catch (e) {
-      // Una cancelación deliberada tiene que llegar intacta a quien la pidió:
-      // si se convirtiera en «no hay conexión», el botón de cancelar sería
-      // indistinguible de un fallo real de red.
-      if (e && e.name === 'AbortError') throw e;
       throw new Error('No hay conexión con el servicio de IA.');
     }
 
@@ -465,10 +411,6 @@ async function iaLlamarGroq(url, body, headers, opts = {}) {
     }
 
     // Cualquier otro error (401, 429, 500…) NO se arregla cambiando de modelo.
-    if (typeof cfg.onEstado === 'function') {
-      const tratado = cfg.onEstado(res.status, texto);
-      if (tratado !== undefined) return tratado;
-    }
     let msg = `Error ${res.status}`;
     try { msg = JSON.parse(texto)?.error?.message || msg; } catch (e) {}
     throw new Error(msg);
