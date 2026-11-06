@@ -12,7 +12,7 @@
      sesión no coincide, se recarga sin caché UNA vez. Sin esto, una cajera
      con la pestaña abierta desde ayer seguiría con el JS viejo. */
   (function () {
-    var VER = 'POS-48';
+    var VER = 'POS-49';
     var KEY = 'cm_pos_ver';
     var guardado = sessionStorage.getItem(KEY);
     if (guardado !== VER) {
@@ -97,7 +97,7 @@
     <!-- POS-44 · verificador de precio (también con F3) -->
     <button type="button" class="pos-top__ver" id="pos-btn-ver" title="Verificar precio (F3)"
             aria-label="Verificar precio de un artículo sin facturarlo (F3)">
-      <span aria-hidden="true">🏷️</span> Precio <kbd class="pos-kbd-claro">F3</kbd>
+      <span aria-hidden="true">🏷️</span> Verificador de Precio <kbd class="pos-kbd-claro">F3</kbd>
     </button>
     <!-- POS-41 · calculadora de Windows (también con F1) -->
     <button type="button" class="pos-top__calc" id="pos-btn-calc" title="Calculadora (F1)"

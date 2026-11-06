@@ -157,7 +157,7 @@ kbd {
 .pos-top__calc:focus-visible { outline: 3px solid #ffd54a; outline-offset: 2px; }
 /* POS-42 · el dueño: «un poquito más grande» → 28 → 38 px */
 .pos-top__calc-img { height: 38px; width: auto; display: block; }
-/* POS-44 · botón «Precio F3»: mismo aspecto que el de la calculadora. */
+/* POS-44 · botón «Verificador de Precio F3»: mismo aspecto que el de la calculadora. */
 .pos-top__ver {
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 44px; padding: 3px 10px; border: 0; border-radius: 10px;
