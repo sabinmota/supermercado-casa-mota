@@ -364,6 +364,59 @@ Tono amigable, español dominicano. Sin precio, sin comillas al inicio/final, si
   }
 }
 
+// ─── 536 · DESCRIPCIÓN AL POR MAYOR (bloque «Al por mayor», seguridad/107) ──
+// Mismo manejo del botón que aiGenerateDescription; el texto va dirigido a
+// negocios (colmados, restaurantes…) y usa la unidad al por mayor.
+async function aiGenerateMayorDescription() {
+  const hasKey = await _ensureGroqKey() || _getGeminiKey();
+  if (!hasKey) {
+    showAdminToast('⚠️ Configura al menos una API key en Configuración → IA', 'warn');
+    showSection('settings', document.querySelector('[data-section="settings"]'));
+    return;
+  }
+
+  const name     = (document.getElementById('pName')?.value        || '').trim();
+  const category = (document.getElementById('pCategory')?.value    || '').trim();
+  const unidad   = (document.getElementById('pMayorUnidad')?.value || '').trim();
+
+  if (!name) {
+    showAdminToast('⚠️ Escribe el nombre del producto primero', 'warn');
+    document.getElementById('pName')?.focus();
+    return;
+  }
+
+  const btn      = document.getElementById('btnAiMayorDesc');
+  const textarea = document.getElementById('pMayorDesc');
+  if (btn)      { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando…'; }
+  if (textarea) { textarea.style.borderColor = '#a78bfa'; }
+
+  try {
+    const catLabel = category ? `, categoría: ${category}` : '';
+    const uniLabel = unidad ? `, se vende al por mayor por: ${unidad}` : '';
+
+    const prompt = `Producto: ${name}${catLabel}${uniLabel}.
+Escribe EXACTAMENTE 1 sola oración para vender este producto AL POR MAYOR a negocios (colmados, minimarkets, restaurantes, cafeterías). MÁXIMO 25 palabras. Una oración. Sin saltos de línea.
+Si se indica la unidad al por mayor, menciónala. Destaca por qué le conviene al negocio (rotación, rendimiento, reventa).
+Ejemplo correcto: "Caja de Galletas Sandwich de Fresa Dino, un producto de alta rotación ideal para colmados y meriendas escolares."
+Tono profesional y cercano, español dominicano. Sin precio, sin comillas al inicio/final, sin asteriscos.`;
+
+    const { text, provider } = await _aiRequest(prompt, 70);
+
+    if (textarea && text) {
+      textarea.value = text.trim().replace(/^["“]|["”]$/g, '').slice(0, 500);
+      textarea.style.borderColor = '#1a7c3e';
+      setTimeout(() => { if (textarea) textarea.style.borderColor = ''; }, 2500);
+      const label = provider === 'groq' ? 'Groq ⚡' : 'Gemini 💎';
+      showAdminToast(`✨ Descripción al por mayor generada con ${label}`, 'success');
+    }
+  } catch (e) {
+    showAdminToast('❌ ' + e.message, 'error');
+    if (textarea) textarea.style.borderColor = '';
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generar con IA'; }
+  }
+}
+
 // ─── SUGERENCIA DE CATEGORÍA (DESACTIVADA) ─────────────────────────────────
 // La auto-sugerencia de categoría por IA fue desactivada por decisión del usuario.
 // La categoría debe seleccionarse manualmente — la IA no debe interferir con este campo.

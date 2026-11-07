@@ -547,6 +547,7 @@ const _ERRORES_PRODUCTO = {
   MAYOR_PRECIO_INVALIDO: 'El precio al por mayor debe ser un número igual o mayor que 0.',
   MAYOR_COSTO_INVALIDO:  'El costo al por mayor debe ser un número igual o mayor que 0.',
   MAYOR_UNIDAD_LARGA:    'La unidad al por mayor admite como máximo 30 caracteres.',
+  MAYOR_DESC_LARGA:      'La descripción al por mayor admite como máximo 500 caracteres.',   // 107
 };
 
 /* BUILD 419 · Mensajes de `admin_ajustar_puntos`. Hereda los de sesión porque
@@ -841,11 +842,13 @@ const DB = {
      * costo de cada artículo. La tienda y la caja sin sesión no lo piden. */
     if (opts.full && opts.costos !== false && _valeAdmin()) {
       /* 98 · En paralelo con los costos: los datos al por mayor (privados). */
-      const [costos, mayor] = await Promise.all([this.leerCostos(), this.leerMayor()]);
+      /* 536 · y la descripción al por mayor (seguridad/107). */
+      const [costos, mayor, mayorDesc] = await Promise.all([this.leerCostos(), this.leerMayor(), this.leerMayorDesc()]);
       all.forEach(p => {
         const c = costos[String(p.id)];
         p.costo = (c === undefined || !isFinite(c)) ? null : c;
         p.mayor = mayor[String(p.id)] || null;
+        p.mayorDesc = mayorDesc[String(p.id)] || '';
       });
     }
     return all;
@@ -959,6 +962,43 @@ const DB = {
   async guardarMayor(id, datos) {
     return _rpcStaff('admin_guardar_mayor', {
       p_vale: _valeAdmin(), p_id: id, p_datos: datos,
+    }, _ERRORES_PRODUCTO);
+  },
+
+  /* 536 · DESCRIPCIÓN AL POR MAYOR (seguridad/107). Tabla aparte
+   * `producto_mayor_desc`. Por páginas de 1.000 y, si falla (SQL 107 sin
+   * ejecutar, sesión caducada…), {} sin romper el panel.
+   * Devuelve { idProducto: 'texto' }. Guardar texto vacío borra la fila. */
+  async leerMayorDesc() {
+    const vale = _valeAdmin();
+    if (!vale) return {};
+    const mapa = {};
+    try {
+      let desde = 0;
+      for (let vuelta = 0; vuelta < 100; vuelta++) {
+        const res = await fetch(
+          `${_SB_URL}/rpc/admin_leer_mayor_desc?order=producto_id.asc&limit=1000&offset=${desde}`,
+          { method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }) }
+        );
+        if (!res.ok) {
+          const texto = await res.text();
+          throw new Error(`HTTP ${res.status}: ${texto.slice(0, 200)}`);
+        }
+        const filas = await res.json();
+        if (!Array.isArray(filas) || filas.length === 0) break;
+        filas.forEach(f => { if (f && f.producto_id != null) mapa[String(f.producto_id)] = String(f.descripcion || ''); });
+        desde += filas.length;
+      }
+      return mapa;
+    } catch (e) {
+      console.warn('[descripción al por mayor] no se pudo leer:', e.message || e);
+      return mapa;
+    }
+  },
+
+  async guardarMayorDesc(id, texto) {
+    return _rpcStaff('admin_guardar_mayor_desc', {
+      p_vale: _valeAdmin(), p_id: String(id), p_texto: texto || '',
     }, _ERRORES_PRODUCTO);
   },
 

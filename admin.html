@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '506';
+      const VER = '507';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1759,6 +1759,14 @@
               <label>Margen al por mayor</label>
               <div class="form-input" id="pMayorMargen" style="background:#f7f8f7;color:#6b7280">—</div>
             </div>
+          </div>
+          <!-- 536 · Descripción al por mayor (seguridad/107). Sale en la tarjeta de
+               /mayor; si está vacía, /mayor usa la descripción normal. -->
+          <div class="form-group">
+            <label for="pMayorDesc" style="display:flex;align-items:center;justify-content:space-between"><span>Descripción al por mayor</span>
+              <button type="button" id="btnAiMayorDesc" onclick="aiGenerateMayorDescription()" style="display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s"><i class="fas fa-wand-magic-sparkles"></i> Generar con IA</button></label>
+            <textarea class="form-input form-textarea" id="pMayorDesc" rows="2" maxlength="500"
+                      placeholder="Ej.: Caja de 24 unidades, ideal para colmados y restaurantes. Si la deja vacía, en /mayor se ve la descripción normal."></textarea>
           </div>
         </fieldset>
         <div class="form-row">
@@ -3578,7 +3586,7 @@
        cambiar sola un día cualquiera y romper los gráficos) -->
   <script src="vendor/chart-4.6.1.umd.min.js"></script>
   <!-- Auth & Roles -->
-  <script src="js/api.js?v=364"></script>
+  <script src="js/api.js?v=365"></script>
 <!-- 479 · la sesión se renueva sola mientras se usa el panel (seguridad/79) -->
 <script src="js/sesion-viva.js?v=1"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
@@ -3589,7 +3597,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=424"></script>
+  <script src="js/admin.v33.js?v=425"></script>
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
@@ -3611,7 +3619,7 @@
        de abajo (testAiConnection), que llaman a iaModeloTexto/iaLlamarGroq. -->
   <script src="js/ia-modelos.js?v=6"></script>
   <!-- IA: Groq integration -->
-  <script src="js/ai.js?v=261"></script>
+  <script src="js/ai.js?v=262"></script>
   <!-- Chatbot Maya (modo admin) -->
   <script>window._CHAT_IS_ADMIN = true;</script>
   <script src="js/chat.js?v=245"></script>

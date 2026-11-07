@@ -19,7 +19,7 @@
   var POR_PAGINA = 40;
 
   var yo = null;                 // { id, nombre, telefono, estado }
-  var catalogo = [];             // [{ id, name, category, unidad, precio }]
+  var catalogo = [];             // [{ id, name, category, unidad, precio, desc }]
   var porId = {};
   var imagenes = {};             // id → src
   var categorias = {};           // slug → nombre
@@ -146,6 +146,7 @@
     return e && (e.codigo === 'SESION_INVALIDA' || e.codigo === 'SESION_CADUCADA' || e.codigo === 'CUENTA_RECHAZADA');
   }
   function cerrarLocal(msg) {
+    cerrarDetalle();
     guardarVale(''); yo = null;
     $('mzAcciones').hidden = true;
     cerrarPaneles();
@@ -261,16 +262,25 @@
     $('grid').innerHTML = '';
     try {
       var v = leerVale();
-      var peticiones = [rpcPaginado('mayor_catalogo', { p_vale: v }, 'id'), cargarCategorias()];
+      /* 536 · Descripciones (seguridad/107): la propia al por mayor o, si no
+       * hay, la normal. Si falla (SQL 107 sin ejecutar…) el catálogo sale igual,
+       * sin descripciones; el fin de sesión ya lo detecta mayor_catalogo. */
+      var descs = rpcPaginado('mayor_catalogo_desc', { p_vale: v }, 'id').catch(function (e) {
+        console.warn('[mayor] sin descripciones:', e && e.message); return [];
+      });
+      var peticiones = [rpcPaginado('mayor_catalogo', { p_vale: v }, 'id'), cargarCategorias(), descs];
       if (aprobado()) peticiones.push(rpc('mayor_envio', { p_vale: v }));
       var res = await Promise.all(peticiones);
+      var descPorId = {};
+      (res[2] || []).forEach(function (d) { if (d && d.id != null && d.descripcion) descPorId[String(d.id)] = String(d.descripcion); });
       catalogo = (res[0] || []).map(function (p) {
         return { id: String(p.id), name: p.name || '', category: p.category || '',
-                 unidad: p.unidad || '', precio: p.precio == null ? null : Number(p.precio) };
+                 unidad: p.unidad || '', precio: p.precio == null ? null : Number(p.precio),
+                 desc: descPorId[String(p.id)] || '' };
       }).sort(function (a, b) { return a.name.localeCompare(b.name, 'es'); });
       porId = {};
       catalogo.forEach(function (p) { porId[p.id] = p; });
-      if (aprobado()) envioCfg = fila(res[2]);
+      if (aprobado()) envioCfg = fila(res[3]);
 
       // Lo que ya no se vende al por mayor sale del carrito.
       var quitados = 0;
@@ -316,7 +326,7 @@
     return catalogo.filter(function (p) {
       if (cat && p.category !== cat) return false;
       if (!palabras.length) return true;
-      var t = norm(p.name + ' ' + p.unidad);
+      var t = norm(p.name + ' ' + p.unidad + ' ' + p.desc);   // 536 · también la descripción
       return palabras.every(function (w) { return t.indexOf(w) !== -1; });
     });
   }
@@ -342,12 +352,13 @@
     var precio = (aprobado() && p.precio != null)
       ? '<span class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></span>'
       : '<span class="mz-sinprecio"><i class="fas fa-lock"></i> Precio al aprobar tu cuenta</span>';
-    return '<div class="product-card" data-id="' + esc(p.id) + '">' +
+    return '<div class="product-card" data-id="' + esc(p.id) + '" tabindex="0">' +
       '<div class="product-img-wrap"><img src="' + esc(img) + '" alt="' + esc(p.name) + '" loading="lazy" ' +
       'onerror="this.onerror=null;this.src=\'images/placeholder-product.png\'"></div>' +
       '<div class="product-info">' +
         '<div class="product-cat-tag">' + esc(nombreCategoria(p.category)) + '</div>' +
         '<div class="product-name">' + esc(p.name) + '</div>' +
+        (p.desc ? '<div class="mz-desc" title="' + esc(p.desc) + '">' + esc(p.desc) + '</div>' : '') +   // 536
         '<span class="mz-unidad"><i class="fas fa-box"></i> ' + esc(p.unidad) + '</span>' +
         '<div class="product-price-row"><div class="price-group">' + precio + '</div></div>' +
       '</div><div class="mz-ctl">' + botonTarjeta(p, false) + '</div></div>';
@@ -531,6 +542,144 @@
     }
   }
 
+  // ─── 537 · Detalle del producto (como en la tienda, con carrusel) ─────────
+  // Usa las clases del detalle de la tienda (css/style.css) pero con los datos
+  // de mayoristas: descripción al por mayor (o la normal), precio por unidad al
+  // por mayor y el mismo carrito. Sin estrellas, favoritos ni compartir.
+  var det = { id: null, cant: 1, imgs: [], idx: 0, token: 0 };
+
+  function detImagenHTML(nombre) {
+    var imgs = det.imgs.length ? det.imgs : ['images/placeholder-product.png'];
+    var err = ' onerror="this.onerror=null;this.src=\'images/placeholder-product.png\'"';
+    if (imgs.length < 2) {
+      return '<div class="modal-img" id="mzDetImg"><img src="' + esc(imgs[0]) + '" alt="' + esc(nombre) + '"' + err + ' style="cursor:default"></div>';
+    }
+    var slides = imgs.map(function (src, i) {
+      return '<div class="car-slide"><img src="' + esc(src) + '" alt="' + esc(nombre) + ' imagen ' + (i + 1) + '" draggable="false"' + err + '></div>';
+    }).join('');
+    var dots = imgs.map(function (_, i) {
+      return '<button type="button" class="car-dot' + (i === det.idx ? ' active' : '') + '" data-car="' + i + '" aria-label="Imagen ' + (i + 1) + '"></button>';
+    }).join('');
+    return '<div class="modal-img modal-img--carousel" id="mzDetImg">' +
+      '<div class="car-viewport" id="mzCarVp"><div class="car-strip" id="mzCarTira">' + slides + '</div></div>' +
+      '<button type="button" class="car-arrow car-arrow--prev" data-car="prev" aria-label="Anterior"><i class="fas fa-chevron-left"></i></button>' +
+      '<button type="button" class="car-arrow car-arrow--next" data-car="next" aria-label="Siguiente"><i class="fas fa-chevron-right"></i></button>' +
+      '<div class="car-dots">' + dots + '</div>' +
+      '<div class="car-counter" id="mzCarNum">' + (det.idx + 1) + ' / ' + imgs.length + '</div></div>';
+  }
+
+  // La tira se mueve en % del ancho: no hace falta medir ni recalcular al girar el móvil.
+  function carMover(dx, animar) {
+    var t = $('mzCarTira'); if (!t) return;
+    t.style.transition = animar ? 'transform .35s cubic-bezier(.25,.46,.45,.94)' : 'none';
+    t.style.transform = 'translateX(calc(' + (-det.idx * 100) + '% + ' + dx + 'px))';
+  }
+  function carIr(n) {
+    var total = det.imgs.length; if (total < 2) return;
+    det.idx = ((n % total) + total) % total;
+    carMover(0, true);
+    document.querySelectorAll('#mzDetImg .car-dot').forEach(function (d, i) { d.classList.toggle('active', i === det.idx); });
+    var c = $('mzCarNum'); if (c) c.textContent = (det.idx + 1) + ' / ' + total;
+  }
+  // Deslizar con el dedo o arrastrar con el ratón. Un gesto vertical se deja
+  // para desplazar la ventana (touch-action: pan-y en css/mayor.css).
+  function carEnlazar() {
+    var vp = $('mzCarVp'); if (!vp) return;
+    var x0 = null, y0 = 0, dx = 0, horiz = null;
+    vp.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') e.preventDefault();
+      x0 = e.clientX; y0 = e.clientY; dx = 0; horiz = null;
+    });
+    vp.addEventListener('pointermove', function (e) {
+      if (x0 === null) return;
+      var mx = e.clientX - x0, my = e.clientY - y0;
+      if (horiz === null && (Math.abs(mx) > 6 || Math.abs(my) > 6)) {
+        horiz = Math.abs(mx) > Math.abs(my);
+        if (horiz) { try { vp.setPointerCapture(e.pointerId); } catch (er) {} }
+      }
+      if (!horiz) return;
+      dx = mx; carMover(dx, false);
+    });
+    function fin() {
+      if (x0 === null) return;
+      x0 = null;
+      if (!horiz) return;
+      var w = vp.offsetWidth || 1, n = det.idx + (dx < 0 ? 1 : -1);
+      if (Math.abs(dx) > w * 0.15 && n >= 0 && n < det.imgs.length) carIr(n); else carMover(0, true);
+    }
+    vp.addEventListener('pointerup', fin);
+    vp.addEventListener('pointercancel', fin);
+  }
+
+  function detCuerpoHTML(p) {
+    var ok = aprobado() && p.precio != null;
+    var tiene = carrito[p.id] || 0;
+    var precio = ok
+      ? '<div class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></div>'
+      : '<span class="mz-sinprecio"><i class="fas fa-lock"></i> Precio al aprobar tu cuenta</span>';
+    var acciones = ok
+      ? (tiene ? '<p class="mz-det-nota"><i class="fas fa-check"></i> Ya tienes ' + tiene + ' en tu pedido</p>' : '') +
+        '<div class="modal-actions-row"><div class="modal-qty">' +
+          '<button type="button" class="modal-qty-btn" data-det="menos" aria-label="Quitar uno"><i class="fas fa-minus"></i></button>' +
+          '<span class="modal-qty-num" id="mzDetCant">' + det.cant + '</span>' +
+          '<button type="button" class="modal-qty-btn" data-det="mas" aria-label="Añadir uno"><i class="fas fa-plus"></i></button>' +
+        '</div></div>' +
+        '<button type="button" class="modal-add-btn" id="mzDetAdd" data-det="add"></button>'
+      : '<button type="button" class="modal-add-btn" disabled style="opacity:.5;cursor:not-allowed"><i class="fas fa-lock"></i> Pendiente de aprobación</button>';
+    return '<div class="modal-details">' +
+      '<div class="modal-cat">' + esc(nombreCategoria(p.category)) + '</div>' +
+      '<div class="modal-name">' + esc(p.name) + '</div>' +
+      '<span class="mz-unidad"><i class="fas fa-box"></i> ' + esc(p.unidad) + '</span>' +
+      (p.desc ? '<p class="modal-desc">' + esc(p.desc) + '</p>' : '<div style="flex:1"></div>') +
+      '<div class="modal-price">' + precio + '</div>' + acciones + '</div>';
+  }
+
+  function detPintarCant() {
+    var p = porId[det.id]; if (!p) return;
+    var c = $('mzDetCant'); if (c) c.textContent = det.cant;
+    var b = $('mzDetAdd');
+    if (b) b.innerHTML = '<i class="fas fa-cart-plus"></i> ' + (carrito[p.id] ? 'Actualizar pedido' : 'Añadir al pedido') +
+                         ' · ' + rd(cents(p.precio) * det.cant / 100);
+  }
+
+  function abrirDetalle(id) {
+    var p = porId[id]; if (!p) return;
+    det.id = id; det.idx = 0; det.cant = carrito[id] || 1;
+    det.imgs = imagenes[id] ? [imagenes[id]] : [];
+    var tk = ++det.token;
+    $('mzDetalleCont').innerHTML = detImagenHTML(p.name) + detCuerpoHTML(p);
+    carEnlazar(); detPintarCant();
+    $('mzDetalle').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    // Foto principal + fotos extra, bajo demanda (igual que la tienda). Si
+    // llega tarde y ya se cerró o se abrió otro producto, no se toca nada.
+    fetch(_SB_URL + '/products?select=image,images&id=eq.' + encodeURIComponent(id), { headers: _SB_HEADERS })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (filas) {
+        if (tk !== det.token) return;
+        var f = (filas && filas[0]) || {};
+        var extra = f.images;
+        if (typeof extra === 'string') { try { extra = JSON.parse(extra); } catch (e) { extra = []; } }
+        if (!Array.isArray(extra)) extra = [];
+        if (f.image) imagenes[id] = f.image;
+        var todas = [f.image || imagenes[id]].concat(extra).filter(Boolean)
+          .filter(function (v, i, a) { return a.indexOf(v) === i; });
+        if (todas.length === det.imgs.length && todas[0] === det.imgs[0]) return;
+        det.imgs = todas; det.idx = 0;
+        var b = $('mzDetImg');
+        if (b) { b.outerHTML = detImagenHTML(p.name); carEnlazar(); }
+      })
+      .catch(function () { /* sin fotos extra: queda la principal */ });
+  }
+
+  function cerrarDetalle() {
+    var d = $('mzDetalle');
+    if (!d || d.classList.contains('hidden')) return false;
+    d.classList.add('hidden'); det.token++; det.id = null;
+    document.body.style.overflow = '';
+    return true;
+  }
+
   // ─── Paneles ───────────────────────────────────────────────────────────────
   function abrirPanel(id) {
     cerrarPaneles();
@@ -563,7 +712,33 @@
     $('btnCarrito').addEventListener('click', function () { pintarCarrito(); abrirPanel('panelCarrito'); });
     $('fondoPanel').addEventListener('click', cerrarPaneles);
     document.querySelectorAll('[data-cerrar]').forEach(function (b) { b.addEventListener('click', cerrarPaneles); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarPaneles(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !cerrarDetalle()) cerrarPaneles(); });
+
+    // 537 · Tocar la tarjeta (menos sus botones) abre el detalle.
+    $('grid').addEventListener('click', function (e) {
+      if (e.target.closest('.mz-ctl')) return;
+      var card = e.target.closest('.product-card');
+      if (card) abrirDetalle(card.dataset.id);
+    });
+    $('grid').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('product-card')) abrirDetalle(e.target.dataset.id);
+    });
+    $('mzDetalle').addEventListener('click', function (e) {
+      if (e.target === $('mzDetalle') || e.target.closest('[data-cerrar-det]')) { cerrarDetalle(); return; }
+      var c = e.target.closest('[data-car]');
+      if (c) { var v = c.dataset.car; carIr(v === 'prev' ? det.idx - 1 : v === 'next' ? det.idx + 1 : Number(v)); return; }
+      var d = e.target.closest('[data-det]');
+      if (!d) return;
+      if (d.dataset.det === 'mas') { det.cant = Math.min(100000, det.cant + 1); detPintarCant(); }
+      else if (d.dataset.det === 'menos') { det.cant = Math.max(1, det.cant - 1); detPintarCant(); }
+      else if (d.dataset.det === 'add') {
+        var p = porId[det.id]; if (!p) return;
+        var n = det.cant;
+        cambiar(p.id, 0, n);
+        cerrarDetalle();
+        toast('✅ ' + n + ' × ' + p.name + ' en tu pedido.');
+      }
+    });
 
     var tBus = null;
     $('fBuscar').addEventListener('input', function () {
@@ -609,7 +784,8 @@
   }
 
   // Para las pruebas automáticas.
-  window.MayorCM = { calcular: calcular, cambiar: cambiar, estado: function () { return { yo: yo, carrito: carrito, catalogo: catalogo }; } };
+  window.MayorCM = { calcular: calcular, cambiar: cambiar, abrirDetalle: abrirDetalle, cerrarDetalle: cerrarDetalle,
+                     estado: function () { return { yo: yo, carrito: carrito, catalogo: catalogo, det: det }; } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();

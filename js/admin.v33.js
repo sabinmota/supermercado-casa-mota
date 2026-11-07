@@ -2473,8 +2473,10 @@ function _leerBloqueMayor() {
                   : { activo, unidad, precio: r2(precio), costo: r2(costo) } };
 }
 
-function _cargarBloqueMayor(m) {
+function _cargarBloqueMayor(m, desc) {
   if (!document.getElementById('pMayorBox')) return;
+  const d = document.getElementById('pMayorDesc');   // 536 · descripción al por mayor
+  if (d) { d.value = desc || ''; d.style.borderColor = ''; }
   document.getElementById('pMayorActivo').checked = !!(m && m.activo);
   document.getElementById('pMayorUnidad').value   = (m && m.unidad) || '';
   document.getElementById('pMayorPrecio').value   = (m && m.precio !== null && m.precio !== undefined) ? m.precio : '';
@@ -2622,7 +2624,7 @@ function openProductModal(id = null) {
     if (_costoEl) _costoEl.value = (p.costo === null || p.costo === undefined) ? '' : p.costo;
     _pintarMargen();
     document.getElementById('pUnit').value          = p.unit;
-    _cargarBloqueMayor(p.mayor);   // 521 · al por mayor (después de unidad y costo: los usa de referencia)
+    _cargarBloqueMayor(p.mayor, p.mayorDesc);   // 521 · 536 · al por mayor (después de unidad y costo: los usa de referencia)
     // BUILD 412: `?? 0` para que un producto con stock nulo en la base no
     // escriba el texto "undefined" en un <input type="number">, que el
     // navegador descarta dejando el campo en blanco sin avisar.
@@ -3953,6 +3955,20 @@ function saveProduct() {
       return { ok: false, mayor: antes || null, msg: (e && e.message) || String(e) };
     }
   };
+  /* 536 · Descripción al por mayor (seguridad/107). Solo se llama si cambió.
+   * Si el campo no existe (admin.html viejo) no se toca nada. */
+  const _descEl = document.getElementById('pMayorDesc');
+  const _descNueva = _descEl ? _descEl.value.trim().slice(0, 500) : null;
+  const _guardarDescMayorDe = async (prodId, antes) => {
+    const a = antes || '';
+    if (_descNueva === null || !prodId || _descNueva === a) return { ok: true, desc: a };
+    try {
+      await DB.guardarMayorDesc(prodId, _descNueva);
+      return { ok: true, desc: _descNueva };
+    } catch (e) {
+      return { ok: false, desc: a, msg: (e && e.message) || String(e) };
+    }
+  };
 
   // ── El bloqueo y _unlock ya están definidos al inicio de la función ──────────
 
@@ -3961,15 +3977,18 @@ function saveProduct() {
     const updated = idx > -1 ? { ...adminProducts[idx], ...data } : { id: editingProductId, ...data };
     // Usar PATCH con solo los campos editados (data) → mucho más rápido que PUT completo
     const _mayorAntes = idx > -1 ? adminProducts[idx].mayor : null;
+    const _descAntes  = idx > -1 ? (adminProducts[idx].mayorDesc || '') : '';   // 536
     DB.saveProduct(updated, data)
       .then(async saved => {
         const rm = await _guardarMayorDe(editingProductId, _mayorAntes);   // 521
-        if (idx > -1) adminProducts[idx] = { ...updated, ...(saved || {}), mayor: rm.mayor };
+        const rd = await _guardarDescMayorDe(editingProductId, _descAntes); // 536
+        if (idx > -1) adminProducts[idx] = { ...updated, ...(saved || {}), mayor: rm.mayor, mayorDesc: rd.desc };
         DBCached.invalidateProducts();
         _unlock();                    // ← desbloquear ANTES de cerrar el modal
         closeProductModal();
-        if (rm.ok) showAdminToast('Producto actualizado ✅', 'success');
-        else showAdminToast('Producto guardado, pero NO el precio al por mayor: ' + rm.msg, 'error');
+        if (!rm.ok) showAdminToast('Producto guardado, pero NO el precio al por mayor: ' + rm.msg, 'error');
+        else if (!rd.ok) showAdminToast('Producto guardado, pero NO la descripción al por mayor: ' + rd.msg, 'error');
+        else showAdminToast('Producto actualizado ✅', 'success');
         requestAnimationFrame(() => {
           const sec = document.querySelector('.section-content.active')?.id;
           if (sec === 'sec-inventory') renderInventory();
@@ -4044,6 +4063,8 @@ function saveProduct() {
           finalProd.costo = costoVal;                      // 518 · para el margen en pantalla
           const rm = await _guardarMayorDe(finalProd.id, null);   // 521
           finalProd.mayor = rm.mayor;
+          const rd = await _guardarDescMayorDe(finalProd.id, '');  // 536
+          finalProd.mayorDesc = rd.desc;
           if (!finalProd.created_at) finalProd.created_at = new Date().toISOString();
           adminProducts.unshift(finalProd);
           if (typeof _totalProductsInDB !== 'undefined') _totalProductsInDB = adminProducts.length;
@@ -4051,8 +4072,9 @@ function saveProduct() {
           _pages.products = 1;
           _unlock();
           closeProductModal();
-          if (rm.ok) showAdminToast('Producto creado ✅', 'success');
-          else showAdminToast('Producto creado, pero NO el precio al por mayor: ' + rm.msg + ' — ábralo y guárdelo de nuevo.', 'error');
+          if (!rm.ok) showAdminToast('Producto creado, pero NO el precio al por mayor: ' + rm.msg + ' — ábralo y guárdelo de nuevo.', 'error');
+          else if (!rd.ok) showAdminToast('Producto creado, pero NO la descripción al por mayor: ' + rd.msg + ' — ábralo y guárdelo de nuevo.', 'error');
+          else showAdminToast('Producto creado ✅', 'success');
           requestAnimationFrame(() => {
             const sec = document.querySelector('.section-content.active')?.id;
             if (sec === 'sec-inventory') renderInventory();

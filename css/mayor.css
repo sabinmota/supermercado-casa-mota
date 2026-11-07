@@ -97,6 +97,20 @@ body.mayor .header-main-inner { justify-content: flex-start; }
   background: var(--green-pale); color: var(--green-dark);
   font-size: .76rem; font-weight: 700; padding: 3px 9px; border-radius: 50px;
 }
+/* 536 · descripción al por mayor (o la normal): gris, como mucho 3 líneas */
+.mz-desc {
+  font-size: .78rem; line-height: 1.35; color: var(--text-medium); margin: 2px 0 8px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* 537 · detalle del producto: el de la tienda (style.css) + estos ajustes */
+.mz-grid .product-card { cursor: pointer; }
+.mz-grid .mz-ctl { cursor: default; }
+#mzDetalle .car-slide { flex: 0 0 100%; width: 100%; }
+#mzDetalle .car-viewport { touch-action: pan-y; }
+#mzDetalle .mz-unidad { align-self: flex-start; margin-bottom: 14px; }
+#mzDetalle .modal-desc { white-space: pre-line; }
+#mzDetalle .mz-sinprecio { font-size: .95rem; }
+.mz-det-nota { font-size: .82rem; font-weight: 600; color: var(--green-dark); margin: -8px 0 12px; }
 .mz-sinprecio { font-size: .82rem; font-weight: 700; color: var(--orange-accent); }
 .mz-grid .product-card .add-cart-btn[disabled] { opacity: .45; cursor: not-allowed; background: #fff; color: var(--text-light); border-color: var(--border); }
 
