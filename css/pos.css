@@ -167,6 +167,14 @@ kbd {
 .pos-top__ver span { font-size: 1.3rem; line-height: 1; }
 .pos-top__ver:hover { background: #eef6f0; }
 .pos-top__ver:focus-visible { outline: 3px solid #ffd54a; outline-offset: 2px; }
+/* POS-51 · botón «Cantidad F5»: mismo botón blanco + círculo verde con una X.
+   La X es un dibujo (SVG), no la letra «×»: la letra quedaba descentrada. */
+.pos-top__cant .pos-top__cant-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: var(--pos-verde);
+}
+.pos-top__cant .pos-top__cant-ico svg { display: block; }
 /* «Vaciar» ocupa su columna sin estirarse a todo el ancho. */
 .pos-vaciar { width: auto; min-height: 58px; padding: 17px 20px; }
 .pos-cierre__acciones { margin-bottom: 14px; }
