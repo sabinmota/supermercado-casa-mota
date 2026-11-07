@@ -78,8 +78,18 @@
     DATOS_INVALIDOS:        'Revisa las cantidades: deben ser números enteros.',
     PRODUCTO_NO_DISPONIBLE: 'Algún producto ya no se vende al por mayor. Lo quitamos de tu pedido.',
     PRECIO_CAMBIO:          'Algún precio cambió. Actualizamos tu pedido: revísalo y confirma de nuevo.',
-    TOTAL_CAMBIO:           'El total cambió (envío o precios). Revísalo y confirma de nuevo.'
+    TOTAL_CAMBIO:           'El total cambió (envío o precios). Revísalo y confirma de nuevo.',
+    // 538 · seguridad/108 (Mi cuenta)
+    RNC_INVALIDO:           'El RNC debe tener 9 números (empresa) u 11 (cédula). Puedes dejarlo vacío.',
+    CLAVE_ACTUAL_MAL:       'La contraseña actual no es correcta.',
+    CLAVE_IGUAL:            'La nueva contraseña debe ser distinta de la actual.',
+    CLAVE_LARGA:            'La contraseña admite como máximo 72 caracteres.',
+    DEMASIADOS_INTENTOS:    'Demasiados intentos con la contraseña actual. Espera 15 minutos o llámanos.',
+    DIRECCION_CORTA:        'Escribe la dirección de entrega (al menos 5 letras).',
+    UBICACION_INVALIDA:     'El punto del mapa no es válido. Vuelve a detectarlo o quítalo.'
   };
+  // 538 · Si el SQL 108 aún no está, estas opciones lo dicen sin romper nada.
+  var MSG_SIN_ACTIVAR = 'Esta opción todavía no está activada. Inténtalo más tarde.';
 
   function ErrorBase(codigo, detalle) {
     var e = new Error(MENSAJES[codigo] || codigo);
@@ -146,8 +156,10 @@
     return e && (e.codigo === 'SESION_INVALIDA' || e.codigo === 'SESION_CADUCADA' || e.codigo === 'CUENTA_RECHAZADA');
   }
   function cerrarLocal(msg) {
-    cerrarDetalle();
+    cerrarDetalle(); cerrarCuenta(); cerrarSoporte();
     guardarVale(''); yo = null;
+    favoritos = []; avisos = []; fichaLista = false;
+    ficha = { rnc: '', direccion: '', ciudad: '', lat: null, lng: null };
     $('mzAcciones').hidden = true;
     cerrarPaneles();
     mostrarAuth('entrar');
@@ -172,8 +184,11 @@
     $('vTienda').hidden = false;
     $('mzAcciones').hidden = false;
     $('btnCarrito').hidden = !aprobado();
-    $('nombreMayorista').textContent = yo.nombre;
+    leerFavoritos();
+    pintarCabecera();
     $('avisoPendiente').hidden = aprobado();
+    cargarFicha();      // 538 · RNC y dirección (no frena el catálogo)
+    cargarAvisos();     // 538 · campana
     await cargarCatalogo();
   }
 
@@ -280,6 +295,7 @@
       }).sort(function (a, b) { return a.name.localeCompare(b.name, 'es'); });
       porId = {};
       catalogo.forEach(function (p) { porId[p.id] = p; });
+      pintarContadorFav();   // 538 · solo cuenta los favoritos que siguen al por mayor
       if (aprobado()) envioCfg = fila(res[3]);
 
       // Lo que ya no se vende al por mayor sale del carrito.
@@ -458,6 +474,11 @@
         '<button type="button" data-mas="' + esc(id) + '" aria-label="Añadir uno"><i class="fas fa-plus"></i></button></span></div></div>';
     }).join('');
     $('checkout').hidden = false; $('pieCarrito').hidden = false;
+    // 538 · La dirección guardada en «Mi ubicación» sale rellena (se puede cambiar).
+    if (!$('cDireccion').value.trim() && ficha.direccion) {
+      $('cDireccion').value = ficha.direccion;
+      if (ficha.ciudad) $('cCiudad').value = ficha.ciudad;
+    }
     pintarTotales();
   }
 
@@ -515,8 +536,8 @@
   // ─── Mis pedidos ───────────────────────────────────────────────────────────
   var ESTADOS = { pendiente: 'Pendiente', procesando: 'Preparando', enviado: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado' };
 
+  // 538 · Se pinta dentro de «Mi cuenta → Mis pedidos».
   async function verPedidos() {
-    abrirPanel('panelPedidos');
     var caja = $('listaPedidos');
     caja.innerHTML = '<p class="mz-estado">Cargando…</p>';
     try {
@@ -617,15 +638,19 @@
     var precio = ok
       ? '<div class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></div>'
       : '<span class="mz-sinprecio"><i class="fas fa-lock"></i> Precio al aprobar tu cuenta</span>';
+    // 538 · corazón de favoritos, como en la tienda
+    var fav = '<div class="modal-actions mz-det-fav"><button type="button" class="modal-favorite-btn' + (esFav(p.id) ? ' active' : '') +
+      '" data-det="fav" aria-label="Favorito" title="Favorito"><i class="fas fa-heart"></i></button></div>';
     var acciones = ok
       ? (tiene ? '<p class="mz-det-nota"><i class="fas fa-check"></i> Ya tienes ' + tiene + ' en tu pedido</p>' : '') +
         '<div class="modal-actions-row"><div class="modal-qty">' +
           '<button type="button" class="modal-qty-btn" data-det="menos" aria-label="Quitar uno"><i class="fas fa-minus"></i></button>' +
           '<span class="modal-qty-num" id="mzDetCant">' + det.cant + '</span>' +
           '<button type="button" class="modal-qty-btn" data-det="mas" aria-label="Añadir uno"><i class="fas fa-plus"></i></button>' +
-        '</div></div>' +
+        '</div>' + fav + '</div>' +
         '<button type="button" class="modal-add-btn" id="mzDetAdd" data-det="add"></button>'
-      : '<button type="button" class="modal-add-btn" disabled style="opacity:.5;cursor:not-allowed"><i class="fas fa-lock"></i> Pendiente de aprobación</button>';
+      : '<div class="modal-actions-row">' + fav + '</div>' +
+        '<button type="button" class="modal-add-btn" disabled style="opacity:.5;cursor:not-allowed"><i class="fas fa-lock"></i> Pendiente de aprobación</button>';
     return '<div class="modal-details">' +
       '<div class="modal-cat">' + esc(nombreCategoria(p.category)) + '</div>' +
       '<div class="modal-name">' + esc(p.name) + '</div>' +
@@ -682,14 +707,452 @@
 
   // ─── Paneles ───────────────────────────────────────────────────────────────
   function abrirPanel(id) {
-    cerrarPaneles();
+    cerrarPaneles(); cerrarCuenta();
     $(id).hidden = false; $('fondoPanel').hidden = false;
     document.body.style.overflow = 'hidden';
   }
   function cerrarPaneles() {
-    ['panelCarrito', 'panelPedidos'].forEach(function (id) { $(id).hidden = true; });
+    ['panelCarrito', 'panelFavoritos'].forEach(function (id) { $(id).hidden = true; });
     $('fondoPanel').hidden = true;
     document.body.style.overflow = '';
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+   * 538 · MI CUENTA (pedido del dueño: «como en la tienda»)
+   *   Barra: saludo «Hola, <negocio>», Mi cuenta, Favoritos, Avisos, Carrito.
+   *   Mi cuenta: Mis pedidos, Mi perfil (nombre, RNC, contraseña), Mi
+   *   ubicación (a mano o con el mapa), Notificaciones, Soporte, Términos.
+   *   Perfil, ubicación y avisos usan seguridad/108; si aún no está, cada
+   *   opción lo dice y el resto de la página sigue funcionando.
+   * ═════════════════════════════════════════════════════════════════════════ */
+  var ficha = { rnc: '', direccion: '', ciudad: '', lat: null, lng: null };
+  var fichaLista = false;
+  var avisos = [];
+  var favoritos = [];
+
+  function iniciales(n) {
+    var p = String(n || '').trim().split(/\s+/).filter(Boolean);
+    if (!p.length) return '?';
+    return (p[0].charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase();
+  }
+  function fmtTel(t) {
+    var d = String(t || '').replace(/\D/g, '');
+    if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+    return d.length === 10 ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : String(t || '');
+  }
+  // Función de la base que aún no existe (SQL sin ejecutar): PostgREST da 404.
+  function sinActivar(e) { return !!(e && / \(404\)/.test(e.message || '')); }
+
+  function pintarCabecera() {
+    if (!yo) return;
+    var ini = iniciales(yo.nombre);
+    $('nombreMayorista').textContent = yo.nombre;
+    $('mzAvatar').textContent = ini;
+    $('mzCuentaAvatar').textContent = ini;
+    $('mzCuentaNombre').textContent = yo.nombre;
+    $('mzCuentaTel').textContent = fmtTel(yo.telefono) + (aprobado() ? '' : ' · pendiente de aprobación');
+  }
+
+  function abrirCuenta(vista) {
+    cerrarPaneles(); cerrarDetalle();
+    $('mzCuenta').classList.add('open');
+    $('mzCuentaFondo').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    verVista(vista || 'inicio');
+  }
+  function cerrarCuenta() {
+    var c = $('mzCuenta');
+    if (!c || !c.classList.contains('open')) return false;
+    c.classList.remove('open');
+    $('mzCuentaFondo').classList.add('hidden');
+    document.body.style.overflow = '';
+    return true;
+  }
+  function verVista(v) {
+    document.querySelectorAll('#mzCuenta .acc-view').forEach(function (el) {
+      el.classList.toggle('active', el.id === 'mz-v-' + v);
+    });
+    if (v === 'pedidos') verPedidos();
+    else if (v === 'perfil') llenarPerfil();
+    else if (v === 'ubicacion') llenarUbicacion();
+    else if (v === 'avisos') {
+      pintarAvisos();
+      cargarAvisos().then(function () { pintarAvisos(); marcarAvisosLeidos(); });
+    }
+  }
+
+  // ── Ficha: RNC y dirección ──
+  async function cargarFicha() {
+    try {
+      var r = fila(await rpc('mayor_mi_ficha', { p_vale: leerVale() }));
+      if (r) {
+        ficha = { rnc: r.rnc || '', direccion: r.direccion || '', ciudad: r.ciudad || '',
+                  lat: r.lat == null ? null : Number(r.lat), lng: r.lng == null ? null : Number(r.lng) };
+      }
+      fichaLista = true;
+    } catch (e) {
+      if (esFinDeSesion(e)) { cerrarLocal(e.message); return; }
+      fichaLista = false;
+    }
+  }
+
+  // ── Mi perfil ──
+  function llenarPerfil() {
+    $('pfNombre').value = yo ? yo.nombre : '';
+    $('pfRnc').value = ficha.rnc || '';
+    $('pfTel').value = yo ? fmtTel(yo.telefono) : '';
+    mostrarError('pfError', ''); mostrarError('ckError', '');
+  }
+  async function guardarPerfil(ev) {
+    ev.preventDefault();
+    var nom = $('pfNombre').value.trim();
+    var rnc = $('pfRnc').value.replace(/\D/g, '');
+    if (nom.length < 2 || nom.length > 80) { mostrarError('pfError', MENSAJES.NOMBRE_INVALIDO); return; }
+    if (rnc && rnc.length !== 9 && rnc.length !== 11) { mostrarError('pfError', MENSAJES.RNC_INVALIDO); return; }
+    var btn = $('pfBtn'); btn.disabled = true;
+    mostrarError('pfError', '');
+    try {
+      var r = fila(await rpc('mayor_guardar_perfil', { p_vale: leerVale(), p_nombre: nom, p_rnc: rnc }));
+      yo.nombre = (r && r.nombre) || nom;
+      ficha.rnc = (r && r.rnc != null) ? r.rnc : rnc;
+      $('pfRnc').value = ficha.rnc;
+      pintarCabecera();
+      toast('✅ Datos guardados.');
+    } catch (e) {
+      if (esFinDeSesion(e)) { cerrarLocal(e.message); return; }
+      mostrarError('pfError', sinActivar(e) ? MSG_SIN_ACTIVAR : e.message);
+    } finally { btn.disabled = false; }
+  }
+  async function cambiarClave(ev) {
+    ev.preventDefault();
+    var act = $('ckActual').value, n1 = $('ckNueva').value, n2 = $('ckNueva2').value;
+    if (!act) { mostrarError('ckError', 'Escribe tu contraseña actual.'); return; }
+    if (n1.length < 6) { mostrarError('ckError', MENSAJES.CLAVE_CORTA); return; }
+    if (n1 !== n2) { mostrarError('ckError', 'Las dos contraseñas nuevas no coinciden.'); return; }
+    if (n1 === act) { mostrarError('ckError', MENSAJES.CLAVE_IGUAL); return; }
+    var btn = $('ckBtn'); btn.disabled = true;
+    mostrarError('ckError', '');
+    try {
+      // La base DEVUELVE el resultado (no lo lanza) para que el intento fallido
+      // quede contado: 5 fallos bloquean 15 minutos, igual que al entrar.
+      var res = await rpc('mayor_cambiar_clave', { p_vale: leerVale(), p_actual: act, p_nueva: n1 });
+      if (res !== 'OK') {
+        mostrarError('ckError', MENSAJES[res] || 'No se pudo cambiar la contraseña. Inténtalo de nuevo.');
+        $('ckActual').focus();
+        return;
+      }
+      $('ckActual').value = ''; $('ckNueva').value = ''; $('ckNueva2').value = '';
+      toast('✅ Contraseña cambiada. Las demás sesiones abiertas se cerraron.');
+    } catch (e) {
+      if (esFinDeSesion(e)) { cerrarLocal(e.message); return; }
+      mostrarError('ckError', sinActivar(e) ? MSG_SIN_ACTIVAR : e.message);
+    } finally { btn.disabled = false; }
+  }
+
+  // ── Mi ubicación: a mano, con el GPS, o moviendo el punto en el mapa ──
+  // El mapa es Leaflet (vendor/leaflet-1.9.4) con calles de OpenStreetMap. Se
+  // carga SOLO al usarlo: el resto de /mayor no paga sus 150 KB.
+  var ubPunto = { lat: null, lng: null };
+  var ubMap = null, ubMarker = null, leafletProm = null;
+  var CENTRO_HATO_MAYOR = [18.7629, -69.2569];   // si aún no hay punto
+
+  function cargarLeaflet() {
+    if (window.L && window.L.map) return Promise.resolve(window.L);
+    if (leafletProm) return leafletProm;
+    leafletProm = new Promise(function (ok, mal) {
+      var css = document.createElement('link');
+      css.rel = 'stylesheet'; css.href = 'vendor/leaflet-1.9.4/leaflet.css';
+      document.head.appendChild(css);
+      var s = document.createElement('script');
+      s.src = 'vendor/leaflet-1.9.4/leaflet.js';
+      s.onload = function () { window.L ? ok(window.L) : mal(new Error('sin Leaflet')); };
+      s.onerror = function () { leafletProm = null; mal(new Error('no cargó Leaflet')); };
+      document.head.appendChild(s);
+    });
+    return leafletProm;
+  }
+  function redondear(n) { return Math.round(Number(n) * 1e6) / 1e6; }
+  function hayPunto() { return ubPunto.lat != null && ubPunto.lng != null && isFinite(ubPunto.lat) && isFinite(ubPunto.lng); }
+
+  // Pone el punto (y lo muestra). `desdeMapa` = lo movió el mayorista con el dedo.
+  function fijarPunto(lat, lng, desdeMapa) {
+    ubPunto = { lat: redondear(lat), lng: redondear(lng) };
+    if (desdeMapa) {
+      $('ubUsarDir').hidden = false;
+      estadoUb('✓ Punto movido. Si quieres, pulsa «Usar la dirección de este punto».');
+    }
+  }
+  async function mostrarMapa(centrar) {
+    var caja = $('ubMapa');
+    if (!hayPunto()) { caja.hidden = true; return; }
+    caja.hidden = false;
+    var L;
+    try { L = await cargarLeaflet(); }
+    catch (e) {
+      caja.hidden = true;
+      mostrarError('ubError', 'No se pudo cargar el mapa (¿sin internet?). El punto se guarda igual; también puedes escribir la dirección a mano.');
+      return;
+    }
+    var pos = [ubPunto.lat, ubPunto.lng];
+    if (!ubMap) {
+      L.Icon.Default.imagePath = 'vendor/leaflet-1.9.4/images/';
+      ubMap = L.map('ubMapaLienzo', { zoomControl: true, attributionControl: true }).setView(pos, 17);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; OpenStreetMap'
+      }).addTo(ubMap);
+      ubMarker = L.marker(pos, { draggable: true, autoPan: true, title: 'Tu negocio' }).addTo(ubMap);
+      ubMarker.on('dragend', function () { var p = ubMarker.getLatLng(); fijarPunto(p.lat, p.lng, true); });
+      ubMap.on('click', function (ev) { ubMarker.setLatLng(ev.latlng); fijarPunto(ev.latlng.lat, ev.latlng.lng, true); });
+    } else {
+      ubMarker.setLatLng(pos);
+    }
+    // Estaba oculto: Leaflet tiene que volver a medir el hueco antes de centrar.
+    setTimeout(function () {
+      if (!ubMap) return;
+      ubMap.invalidateSize();
+      if (centrar !== false) ubMap.setView(pos, Math.max(ubMap.getZoom(), 16));
+    }, 60);
+  }
+  function quitarPunto() {
+    ubPunto = { lat: null, lng: null };
+    $('ubMapa').hidden = true; $('ubUsarDir').hidden = true;
+    estadoUb('Punto quitado. La dirección escrita se mantiene.');
+  }
+  function elegirEnMapa() {
+    mostrarError('ubError', '');
+    if (!hayPunto()) {
+      fijarPunto(CENTRO_HATO_MAYOR[0], CENTRO_HATO_MAYOR[1], false);
+      estadoUb('Mueve el punto hasta tu negocio (o toca el mapa donde está).');
+    }
+    mostrarMapa(true);
+  }
+  // Rellena dirección y ciudad con lo que hay en ese punto (OpenStreetMap).
+  async function direccionDePunto(lat, lng) {
+    var res = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&addressdetails=1',
+                          { headers: { 'Accept-Language': 'es' } });
+    var d = await res.json(), a = (d && d.address) || {};
+    var calle = a.road || a.pedestrian || a.street || '';
+    var partes = [];
+    if (calle) partes.push(calle + (a.house_number ? ' #' + a.house_number : ''));
+    var sector = a.suburb || a.neighbourhood || a.quarter || '';
+    if (sector) partes.push(sector);
+    var dir = partes.join(', ') || String(d.display_name || '').split(',').slice(0, 2).join(',').trim();
+    if (dir) $('ubDir').value = dir;
+    var ciudad = a.city || a.town || a.village || a.municipality || a.county || a.state || '';
+    if (ciudad) $('ubCiudad').value = ciudad;
+    return !!dir;
+  }
+  async function usarDireccionDelPunto() {
+    if (!hayPunto()) return;
+    var b = $('ubUsarDir'); b.disabled = true;
+    estadoUb('Buscando la dirección de ese punto…');
+    try {
+      var ok = await direccionDePunto(ubPunto.lat, ubPunto.lng);
+      estadoUb(ok ? '✓ Dirección actualizada. Revísala y corrígela si hace falta.' : 'Ese punto no tiene calle conocida. Escribe la dirección a mano.');
+      b.hidden = true;
+    } catch (e) {
+      estadoUb('No se pudo leer la dirección de ese punto. Escríbela a mano.');
+    } finally { b.disabled = false; }
+  }
+  function estadoUb(txt) { var e = $('ubEstado'); e.textContent = txt || ''; e.hidden = !txt; }
+  function llenarUbicacion() {
+    $('ubDir').value = ficha.direccion || '';
+    $('ubCiudad').value = ficha.ciudad || '';
+    ubPunto = { lat: ficha.lat, lng: ficha.lng };
+    $('ubUsarDir').hidden = true;
+    estadoUb(''); mostrarError('ubError', '');
+    mostrarMapa(true);
+  }
+  function usarGps() {
+    mostrarError('ubError', '');
+    if (!navigator.geolocation) {
+      mostrarError('ubError', 'Este teléfono no permite detectar la ubicación. Escribe la dirección a mano.');
+      return;
+    }
+    var btn = $('ubGps'); btn.disabled = true;
+    estadoUb('Buscando tu ubicación…');
+    navigator.geolocation.getCurrentPosition(async function (pos) {
+      fijarPunto(pos.coords.latitude, pos.coords.longitude, false);
+      $('ubUsarDir').hidden = true;
+      mostrarMapa(true);
+      estadoUb('Ubicación encontrada. Buscando la dirección…');
+      try {
+        await direccionDePunto(ubPunto.lat, ubPunto.lng);
+        estadoUb('✓ Punto marcado. Si no es exacto, arrastra el punto hasta tu negocio.');
+      } catch (e) {
+        estadoUb('✓ Punto marcado. Escribe la dirección a mano; puedes arrastrar el punto.');
+      } finally { btn.disabled = false; }
+    }, function (err) {
+      btn.disabled = false; estadoUb('');
+      var m = { 1: 'No diste permiso de ubicación. Escribe la dirección a mano o actívalo en Ajustes.',
+                2: 'No se pudo obtener tu ubicación. Escribe la dirección a mano.',
+                3: 'La ubicación tardó demasiado. Inténtalo de nuevo o escríbela a mano.' };
+      mostrarError('ubError', m[err && err.code] || m[2]);
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  }
+  async function guardarUbicacion(ev) {
+    ev.preventDefault();
+    var dir = $('ubDir').value.trim(), ciudad = $('ubCiudad').value.trim();
+    if (dir.length < 5) { mostrarError('ubError', MENSAJES.DIRECCION_CORTA); $('ubDir').focus(); return; }
+    var btn = $('ubBtn'); btn.disabled = true;
+    mostrarError('ubError', '');
+    try {
+      await rpc('mayor_guardar_ubicacion', { p_vale: leerVale(), p_direccion: dir, p_ciudad: ciudad,
+                                             p_lat: ubPunto.lat, p_lng: ubPunto.lng });
+      ficha.direccion = dir; ficha.ciudad = ciudad; ficha.lat = ubPunto.lat; ficha.lng = ubPunto.lng;
+      $('cDireccion').value = dir; if (ciudad) $('cCiudad').value = ciudad;   // el pedido la usa ya
+      toast('📍 Dirección guardada. Saldrá rellena en tus pedidos.');
+    } catch (e) {
+      if (esFinDeSesion(e)) { cerrarLocal(e.message); return; }
+      mostrarError('ubError', sinActivar(e) ? MSG_SIN_ACTIVAR : e.message);
+    } finally { btn.disabled = false; }
+  }
+
+  // ── Notificaciones (las crea la base: cuenta aprobada, pedido cambia de estado) ──
+  async function cargarAvisos() {
+    try {
+      var l = await rpc('mayor_avisos', { p_vale: leerVale() });
+      avisos = Array.isArray(l) ? l : [];
+    } catch (e) {
+      if (esFinDeSesion(e)) { cerrarLocal(e.message); return; }
+      avisos = [];
+    }
+    pintarContadorAvisos();
+  }
+  function pintarContadorAvisos() {
+    var n = avisos.filter(function (a) { return !a.leido; }).length;
+    var b = $('cuentaAvisos'); b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
+  }
+  var ICONO_AVISO = { aprobada: 'circle-check', pedido: 'truck-fast', cancelado: 'circle-xmark', entregado: 'box-open' };
+  function pintarAvisos() {
+    var caja = $('listaAvisos');
+    if (!avisos.length) {
+      caja.innerHTML = '<div class="mz-vacio"><i class="fas fa-bell"></i>No tienes notificaciones.<br>' +
+        'Te avisaremos aquí cuando aprueben tu cuenta o cambie el estado de un pedido.</div>';
+      return;
+    }
+    caja.innerHTML = avisos.map(function (a) {
+      var t = String(a.tipo || 'pedido');
+      return '<div class="mz-noti mz-noti--' + esc(t) + (a.leido ? '' : ' mz-noti--nueva') + '">' +
+        '<div class="mz-noti__ico"><i class="fas fa-' + (ICONO_AVISO[t] || 'bell') + '"></i></div>' +
+        '<div class="mz-noti__txt"><div class="mz-noti__tit">' + esc(a.titulo) + '</div>' +
+        '<div class="mz-noti__msg">' + esc(a.mensaje) + '</div>' +
+        '<div class="mz-noti__fecha">' + esc(a.fecha) + '</div></div></div>';
+    }).join('');
+  }
+  async function marcarAvisosLeidos() {
+    if (!avisos.some(function (a) { return !a.leido; })) return;
+    try {
+      await rpc('mayor_avisos_leidos', { p_vale: leerVale() });
+      avisos.forEach(function (a) { a.leido = true; });
+      pintarContadorAvisos();
+    } catch (e) { /* se volverá a intentar al abrirlas otra vez */ }
+  }
+
+  // ── Favoritos: en este teléfono, uno por mayorista (como la tienda) ──
+  function claveFav() { return 'cm_mayor_fav:' + (yo && yo.id ? yo.id : ''); }
+  function leerFavoritos() {
+    try {
+      var a = JSON.parse(localStorage.getItem(claveFav()) || '[]');
+      favoritos = Array.isArray(a) ? a.map(String) : [];
+    } catch (e) { favoritos = []; }
+  }
+  function guardarFavoritos() { try { localStorage.setItem(claveFav(), JSON.stringify(favoritos)); } catch (e) {} }
+  function esFav(id) { return favoritos.indexOf(String(id)) !== -1; }
+  function alternarFav(id) {
+    id = String(id);
+    var i = favoritos.indexOf(id);
+    if (i >= 0) favoritos.splice(i, 1); else favoritos.unshift(id);
+    guardarFavoritos(); pintarContadorFav();
+    return i < 0;
+  }
+  // Solo se ven los que siguen al por mayor; los demás se guardan por si vuelven.
+  function favVisibles() { return favoritos.filter(function (id) { return porId[id]; }); }
+  function pintarContadorFav() {
+    var n = favVisibles().length;
+    var b = $('cuentaFavoritos'); b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
+  }
+  function verFavoritos() { abrirPanel('panelFavoritos'); pintarListaFav(); }
+  function pintarListaFav() {
+    var ids = favVisibles(), caja = $('listaFavoritos');
+    if (!ids.length) {
+      caja.innerHTML = '<div class="mz-vacio"><i class="fas fa-heart"></i>Todavía no tienes favoritos.<br>' +
+        'Toca un producto y pulsa el corazón.</div>';
+      return;
+    }
+    caja.innerHTML = ids.map(function (id) {
+      var p = porId[id];
+      var precio = (aprobado() && p.precio != null) ? ' · ' + rd(p.precio) : '';
+      return '<div class="mz-linea mz-fav" data-fav-abrir="' + esc(id) + '">' +
+        '<img src="' + esc(imagenes[id] || 'images/placeholder-product.png') + '" alt="">' +
+        '<div><div class="mz-linea__nom">' + esc(p.name) + '</div>' +
+        '<div class="mz-linea__det">' + esc(p.unidad) + precio + '</div></div>' +
+        '<button type="button" class="mz-fav__quitar" data-fav-quitar="' + esc(id) + '" aria-label="Quitar de favoritos" title="Quitar">' +
+        '<i class="fas fa-heart"></i></button></div>';
+    }).join('');
+    cargarImagenes(ids);
+  }
+
+  // ── Soporte: mismo WhatsApp y correo que la tienda ──
+  var soporteCfg = null;
+  async function abrirSoporte() {
+    var fondo = $('mzSoporteFondo'), hoja = $('mzSoporte'), opc = $('mzSoporteOpc');
+    opc.innerHTML = '<div style="text-align:center;padding:16px;color:#aaa"><i class="fas fa-spinner fa-spin"></i></div>';
+    fondo.classList.remove('hidden'); hoja.classList.remove('hidden');
+    requestAnimationFrame(function () { fondo.classList.add('open'); hoja.classList.add('open'); });
+    if (!soporteCfg) {
+      try { soporteCfg = (typeof DB !== 'undefined' && DB.getSettings) ? await DB.getSettings() : {}; } catch (e) { soporteCfg = {}; }
+    }
+    var wa = String(soporteCfg.storeWhatsapp || ''), mail = String(soporteCfg.storeEmail || '');
+    var num = wa.replace(/\D/g, ''); if (num.length === 10) num = '1' + num;
+    var html = '';
+    if (num) html += '<a class="support-sheet-option" style="--oc:#25d366" target="_blank" rel="noopener" href="https://wa.me/' + num +
+      '?text=' + encodeURIComponent('Hola, soy ' + (yo ? yo.nombre : '') + ' (mayorista). Tengo una consulta.') + '">' +
+      '<i class="fab fa-whatsapp"></i><span>WhatsApp<small>' + esc(wa) + '</small></span></a>';
+    if (mail) html += '<a class="support-sheet-option" style="--oc:#e65100" href="mailto:' + esc(mail) + '">' +
+      '<i class="fas fa-envelope"></i><span>Email<small>' + esc(mail) + '</small></span></a>';
+    opc.innerHTML = html || '<p style="text-align:center;color:#aaa;padding:12px 0">No hay datos de contacto configurados.</p>';
+  }
+  function cerrarSoporte() {
+    var fondo = $('mzSoporteFondo'), hoja = $('mzSoporte');
+    if (!hoja || hoja.classList.contains('hidden')) return false;
+    fondo.classList.remove('open'); hoja.classList.remove('open');
+    setTimeout(function () { fondo.classList.add('hidden'); hoja.classList.add('hidden'); }, 300);
+    return true;
+  }
+
+  // ── Código de barras: escáner de la app o código escrito en el buscador ──
+  async function escanear() {
+    var nat = window.CasaMotaNativo;
+    if (!nat || !nat.escanerDisponible || !nat.escanerDisponible()) {
+      toast('El escáner funciona dentro de la app de Casa Mota.'); return;
+    }
+    var r = await nat.escanear();
+    if (!r) return;                                   // cancelado
+    if (r.error === 'SIN_PERMISO_CAMARA') { toast('Permite la cámara para Casa Mota en los Ajustes del teléfono.'); return; }
+    if (r.codigo) buscarCodigo(r.codigo);
+  }
+  // El catálogo al por mayor no trae códigos: se pregunta a `products` (lectura
+  // pública, la misma de la tienda) y se abre el producto si se vende al por mayor.
+  async function buscarCodigo(cod) {
+    var c = String(cod || '').replace(/\s/g, '');
+    if (!c) return;
+    var lista = [c], sin = c.replace(/^0+/, '');
+    if (sin && sin !== c) lista.push(sin);
+    if (/^\d{12}$/.test(c)) lista.push('0' + c);
+    lista.push(c.toUpperCase());
+    lista = lista.filter(function (v, i, a) { return a.indexOf(v) === i; });
+    var inl = lista.map(encodeURIComponent).join(',');
+    try {
+      var res = await fetch(_SB_URL + '/products?select=id&or=(barcode.in.(' + inl + '),barcode_alt.in.(' + inl + '))&limit=10',
+                            { headers: _SB_HEADERS });
+      var filas = res.ok ? await res.json() : [];
+      var hit = (filas || []).map(function (f) { return String(f.id); }).filter(function (id) { return porId[id]; })[0];
+      if (hit) { $('fBuscar').value = ''; mostrados = POR_PAGINA; pintarCatalogo(); abrirDetalle(hit); return; }
+      toast((filas && filas.length) ? 'Ese producto no se vende al por mayor.' : 'El código ' + c + ' no está en el catálogo.');
+    } catch (e) {
+      toast('Sin conexión. Inténtalo de nuevo.');
+    }
   }
 
   // ─── Eventos ───────────────────────────────────────────────────────────────
@@ -708,11 +1171,50 @@
 
     $('btnSalir').addEventListener('click', salir);
     $('btnComprobar').addEventListener('click', function () { comprobarEstado(false); });
-    $('btnPedidos').addEventListener('click', verPedidos);
     $('btnCarrito').addEventListener('click', function () { pintarCarrito(); abrirPanel('panelCarrito'); });
     $('fondoPanel').addEventListener('click', cerrarPaneles);
     document.querySelectorAll('[data-cerrar]').forEach(function (b) { b.addEventListener('click', cerrarPaneles); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !cerrarDetalle()) cerrarPaneles(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!cerrarSoporte() && !cerrarDetalle() && !cerrarCuenta()) cerrarPaneles();
+    });
+
+    // 538 · Mi cuenta, favoritos, avisos, soporte, escáner
+    $('btnCuenta').addEventListener('click', function () { abrirCuenta('inicio'); });
+    $('btnAvisos').addEventListener('click', function () { abrirCuenta('avisos'); });
+    $('btnFavoritos').addEventListener('click', verFavoritos);
+    $('btnSalir2').addEventListener('click', salir);
+    $('mzCuentaFondo').addEventListener('click', cerrarCuenta);
+    $('mzCuenta').addEventListener('click', function (e) {
+      if (e.target.closest('[data-cerrar-cuenta]')) { cerrarCuenta(); return; }
+      if (e.target.closest('[data-atras]')) { verVista('inicio'); return; }
+      var v = e.target.closest('[data-vista]');
+      if (v) { verVista(v.dataset.vista); return; }
+      if (e.target.closest('[data-accion="soporte"]')) abrirSoporte();
+    });
+    $('fPerfil').addEventListener('submit', guardarPerfil);
+    $('fClave').addEventListener('submit', cambiarClave);
+    $('fUbicacion').addEventListener('submit', guardarUbicacion);
+    $('ubGps').addEventListener('click', usarGps);
+    $('ubElegir').addEventListener('click', elegirEnMapa);
+    $('ubQuitar').addEventListener('click', quitarPunto);
+    $('ubUsarDir').addEventListener('click', usarDireccionDelPunto);
+    $('mzSoporteFondo').addEventListener('click', cerrarSoporte);
+    $('mzSoporteCancelar').addEventListener('click', cerrarSoporte);
+    $('mzSoporteOpc').addEventListener('click', function (e) { if (e.target.closest('a')) cerrarSoporte(); });
+    $('listaFavoritos').addEventListener('click', function (e) {
+      var q = e.target.closest('[data-fav-quitar]');
+      if (q) { alternarFav(q.dataset.favQuitar); pintarListaFav(); toast('Quitado de favoritos.'); return; }
+      var a = e.target.closest('[data-fav-abrir]');
+      if (a) { cerrarPaneles(); abrirDetalle(a.dataset.favAbrir); }
+    });
+    $('btnEscanear').addEventListener('click', function (e) { e.preventDefault(); escanear(); });
+    // Un código escrito en el buscador (solo números, 6 o más) + Enter también lo busca.
+    $('fBuscar').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      var v = $('fBuscar').value.trim();
+      if (/^\d{6,}$/.test(v)) { e.preventDefault(); buscarCodigo(v); }
+    });
 
     // 537 · Tocar la tarjeta (menos sus botones) abre el detalle.
     $('grid').addEventListener('click', function (e) {
@@ -731,6 +1233,11 @@
       if (!d) return;
       if (d.dataset.det === 'mas') { det.cant = Math.min(100000, det.cant + 1); detPintarCant(); }
       else if (d.dataset.det === 'menos') { det.cant = Math.max(1, det.cant - 1); detPintarCant(); }
+      else if (d.dataset.det === 'fav') {
+        var on = alternarFav(det.id);
+        d.classList.toggle('active', on);
+        toast(on ? '❤️ Añadido a favoritos.' : 'Quitado de favoritos.');
+      }
       else if (d.dataset.det === 'add') {
         var p = porId[det.id]; if (!p) return;
         var n = det.cant;
@@ -761,9 +1268,11 @@
     document.querySelectorAll('input[name="entrega"]').forEach(function (r) { r.addEventListener('change', pintarTotales); });
     $('btnConfirmar').addEventListener('click', confirmar);
 
-    // Al volver a la pestaña, si estaba pendiente se comprueba solo.
+    // Al volver a la pestaña, si estaba pendiente se comprueba solo; y la campana se actualiza.
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden && yo && !aprobado()) comprobarEstado(true);
+      if (document.hidden || !yo) return;
+      if (!aprobado()) comprobarEstado(true);
+      cargarAvisos();
     });
   }
 
@@ -785,7 +1294,9 @@
 
   // Para las pruebas automáticas.
   window.MayorCM = { calcular: calcular, cambiar: cambiar, abrirDetalle: abrirDetalle, cerrarDetalle: cerrarDetalle,
-                     estado: function () { return { yo: yo, carrito: carrito, catalogo: catalogo, det: det }; } };
+                     abrirCuenta: abrirCuenta, verVista: verVista, buscarCodigo: buscarCodigo,
+                     estado: function () { return { yo: yo, carrito: carrito, catalogo: catalogo, det: det,
+                                                    ficha: ficha, avisos: avisos, favoritos: favoritos }; } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();

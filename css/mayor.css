@@ -15,19 +15,84 @@ body.mayor .header-main-inner { justify-content: flex-start; }
 }
 .mz-acciones { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .mz-acciones[hidden] { display: none; }
-.mz-hbtn {
-  position: relative; display: inline-flex; align-items: center; gap: 6px;
-  background: var(--green-pale); color: var(--green-dark);
-  border-radius: 50px; padding: 9px 12px; font-weight: 700; font-size: .85rem;
+/* ── 538 · Barra como la de la tienda (clases de style.css) ── */
+/* Los contadores de style.css son display:flex: sin esto `hidden` no los oculta. */
+.mz-acciones [hidden] { display: none !important; }
+/* En el móvil la tienda saca el carrito de la barra de arriba (tiene una barra
+   flotante abajo). Aquí pasa a un botón redondo flotante abajo a la derecha:
+   así el saludo «Hola, <negocio>» tiene sitio en la barra (medido: con el
+   carrito arriba, a 390 px solo se leía «C…» y a 360 px desaparecía). */
+@media (max-width: 900px) {
+  body.mayor { padding-bottom: 96px; }
+  body.mayor .header-actions .cart-btn:not([hidden]) {
+    display: flex !important; position: fixed; z-index: 5;
+    right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    width: 60px; height: 60px; min-width: 0; padding: 0; border-radius: 50%;
+    align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(26, 124, 62, .45);
+  }
+  body.mayor .header-actions .cart-btn > span:not(.cart-badge) { display: none; }
+  body.mayor .header-actions .cart-btn i { font-size: 1.4rem; }
+  body.mayor .header-actions .cart-btn .cart-badge { top: 2px; right: 2px; width: 22px; height: 22px; font-size: .72rem; border: 2px solid #fff; }
+  .mz-toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
-.mz-hbtn i { font-size: 1.05rem; }
-.mz-hbtn--carrito { background: var(--green-primary); color: #fff; }
-.mz-cuenta {
-  position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px;
-  border-radius: 10px; background: var(--red-accent); color: #fff;
-  font-size: .72rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
+/* Escáner dentro del buscador (solo visible en la app, regla de style.css) */
+.mz-buscar .mz-scan {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  min-height: 38px; min-width: 42px; padding: 0 8px; font-size: 1.35rem;
 }
-.mz-cuenta[hidden] { display: none; }
+.mz-buscar .mz-scan:active { transform: translateY(-50%) scale(.92); }
+html.es-app-nativa .mz-buscar input { padding-right: 52px; }
+
+/* ── 538 · Mi cuenta ── */
+#mzCuenta a.acc-card { display: block; text-decoration: none; color: inherit; }
+.mz-tarjeta { background: #fff; border: 1px solid #e8eee9; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+.mz-tit { font-size: .98rem; font-weight: 800; color: var(--green-dark); display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.mz-opc { font-weight: 500; color: var(--text-light); font-size: .76rem; }
+.mz-form textarea {
+  font: 500 1rem var(--font); padding: 11px 13px; border: 2px solid var(--border); border-radius: var(--radius-sm);
+  outline: none; background: #fff; width: 100%; resize: vertical;
+}
+.mz-form textarea:focus { border-color: var(--green-light); }
+.mz-form input:disabled { background: var(--bg-light); color: var(--text-medium); }
+.mz-btn--naranja { background: linear-gradient(135deg, #e07b00, #f59e0b); }
+.mz-btn--naranja:hover { background: #c96d00; }
+.mz-gps {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  padding: 12px 14px; border-radius: 12px; border: 2px dashed #f0b35c; background: #fff8ef;
+  color: #b45f00; font-weight: 700; font-size: .92rem;
+}
+.mz-gps:hover { background: #ffefd9; }
+.mz-gps[disabled] { opacity: .6; cursor: wait; }
+.mz-ub-estado { font-size: .84rem; font-weight: 600; color: var(--green-dark); background: var(--green-pale); border-radius: 10px; padding: 8px 12px; margin: 0; }
+.mz-ub-estado[hidden] { display: none; }
+.mz-mapa { border-radius: 14px; overflow: hidden; border: 1.5px solid #e2e8f0; background: #fff; }
+.mz-mapa[hidden] { display: none; }
+/* 538 · mapa con el punto arrastrable (Leaflet). z-index bajo: que no tape el panel. */
+.mz-mapa__lienzo { width: 100%; height: 240px; position: relative; z-index: 0; background: #eef2ee; }
+.mz-mapa__pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; padding: 8px 12px; font-size: .78rem; color: var(--text-medium); border-top: 1px solid #eef2ee; }
+.mz-mapa__acc { display: flex; gap: 12px; }
+.mz-link { background: none; border: 0; padding: 4px 0; color: #b45f00; font-weight: 700; font-size: .84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.mz-link[hidden] { display: none; }
+.mz-link--rojo { color: #c62828; }
+#ubElegir { align-self: center; }
+
+/* Notificaciones */
+.mz-noti { display: flex; gap: 12px; align-items: flex-start; background: #fff; border: 1px solid #e8eee9; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+.mz-noti--nueva { border-color: #8fd3dc; background: #f2fbfc; }
+.mz-noti__ico { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #e0f4f6; color: #0097a7; }
+.mz-noti--aprobada .mz-noti__ico, .mz-noti--entregado .mz-noti__ico { background: var(--green-pale); color: var(--green-primary); }
+.mz-noti--cancelado .mz-noti__ico { background: #fdecea; color: #c62828; }
+.mz-noti__txt { min-width: 0; }
+.mz-noti__tit { font-weight: 800; font-size: .92rem; color: var(--text-dark); }
+.mz-noti__msg { font-size: .86rem; color: var(--text-medium); margin-top: 2px; line-height: 1.4; }
+.mz-noti__fecha { font-size: .74rem; color: var(--text-light); margin-top: 4px; }
+
+/* Favoritos */
+.mz-fav { cursor: pointer; }
+.mz-fav__quitar { width: 38px; height: 38px; border-radius: 50%; background: #fdecea; color: #e74c3c; font-size: 1rem; }
+.mz-fav__quitar:hover { background: #fbd5d1; }
+.mz-det-fav { flex: 0 0 auto; margin-left: auto; }
 
 /* ── Entrar / crear cuenta ── */
 .mz-auth { min-height: calc(100vh - 110px); display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
@@ -75,11 +140,9 @@ body.mayor .header-main-inner { justify-content: flex-start; }
 .mz-aviso > i { font-size: 1.3rem; color: var(--orange-accent); }
 .mz-aviso > div { flex: 1 1 220px; }
 .mz-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 18px 0 14px; }
-.mz-hola { font-size: 1.05rem; color: var(--text-medium); }
-.mz-hola b { color: var(--text-dark); }
 .mz-filtros { display: flex; gap: 10px; flex-wrap: wrap; flex: 1 1 360px; justify-content: flex-end; }
 .mz-buscar { position: relative; flex: 1 1 220px; max-width: 360px; }
-.mz-buscar i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-light); }
+.mz-buscar > i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-light); }
 .mz-buscar input, .mz-filtros select {
   width: 100%; font: 500 .95rem var(--font); padding: 10px 12px 10px 36px;
   border: 2px solid var(--border); border-radius: 50px; outline: none; background: #fff;
@@ -179,15 +242,25 @@ body.mayor .header-main-inner { justify-content: flex-start; }
 
 @media (max-width: 600px) {
   body.mayor { padding-top: 62px; }
-  body.mayor .header-main-inner { gap: 8px; padding-left: 12px; padding-right: 12px; }
+  body.mayor .header-main-inner { gap: 6px; padding-left: 10px; padding-right: 10px; }
   body.mayor .logo-img { height: 40px; }
-  .mz-badge { padding: 5px 9px; font-size: .74rem; }
-  .mz-hbtn__txt { display: none; }
-  .mz-hbtn { padding: 9px 10px; }
+  /* 538 · en el móvil la insignia queda solo con el icono para que quepa la barra */
+  .mz-badge { padding: 7px 8px; font-size: 0; gap: 0; }
+  .mz-badge i { font-size: .9rem; }
+  body.mayor .header-actions { flex: 1 1 0; min-width: 0; justify-content: flex-end; gap: 0; }
+  body.mayor .header-actions .action-btn { padding: 6px 4px; min-width: 0; flex-shrink: 0; }
+  body.mayor .header-actions .action-btn > span:not(.favorites-badge):not(.cart-badge) { white-space: nowrap; }
+  body.mayor .client-greeting { min-width: 0; flex-shrink: 1; gap: 6px; padding: 4px 8px 4px 5px; margin-right: 2px; }
+  body.mayor .client-greeting-text { min-width: 0; }
+  body.mayor .client-name, body.mayor .client-hello { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mz-filtros select { flex: 1 1 100%; }
   .mz-buscar { max-width: none; }
 }
+/* 538 · Teléfonos estrechos: la insignia se oculta para que quepa el saludo
+   (la tienda tampoco la tiene; la página sigue diciendo «Mayoristas» en el título). */
+@media (max-width: 429px) {
+  body.mayor .mz-badge { display: none; }
+}
 @media (max-width: 360px) {
-  .mz-badge span, .mz-badge { font-size: .7rem; }
   body.mayor .logo-img { height: 34px; }
 }

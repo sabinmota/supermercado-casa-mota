@@ -13,12 +13,12 @@
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
   <!-- Mismo diseño que la tienda + lo propio de mayoristas -->
   <link rel="stylesheet" href="css/style.css?v=341" />
-  <link rel="stylesheet" href="css/mayor.css?v=2" />
+  <link rel="stylesheet" href="css/mayor.css?v=3" />
   <script>
     /* Versión: si cambia, recarga una vez para no quedarse con ficheros viejos */
     (function () {
       try {
-        var VER = 'M4', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
+        var VER = 'M5', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
         if (s !== VER) { sessionStorage.setItem(KEY, VER); if (s !== null) location.reload(); }
       } catch (e) {}
     })();
@@ -33,15 +33,32 @@
         <img class="logo-img" src="images/logo-casamota-anim.jpg" alt="Supermercado Casa Mota" />
       </a>
       <span class="mz-badge"><i class="fas fa-boxes-stacked"></i> Mayoristas</span>
-      <nav class="mz-acciones" id="mzAcciones" hidden aria-label="Mi cuenta">
-        <button type="button" class="mz-hbtn" id="btnPedidos" title="Mis pedidos">
-          <i class="fas fa-receipt"></i><span class="mz-hbtn__txt">Mis pedidos</span>
+      <!-- 538 · Misma barra que la tienda: saludo, Mi cuenta, Favoritos, Avisos y Carrito -->
+      <nav class="header-actions mz-acciones" id="mzAcciones" hidden aria-label="Mi cuenta">
+        <div class="client-greeting" id="mzSaludo">
+          <div class="client-avatar" id="mzAvatar">?</div>
+          <div class="client-greeting-text">
+            <span class="client-hello">Hola,</span>
+            <span class="client-name" id="nombreMayorista"></span>
+          </div>
+          <button type="button" class="client-logout-btn" id="btnSalir" title="Cerrar sesión" aria-label="Cerrar sesión">
+            <i class="fas fa-right-from-bracket"></i>
+          </button>
+        </div>
+        <button type="button" class="action-btn" id="btnCuenta" title="Mi cuenta">
+          <i class="fas fa-user"></i><span>Mi cuenta</span>
         </button>
-        <button type="button" class="mz-hbtn mz-hbtn--carrito" id="btnCarrito" title="Carrito">
-          <i class="fas fa-cart-shopping"></i><span class="mz-cuenta" id="cuentaCarrito" hidden>0</span>
+        <button type="button" class="action-btn favorites-btn" id="btnFavoritos" title="Favoritos">
+          <i class="fas fa-heart"></i><span>Favoritos</span>
+          <span class="favorites-badge" id="cuentaFavoritos" hidden>0</span>
         </button>
-        <button type="button" class="mz-hbtn" id="btnSalir" title="Salir">
-          <i class="fas fa-right-from-bracket"></i>
+        <button type="button" class="action-btn noti-btn" id="btnAvisos" title="Notificaciones">
+          <i class="fas fa-bell"></i><span>Avisos</span>
+          <span class="favorites-badge" id="cuentaAvisos" hidden>0</span>
+        </button>
+        <button type="button" class="action-btn cart-btn" id="btnCarrito" title="Carrito">
+          <i class="fas fa-shopping-cart"></i><span>Carrito</span>
+          <span class="cart-badge" id="cuentaCarrito" hidden>0</span>
         </button>
       </nav>
     </div>
@@ -111,11 +128,14 @@
       </div>
 
       <div class="mz-cab">
-        <p class="mz-hola">Hola, <b id="nombreMayorista"></b> 👋</p>
         <div class="mz-filtros">
           <label class="mz-buscar">
             <i class="fas fa-magnifying-glass"></i>
-            <input type="search" id="fBuscar" placeholder="Buscar producto…" autocomplete="off" />
+            <input type="search" id="fBuscar" placeholder="Buscar producto o código…" autocomplete="off" enterkeyhint="search" />
+            <!-- 538 · Escáner: como en la tienda, solo se ve dentro de la app (html.es-app-nativa) -->
+            <button type="button" class="barcode-scan-btn mz-scan" id="btnEscanear" title="Escanear código de barras" aria-label="Escanear código de barras">
+              <i class="fas fa-barcode"></i>
+            </button>
           </label>
           <select id="fCategoria" aria-label="Categoría"><option value="">Todas las categorías</option></select>
         </div>
@@ -162,14 +182,131 @@
   </footer>
 </aside>
 
-<!-- ═══════════ MIS PEDIDOS ═══════════ -->
-<aside class="mz-panel" id="panelPedidos" aria-label="Mis pedidos" hidden>
+<!-- ═══════════ 538 · FAVORITOS ═══════════ -->
+<aside class="mz-panel" id="panelFavoritos" aria-label="Favoritos" hidden>
   <header class="mz-panel__cab">
-    <h2><i class="fas fa-receipt"></i> Mis pedidos</h2>
+    <h2><i class="fas fa-heart" style="color:#e74c3c"></i> Mis favoritos</h2>
     <button type="button" class="mz-cerrar" data-cerrar aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
   </header>
-  <div class="mz-panel__cuerpo" id="listaPedidos"></div>
+  <div class="mz-panel__cuerpo" id="listaFavoritos"></div>
 </aside>
+
+<!-- ═══════════ 538 · MI CUENTA (mismo diseño que la tienda) ═══════════ -->
+<div class="account-overlay hidden" id="mzCuentaFondo"></div>
+<aside class="account-panel" id="mzCuenta" aria-label="Mi cuenta">
+  <div class="account-panel-header">
+    <div class="account-panel-avatar" id="mzCuentaAvatar">?</div>
+    <div>
+      <div class="account-panel-name" id="mzCuentaNombre"></div>
+      <div class="account-panel-email" id="mzCuentaTel"></div>
+    </div>
+    <button type="button" class="account-panel-close" data-cerrar-cuenta aria-label="Cerrar"><i class="fas fa-times"></i></button>
+  </div>
+
+  <div class="account-panel-body">
+    <!-- Inicio: tarjetas -->
+    <div class="acc-view acc-view-home active" id="mz-v-inicio">
+      <div class="acc-cards-grid">
+        <button type="button" class="acc-card" data-vista="pedidos" style="--c:#1a7c3e"><div class="acc-card-inner"><div class="acc-card-wave"></div>
+          <div class="acc-card-icon-wrap"><i class="fas fa-bag-shopping"></i></div><span class="acc-card-label">Mis pedidos</span></div></button>
+        <button type="button" class="acc-card" data-vista="perfil" style="--c:#0e7fc2"><div class="acc-card-inner"><div class="acc-card-wave"></div>
+          <div class="acc-card-icon-wrap"><i class="fas fa-user-circle"></i></div><span class="acc-card-label">Mi perfil</span></div></button>
+        <button type="button" class="acc-card" data-vista="ubicacion" style="--c:#e07b00"><div class="acc-card-inner"><div class="acc-card-wave"></div>
+          <div class="acc-card-icon-wrap"><i class="fas fa-location-dot"></i></div><span class="acc-card-label">Mi ubicación</span></div></button>
+        <button type="button" class="acc-card" data-vista="avisos" style="--c:#0097a7"><div class="acc-card-inner"><div class="acc-card-wave"></div>
+          <div class="acc-card-icon-wrap"><i class="fas fa-bell"></i></div><span class="acc-card-label">Notificaciones</span></div></button>
+        <button type="button" class="acc-card" data-accion="soporte" style="--c:#e65100"><div class="acc-card-inner"><div class="acc-card-wave"></div>
+          <div class="acc-card-icon-wrap"><i class="fas fa-headset"></i></div><span class="acc-card-label">Soporte</span></div></button>
+        <a class="acc-card" href="terms.html" target="_blank" rel="noopener" style="--c:#37474f"><div class="acc-card-inner"><div class="acc-card-wave"></div>
+          <div class="acc-card-icon-wrap"><i class="fas fa-file-contract"></i></div><span class="acc-card-label">Términos y condiciones</span></div></a>
+      </div>
+    </div>
+
+    <div class="acc-view" id="mz-v-pedidos">
+      <div class="acc-view-header" style="--hc:#1a7c3e"><button type="button" class="acc-back-btn" data-atras aria-label="Volver"><i class="fas fa-arrow-left"></i></button>
+        <i class="fas fa-bag-shopping"></i><span>Mis pedidos</span></div>
+      <div class="acc-view-content" id="listaPedidos"></div>
+    </div>
+
+    <div class="acc-view" id="mz-v-perfil">
+      <div class="acc-view-header" style="--hc:#0e7fc2"><button type="button" class="acc-back-btn" data-atras aria-label="Volver"><i class="fas fa-arrow-left"></i></button>
+        <i class="fas fa-user-circle"></i><span>Mi perfil</span></div>
+      <div class="acc-view-content">
+        <form id="fPerfil" class="mz-form mz-tarjeta" novalidate>
+          <h3 class="mz-tit"><i class="fas fa-store"></i> Datos del negocio</h3>
+          <label>Nombre del negocio
+            <input type="text" id="pfNombre" maxlength="80" autocomplete="organization" required /></label>
+          <label>RNC <small class="mz-opc">(opcional · 9 u 11 números)</small>
+            <input type="text" id="pfRnc" inputmode="numeric" maxlength="13" placeholder="1-01-23456-7" /></label>
+          <label>Teléfono <small class="mz-opc">(es tu usuario para entrar; no se cambia)</small>
+            <input type="tel" id="pfTel" disabled /></label>
+          <p class="mz-error" id="pfError" role="alert" hidden></p>
+          <button type="submit" class="mz-btn" id="pfBtn"><i class="fas fa-check"></i> Guardar datos</button>
+        </form>
+        <form id="fClave" class="mz-form mz-tarjeta" novalidate>
+          <h3 class="mz-tit"><i class="fas fa-key"></i> Cambiar contraseña</h3>
+          <label>Contraseña actual
+            <input type="password" id="ckActual" autocomplete="current-password" /></label>
+          <label>Nueva contraseña (mínimo 6)
+            <input type="password" id="ckNueva" autocomplete="new-password" maxlength="72" /></label>
+          <label>Repite la nueva
+            <input type="password" id="ckNueva2" autocomplete="new-password" maxlength="72" /></label>
+          <p class="mz-error" id="ckError" role="alert" hidden></p>
+          <button type="submit" class="mz-btn" id="ckBtn"><i class="fas fa-lock"></i> Cambiar contraseña</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="acc-view" id="mz-v-ubicacion">
+      <div class="acc-view-header" style="--hc:#e07b00"><button type="button" class="acc-back-btn" data-atras aria-label="Volver"><i class="fas fa-arrow-left"></i></button>
+        <i class="fas fa-location-dot"></i><span>Mi ubicación de entrega</span></div>
+      <div class="acc-view-content">
+        <form id="fUbicacion" class="mz-form mz-tarjeta" novalidate>
+          <button type="button" class="mz-gps" id="ubGps"><i class="fas fa-crosshairs"></i> Usar mi ubicación actual (mapa)</button>
+          <button type="button" class="mz-link" id="ubElegir"><i class="fas fa-map-location-dot"></i> o marcar el punto en el mapa yo mismo</button>
+          <p class="mz-ub-estado" id="ubEstado" hidden></p>
+          <!-- 538 · Mapa con el punto que se arrastra con el dedo (Leaflet, vendor/) -->
+          <div class="mz-mapa" id="ubMapa" hidden>
+            <div class="mz-mapa__lienzo" id="ubMapaLienzo" role="application" aria-label="Mapa: arrastra el punto hasta tu negocio"></div>
+            <div class="mz-mapa__pie">
+              <span><i class="fas fa-hand-pointer"></i> Arrastra el punto o toca el mapa</span>
+              <span class="mz-mapa__acc">
+                <button type="button" class="mz-link" id="ubUsarDir" hidden>Usar la dirección de este punto</button>
+                <button type="button" class="mz-link mz-link--rojo" id="ubQuitar">Quitar punto</button>
+              </span>
+            </div>
+          </div>
+          <label>Dirección de entrega
+            <textarea id="ubDir" rows="2" maxlength="300" placeholder="Calle, número, sector, referencia"></textarea></label>
+          <label>Ciudad / Municipio
+            <input type="text" id="ubCiudad" maxlength="80" placeholder="Hato Mayor" /></label>
+          <p class="mz-error" id="ubError" role="alert" hidden></p>
+          <button type="submit" class="mz-btn mz-btn--naranja" id="ubBtn"><i class="fas fa-check"></i> Guardar dirección</button>
+          <p class="mz-nota"><i class="fas fa-lock"></i> Se usa solo para tus entregas. Saldrá rellena en cada pedido.</p>
+        </form>
+      </div>
+    </div>
+
+    <div class="acc-view" id="mz-v-avisos">
+      <div class="acc-view-header" style="--hc:#0097a7"><button type="button" class="acc-back-btn" data-atras aria-label="Volver"><i class="fas fa-arrow-left"></i></button>
+        <i class="fas fa-bell"></i><span>Notificaciones</span></div>
+      <div class="acc-view-content" id="listaAvisos"></div>
+    </div>
+  </div>
+
+  <div class="account-panel-footer">
+    <button type="button" class="btn-logout-client" id="btnSalir2"><i class="fas fa-right-from-bracket"></i> Cerrar sesión</button>
+  </div>
+</aside>
+
+<!-- 538 · Soporte: mismo menú que la tienda (WhatsApp y correo de Configuración) -->
+<div class="support-sheet-overlay hidden" id="mzSoporteFondo"></div>
+<div class="support-sheet hidden" id="mzSoporte" role="dialog" aria-label="Soporte">
+  <div class="support-sheet-handle"></div>
+  <p class="support-sheet-title">Selecciona medio de contacto</p>
+  <div class="support-sheet-options" id="mzSoporteOpc"></div>
+  <button type="button" class="support-sheet-cancel" id="mzSoporteCancelar">Cancelar</button>
+</div>
 
 <!-- ═══════════ 537 · DETALLE DEL PRODUCTO (mismo diseño que la tienda) ═══════════ -->
 <div class="modal-overlay hidden" id="mzDetalle" role="dialog" aria-modal="true" aria-label="Detalle del producto">
@@ -182,7 +319,9 @@
 <div class="mz-toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- api.js solo aporta la dirección y la clave pública de la base (_SB_URL, _SB_HEADERS) -->
+<!-- 538 · Capa de la app (escáner nativo). Fuera de la app no hace nada. -->
+<script src="js/nativo.js?v=8"></script>
 <script src="js/api.js?v=365"></script>
-<script src="js/mayor.js?v=4"></script>
+<script src="js/mayor.js?v=5"></script>
 </body>
 </html>
