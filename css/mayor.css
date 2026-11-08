@@ -94,6 +94,25 @@ html.es-app-nativa .mz-buscar input { padding-right: 52px; }
 .mz-fav__quitar:hover { background: #fbd5d1; }
 .mz-det-fav { flex: 0 0 auto; margin-left: auto; }
 
+/* ── 539 · Volver a la tienda normal (en la app no hay botón «atrás») ── */
+.mz-ir-detal {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 14px; padding: 10px; border-radius: 12px;
+  color: var(--green-dark); font-weight: 700; font-size: .9rem; text-decoration: none;
+}
+.mz-ir-detal:hover, .mz-ir-detal:active { background: var(--green-pale); }
+.account-panel-footer .mz-ir-detal { margin-top: 8px; }
+
+/* ── 539 · Dentro de la app (html.es-app-nativa la pone js/nativo.js) ──
+   La cabecera fija ya baja por debajo del notch (regla de style.css); el
+   contenido tiene que bajar lo mismo. El fondo del borde es el de la página
+   (style.css lo pone oscuro porque la tienda acaba en su pie oscuro). */
+html.es-app-nativa.pag-mayor,
+html.es-app-nativa.pag-mayor body { background-color: var(--bg-light); }
+html.es-app-nativa body.mayor { padding-top: calc(66px + env(safe-area-inset-top, 0px)); }
+html.es-app-nativa .mz-panel { padding-top: env(safe-area-inset-top, 0px); }
+html.es-app-nativa #mzDetalle { padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+
 /* ── Entrar / crear cuenta ── */
 .mz-auth { min-height: calc(100vh - 110px); display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
 .mz-auth[hidden] { display: none; }
@@ -242,6 +261,7 @@ html.es-app-nativa .mz-buscar input { padding-right: 52px; }
 
 @media (max-width: 600px) {
   body.mayor { padding-top: 62px; }
+  html.es-app-nativa body.mayor { padding-top: calc(62px + env(safe-area-inset-top, 0px)); }
   body.mayor .header-main-inner { gap: 6px; padding-left: 10px; padding-right: 10px; }
   body.mayor .logo-img { height: 40px; }
   /* 538 · en el móvil la insignia queda solo con el icono para que quepa la barra */

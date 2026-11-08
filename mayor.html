@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="pag-mayor">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -13,12 +13,12 @@
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
   <!-- Mismo diseño que la tienda + lo propio de mayoristas -->
   <link rel="stylesheet" href="css/style.css?v=341" />
-  <link rel="stylesheet" href="css/mayor.css?v=3" />
+  <link rel="stylesheet" href="css/mayor.css?v=4" />
   <script>
     /* Versión: si cambia, recarga una vez para no quedarse con ficheros viejos */
     (function () {
       try {
-        var VER = 'M5', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
+        var VER = 'M6', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
         if (s !== VER) { sessionStorage.setItem(KEY, VER); if (s !== null) location.reload(); }
       } catch (e) {}
     })();
@@ -112,6 +112,8 @@
         <button type="submit" class="mz-btn" id="rBtn">Crear cuenta</button>
         <p class="mz-nota">Revisamos cada cuenta. Verás los precios en cuanto la aprobemos.</p>
       </form>
+      <!-- 539 · En la app no hay botón de «atrás»: salida a la tienda normal -->
+      <a class="mz-ir-detal" href="index.html" data-ir-detal><i class="fas fa-arrow-left"></i> Volver a la tienda normal</a>
     </div>
   </section>
 
@@ -296,6 +298,7 @@
 
   <div class="account-panel-footer">
     <button type="button" class="btn-logout-client" id="btnSalir2"><i class="fas fa-right-from-bracket"></i> Cerrar sesión</button>
+    <a class="mz-ir-detal" href="index.html" data-ir-detal><i class="fas fa-store"></i> Ir a la tienda normal</a>
   </div>
 </aside>
 
@@ -322,6 +325,6 @@
 <!-- 538 · Capa de la app (escáner nativo). Fuera de la app no hace nada. -->
 <script src="js/nativo.js?v=8"></script>
 <script src="js/api.js?v=365"></script>
-<script src="js/mayor.js?v=5"></script>
+<script src="js/mayor.js?v=6"></script>
 </body>
 </html>

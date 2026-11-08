@@ -1184,6 +1184,13 @@
     $('btnAvisos').addEventListener('click', function () { abrirCuenta('avisos'); });
     $('btnFavoritos').addEventListener('click', verFavoritos);
     $('btnSalir2').addEventListener('click', salir);
+    // 539 · «Ir a la tienda normal»: marca esta pestaña para que la pantalla de
+    // bienvenida NO lo devuelva a /mayor (la app recuerda al mayorista).
+    document.querySelectorAll('[data-ir-detal]').forEach(function (a) {
+      a.addEventListener('click', function () {
+        try { sessionStorage.setItem('cm_ir_detal', '1'); } catch (e) {}
+      });
+    });
     $('mzCuentaFondo').addEventListener('click', cerrarCuenta);
     $('mzCuenta').addEventListener('click', function (e) {
       if (e.target.closest('[data-cerrar-cuenta]')) { cerrarCuenta(); return; }
@@ -1278,6 +1285,8 @@
 
   // ─── Arranque ──────────────────────────────────────────────────────────────
   async function iniciar() {
+    // 539 · Si llegó aquí, quiere /mayor: se quita la marca de «tienda normal».
+    try { sessionStorage.removeItem('cm_ir_detal'); } catch (e) {}
     enlazar();
     carrito = leerCarrito();
     var v = leerVale();

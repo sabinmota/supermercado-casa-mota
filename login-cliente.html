@@ -9,7 +9,14 @@
       try {
         var s = localStorage.getItem('cm_client_session')
              || sessionStorage.getItem('cm_client_session');
-        if (s && s !== 'null') window.location.replace('index.html');
+        if (s && s !== 'null') { window.location.replace('index.html'); return; }
+        /* 539 · La app recuerda al mayorista: con su sesión de /mayor guardada
+         * (cm_mayor_vale, 7 días) entra directo a la tienda al por mayor.
+         * «Ir a la tienda normal» desde /mayor marca cm_ir_detal en esta
+         * pestaña para no devolverlo allí (se borra al cerrar la app). */
+        if (localStorage.getItem('cm_mayor_vale') && !sessionStorage.getItem('cm_ir_detal')) {
+          window.location.replace('mayor.html');
+        }
       } catch(e) {}
     })();
   </script>
@@ -266,6 +273,18 @@
     }
     .btn-welcome-secondary:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.8); }
     .btn-welcome-secondary:active { background: rgba(255,255,255,.15); }
+
+    /* 539 · Enlace a la tienda al por mayor (debajo de los dos botones) */
+    .link-mayor {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 2px; padding: 10px 8px;
+      color: rgba(255,255,255,.92); font-size: .9rem; font-weight: 500;
+      text-decoration: none; border-radius: 12px;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .link-mayor i { color: #7dffb0; font-size: 1rem; }
+    .link-mayor b { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+    .link-mayor:active { background: rgba(255,255,255,.1); }
 
     /* ══════════════════════════════════════════
        PANTALLA 2 — FORMULARIO LOGIN
@@ -748,6 +767,10 @@
         <button class="btn-welcome-secondary" onclick="showRegisterInfo()">
           <i class="fas fa-user-plus"></i> Crear una cuenta
         </button>
+        <!-- 539 · Tienda al por mayor (pedido del dueño) -->
+        <a class="link-mayor" id="linkMayor" href="mayor.html">
+          <i class="fas fa-boxes-stacked"></i><span>¿Tienes un negocio? <b>Compra al por mayor</b></span>
+        </a>
       </div>
 
 
