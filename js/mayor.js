@@ -497,7 +497,11 @@
     var t = calcular();
     if (!t.items) { mostrarError('cError', MENSAJES.CARRITO_VACIO); return; }
     var dir = $('cDireccion').value.trim();
-    if (t.domicilio && dir.length < 5) { mostrarError('cError', MENSAJES.FALTA_DIRECCION); $('cDireccion').focus(); return; }
+    if (t.domicilio && dir.length < 5) {
+      // 540 · Recuerda que puede rellenarla con el GPS o el mapa
+      mostrarError('cError', MENSAJES.FALTA_DIRECCION + ' Puedes usar «Usar mi ubicación actual» o marcar el punto en el mapa.');
+      $('cDireccion').focus(); return;
+    }
 
     var lineas = Object.keys(carrito).filter(function (id) { return porId[id]; }).map(function (id) {
       return { productId: id, cantidad: carrito[id], price: porId[id].precio };
@@ -515,6 +519,15 @@
       } }));
       carrito = {}; guardarCarrito();
       $('cNotas').value = '';
+      // 540 · Si aún no tenía dirección guardada, la de este pedido (con su punto)
+      // pasa a «Mi ubicación» para que el próximo pedido salga relleno.
+      if (t.domicilio && !ficha.direccion && fichaLista) {
+        var pto = ubicPedido.punto(), ciu = $('cCiudad').value.trim();
+        rpc('mayor_guardar_ubicacion', { p_vale: leerVale(), p_direccion: dir, p_ciudad: ciu, p_lat: pto.lat, p_lng: pto.lng })
+          .then(function () { ficha.direccion = dir; ficha.ciudad = ciu; ficha.lat = pto.lat; ficha.lng = pto.lng; })
+          .catch(function () { /* no importa: el pedido ya está hecho */ });
+      }
+      ubicPedido.reiniciar();
       pintarCatalogo(); pintarCarrito();
       cerrarPaneles();
       toast('✅ Pedido #' + (ped && (ped.order_number || '').toString() || '') + ' recibido. Te contactaremos para coordinar.');
@@ -849,11 +862,12 @@
     } finally { btn.disabled = false; }
   }
 
-  // ── Mi ubicación: a mano, con el GPS, o moviendo el punto en el mapa ──
+  // ── Ubicación: a mano, con el GPS, o moviendo el punto en el mapa ──
   // El mapa es Leaflet (vendor/leaflet-1.9.4) con calles de OpenStreetMap. Se
   // carga SOLO al usarlo: el resto de /mayor no paga sus 150 KB.
-  var ubPunto = { lat: null, lng: null };
-  var ubMap = null, ubMarker = null, leafletProm = null;
+  // 540 · Lo usan DOS sitios con el mismo código: «Mi ubicación» y el carrito
+  // (crearUbicador más abajo). Cada uno tiene su propio mapa y su propio punto.
+  var leafletProm = null;
   var CENTRO_HATO_MAYOR = [18.7629, -69.2569];   // si aún no hay punto
 
   function cargarLeaflet() {
@@ -872,123 +886,156 @@
     return leafletProm;
   }
   function redondear(n) { return Math.round(Number(n) * 1e6) / 1e6; }
-  function hayPunto() { return ubPunto.lat != null && ubPunto.lng != null && isFinite(ubPunto.lat) && isFinite(ubPunto.lng); }
 
-  // Pone el punto (y lo muestra). `desdeMapa` = lo movió el mayorista con el dedo.
-  function fijarPunto(lat, lng, desdeMapa) {
-    ubPunto = { lat: redondear(lat), lng: redondear(lng) };
-    if (desdeMapa) {
-      $('ubUsarDir').hidden = false;
-      estadoUb('✓ Punto movido. Si quieres, pulsa «Usar la dirección de este punto».');
+  /* 540 · UBICADOR: botón GPS + «marcar el punto yo mismo» + mapa con el punto
+   * que se arrastra + «Usar la dirección de este punto» + «Quitar punto». Rellena
+   * los campos de dirección y ciudad que se le indiquen. El mismo código sirve a
+   * «Mi ubicación» (prefijo ub) y al carrito (prefijo cu); cada uno con su mapa.
+   *   cfg.prefijo + Gps, Elegir, Estado, Mapa, MapaLienzo, UsarDir, Quitar
+   *   cfg.error, cfg.dir, cfg.ciudad  → ids de los campos
+   *   cfg.inicio()                    → [lat, lng] donde empieza «marcar yo mismo» */
+  function crearUbicador(cfg) {
+    var id = function (s) { return $(cfg.prefijo + s); };
+    var punto = { lat: null, lng: null }, mapa = null, marca = null;
+
+    function hay() { return punto.lat != null && punto.lng != null && isFinite(punto.lat) && isFinite(punto.lng); }
+    function estado(t) { var e = id('Estado'); e.textContent = t || ''; e.hidden = !t; }
+    function error(t) { mostrarError(cfg.error, t || ''); }
+    // `desdeMapa` = lo movió el mayorista con el dedo.
+    function fijar(lat, lng, desdeMapa) {
+      punto = { lat: redondear(lat), lng: redondear(lng) };
+      if (desdeMapa) {
+        id('UsarDir').hidden = false;
+        estado('✓ Punto movido. Si quieres, pulsa «Usar la dirección de este punto».');
+      }
     }
-  }
-  async function mostrarMapa(centrar) {
-    var caja = $('ubMapa');
-    if (!hayPunto()) { caja.hidden = true; return; }
-    caja.hidden = false;
-    var L;
-    try { L = await cargarLeaflet(); }
-    catch (e) {
-      caja.hidden = true;
-      mostrarError('ubError', 'No se pudo cargar el mapa (¿sin internet?). El punto se guarda igual; también puedes escribir la dirección a mano.');
-      return;
+    async function mostrar(centrar) {
+      var caja = id('Mapa');
+      if (!hay()) { caja.hidden = true; return; }
+      caja.hidden = false;
+      var L;
+      try { L = await cargarLeaflet(); }
+      catch (e) {
+        caja.hidden = true;
+        error('No se pudo cargar el mapa (¿sin internet?). Escribe la dirección a mano.');
+        return;
+      }
+      var pos = [punto.lat, punto.lng];
+      if (!mapa) {
+        L.Icon.Default.imagePath = 'vendor/leaflet-1.9.4/images/';
+        mapa = L.map(cfg.prefijo + 'MapaLienzo', { zoomControl: true, attributionControl: true }).setView(pos, 17);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19, attribution: '&copy; OpenStreetMap'
+        }).addTo(mapa);
+        marca = L.marker(pos, { draggable: true, autoPan: true, title: 'Tu negocio' }).addTo(mapa);
+        marca.on('dragend', function () { var p = marca.getLatLng(); fijar(p.lat, p.lng, true); });
+        mapa.on('click', function (ev) { marca.setLatLng(ev.latlng); fijar(ev.latlng.lat, ev.latlng.lng, true); });
+      } else {
+        marca.setLatLng(pos);
+      }
+      // Estaba oculto: Leaflet tiene que volver a medir el hueco antes de centrar.
+      setTimeout(function () {
+        if (!mapa) return;
+        mapa.invalidateSize();
+        if (centrar !== false) mapa.setView(pos, Math.max(mapa.getZoom(), 16));
+      }, 60);
     }
-    var pos = [ubPunto.lat, ubPunto.lng];
-    if (!ubMap) {
-      L.Icon.Default.imagePath = 'vendor/leaflet-1.9.4/images/';
-      ubMap = L.map('ubMapaLienzo', { zoomControl: true, attributionControl: true }).setView(pos, 17);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '&copy; OpenStreetMap'
-      }).addTo(ubMap);
-      ubMarker = L.marker(pos, { draggable: true, autoPan: true, title: 'Tu negocio' }).addTo(ubMap);
-      ubMarker.on('dragend', function () { var p = ubMarker.getLatLng(); fijarPunto(p.lat, p.lng, true); });
-      ubMap.on('click', function (ev) { ubMarker.setLatLng(ev.latlng); fijarPunto(ev.latlng.lat, ev.latlng.lng, true); });
-    } else {
-      ubMarker.setLatLng(pos);
+    function quitar() {
+      punto = { lat: null, lng: null };
+      id('Mapa').hidden = true; id('UsarDir').hidden = true;
+      estado('Punto quitado. La dirección escrita se mantiene.');
     }
-    // Estaba oculto: Leaflet tiene que volver a medir el hueco antes de centrar.
-    setTimeout(function () {
-      if (!ubMap) return;
-      ubMap.invalidateSize();
-      if (centrar !== false) ubMap.setView(pos, Math.max(ubMap.getZoom(), 16));
-    }, 60);
-  }
-  function quitarPunto() {
-    ubPunto = { lat: null, lng: null };
-    $('ubMapa').hidden = true; $('ubUsarDir').hidden = true;
-    estadoUb('Punto quitado. La dirección escrita se mantiene.');
-  }
-  function elegirEnMapa() {
-    mostrarError('ubError', '');
-    if (!hayPunto()) {
-      fijarPunto(CENTRO_HATO_MAYOR[0], CENTRO_HATO_MAYOR[1], false);
-      estadoUb('Mueve el punto hasta tu negocio (o toca el mapa donde está).');
+    function elegir() {
+      error('');
+      if (!hay()) {
+        var c = (cfg.inicio && cfg.inicio()) || CENTRO_HATO_MAYOR;
+        fijar(c[0], c[1], false);
+        estado('Mueve el punto hasta tu negocio (o toca el mapa donde está).');
+      }
+      mostrar(true);
     }
-    mostrarMapa(true);
+    // Rellena dirección y ciudad con lo que hay en ese punto (OpenStreetMap).
+    async function direccionDe(lat, lng) {
+      var res = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&addressdetails=1',
+                            { headers: { 'Accept-Language': 'es' } });
+      var d = await res.json(), a = (d && d.address) || {};
+      var calle = a.road || a.pedestrian || a.street || '';
+      var partes = [];
+      if (calle) partes.push(calle + (a.house_number ? ' #' + a.house_number : ''));
+      var sector = a.suburb || a.neighbourhood || a.quarter || '';
+      if (sector) partes.push(sector);
+      var dir = partes.join(', ') || String(d.display_name || '').split(',').slice(0, 2).join(',').trim();
+      if (dir) $(cfg.dir).value = dir;
+      var ciudad = a.city || a.town || a.village || a.municipality || a.county || a.state || '';
+      if (ciudad) $(cfg.ciudad).value = ciudad;
+      return !!dir;
+    }
+    async function usarDir() {
+      if (!hay()) return;
+      var b = id('UsarDir'); b.disabled = true;
+      estado('Buscando la dirección de ese punto…');
+      try {
+        var ok = await direccionDe(punto.lat, punto.lng);
+        estado(ok ? '✓ Dirección actualizada. Revísala y corrígela si hace falta.' : 'Ese punto no tiene calle conocida. Escribe la dirección a mano.');
+        b.hidden = true;
+      } catch (e) {
+        estado('No se pudo leer la dirección de ese punto. Escríbela a mano.');
+      } finally { b.disabled = false; }
+    }
+    function gps() {
+      error('');
+      if (!navigator.geolocation) {
+        error('Este teléfono no permite detectar la ubicación. Escribe la dirección a mano.');
+        return;
+      }
+      var btn = id('Gps'); btn.disabled = true;
+      estado('Buscando tu ubicación…');
+      navigator.geolocation.getCurrentPosition(async function (pos) {
+        fijar(pos.coords.latitude, pos.coords.longitude, false);
+        id('UsarDir').hidden = true;
+        mostrar(true);
+        estado('Ubicación encontrada. Buscando la dirección…');
+        try {
+          await direccionDe(punto.lat, punto.lng);
+          estado('✓ Punto marcado. Si no es exacto, arrastra el punto hasta tu negocio.');
+        } catch (e) {
+          estado('✓ Punto marcado. Escribe la dirección a mano; puedes arrastrar el punto.');
+        } finally { btn.disabled = false; }
+      }, function (err) {
+        btn.disabled = false; estado('');
+        var m = { 1: 'No diste permiso de ubicación. Escribe la dirección a mano o actívalo en Ajustes.',
+                  2: 'No se pudo obtener tu ubicación. Escribe la dirección a mano.',
+                  3: 'La ubicación tardó demasiado. Inténtalo de nuevo o escríbela a mano.' };
+        error(m[err && err.code] || m[2]);
+      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+    }
+
+    id('Gps').addEventListener('click', gps);
+    id('Elegir').addEventListener('click', elegir);
+    id('Quitar').addEventListener('click', quitar);
+    id('UsarDir').addEventListener('click', usarDir);
+
+    return {
+      // Pone un punto ya conocido (o ninguno) y deja el resto limpio.
+      poner: function (lat, lng) {
+        punto = { lat: lat == null ? null : Number(lat), lng: lng == null ? null : Number(lng) };
+        id('UsarDir').hidden = true; estado(''); error('');
+        return mostrar(true);
+      },
+      punto: function () { return hay() ? { lat: punto.lat, lng: punto.lng } : { lat: null, lng: null }; },
+      reiniciar: function () {
+        punto = { lat: null, lng: null };
+        id('Mapa').hidden = true; id('UsarDir').hidden = true; estado(''); error('');
+      }
+    };
   }
-  // Rellena dirección y ciudad con lo que hay en ese punto (OpenStreetMap).
-  async function direccionDePunto(lat, lng) {
-    var res = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&addressdetails=1',
-                          { headers: { 'Accept-Language': 'es' } });
-    var d = await res.json(), a = (d && d.address) || {};
-    var calle = a.road || a.pedestrian || a.street || '';
-    var partes = [];
-    if (calle) partes.push(calle + (a.house_number ? ' #' + a.house_number : ''));
-    var sector = a.suburb || a.neighbourhood || a.quarter || '';
-    if (sector) partes.push(sector);
-    var dir = partes.join(', ') || String(d.display_name || '').split(',').slice(0, 2).join(',').trim();
-    if (dir) $('ubDir').value = dir;
-    var ciudad = a.city || a.town || a.village || a.municipality || a.county || a.state || '';
-    if (ciudad) $('ubCiudad').value = ciudad;
-    return !!dir;
-  }
-  async function usarDireccionDelPunto() {
-    if (!hayPunto()) return;
-    var b = $('ubUsarDir'); b.disabled = true;
-    estadoUb('Buscando la dirección de ese punto…');
-    try {
-      var ok = await direccionDePunto(ubPunto.lat, ubPunto.lng);
-      estadoUb(ok ? '✓ Dirección actualizada. Revísala y corrígela si hace falta.' : 'Ese punto no tiene calle conocida. Escribe la dirección a mano.');
-      b.hidden = true;
-    } catch (e) {
-      estadoUb('No se pudo leer la dirección de ese punto. Escríbela a mano.');
-    } finally { b.disabled = false; }
-  }
-  function estadoUb(txt) { var e = $('ubEstado'); e.textContent = txt || ''; e.hidden = !txt; }
+  var ubicMia = null;      // «Mi ubicación»
+  var ubicPedido = null;   // carrito (se crean en enlazar())
+
   function llenarUbicacion() {
     $('ubDir').value = ficha.direccion || '';
     $('ubCiudad').value = ficha.ciudad || '';
-    ubPunto = { lat: ficha.lat, lng: ficha.lng };
-    $('ubUsarDir').hidden = true;
-    estadoUb(''); mostrarError('ubError', '');
-    mostrarMapa(true);
-  }
-  function usarGps() {
-    mostrarError('ubError', '');
-    if (!navigator.geolocation) {
-      mostrarError('ubError', 'Este teléfono no permite detectar la ubicación. Escribe la dirección a mano.');
-      return;
-    }
-    var btn = $('ubGps'); btn.disabled = true;
-    estadoUb('Buscando tu ubicación…');
-    navigator.geolocation.getCurrentPosition(async function (pos) {
-      fijarPunto(pos.coords.latitude, pos.coords.longitude, false);
-      $('ubUsarDir').hidden = true;
-      mostrarMapa(true);
-      estadoUb('Ubicación encontrada. Buscando la dirección…');
-      try {
-        await direccionDePunto(ubPunto.lat, ubPunto.lng);
-        estadoUb('✓ Punto marcado. Si no es exacto, arrastra el punto hasta tu negocio.');
-      } catch (e) {
-        estadoUb('✓ Punto marcado. Escribe la dirección a mano; puedes arrastrar el punto.');
-      } finally { btn.disabled = false; }
-    }, function (err) {
-      btn.disabled = false; estadoUb('');
-      var m = { 1: 'No diste permiso de ubicación. Escribe la dirección a mano o actívalo en Ajustes.',
-                2: 'No se pudo obtener tu ubicación. Escribe la dirección a mano.',
-                3: 'La ubicación tardó demasiado. Inténtalo de nuevo o escríbela a mano.' };
-      mostrarError('ubError', m[err && err.code] || m[2]);
-    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+    ubicMia.poner(ficha.lat, ficha.lng);
   }
   async function guardarUbicacion(ev) {
     ev.preventDefault();
@@ -996,10 +1043,11 @@
     if (dir.length < 5) { mostrarError('ubError', MENSAJES.DIRECCION_CORTA); $('ubDir').focus(); return; }
     var btn = $('ubBtn'); btn.disabled = true;
     mostrarError('ubError', '');
+    var pto = ubicMia.punto();
     try {
       await rpc('mayor_guardar_ubicacion', { p_vale: leerVale(), p_direccion: dir, p_ciudad: ciudad,
-                                             p_lat: ubPunto.lat, p_lng: ubPunto.lng });
-      ficha.direccion = dir; ficha.ciudad = ciudad; ficha.lat = ubPunto.lat; ficha.lng = ubPunto.lng;
+                                             p_lat: pto.lat, p_lng: pto.lng });
+      ficha.direccion = dir; ficha.ciudad = ciudad; ficha.lat = pto.lat; ficha.lng = pto.lng;
       $('cDireccion').value = dir; if (ciudad) $('cCiudad').value = ciudad;   // el pedido la usa ya
       toast('📍 Dirección guardada. Saldrá rellena en tus pedidos.');
     } catch (e) {
@@ -1202,10 +1250,13 @@
     $('fPerfil').addEventListener('submit', guardarPerfil);
     $('fClave').addEventListener('submit', cambiarClave);
     $('fUbicacion').addEventListener('submit', guardarUbicacion);
-    $('ubGps').addEventListener('click', usarGps);
-    $('ubElegir').addEventListener('click', elegirEnMapa);
-    $('ubQuitar').addEventListener('click', quitarPunto);
-    $('ubUsarDir').addEventListener('click', usarDireccionDelPunto);
+    // 540 · El mismo mapa en «Mi ubicación» y en el carrito (cada uno el suyo).
+    ubicMia = crearUbicador({ prefijo: 'ub', error: 'ubError', dir: 'ubDir', ciudad: 'ubCiudad' });
+    ubicPedido = crearUbicador({
+      prefijo: 'cu', error: 'cuError', dir: 'cDireccion', ciudad: 'cCiudad',
+      // «marcar yo mismo» empieza en su punto guardado, si lo tiene
+      inicio: function () { return (ficha.lat != null && ficha.lng != null) ? [Number(ficha.lat), Number(ficha.lng)] : null; }
+    });
     $('mzSoporteFondo').addEventListener('click', cerrarSoporte);
     $('mzSoporteCancelar').addEventListener('click', cerrarSoporte);
     $('mzSoporteOpc').addEventListener('click', function (e) { if (e.target.closest('a')) cerrarSoporte(); });

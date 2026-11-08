@@ -13,12 +13,12 @@
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
   <!-- Mismo diseño que la tienda + lo propio de mayoristas -->
   <link rel="stylesheet" href="css/style.css?v=341" />
-  <link rel="stylesheet" href="css/mayor.css?v=4" />
+  <link rel="stylesheet" href="css/mayor.css?v=5" />
   <script>
     /* Versión: si cambia, recarga una vez para no quedarse con ficheros viejos */
     (function () {
       try {
-        var VER = 'M6', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
+        var VER = 'M7', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
         if (s !== VER) { sessionStorage.setItem(KEY, VER); if (s !== null) location.reload(); }
       } catch (e) {}
     })();
@@ -166,6 +166,23 @@
       <label class="mz-opcion"><input type="radio" name="entrega" value="recogida" />
         <span><b>Recoger en el almacén</b><small>Pago al recoger · sin envío</small></span></label>
       <div id="campoDireccion">
+        <!-- 540 · Las mismas ayudas que «Mi ubicación»: GPS o marcar el punto en el mapa -->
+        <div class="mz-ubic-carrito">
+          <button type="button" class="mz-gps" id="cuGps"><i class="fas fa-crosshairs"></i> Usar mi ubicación actual (mapa)</button>
+          <button type="button" class="mz-link" id="cuElegir"><i class="fas fa-map-location-dot"></i> o marcar el punto en el mapa yo mismo</button>
+          <p class="mz-ub-estado" id="cuEstado" hidden></p>
+          <div class="mz-mapa" id="cuMapa" hidden>
+            <div class="mz-mapa__lienzo" id="cuMapaLienzo" role="application" aria-label="Mapa: arrastra el punto hasta tu negocio"></div>
+            <div class="mz-mapa__pie">
+              <span><i class="fas fa-hand-pointer"></i> Arrastra el punto o toca el mapa</span>
+              <span class="mz-mapa__acc">
+                <button type="button" class="mz-link" id="cuUsarDir" hidden>Usar la dirección de este punto</button>
+                <button type="button" class="mz-link mz-link--rojo" id="cuQuitar">Quitar punto</button>
+              </span>
+            </div>
+          </div>
+          <p class="mz-error" id="cuError" role="alert" hidden></p>
+        </div>
         <label class="mz-campo">Dirección de entrega
           <textarea id="cDireccion" rows="2" maxlength="300" placeholder="Calle, número, sector, referencia"></textarea></label>
         <label class="mz-campo">Ciudad
@@ -325,6 +342,6 @@
 <!-- 538 · Capa de la app (escáner nativo). Fuera de la app no hace nada. -->
 <script src="js/nativo.js?v=8"></script>
 <script src="js/api.js?v=365"></script>
-<script src="js/mayor.js?v=6"></script>
+<script src="js/mayor.js?v=7"></script>
 </body>
 </html>

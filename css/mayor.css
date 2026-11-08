@@ -76,6 +76,10 @@ html.es-app-nativa .mz-buscar input { padding-right: 52px; }
 .mz-link[hidden] { display: none; }
 .mz-link--rojo { color: #c62828; }
 #ubElegir { align-self: center; }
+/* 540 · Las mismas ayudas de ubicación dentro del carrito */
+.mz-ubic-carrito { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.mz-ubic-carrito #cuElegir { align-self: center; }
+.mz-ubic-carrito .mz-error { margin: 0; }
 
 /* Notificaciones */
 .mz-noti { display: flex; gap: 12px; align-items: flex-start; background: #fff; border: 1px solid #e8eee9; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
