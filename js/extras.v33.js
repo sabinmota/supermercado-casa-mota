@@ -465,10 +465,13 @@ async function printOrderPDF(orderId) {
           ? `<span style="background:#e8f5ee;color:#1a7c3e;border:1px solid #b2dfcc;border-radius:20px;padding:1px 7px;font-size:.72rem;font-weight:700">Si</span>`
           : `<span style="background:#f5f5f5;color:#999;border:1px solid #ddd;border-radius:20px;padding:1px 7px;font-size:.72rem;font-weight:700">No</span>`)
       : `<span style="color:#ccc;font-size:.72rem">-</span>`;
+    /* 542 · La foto del producto, igual que en «Ver pedido» (misma fuente:
+     * l.image, y el logo si la foto no carga). */
+    const _foto = String(l.image || '').replace(/"/g, '&quot;');
     return `
     <tr>
       <td>${i+1}</td>
-      <td>${l.name || '-'}</td>
+      <td><div class="prod"><img class="pimg" src="${_foto || 'images/logo-casamota.png'}" alt="" onerror="this.onerror=null;this.src='images/logo-casamota.png'" /><span>${l.name || '-'}</span></div></td>
       <td>${l.unit || '-'}</td>
       <td style="text-align:center">${l.cantidad || 1}</td>
       <td style="text-align:right;white-space:nowrap"><span style="display:inline-flex;justify-content:flex-end;gap:6px;min-width:110px"><span style="color:#888;font-size:.8em;min-width:28px;text-align:right">RD$</span><span style="font-variant-numeric:tabular-nums;min-width:72px;text-align:right">${fmt$(l.price||0)}</span></span></td>
@@ -488,6 +491,7 @@ async function printOrderPDF(orderId) {
     <!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>Pedido #${order.id} — Casa Mota</title>
+    <base href="${location.href.replace(/"/g, '&quot;')}">
     <style>
       * { box-sizing:border-box; }
       body { font-family:Arial,sans-serif; color:#222; margin:0; padding:30px; font-size:13px; }
@@ -509,6 +513,9 @@ async function printOrderPDF(orderId) {
       tbody tr td  { padding:8px 12px; border-bottom:1px solid #e0e8de; font-size:.85rem; }
       tbody tr td:nth-child(5), tbody tr td:nth-child(6) { font-variant-numeric:tabular-nums; }
       tbody tr:nth-child(even) td { background:#f7f9f4; }
+      tbody tr { page-break-inside:avoid; }
+      .prod { display:flex; align-items:center; gap:10px; }
+      .pimg { width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #e5e5e5; background:#fff; flex-shrink:0; }
       .totals { margin-left:auto; width:300px; }
       .totals table { margin:0; }
       .totals td { border:none; padding:5px 10px; font-size:.88rem; }
@@ -596,7 +603,19 @@ async function printOrderPDF(orderId) {
     </body></html>`);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 600);
+  /* 542 · Se imprime cuando TODAS las fotos han cargado (o fallado y puesto
+   * el logo). Antes bastaban 600 ms porque solo había texto; con fotos, el
+   * diálogo de imprimir saldría con huecos en blanco. Tope de 10 s para que
+   * una foto colgada no bloquee la impresión. */
+  const _imgs = Array.from(win.document.images || []);
+  const _cargadas = Promise.all(_imgs.map(img => (img.complete && img.naturalWidth)
+    ? Promise.resolve()
+    : new Promise(res => {
+        img.addEventListener('load', res);
+        img.addEventListener('error', () => setTimeout(res, 300)); // deja cargar el logo de respaldo
+      })));
+  const _tope = new Promise(res => setTimeout(res, 10000));
+  Promise.race([_cargadas, _tope]).then(() => setTimeout(() => win.print(), 200));
 }
 
 
