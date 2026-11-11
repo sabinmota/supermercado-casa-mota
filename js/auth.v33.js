@@ -209,7 +209,9 @@ async function logoutCliente() {
   try {
     if (DB && typeof DB.cerrarSesionCliente === 'function') {
       await Promise.race([
-        DB.cerrarSesionCliente(),
+        // 543 · este móvil deja de recibir avisos de este cliente
+        Promise.all([DB.cerrarSesionCliente(),
+                     DB.olvidarTokenPush ? DB.olvidarTokenPush('cliente') : null]),
         new Promise(r => setTimeout(r, 2500)),
       ]);
     } else if (typeof _borrarValeCliente === 'function') {

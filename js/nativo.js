@@ -394,16 +394,36 @@
    * el token queda en memoria y en consola. Un error aquí no debe impedir
    * que el cliente use la tienda.
    */
+  /* 543 · 🔴 DEFECTO CORREGIDO: aquí se preguntaba por `global.DB`, o sea
+   *    `window.DB`. Pero api.js declara `const DB = {…}`, y un `const` de nivel
+   *    superior NO se cuelga de `window`: `window.DB` era SIEMPRE undefined y el
+   *    token nunca habría llegado a la base, sin ningún error. Se pregunta por
+   *    el identificador `DB` directamente, que sí resuelve el `const` global. */
+  function _db() {
+    try { return (typeof DB !== 'undefined' && DB) ? DB : null; } catch (e) { return null; }
+  }
+
   function _guardarToken(token) {
     if (!token) return;
-    try { global.sessionStorage.setItem('cm_push_token', token); } catch (e) { /* nada */ }
-    if (global.DB && typeof global.DB.guardarTokenPush === 'function') {
-      global.DB.guardarTokenPush(token).catch(function (e) {
+    var db = _db();
+    if (db && typeof db.guardarTokenPush === 'function') {
+      db.guardarTokenPush(token).then(function (r) {
+        log('token guardado en la base', r);
+      }).catch(function (e) {
         log('no se pudo guardar el token en la base (no es crítico): ' + e.message);
       });
     } else {
-      log('DB.guardarTokenPush no existe todavía — el token queda solo en memoria');
+      log('DB.guardarTokenPush no existe en esta página — el token queda solo en memoria');
     }
+  }
+
+  /* 543 · Para llamar justo después de entrar (por ejemplo en /mayor): si el
+   * móvil ya tiene token se vuelve a unir a la cuenta que acaba de entrar; si
+   * no, se pide el permiso y se registra. */
+  function registrarPush() {
+    if (!pushDisponible()) return Promise.resolve(false);
+    if (_tokenPush) { _guardarToken(_tokenPush); return Promise.resolve(true); }
+    return iniciarPush();
   }
 
   /** Aviso en pantalla cuando llega un push estando la app abierta. */
@@ -612,9 +632,13 @@
     log('push nativo disponible: ' + pushDisponible());
 
     global.setTimeout(function () {
+      /* 543 · También cuenta la sesión de mayorista (/mayor) y la sesión de
+       * cliente recordada en localStorage (auth.js la guarda en los dos). */
       var haySesion = false;
       try {
-        haySesion = !!global.sessionStorage.getItem('cm_client_session');
+        haySesion = !!(global.sessionStorage.getItem('cm_client_session') ||
+                       global.localStorage.getItem('cm_client_session') ||
+                       global.localStorage.getItem('cm_mayor_vale'));
       } catch (e) { /* nada */ }
       if (haySesion) { iniciarPush(); }
       else { log('sin sesión de cliente: el push se pedirá más adelante'); }
@@ -930,6 +954,7 @@
     escanear: escanear,
     pushDisponible: pushDisponible,
     iniciarPush: iniciarPush,
+    registrarPush: registrarPush,   // 543
     tokenPush: tokenPush,
     traza: traza
   };

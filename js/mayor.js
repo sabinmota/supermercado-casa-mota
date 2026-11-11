@@ -211,6 +211,7 @@
       guardarVale(r.vale);
       yo = { id: r.id, nombre: r.nombre, telefono: r.telefono, estado: r.estado };
       $('eClave').value = '';
+      unirMovil();
       await mostrarTienda();
     } catch (e) {
       mostrarError('eError', e.message);
@@ -235,6 +236,7 @@
       guardarVale(r.vale);
       yo = { id: r.id, nombre: r.nombre, telefono: r.telefono, estado: r.estado };
       $('rClave').value = ''; $('rClave2').value = '';
+      unirMovil();
       await mostrarTienda();
       toast('✅ Cuenta creada. Te avisaremos cuando esté aprobada.');
     } catch (e) {
@@ -244,8 +246,20 @@
     }
   }
 
+  /* 543 · Une este móvil a la cuenta para el número del icono (solo dentro
+   * de la app; en el navegador no hace nada). No frena nada si falla. */
+  function unirMovil() {
+    try {
+      if (window.CasaMotaNativo && typeof CasaMotaNativo.registrarPush === 'function') {
+        CasaMotaNativo.registrarPush();
+      }
+    } catch (e) {}
+  }
+
   async function salir() {
     var v = leerVale();
+    // 543 · este móvil deja de recibir avisos de esta cuenta mayorista
+    try { if (typeof DB !== 'undefined' && DB.olvidarTokenPush) DB.olvidarTokenPush('mayor'); } catch (e) {}
     cerrarLocal('');
     if (v) { try { await rpc('mayor_salir', { p_vale: v }); } catch (e) {} }
   }

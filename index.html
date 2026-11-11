@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '515', KEY = 'cm_app_ver';
+        var VER = '516', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1430,12 +1430,12 @@
        corre dentro de la app de iOS/Android. En un navegador normal no hace
        nada. DEBE ir antes de app.js, que pregunta por CasaMotaNativo dentro
        de openBarcodeScanner(). -->
-  <script src="js/nativo.js?v=8"></script>
-  <script src="js/api.js?v=365"></script>
+  <script src="js/nativo.js?v=9"></script>
+  <script src="js/api.js?v=366"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
        Debe cargarse ANTES de favorites.js, app.js y chat.js. -->
   <script src="js/almacen-cliente.js?v=1"></script>
-  <script src="js/auth.js?v=208"></script>
+  <script src="js/auth.js?v=209"></script>
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=303"></script>
   <script src="js/favorites.js?v=285"></script>

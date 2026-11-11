@@ -1625,11 +1625,57 @@ const DB = {
    *
    * @param {string} token  Token APNs (iOS) o FCM (Android)
    */
+  /* 543 · Ya tiene destino: `seguridad/109-dispositivos-push.sql`.
+   * El móvil se une a la cuenta que tenga sesión abierta: cliente de la
+   * tienda (vale en sessionStorage), mayorista (vale de /mayor en
+   * localStorage), o las dos. Sin ninguna sesión no se guarda nada.
+   * Nunca lanza: un fallo de push no debe impedir usar la tienda. */
   async guardarTokenPush(token) {
     if (!token) return null;
-    console.log('[api] token de push recibido, aún sin destino en la base:',
-                String(token).slice(0, 12) + '…');
-    return { guardado: false, motivo: 'FALTA_TABLA_DISPOSITIVOS' };
+    let plataforma = 'ios';
+    try {
+      const p = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform();
+      if (p === 'android') plataforma = 'android';
+    } catch (e) { /* se queda en ios */ }
+    try { localStorage.setItem('cm_push_token', token); } catch (e) { /* nada */ }
+
+    const res = { cliente: false, mayor: false };
+    const llamar = async (fn, vale) => {
+      const r = await fetch(`${_SB_URL}/rpc/${fn}`, {
+        method: 'POST', headers: _SB_HEADERS,
+        body: JSON.stringify({ p_vale: vale, p_token: token, p_plataforma: plataforma }),
+      });
+      if (!r.ok) throw new Error(fn + ' ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      return true;
+    };
+
+    const valeCli = _valeCliente();
+    if (valeCli) {
+      try { res.cliente = await llamar('cliente_guardar_push', valeCli); }
+      catch (e) { console.warn('[api] no se guardó el móvil del cliente:', e.message); }
+    }
+    let valeMay = '';
+    try { valeMay = localStorage.getItem('cm_mayor_vale') || ''; } catch (e) { /* nada */ }
+    if (valeMay) {
+      try { res.mayor = await llamar('mayor_guardar_push', valeMay); }
+      catch (e) { console.warn('[api] no se guardó el móvil del mayorista:', e.message); }
+    }
+    return res;
+  },
+
+  /* 543 · Al cerrar sesión, ese móvil deja de recibir avisos de ESA cuenta.
+   * tipo: 'cliente' | 'mayor'. Nunca lanza. */
+  async olvidarTokenPush(tipo) {
+    let token = '';
+    try { token = localStorage.getItem('cm_push_token') || ''; } catch (e) { /* nada */ }
+    if (!token) return false;
+    try {
+      await fetch(`${_SB_URL}/rpc/push_olvidar`, {
+        method: 'POST', headers: _SB_HEADERS,
+        body: JSON.stringify({ p_token: token, p_tipo: tipo }),
+      });
+      return true;
+    } catch (e) { return false; }
   },
 
   /**
