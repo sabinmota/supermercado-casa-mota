@@ -159,6 +159,7 @@
     cerrarDetalle(); cerrarCuenta(); cerrarSoporte();
     guardarVale(''); yo = null;
     favoritos = []; avisos = []; fichaLista = false;
+    numeroIcono(0);   // 543 · sin sesión no hay avisos que contar
     ficha = { rnc: '', direccion: '', ciudad: '', lat: null, lng: null };
     $('mzAcciones').hidden = true;
     cerrarPaneles();
@@ -1084,6 +1085,15 @@
   function pintarContadorAvisos() {
     var n = avisos.filter(function (a) { return !a.leido; }).length;
     var b = $('cuentaAvisos'); b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
+    numeroIcono(n);
+  }
+  // 543 · el mismo número en el icono de la app (solo dentro de la app)
+  function numeroIcono(n) {
+    try {
+      if (window.CasaMotaNativo && typeof CasaMotaNativo.numeroIcono === 'function') {
+        CasaMotaNativo.numeroIcono('mayor', n);
+      }
+    } catch (e) {}
   }
   var ICONO_AVISO = { aprobada: 'circle-check', pedido: 'truck-fast', cancelado: 'circle-xmark', entregado: 'box-open' };
   function pintarAvisos() {

@@ -426,6 +426,40 @@
     return iniciarPush();
   }
 
+  // ═════════════════════════════════════════════════════════════════════════
+  //  543 · NÚMERO ROJO EN EL ICONO DE LA APP
+  // ═════════════════════════════════════════════════════════════════════════
+  /* Plugin `@capawesome/capacitor-badge` (se registra como `Badge`).
+   * En el mismo móvil pueden estar abiertas la cuenta de la tienda y la de
+   * mayorista: cada página solo conoce SUS avisos, así que se guarda la cifra
+   * de cada tipo y el icono muestra la SUMA. Es la misma suma que mandará el
+   * servidor en la fase 3, para que el número no salte al abrir la app.
+   * Sin el plugin (navegador, o app vieja) no hace nada y no falla. */
+  var NOMBRE_BADGE = 'Badge';
+  var TIPOS_BADGE  = ['cliente', 'mayor'];
+
+  function numeroIcono(tipo, n) {
+    if (TIPOS_BADGE.indexOf(tipo) === -1) return Promise.resolve(false);
+    var cifra = Math.max(0, parseInt(n, 10) || 0);
+    try { global.localStorage.setItem('cm_badge_' + tipo, String(cifra)); } catch (e) { /* nada */ }
+    if (!esNativo()) return Promise.resolve(false);
+    var b = _plugin(NOMBRE_BADGE);
+    if (!b || typeof b.set !== 'function') return Promise.resolve(false);
+
+    var total = 0;
+    TIPOS_BADGE.forEach(function (t) {
+      try { total += parseInt(global.localStorage.getItem('cm_badge_' + t), 10) || 0; } catch (e) { /* nada */ }
+    });
+    var p = total > 0 ? b.set({ count: total }) : b.clear();
+    return Promise.resolve(p).then(function () {
+      log('número del icono: ' + total);
+      return true;
+    }).catch(function (e) {
+      log('no se pudo poner el número del icono: ' + ((e && e.message) || e));
+      return false;
+    });
+  }
+
   /** Aviso en pantalla cuando llega un push estando la app abierta. */
   function _mostrarAviso(n) {
     var titulo = (n && n.title) || 'Casa Mota';
@@ -955,6 +989,7 @@
     pushDisponible: pushDisponible,
     iniciarPush: iniciarPush,
     registrarPush: registrarPush,   // 543
+    numeroIcono: numeroIcono,       // 543
     tokenPush: tokenPush,
     traza: traza
   };

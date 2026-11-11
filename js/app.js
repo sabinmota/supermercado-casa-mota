@@ -6100,6 +6100,10 @@ async function loadClientNotificaciones() {
 
     // Mostrar badge en el botón "Mi cuenta"
     _updateClientNotiBadge(unread);
+    // 543 · el mismo número en el icono de la app (solo dentro de la app)
+    if (window.CasaMotaNativo && typeof CasaMotaNativo.numeroIcono === 'function') {
+      CasaMotaNativo.numeroIcono('cliente', unread);
+    }
 
     return all;
   } catch(e) { return []; }

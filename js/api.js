@@ -1666,6 +1666,12 @@ const DB = {
   /* 543 · Al cerrar sesión, ese móvil deja de recibir avisos de ESA cuenta.
    * tipo: 'cliente' | 'mayor'. Nunca lanza. */
   async olvidarTokenPush(tipo) {
+    // El número del icono deja de contar los avisos de esta cuenta.
+    try {
+      if (window.CasaMotaNativo && typeof CasaMotaNativo.numeroIcono === 'function') {
+        CasaMotaNativo.numeroIcono(tipo, 0);
+      }
+    } catch (e) { /* nada */ }
     let token = '';
     try { token = localStorage.getItem('cm_push_token') || ''; } catch (e) { /* nada */ }
     if (!token) return false;

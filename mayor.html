@@ -18,7 +18,7 @@
     /* Versión: si cambia, recarga una vez para no quedarse con ficheros viejos */
     (function () {
       try {
-        var VER = 'M8', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
+        var VER = 'M9', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
         if (s !== VER) { sessionStorage.setItem(KEY, VER); if (s !== null) location.reload(); }
       } catch (e) {}
     })();
@@ -340,8 +340,8 @@
 
 <!-- api.js solo aporta la dirección y la clave pública de la base (_SB_URL, _SB_HEADERS) -->
 <!-- 538 · Capa de la app (escáner nativo). Fuera de la app no hace nada. -->
-<script src="js/nativo.js?v=9"></script>
-<script src="js/api.js?v=366"></script>
-<script src="js/mayor.js?v=8"></script>
+<script src="js/nativo.js?v=10"></script>
+<script src="js/api.js?v=367"></script>
+<script src="js/mayor.js?v=9"></script>
 </body>
 </html>
