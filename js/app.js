@@ -1648,6 +1648,24 @@ function filterCategory(cat) {
 
 function handleSearch() {
   const raw = (document.getElementById('searchInput')?.value || '').trim();
+
+  /* 543c · Palabra secreta `diagpush`: muestra en el teléfono el estado del
+   * push y del número del icono. El iPhone no se puede conectar al Mac remoto,
+   * así que esta es la única forma de ver qué pasa dentro de la app. */
+  if (raw.toLowerCase() === 'diagpush') {
+    document.getElementById('searchInput').value = '';
+    currentSearch = '';
+    _hideLiveResults();
+    if (window.CasaMotaNativo && typeof CasaMotaNativo.diagnosticoPush === 'function') {
+      CasaMotaNativo.diagnosticoPush()
+        .then(t => alert('Diagnóstico push\n\n' + t))
+        .catch(e => alert('Diagnóstico push: error ' + (e && e.message)));
+    } else {
+      alert('Diagnóstico push: esta página no tiene la capa nativa.');
+    }
+    return;
+  }
+
   currentSearch = raw;
 
   // Cerrar dropdown de sugerencias al ejecutar búsqueda

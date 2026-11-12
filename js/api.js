@@ -1639,7 +1639,9 @@ const DB = {
     } catch (e) { /* se queda en ios */ }
     try { localStorage.setItem('cm_push_token', token); } catch (e) { /* nada */ }
 
-    const res = { cliente: false, mayor: false };
+    // 543c · se devuelve también QUÉ sesiones había y el texto de cada error,
+    // para el diagnóstico que se lee en el teléfono.
+    const res = { cliente: false, mayor: false, valeCliente: false, valeMayor: false, errores: [] };
     const llamar = async (fn, vale) => {
       const r = await fetch(`${_SB_URL}/rpc/${fn}`, {
         method: 'POST', headers: _SB_HEADERS,
@@ -1650,15 +1652,17 @@ const DB = {
     };
 
     const valeCli = _valeCliente();
+    res.valeCliente = !!valeCli;
     if (valeCli) {
       try { res.cliente = await llamar('cliente_guardar_push', valeCli); }
-      catch (e) { console.warn('[api] no se guardó el móvil del cliente:', e.message); }
+      catch (e) { res.errores.push(e.message); console.warn('[api] no se guardó el móvil del cliente:', e.message); }
     }
     let valeMay = '';
     try { valeMay = localStorage.getItem('cm_mayor_vale') || ''; } catch (e) { /* nada */ }
+    res.valeMayor = !!valeMay;
     if (valeMay) {
       try { res.mayor = await llamar('mayor_guardar_push', valeMay); }
-      catch (e) { console.warn('[api] no se guardó el móvil del mayorista:', e.message); }
+      catch (e) { res.errores.push(e.message); console.warn('[api] no se guardó el móvil del mayorista:', e.message); }
     }
     return res;
   },

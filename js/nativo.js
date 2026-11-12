@@ -304,6 +304,23 @@
   var _tokenPush = null;
   var _pushIniciado = false;
 
+  /* 543c · DIAGNÓSTICO LEGIBLE EN EL TELÉFONO.
+   * Medido el 11-nov: permiso aceptado y `dispositivos_push` VACÍA. El iPhone
+   * no se puede conectar al Mac remoto, así que la consola no se ve. Cada paso
+   * del push queda guardado aquí (últimas 30 líneas, sin tokens ni vales
+   * completos) y se lee escribiendo `diagpush` en el buscador de la tienda. */
+  var K_DIAG = 'cm_push_diag';
+  function diag(msg) {
+    log('[push] ' + msg);
+    try {
+      var l = JSON.parse(global.localStorage.getItem(K_DIAG) || '[]');
+      var d = new Date();
+      var h = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+      l.push(h + ' ' + msg);
+      global.localStorage.setItem(K_DIAG, JSON.stringify(l.slice(-30)));
+    } catch (e) { /* nada */ }
+  }
+
   function pushDisponible() {
     if (!esNativo()) return false;
     var p = _plugin(NOMBRE_PUSH);
@@ -327,26 +344,28 @@
    *    en todo el JavaScript del proyecto. Estaba configurado y muerto.
    */
   async function iniciarPush() {
-    if (!pushDisponible()) { log('iniciarPush(): no hay push nativo'); return false; }
-    if (_pushIniciado) { log('push ya estaba iniciado'); return true; }
+    if (!pushDisponible()) { diag('iniciarPush: no hay plugin de push'); return false; }
+    if (_pushIniciado) { diag('iniciarPush: ya estaba iniciado'); return true; }
 
     var p = _plugin(NOMBRE_PUSH);
+    diag('iniciarPush: empieza');
 
     try {
       var estado = await p.checkPermissions();
+      diag('permiso antes: ' + (estado && estado.receive));
       if (estado && estado.receive === 'denied') {
-        log('push DENEGADO de antes — hay que ir a Ajustes');
+        diag('permiso DENEGADO de antes: hay que activarlo en Ajustes');
         return false;
       }
       if (!estado || estado.receive !== 'granted') {
         var pedido = await p.requestPermissions();
+        diag('permiso pedido: ' + (pedido && pedido.receive));
         if (!pedido || pedido.receive !== 'granted') {
-          log('el usuario no concedió permiso de notificaciones', pedido);
           return false;
         }
       }
     } catch (e) {
-      log('error pidiendo permiso de push: ' + e.message);
+      diag('ERROR pidiendo permiso: ' + ((e && e.message) || e));
       return false;
     }
 
@@ -363,12 +382,14 @@
     try {
       p.addListener('registration', function (t) {
         _tokenPush = (t && t.value) || null;
-        log('token de push recibido', _tokenPush ? (_tokenPush.slice(0, 12) + '…') : null);
+        diag('token recibido de Apple: ' + (_tokenPush ? (_tokenPush.length + ' car., empieza ' + _tokenPush.slice(0, 6)) : 'VACÍO'));
         _guardarToken(_tokenPush);
       });
 
       p.addListener('registrationError', function (err) {
-        log('ERROR de registro de push', err);
+        var m = '';
+        try { m = (err && (err.error || err.message)) || JSON.stringify(err); } catch (e) { m = String(err); }
+        diag('ERROR de Apple al registrar: ' + m);
       });
 
       // Notificación con la app abierta: iOS no la muestra sola.
@@ -388,10 +409,10 @@
 
       await p.register();
       _pushIniciado = true;
-      log('push nativo registrado');
+      diag('register() hecho: esperando el token de Apple');
       return true;
     } catch (e) {
-      log('fallo registrando push: ' + e.message);
+      diag('ERROR en register(): ' + ((e && e.message) || e));
       return false;
     }
   }
@@ -416,12 +437,15 @@
     var db = _db();
     if (db && typeof db.guardarTokenPush === 'function') {
       db.guardarTokenPush(token).then(function (r) {
-        log('token guardado en la base', r);
+        r = r || {};
+        diag('guardar en la base: cliente=' + (r.cliente ? 'OK' : 'no') + ' mayor=' + (r.mayor ? 'OK' : 'no') +
+             ' · sesiones: cliente=' + (r.valeCliente ? 'sí' : 'NO') + ' mayor=' + (r.valeMayor ? 'sí' : 'NO') +
+             (r.errores && r.errores.length ? ' · ERRORES: ' + r.errores.join(' | ') : ''));
       }).catch(function (e) {
-        log('no se pudo guardar el token en la base (no es crítico): ' + e.message);
+        diag('ERROR guardando en la base: ' + ((e && e.message) || e));
       });
     } else {
-      log('DB.guardarTokenPush no existe en esta página — el token queda solo en memoria');
+      diag('esta página no tiene DB.guardarTokenPush: el token no se guardó');
     }
   }
 
@@ -469,9 +493,53 @@
       log('número del icono: ' + total);
       return true;
     }).catch(function (e) {
-      log('no se pudo poner el número del icono: ' + ((e && e.message) || e));
+      diag('ERROR poniendo el número del icono (' + total + '): ' + ((e && e.message) || e));
       return false;
     });
+  }
+
+  /* 543c · Informe para leer en el teléfono (buscador → `diagpush`).
+   * Si hay permiso y aún no llegó el token, lo vuelve a intentar y espera 4 s
+   * antes de informar. No muestra tokens ni vales completos. */
+  async function diagnosticoPush() {
+    var lineas = [];
+    var ls = function (k) { try { return global.localStorage.getItem(k); } catch (e) { return null; } };
+    var ss = function (k) { try { return global.sessionStorage.getItem(k); } catch (e) { return null; } };
+    lineas.push('App nativa: ' + (esNativo() ? 'sí (' + plataforma() + ')' : 'NO'));
+    lineas.push('Plugin push: ' + (pushDisponible() ? 'sí' : 'NO'));
+    var b = _plugin(NOMBRE_BADGE);
+    lineas.push('Plugin número (Badge): ' + (b && typeof b.set === 'function' ? 'sí' : 'NO'));
+
+    var permiso = '?';
+    try {
+      var pp = _plugin(NOMBRE_PUSH);
+      if (pp) { var e1 = await pp.checkPermissions(); permiso = e1 && e1.receive; }
+    } catch (e) { permiso = 'error: ' + ((e && e.message) || e); }
+    lineas.push('Permiso notificaciones: ' + permiso);
+    try {
+      if (b && typeof b.checkPermissions === 'function') {
+        var e2 = await b.checkPermissions();
+        lineas.push('Permiso número: ' + (e2 && e2.display));
+      }
+    } catch (e) { lineas.push('Permiso número: error ' + ((e && e.message) || e)); }
+
+    if (permiso === 'granted' && !_tokenPush) {
+      lineas.push('→ Sin token todavía: reintentando…');
+      _pushIniciado = false;
+      await iniciarPush();
+      await new Promise(function (r) { global.setTimeout(r, 4000); });
+    }
+
+    lineas.push('Token: ' + (_tokenPush ? 'sí (' + _tokenPush.length + ' car.)' : 'NO'));
+    lineas.push('Sesión cliente (vale): ' + (ss('cm_cliente_vale') ? 'sí' : 'NO'));
+    lineas.push('Sesión mayorista (vale): ' + (ls('cm_mayor_vale') ? 'sí' : 'NO'));
+    lineas.push('Cifras guardadas: cliente=' + (ls('cm_badge_cliente') || '0') + ' mayor=' + (ls('cm_badge_mayor') || '0'));
+    var hist = [];
+    try { hist = JSON.parse(ls(K_DIAG) || '[]'); } catch (e) { hist = []; }
+    lineas.push('');
+    lineas.push('Últimos pasos:');
+    lineas = lineas.concat(hist.length ? hist.slice(-12) : ['(ninguno)']);
+    return lineas.join('\n');
   }
 
   /** Aviso en pantalla cuando llega un push estando la app abierta. */
@@ -1011,6 +1079,7 @@
     iniciarPush: iniciarPush,
     registrarPush: registrarPush,   // 543
     numeroIcono: numeroIcono,       // 543
+    diagnosticoPush: diagnosticoPush, // 543c
     tokenPush: tokenPush,
     traza: traza
   };
