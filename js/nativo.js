@@ -350,6 +350,14 @@
       return false;
     }
 
+    /* 543b · 🔴 DEFECTO MEDIDO EN EL IPHONE DEL DUEÑO (11-nov, TestFlight 1.0.1 (4)):
+     *    21 avisos sin leer, permiso aceptado… y el icono SIN número.
+     *    CAUSA: la tienda cuenta los avisos a los 2 s de cargar y pone el número;
+     *    el permiso se pide a los 8 s. iOS IGNORA en silencio un número puesto
+     *    sin permiso, y nadie lo volvía a poner después del «Permitir».
+     *    Ahora, en cuanto hay permiso, se vuelve a poner la cifra guardada. */
+    reaplicarIcono();
+
     // Los oyentes se enganchan ANTES de register(): el suceso 'registration'
     // puede llegar de inmediato y sin oyente se perdería el token.
     try {
@@ -442,6 +450,12 @@
     if (TIPOS_BADGE.indexOf(tipo) === -1) return Promise.resolve(false);
     var cifra = Math.max(0, parseInt(n, 10) || 0);
     try { global.localStorage.setItem('cm_badge_' + tipo, String(cifra)); } catch (e) { /* nada */ }
+    return reaplicarIcono();
+  }
+
+  /* 543b · Pone en el icono la suma guardada. Se llama al cambiar una cifra,
+   * al conceder el permiso y al salir de la app (por si iOS ignoró la última). */
+  function reaplicarIcono() {
     if (!esNativo()) return Promise.resolve(false);
     var b = _plugin(NOMBRE_BADGE);
     if (!b || typeof b.set !== 'function') return Promise.resolve(false);
@@ -664,6 +678,13 @@
     }
     log('escáner nativo disponible: ' + escanerDisponible());
     log('push nativo disponible: ' + pushDisponible());
+
+    // 543b · al salir de la app se vuelve a poner el número del icono
+    try {
+      global.document.addEventListener('visibilitychange', function () {
+        if (global.document.hidden) reaplicarIcono();
+      });
+    } catch (e) { /* nada */ }
 
     global.setTimeout(function () {
       /* 543 · También cuenta la sesión de mayorista (/mayor) y la sesión de
