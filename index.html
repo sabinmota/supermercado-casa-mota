@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '523', KEY = 'cm_app_ver';
+        var VER = '524', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -1449,6 +1449,8 @@
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/busqueda-voz.js?v=2"></script>
+  <!-- 546 · La cabecera sigue pegada arriba con el teclado abierto (iPhone) -->
+  <script src="js/cabecera-fija.js?v=1"></script>
   <script src="js/location.js?v=122"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html.
        533 · La tienda ya no usa IA: tampoco carga js/ia-modelos.js. -->

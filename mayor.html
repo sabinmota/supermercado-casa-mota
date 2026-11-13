@@ -18,7 +18,7 @@
     /* Versión: si cambia, recarga una vez para no quedarse con ficheros viejos */
     (function () {
       try {
-        var VER = 'M15', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
+        var VER = 'M16', KEY = 'cm_mayor_ver', s = sessionStorage.getItem(KEY);
         if (s !== VER) { sessionStorage.setItem(KEY, VER); if (s !== null) location.reload(); }
       } catch (e) {}
     })();
@@ -343,5 +343,7 @@
 <script src="js/nativo.js?v=13"></script>
 <script src="js/api.js?v=368"></script>
 <script src="js/mayor.js?v=9"></script>
+<!-- 546 · La cabecera sigue pegada arriba con el teclado abierto (iPhone) -->
+<script src="js/cabecera-fija.js?v=1"></script>
 </body>
 </html>
