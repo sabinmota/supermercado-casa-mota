@@ -374,6 +374,33 @@ input, select { font-family: var(--font); }
 .barcode-scan-btn { display: none; }
 html.es-app-nativa .barcode-scan-btn { display: flex; }
 
+/* 545 · Búsqueda por voz (js/busqueda-voz.js). Oculto por defecto: solo sale
+   cuando el navegador sabe dictar (`voz-disponible` en <html>). En la app
+   NO sale hasta la versión 1.0.2: iOS cierra la app si pide el micrófono sin
+   tenerlo declarado en el Info.plist. */
+.voice-search-btn {
+  background: none; border: none; padding: 0 10px;
+  color: var(--green-primary);
+  font-size: 1.25rem; line-height: 1;
+  min-width: 44px; min-height: 44px;
+  cursor: pointer; display: none;
+  align-items: center; justify-content: center;
+  transition: color var(--transition), background var(--transition), transform .1s ease;
+}
+html.voz-disponible .voice-search-btn { display: flex; }
+html.es-app-nativa .voice-search-btn { display: none !important; }
+.voice-search-btn:hover  { color: var(--green-dark); }
+.voice-search-btn:active { transform: scale(.92); }
+/* Escuchando: sigue siendo el MISMO icono de micrófono (sin fondo ni
+   cuadrado de «grabar»). Solo cambia a rojo y late suavemente. */
+.voice-search-btn.escuchando,
+.voice-search-btn.escuchando:hover { color: var(--red-accent); background: none; }
+.voice-search-btn.escuchando i { animation: vozLatido 1s ease-in-out infinite; }
+@keyframes vozLatido {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.18); opacity: .6; }
+}
+
 /* ============================================================
    ESCÁNER DE CÓDIGO DE BARRAS — v119
    ============================================================ */

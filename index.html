@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '521', KEY = 'cm_app_ver';
+        var VER = '523', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=342" />
+  <link rel="stylesheet" href="css/style.css?v=344" />
   <link rel="stylesheet" href="css/logo-animado.css?v=7" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
@@ -291,6 +291,12 @@
           <input type="text" id="searchInput" class="search-input" placeholder="¿Qué necesitas hoy?" />
           <button class="barcode-scan-btn" onclick="openBarcodeScanner()" title="Escanear código de barras">
             <i class="fas fa-barcode"></i>
+          </button>
+          <!-- 545 · búsqueda por voz (js/busqueda-voz.js). Solo aparece si el
+               navegador sabe dictar; en la app, hasta la versión 1.0.2. -->
+          <button class="voice-search-btn" id="btnVozBuscar" type="button" onclick="buscarPorVoz()"
+                  title="Buscar por voz" aria-label="Buscar por voz" aria-pressed="false">
+            <i class="fas fa-microphone" aria-hidden="true"></i>
           </button>
           <button class="search-btn" onclick="handleSearch()">
             <i class="fas fa-search"></i>
@@ -1442,6 +1448,7 @@
   <script src="js/app.js?v=391"></script>
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
+  <script src="js/busqueda-voz.js?v=2"></script>
   <script src="js/location.js?v=122"></script>
   <!-- js/chat.js (Maya) retirado de la tienda en el build 361 · sigue activo en admin.html.
        533 · La tienda ya no usa IA: tampoco carga js/ia-modelos.js. -->
