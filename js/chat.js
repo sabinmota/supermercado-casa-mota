@@ -240,6 +240,16 @@ function _extractMentionedProducts(text) {
  * Agrega un producto al carrito directamente desde el caché del chat.
  * Evita depender de getLiveProducts() que puede tener datos incompletos.
  */
+/* 544 · Un producto marcado «No disponible» en el panel no se puede añadir
+ * desde el chat. Se mira el badge del propio producto y, si la tienda ya lo
+ * tiene más reciente, el de la tienda. */
+function _chatNoDisp(p) {
+  if (!p) return false;
+  if (p.badge === 'unavailable') return true;
+  if (typeof _noDisponiblePorId === 'function') return _noDisponiblePorId(p.id);
+  return false;
+}
+
 function _chatAddToCart(productId, productName, qty = 1) {
   // 1) Buscar el objeto producto en _chatProdCache por ID
   let prod = productId ? _chatProdCache.find(p => String(p.id) === String(productId)) : null;
@@ -252,6 +262,12 @@ function _chatAddToCart(productId, productName, qty = 1) {
   if (!prod) {
     _chatAppendMsg('bot',
       `⚠️ No encontré "${productName}" en el catálogo. Por favor búscalo en la tienda directamente.`);
+    return;
+  }
+
+  // 544 · «No disponible»: no se añade, y se dice claramente
+  if (_chatNoDisp(prod)) {
+    _chatAppendMsg('bot', `😕 **${prod.name}** no está disponible por ahora. ¿Te busco otra opción?`);
     return;
   }
 
@@ -361,7 +377,7 @@ function _chatRenderCartButtons(products) {
   doneBtn.textContent = '✅ Listo';
   doneBtn.disabled = true;
   doneBtn.addEventListener('click', () => {
-    const toAdd = products.filter(p => selected.has(p.id));
+    const toAdd = products.filter(p => selected.has(p.id) && !_chatNoDisp(p));   // 544
     _pendingCartProducts = [];
     wrap.remove();
 
@@ -1225,7 +1241,7 @@ async function _chatSendMsg(msg) {
     const isConfirm = confirmWords.some(w => msgLower === w || msgLower.startsWith(w + ' ') || msgLower.endsWith(' ' + w));
 
     if (isConfirm) {
-      const toAdd = [..._pendingCartProducts];
+      const toAdd = _pendingCartProducts.filter(p => !_chatNoDisp(p));   // 544
       _pendingCartProducts = [];
       if (sendBtn) sendBtn.disabled = false;
 
@@ -1430,7 +1446,7 @@ async function _chatCallAI(userMsg) {
     .map(p => `• ${p.name} RD$${p.price}${p.unit ? ' / ' + p.unit : ''}`
       + (_IS_ADMIN ? ` · stock: ${p.stock}` : '')
       + (_IS_ADMIN ? ` · ITBIS: ${p.itbis === null || p.itbis === undefined || isNaN(p.itbis) ? 'SIN ASIGNAR' : p.itbis + ' %'}` : '')
-      + (p.badge ? ` [${p.badge}]` : ''))
+      + (p.badge === 'unavailable' ? ' [NO DISPONIBLE: no ofrecerlo]' : p.badge ? ` [${p.badge}]` : ''))
     .join('\n');
 
   // ── Contexto del cliente logueado ─────────────────────────────────────────

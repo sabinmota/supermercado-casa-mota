@@ -426,11 +426,8 @@ function _updateProductCardsDOMOnly(products) {
           const discount = p.originalPrice
             ? Math.round((1 - p.price / p.originalPrice) * 100)
             : null;
-          const txt = p.badge === 'offer'
-            ? (discount != null ? `-${discount}%` : 'Oferta')
-            : p.badge === 'new' ? 'Nuevo' : 'Favorito';
           spanEl.className   = `badge badge-${p.badge}`;
-          spanEl.textContent = txt;
+          spanEl.textContent = _badgeTexto(p, discount);
         }
       }
     } else if (badgeWrap) {
@@ -947,6 +944,25 @@ function loadImg(img) {
   temp.src = src;
 }
 
+/* 544 · Badge «No disponible»: el dueño lo pone en el panel cuando un
+ * producto no se puede vender ahora (se acabó, no llegó el suplidor…). El
+ * producto sigue viéndose, con la etiqueta roja, pero NO se puede añadir al
+ * carrito por ninguna puerta (tarjeta, ficha, chat, favoritos, botón +) y si
+ * ya estaba en el carrito se quita al ir a pagar. */
+function _noDisponible(p) { return !!p && p.badge === 'unavailable'; }
+function _noDisponiblePorId(id) {
+  return _noDisponible(getLiveProducts().find(x => String(x.id) === String(id)));
+}
+
+/* Texto de cada badge. Un solo sitio para la tarjeta, la ficha y la
+ * actualización en vivo (antes se repetía en tres sitios). */
+function _badgeTexto(p, discount) {
+  if (p.badge === 'offer') return discount != null ? `-${discount}%` : 'Oferta';
+  if (p.badge === 'new') return 'Nuevo';
+  if (p.badge === 'unavailable') return 'No disponible';
+  return 'Favorito';
+}
+
 function productCardHTML(p) {
   const discount = p.originalPrice
     ? Math.round((1 - p.price / p.originalPrice) * 100)
@@ -954,7 +970,7 @@ function productCardHTML(p) {
   const badgeHTML = p.badge ? `
     <div class="product-badge">
       <span class="badge badge-${p.badge}">
-        ${p.badge === 'offer' ? (discount != null ? `-${discount}%` : 'Oferta') : p.badge === 'new' ? 'Nuevo' : 'Favorito'}
+        ${_badgeTexto(p, discount)}
       </span>
     </div>` : '';
   const stars = renderStars(p.rating);
@@ -1012,6 +1028,12 @@ function productCardHTML(p) {
  * 525 · `entra = true` solo cuando el cliente ACABA de añadirlo: es lo único
  * que lleva la animación de entrada (ver `.card-stepper--entra`). */
 function _cardCtlInner(id, entra = false) {
+  // 544 · no disponible: botón gris que no añade nada
+  if (_noDisponiblePorId(id)) {
+    return `<button class="add-cart-btn add-cart-btn--nodisp" disabled aria-disabled="true" title="Este producto no está disponible ahora">
+        <i class="fas fa-ban" aria-hidden="true"></i><span>No disponible</span>
+      </button>`;
+  }
   const item = cart.find(c => String(c.id) === String(id));
   if (!item) {
     return `<button class="add-cart-btn" onclick="addToCart('${id}')" title="Agregar al carrito">
@@ -1046,6 +1068,10 @@ function _cardCtlInner(id, entra = false) {
 function _refreshCardCtls() {
   document.querySelectorAll('[data-cart-ctl]').forEach(el => {
     const id      = el.getAttribute('data-cart-ctl');
+    // 544 · si cambió «no disponible», se redibuja el botón entero
+    const nodisp  = _noDisponiblePorId(id);
+    if (nodisp !== !!el.querySelector('.add-cart-btn--nodisp')) { el.innerHTML = _cardCtlInner(id); return; }
+    if (nodisp) return;
     const item    = cart.find(c => String(c.id) === String(id));
     const stepper = el.querySelector('.card-stepper');
     const anadir  = el.querySelector('.add-cart-btn');
@@ -1648,24 +1674,6 @@ function filterCategory(cat) {
 
 function handleSearch() {
   const raw = (document.getElementById('searchInput')?.value || '').trim();
-
-  /* 543c · Palabra secreta `diagpush`: muestra en el teléfono el estado del
-   * push y del número del icono. El iPhone no se puede conectar al Mac remoto,
-   * así que esta es la única forma de ver qué pasa dentro de la app. */
-  if (raw.toLowerCase() === 'diagpush') {
-    document.getElementById('searchInput').value = '';
-    currentSearch = '';
-    _hideLiveResults();
-    if (window.CasaMotaNativo && typeof CasaMotaNativo.diagnosticoPush === 'function') {
-      CasaMotaNativo.diagnosticoPush()
-        .then(t => alert('Diagnóstico push\n\n' + t))
-        .catch(e => alert('Diagnóstico push: error ' + (e && e.message)));
-    } else {
-      alert('Diagnóstico push: esta página no tiene la capa nativa.');
-    }
-    return;
-  }
-
   currentSearch = raw;
 
   // Cerrar dropdown de sugerencias al ejecutar búsqueda
@@ -3050,6 +3058,11 @@ function _hideBarcodeResult() {
 function addToCart(productId, qty = 1) {
   const product = getLiveProducts().find(p => String(p.id) === String(productId));
   if (!product) return;
+  // 544 · la única puerta al carrito: aquí se cierra para «No disponible»
+  if (_noDisponible(product)) {
+    showToast(`<i class="fas fa-ban"></i> ${product.name} no está disponible ahora`, 'warning');
+    return;
+  }
 
   const existing = cart.find(c => String(c.id) === String(productId));
   if (existing) {
@@ -3078,6 +3091,11 @@ function updateQty(productId, delta) {
   const id   = String(productId);
   const item = cart.find(c => String(c.id) === id);
   if (!item) return;
+  // 544 · se puede quitar, pero no sumar, un producto que ya no está disponible
+  if (delta > 0 && _noDisponiblePorId(id)) {
+    showToast(`<i class="fas fa-ban"></i> ${item.name} no está disponible ahora`, 'warning');
+    return;
+  }
   const newQty = item.qty + delta;
   if (newQty <= 0) {
     removeFromCart(id);
@@ -3475,6 +3493,16 @@ async function openCheckout() {
   if (fiscalRNCEl) fiscalRNCEl.value = '';
   const fiscalNombreEl = document.getElementById('chkFiscalNombre');
   if (fiscalNombreEl) fiscalNombreEl.value = '';
+
+  /* 544 · Lo que se marcó «No disponible» después de añadirlo se quita antes
+   * de pagar, avisando de qué se quitó. Si no queda nada, no se abre el pago. */
+  const quitados = cart.filter(c => _noDisponiblePorId(c.id));
+  if (quitados.length) {
+    cart = cart.filter(c => !_noDisponiblePorId(c.id));
+    saveCart(); updateCartUI(); renderCartItems();
+    showToast(`<i class="fas fa-ban"></i> Se quitó del carrito porque ya no está disponible: ${quitados.map(c => c.name).join(', ')}`, 'warning');
+    if (!cart.length) return;
+  }
 
   // ── 3. Resumen de productos ──
   document.getElementById('chkProducts').innerHTML = cart.map(item => {
@@ -3926,7 +3954,7 @@ function openModal(productId) {
     ${_carouselHTML()}
     <div class="modal-details">
       <div class="modal-cat">${catLabel(p.category)}</div>
-      ${p.badge ? `<div class="modal-badge-wrap"><span class="badge badge-${p.badge}">${p.badge === 'offer' ? (discount != null ? `-${discount}%` : 'Oferta') : p.badge === 'new' ? 'Nuevo' : 'Favorito'}</span></div>` : ''}
+      ${p.badge ? `<div class="modal-badge-wrap"><span class="badge badge-${p.badge}">${_badgeTexto(p, discount)}</span></div>` : ''}
       <div class="modal-name">${p.name}</div>
       <div class="modal-rating">
         <span class="stars">${stars}</span>
@@ -3951,9 +3979,13 @@ function openModal(productId) {
           </button>
         </div>
       </div>
-      <button class="modal-add-btn" onclick="addToCart('${p.id}', modalQty); closeModal();">
+      ${_noDisponible(p)
+        ? `<button class="modal-add-btn modal-add-btn--nodisp" disabled aria-disabled="true">
+        <i class="fas fa-ban"></i> No disponible por ahora
+      </button>`
+        : `<button class="modal-add-btn" onclick="addToCart('${p.id}', modalQty); closeModal();">
         <i class="fas fa-cart-plus"></i> Agregar al carrito · RD$ ${fmt$(p.price)}
-      </button>
+      </button>`}
       ${_avisoAlcoholHTML(p)}
     </div>`;
 

@@ -1260,6 +1260,16 @@ html.es-app-nativa .barcode-scan-btn { display: flex; }
 .badge-offer { background: var(--red-accent); color: white; }
 .badge-new { background: var(--green-primary); color: white; }
 .badge-best { background: var(--orange-accent); color: white; }
+/* 544 · «No disponible»: rojo, y el botón de la tarjeta/ficha queda gris */
+.badge-unavailable { background: var(--red-accent); color: white; }
+.add-cart-btn.add-cart-btn--nodisp,
+.add-cart-btn.add-cart-btn--nodisp:hover,
+.add-cart-btn.add-cart-btn--nodisp:active {
+  background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb;
+  cursor: not-allowed; transform: none;
+}
+.modal-add-btn.modal-add-btn--nodisp,
+.modal-add-btn.modal-add-btn--nodisp:hover { background: #e5e7eb; color: #6b7280; cursor: not-allowed; }
 .modal-badge-wrap { margin-bottom: 6px; }
 
 .product-img-wrap { height: 200px; overflow: hidden; position: relative; background: #fff; cursor: pointer; }
@@ -1349,8 +1359,14 @@ html.es-app-nativa .barcode-scan-btn { display: flex; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 4px;
   z-index: 2;
-  animation: card-stepper-in .18s ease-out;
 }
+/* 525 · La animación de entrada va en una clase aparte que el código pone
+   SOLO cuando el cliente acaba de añadir ese producto. Si estuviera en
+   `.card-stepper`, se repetiría en todos los contadores cada vez que la
+   cuadrícula o las vitrinas se vuelven a dibujar (cambio de página,
+   búsqueda, sincronización de cada 5 min) y parecería que se pulsan todos. */
+.card-stepper--entra { animation: card-stepper-in .18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .card-stepper--entra { animation: none; } }
 .card-stepper__btn {
   width: 32px; height: 32px; border-radius: 50%;
   background: #fff; color: var(--green-primary);

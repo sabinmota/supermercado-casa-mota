@@ -2503,6 +2503,14 @@ function _celdaItbis(t) {
          n + ' %' + (n === 0 ? ' exento' : '') + '</span>';
 }
 
+/* 544 · Texto de cada badge. Un solo sitio para la tabla y la ficha. */
+function _badgeTexto(b) {
+  return b === 'offer' ? 'Oferta'
+       : b === 'new' ? 'Nuevo'
+       : b === 'unavailable' ? 'No disponible'
+       : 'Favorito';
+}
+
 function renderProductsTable() {
   const q       = document.getElementById('prodSearch')?.value || '';
   const cat     = document.getElementById('prodCatFilter')?.value || '';
@@ -2576,7 +2584,7 @@ function renderProductsTable() {
     const discount   = p.originalPrice ? Math.round((1 - p.price / p.originalPrice) * 100) : null;
     const stockClass = p.stock === 0 ? 'stock-zero' : p.stock < 20 ? 'stock-low' : 'stock-ok';
     const badgeHTML  = p.badge
-      ? `<span class="badge-pill badge-${p.badge}">${p.badge==='offer'?'Oferta':p.badge==='new'?'Nuevo':'Favorito'}</span>`
+      ? `<span class="badge-pill badge-${p.badge}">${_badgeTexto(p.badge)}</span>`
       : `<span class="badge-pill badge-none">—</span>`;
 
     const tr = document.createElement('tr');
@@ -2807,14 +2815,13 @@ function viewProduct(id) {
     if (badgeEl) {
       wrap.appendChild(badgeEl);
       if (p.badge) {
-        const badgeLabel = p.badge === 'offer'
-          ? 'Oferta'
-          : p.badge === 'new' ? 'Nuevo' : 'Favorito';
+        const badgeLabel = _badgeTexto(p.badge);
         // Colores por tipo de badge (inline para evitar conflictos con caché CSS)
         const badgeColors = {
-          offer: { bg: '#ffebee', color: '#c62828' },
-          new:   { bg: '#e8f5e9', color: '#2e7d32' },
-          best:  { bg: '#fff3e0', color: '#e65100' }
+          offer:       { bg: '#ffebee', color: '#c62828' },
+          new:         { bg: '#e8f5e9', color: '#2e7d32' },
+          best:        { bg: '#fff3e0', color: '#e65100' },
+          unavailable: { bg: '#c62828', color: '#ffffff' }   // 544
         };
         const bc = badgeColors[p.badge] || { bg: '#f5f5f5', color: '#333' };
         badgeEl.textContent        = badgeLabel;

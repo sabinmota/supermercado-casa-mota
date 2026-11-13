@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '519', KEY = 'cm_app_ver';
+        var VER = '521', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=341" />
+  <link rel="stylesheet" href="css/style.css?v=342" />
   <link rel="stylesheet" href="css/logo-animado.css?v=7" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
@@ -1430,7 +1430,7 @@
        corre dentro de la app de iOS/Android. En un navegador normal no hace
        nada. DEBE ir antes de app.js, que pregunta por CasaMotaNativo dentro
        de openBarcodeScanner(). -->
-  <script src="js/nativo.js?v=12"></script>
+  <script src="js/nativo.js?v=13"></script>
   <script src="js/api.js?v=368"></script>
   <!-- BUILD 422c · Único dueño de las claves del carrito y los favoritos.
        Debe cargarse ANTES de favorites.js, app.js y chat.js. -->
@@ -1439,7 +1439,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=303"></script>
   <script src="js/favorites.js?v=285"></script>
-  <script src="js/app.js?v=389"></script>
+  <script src="js/app.js?v=391"></script>
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/location.js?v=122"></script>

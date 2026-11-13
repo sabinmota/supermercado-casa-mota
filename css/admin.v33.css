@@ -597,6 +597,7 @@ input, select, textarea { font-family: var(--font); }
 .badge-offer { background: var(--red-pale); color: var(--red); }
 .badge-new   { background: var(--green-pale); color: var(--green); }
 .badge-best  { background: var(--orange-pale); color: var(--orange); }
+.badge-unavailable { background: #c62828; color: #fff; }   /* 544 */
 .badge-none  { background: var(--bg); color: var(--text-light); }
 
 /* Status badges */
