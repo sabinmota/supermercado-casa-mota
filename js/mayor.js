@@ -25,6 +25,7 @@
   var categorias = {};           // slug → nombre
   var envioCfg = null;           // { tarifa, minimo_gratis }
   var carrito = {};              // id → cantidad
+  var noDisp = {};               // 548 · id → true si en el panel está marcado «No disponible»
   var mostrados = POR_PAGINA;
   var enviando = false;
 
@@ -300,7 +301,9 @@
       });
       var peticiones = [rpcPaginado('mayor_catalogo', { p_vale: v }, 'id'), cargarCategorias(), descs];
       if (aprobado()) peticiones.push(rpc('mayor_envio', { p_vale: v }));
+      var nd = cargarNoDisponibles();   // 548 · en paralelo
       var res = await Promise.all(peticiones);
+      await nd;
       var descPorId = {};
       (res[2] || []).forEach(function (d) { if (d && d.id != null && d.descripcion) descPorId[String(d.id)] = String(d.descripcion); });
       catalogo = (res[0] || []).map(function (p) {
@@ -317,6 +320,7 @@
       var quitados = 0;
       Object.keys(carrito).forEach(function (id) { if (!porId[id] || !aprobado()) { delete carrito[id]; quitados++; } });
       if (quitados && aprobado()) guardarCarrito();
+      quitarNoDisponiblesDelCarrito(true);   // 548
 
       pintarFiltroCategorias();
       mostrados = POR_PAGINA;
@@ -326,6 +330,53 @@
       if (esFinDeSesion(e)) { cerrarLocal(e.message); return; }
       $('estadoCatalogo').textContent = '⚠️ ' + e.message;
     }
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+   * 548 · «NO DISPONIBLE» TAMBIÉN EN LA TIENDA AL POR MAYOR (pedido del dueño)
+   *   Igual que en la tienda y la app (544): etiqueta roja «No disponible» y
+   *   el botón «Añadir» apagado; no entra al pedido por ninguna puerta
+   *   (tarjeta, detalle, carrito, código escaneado) y, si ya estaba en el
+   *   pedido, se quita avisando.
+   *   El catálogo al por mayor (mayor_catalogo) no trae la marca, así que se
+   *   lee de `products` (lectura pública, la misma de la tienda): solo los
+   *   ids con badge = 'unavailable'. Sin SQL nuevo.
+   *   Si la lectura falla se conserva lo último conocido: nunca bloquea todo.
+   * ═════════════════════════════════════════════════════════════════════════ */
+  async function cargarNoDisponibles() {
+    try {
+      var nuevo = {};
+      for (var desde = 0, vuelta = 0; vuelta < 20; vuelta++) {   // por páginas de 1.000 (518b)
+        var res = await fetch(_SB_URL + '/products?select=id&badge=eq.unavailable&order=id.asc&limit=1000&offset=' + desde,
+                              { headers: _SB_HEADERS });
+        if (!res.ok) return false;
+        var filas = await res.json();
+        if (!Array.isArray(filas)) return false;
+        filas.forEach(function (f) { if (f && f.id != null) nuevo[String(f.id)] = true; });
+        if (filas.length < 1000) break;
+        desde += filas.length;
+      }
+      var cambio = Object.keys(nuevo).sort().join(',') !== Object.keys(noDisp).sort().join(',');
+      noDisp = nuevo;
+      return cambio;
+    } catch (e) {
+      return false;   // sin conexión: se queda lo último conocido
+    }
+  }
+  function esNoDisp(id) { return !!noDisp[String(id)]; }
+
+  /* Quita del pedido lo marcado «No disponible». Devuelve los nombres quitados. */
+  function quitarNoDisponiblesDelCarrito(avisar) {
+    var nombres = [];
+    Object.keys(carrito).forEach(function (id) {
+      if (esNoDisp(id)) { nombres.push(porId[id] ? porId[id].name : id); delete carrito[id]; }
+    });
+    if (nombres.length) {
+      guardarCarrito();
+      if (avisar) toast('«' + nombres.join('», «') + '» ya no ' + (nombres.length > 1 ? 'están disponibles' : 'está disponible') +
+                        '. Lo quitamos de tu pedido.');
+    }
+    return nombres;
   }
 
   async function cargarCategorias() {
@@ -366,6 +417,11 @@
    * entonces lleva la animación de entrada (`.card-stepper--entra`). */
   function botonTarjeta(p, entra) {
     var cant = carrito[p.id] || 0;
+    // 548 · no disponible: botón gris apagado, como en la tienda
+    if (esNoDisp(p.id)) {
+      return '<button type="button" class="add-cart-btn add-cart-btn--nodisp" disabled aria-disabled="true" ' +
+             'title="Este producto no está disponible ahora"><i class="fas fa-ban" aria-hidden="true"></i> No disponible</button>';
+    }
     if (!aprobado()) {
       return '<button type="button" class="add-cart-btn" disabled><i class="fas fa-lock"></i> Pendiente</button>';
     }
@@ -384,6 +440,7 @@
       ? '<span class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></span>'
       : '<span class="mz-sinprecio"><i class="fas fa-lock"></i> Precio al aprobar tu cuenta</span>';
     return '<div class="product-card" data-id="' + esc(p.id) + '" tabindex="0">' +
+      (esNoDisp(p.id) ? '<div class="product-badge"><span class="badge badge-unavailable">No disponible</span></div>' : '') +   // 548
       '<div class="product-img-wrap"><img src="' + esc(img) + '" alt="' + esc(p.name) + '" loading="lazy" ' +
       'onerror="this.onerror=null;this.src=\'images/placeholder-product.png\'"></div>' +
       '<div class="product-info">' +
@@ -446,6 +503,12 @@
     if (!aprobado() || !porId[id]) return;
     var n = fijo != null ? fijo : (carrito[id] || 0) + delta;
     n = Math.max(0, Math.min(100000, Math.floor(Number(n) || 0)));
+    // 548 · no disponible: no se puede añadir ni subir (sí quitar)
+    if (esNoDisp(id) && n > (carrito[id] || 0)) {
+      toast('«' + porId[id].name + '» no está disponible ahora.');
+      repintarTarjeta(id); pintarCarrito();
+      return;
+    }
     if (n) carrito[id] = n; else delete carrito[id];
     guardarCarrito();
     repintarTarjeta(id);
@@ -518,11 +581,26 @@
       $('cDireccion').focus(); return;
     }
 
+    /* 548 · Justo antes de enviar se vuelve a mirar qué está «No disponible»:
+     * si algo del pedido lo está, se quita y se pide revisar. */
+    // `enviando` se marca ANTES de esperar: un doble toque no puede mandar dos pedidos.
+    enviando = true;
+    var btn = $('btnConfirmar'); btn.disabled = true; btn.innerHTML = 'Enviando pedido…';
+    await cargarNoDisponibles();
+    var quitadosND = quitarNoDisponiblesDelCarrito(false);
+    if (quitadosND.length) {
+      enviando = false;
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Confirmar pedido';
+      pintarCatalogo(); pintarCarrito();
+      mostrarError('cError', '«' + quitadosND.join('», «') + '» ya no ' +
+        (quitadosND.length > 1 ? 'están disponibles' : 'está disponible') +
+        '. Lo quitamos de tu pedido: revísalo y confirma de nuevo.');
+      return;
+    }
+
     var lineas = Object.keys(carrito).filter(function (id) { return porId[id]; }).map(function (id) {
       return { productId: id, cantidad: carrito[id], price: porId[id].precio };
     });
-    enviando = true;
-    var btn = $('btnConfirmar'); btn.disabled = true; btn.innerHTML = 'Enviando pedido…';
     try {
       var ped = fila(await rpc('mayor_crear_pedido', { p_vale: leerVale(), p_datos: {
         entrega: t.domicilio ? 'domicilio' : 'recogida',
@@ -661,7 +739,8 @@
   }
 
   function detCuerpoHTML(p) {
-    var ok = aprobado() && p.precio != null;
+    var nd = esNoDisp(p.id);   // 548
+    var ok = aprobado() && p.precio != null && !nd;
     var tiene = carrito[p.id] || 0;
     var precio = ok
       ? '<div class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></div>'
@@ -677,9 +756,17 @@
           '<button type="button" class="modal-qty-btn" data-det="mas" aria-label="Añadir uno"><i class="fas fa-plus"></i></button>' +
         '</div>' + fav + '</div>' +
         '<button type="button" class="modal-add-btn" id="mzDetAdd" data-det="add"></button>'
-      : '<div class="modal-actions-row">' + fav + '</div>' +
-        '<button type="button" class="modal-add-btn" disabled style="opacity:.5;cursor:not-allowed"><i class="fas fa-lock"></i> Pendiente de aprobación</button>';
+      : nd
+        ? '<div class="modal-actions-row">' + fav + '</div>' +
+          '<button type="button" class="modal-add-btn modal-add-btn--nodisp" disabled aria-disabled="true"><i class="fas fa-ban"></i> No disponible por ahora</button>'
+        : '<div class="modal-actions-row">' + fav + '</div>' +
+          '<button type="button" class="modal-add-btn" disabled style="opacity:.5;cursor:not-allowed"><i class="fas fa-lock"></i> Pendiente de aprobación</button>';
+    // 548 · el precio se sigue viendo (aprobado), pero no se puede pedir
+    if (nd && aprobado() && p.precio != null) {
+      precio = '<div class="price-current">' + rd(p.precio) + ' <span class="price-unit">/ ' + esc(p.unidad) + '</span></div>';
+    }
     return '<div class="modal-details">' +
+      (nd ? '<div class="modal-badge-wrap"><span class="badge badge-unavailable">No disponible</span></div>' : '') +
       '<div class="modal-cat">' + esc(nombreCategoria(p.category)) + '</div>' +
       '<div class="modal-name">' + esc(p.name) + '</div>' +
       '<span class="mz-unidad"><i class="fas fa-box"></i> ' + esc(p.unidad) + '</span>' +
@@ -688,7 +775,7 @@
   }
 
   function detPintarCant() {
-    var p = porId[det.id]; if (!p) return;
+    var p = porId[det.id]; if (!p || esNoDisp(p.id)) return;   // 548
     var c = $('mzDetCant'); if (c) c.textContent = det.cant;
     var b = $('mzDetAdd');
     if (b) b.innerHTML = '<i class="fas fa-cart-plus"></i> ' + (carrito[p.id] ? 'Actualizar pedido' : 'Añadir al pedido') +
@@ -1155,6 +1242,7 @@
     caja.innerHTML = ids.map(function (id) {
       var p = porId[id];
       var precio = (aprobado() && p.precio != null) ? ' · ' + rd(p.precio) : '';
+      if (esNoDisp(id)) precio += ' · <b style="color:var(--red-accent)">No disponible</b>';   // 548
       return '<div class="mz-linea mz-fav" data-fav-abrir="' + esc(id) + '">' +
         '<img src="' + esc(imagenes[id] || 'images/placeholder-product.png') + '" alt="">' +
         '<div><div class="mz-linea__nom">' + esc(p.name) + '</div>' +
@@ -1322,6 +1410,7 @@
       }
       else if (d.dataset.det === 'add') {
         var p = porId[det.id]; if (!p) return;
+        if (esNoDisp(p.id)) { toast('«' + p.name + '» no está disponible ahora.'); return; }   // 548
         var n = det.cant;
         cambiar(p.id, 0, n);
         cerrarDetalle();
@@ -1355,6 +1444,18 @@
       if (document.hidden || !yo) return;
       if (!aprobado()) comprobarEstado(true);
       cargarAvisos();
+      // 548 · al volver, si el panel cambió algún «No disponible», se repinta
+      if (catalogo.length) {
+        cargarNoDisponibles().then(function (cambio) {
+          if (!cambio) return;
+          quitarNoDisponiblesDelCarrito(true);
+          pintarCatalogo(); pintarCarrito();
+          if (det.id && porId[det.id]) {
+            var c = $('mzDetalleCont'), cuerpo = c && c.querySelector('.modal-details');
+            if (cuerpo) { cuerpo.outerHTML = detCuerpoHTML(porId[det.id]); detPintarCant(); }
+          }
+        });
+      }
     });
   }
 
@@ -1380,7 +1481,7 @@
   window.MayorCM = { calcular: calcular, cambiar: cambiar, abrirDetalle: abrirDetalle, cerrarDetalle: cerrarDetalle,
                      abrirCuenta: abrirCuenta, verVista: verVista, buscarCodigo: buscarCodigo,
                      estado: function () { return { yo: yo, carrito: carrito, catalogo: catalogo, det: det,
-                                                    ficha: ficha, avisos: avisos, favoritos: favoritos }; } };
+                                                    ficha: ficha, avisos: avisos, favoritos: favoritos, noDisp: noDisp }; } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
