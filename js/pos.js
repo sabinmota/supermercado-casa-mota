@@ -402,6 +402,7 @@
       var t = ev.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON' ||
                 t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) { return; }
+      if (noEncAbierta()) { return; }   // POS-56 · la ventana de «no añadido» manda
       if (!$('pos-caja').hidden && !$('pos-modal-pago').hidden === false) {
         inp.focus();
       }
@@ -475,20 +476,107 @@
     var r = identificar(codigo);
     if (r.p) { anadir(r.p, r.cantidad, r.esPeso); return; }
 
+    /* POS-56 · Ya no es la cinta roja de abajo: una VENTANA que bloquea la
+     * caja hasta pulsar OK (pedido del dueño: la cinta podía pasar
+     * desapercibida y la cajera empacaba el artículo sin cobrarlo). */
     if (r.bas) {
       /* Ni como código entero ni como báscula. El mensaje dice LAS DOS cosas
        * que se intentaron, para no mandar a registrar algo que ya existe. */
-      pitar(true);
-      avisar('El código ' + r.s + ' no está en el catálogo. Se probó también ' +
-             'como etiqueta de báscula (producto ' + r.bas.barcode +
-             ') y tampoco. Búsquelo por nombre.', 'error');
-      buscarPorTexto('');
+      noAnadido('Artículo NO encontrado', 'Código ' + r.s,
+                'No está en el catálogo. Se probó también como etiqueta de báscula ' +
+                '(producto ' + r.bas.barcode + ') y tampoco. Búsquelo por nombre ' +
+                'en el buscador de abajo o aparte el artículo para revisarlo.');
       return;
     }
 
-    /* Ni código conocido ni báscula → buscar por nombre */
+    /* Ni código conocido ni báscula */
+    noAnadido('Artículo NO encontrado', 'Código ' + r.s,
+              'No está en el catálogo. Búsquelo por nombre en el buscador de abajo ' +
+              'o aparte el artículo para revisarlo.');
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * POS-56 · VENTANA «ARTÍCULO NO AÑADIDO» · BLOQUEA LA CAJA HASTA PULSAR OK
+   *   Se usa cuando un artículo escaneado NO entra en la factura: código que
+   *   no está en el catálogo, producto sin ITBIS o sin precio. En los tres
+   *   casos el peligro es el mismo: que la cajera lo empaque sin cobrarlo.
+   * 🔴 Mientras está abierta se tragan TODAS las teclas (capturadas en el
+   *    documento antes que nadie): la pistola no puede añadir nada.
+   * 🔴 La pistola manda Enter al final de cada lectura. Ese Enter NO cierra
+   *    la ventana: si llegó precedido de cifras es otra lectura, se pita, se
+   *    descarta y se avisa en la ventana para escanearla después.
+   *    Solo cierra un Enter pulsado a mano (sin cifras justo antes) o el
+   *    botón OK. Esc NO cierra: el dueño quiere que se pulse OK.
+   * ════════════════════════════════════════════════════════════════════════ */
+  var _noenc = { abierta: false, desde: 0, buf: '', ultTecla: 0, ignoradas: [] };
+
+  function noEncAbierta() {
+    var m = $('pos-modal-noenc');
+    return !!(m && !m.hidden);
+  }
+
+  function noAnadido(titulo, codigo, texto) {
     pitar(true);
-    avisar('El código ' + r.s + ' no está en el catálogo.', 'error');
+    var m = $('pos-modal-noenc');
+    if (!m) { avisar(codigo + ' · ' + texto, 'error'); return; }   // respaldo: nunca en silencio
+    var av = $('pos-aviso'); if (av) { av.hidden = true; }
+    $('pos-noenc-tit').textContent = titulo;
+    $('pos-noenc-cod').textContent = codigo;
+    $('pos-noenc-txt').textContent = texto;
+    var otro = $('pos-noenc-otro'); otro.hidden = true; otro.textContent = '';
+    _noenc = { abierta: true, desde: Date.now(), buf: '', ultTecla: 0, ignoradas: [] };
+    m.hidden = false;
+    if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    var caja = m.querySelector('.pos-noenc__caja'); if (caja) { caja.focus(); }
+    /* Un segundo pitido, por si la cajera no estaba mirando. */
+    setTimeout(function () { if (noEncAbierta()) { pitar(true); } }, 450);
+  }
+
+  function cerrarNoEncontrado() {
+    var m = $('pos-modal-noenc');
+    if (!m || m.hidden) { return; }
+    m.hidden = true;
+    _noenc.abierta = false;
+    var e = $('pos-entrada'); if (e && !hayVentanaAbierta()) { e.focus(); }
+  }
+
+  function montarNoEncontrado() {
+    on('pos-noenc-ok', 'click', function () {
+      /* Un instante de gracia: que el clic no sea el mismo gesto que abrió. */
+      if (Date.now() - _noenc.desde < 400) { return; }
+      cerrarNoEncontrado();
+    });
+
+    document.addEventListener('keydown', function (ev) {
+      if (!noEncAbierta()) { return; }
+      ev.preventDefault();
+      ev.stopImmediatePropagation();       // ni la pistola ni los atajos pasan
+      var ahora = Date.now();
+      if (ev.key === 'Enter') {
+        if (_noenc.buf) {
+          /* Otra lectura de la pistola con la ventana abierta: NO se factura. */
+          var cod = _noenc.buf; _noenc.buf = '';
+          _noenc.ignoradas.push(cod);
+          pitar(true);
+          var otro = $('pos-noenc-otro');
+          otro.textContent = 'También se leyó ' + (_noenc.ignoradas.length > 1
+            ? _noenc.ignoradas.length + ' códigos más (' + _noenc.ignoradas.join(', ') + ')'
+            : 'el código ' + cod) + ' y NO se añadió. Vuelva a escanearlo después de pulsar OK.';
+          otro.hidden = false;
+          return;
+        }
+        if (ev.repeat) { return; }
+        if (ahora - _noenc.desde < 700) { return; }          // el Enter de la propia lectura
+        if (ahora - _noenc.ultTecla < 250) { return; }       // aún llegan cifras
+        cerrarNoEncontrado();
+        return;
+      }
+      if (ev.key && ev.key.length === 1) {
+        if (ahora - _noenc.ultTecla > 1500) { _noenc.buf = ''; }
+        _noenc.buf += ev.key;
+        _noenc.ultTecla = ahora;
+      }
+    }, true);
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -512,9 +600,10 @@
     }
 
     if (p.itbis_tasa === null || p.itbis_tasa === undefined || p.itbis_tasa === '') {
-      pitar(true);
-      avisar('«' + p.name + '» no tiene ITBIS asignado. No se puede facturar ' +
-             'hasta que se le ponga la tasa en el panel.', 'error');
+      /* POS-56 · ventana que bloquea: tampoco entra en la factura. */
+      noAnadido('Artículo NO añadido', '«' + p.name + '»',
+                'No tiene ITBIS asignado y no se puede facturar hasta que se le ' +
+                'ponga la tasa en el panel. Aparte el artículo.');
       return;
     }
 
@@ -522,8 +611,9 @@
 
     /* Un producto pesado con precio 0 daría una línea a cero sin avisar. */
     if (precio <= 0) {
-      pitar(true);
-      avisar('«' + p.name + '» no tiene precio. Revise su ficha.', 'error');
+      /* POS-56 · ventana que bloquea: tampoco entra en la factura. */
+      noAnadido('Artículo NO añadido', '«' + p.name + '»',
+                'No tiene precio en el catálogo. Revise su ficha y aparte el artículo.');
       return;
     }
 
@@ -1624,6 +1714,7 @@
     montarLogin();
     montarEntrada();
     montarCobro();
+    montarNoEncontrado();   // POS-56 · ANTES que los atajos: sus teclas van primero
     on('pos-limite-ok', 'click', function () {
       $('pos-limite').hidden = true;
       var e = $('pos-entrada');
@@ -1848,6 +1939,14 @@
   }
 
   function montarCantidad() {
+    /* POS-51 · botón «Cantidad F5» de la barra verde: lo mismo que F5. Si no
+     * se abre la ventana (sin artículos, pesado, límite), el foco vuelve a la
+     * pistola para no perder la siguiente lectura. */
+    on('pos-btn-cant', 'click', function () {
+      if (hayVentanaAbierta()) { return; }
+      abrirCantidad();
+      if ($('pos-modal-cant').hidden && !hayVentanaAbierta()) { var e = $('pos-entrada'); if (e) { e.focus(); } }
+    });
     on('pos-cant-cancelar', 'click', cerrarCantidad);
     on('pos-cant-aceptar', 'click', confirmarCantidad);
     on('pos-cant-num', 'input', calcularCantidad);
@@ -1948,7 +2047,7 @@
    * propia del navegador (F7 activa la navegación con cursor en Chrome).
    * ════════════════════════════════════════════════════════════════════════ */
   function hayVentanaAbierta() {
-    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite', 'pos-modal-cant', 'pos-modal-ver'];
+    var ids = ['pos-modal-pago', 'pos-modal-aut', 'pos-modal-cierre', 'pos-limite', 'pos-modal-cant', 'pos-modal-ver', 'pos-modal-noenc'];
     for (var i = 0; i < ids.length; i++) { var e = $(ids[i]); if (e && !e.hidden) { return true; } }
     return false;
   }
@@ -2239,6 +2338,7 @@
   window.CasaMotaPOS = {
     descifrarBascula: descifrarBascula,
     _procesar:        function (c) { procesar(c); },
+    _anadir:          function (p) { anadir(p, 1, false); },
     desglosar:        desglosar,
     _totales:         totales,
     _lineas:          function () { return _lineas; },
