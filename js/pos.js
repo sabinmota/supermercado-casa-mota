@@ -1630,7 +1630,7 @@
         var hoja = $('pos-limite'); if (hoja) { hoja.hidden = true; }
         var ent = $('pos-entrada');
         if (ent) { ent.classList.remove('pos-entrada--bloqueada');
-                   ent.placeholder = 'Apunte la pistola y dispare…'; }
+                   ent.removeAttribute('placeholder'); }   // POS-57 · el campo va en blanco
         avisar('Límite actualizado: la caja vuelve a facturar', 'ok');
       }
     } else if (_limite.estado === 'libre') {

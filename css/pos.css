@@ -356,6 +356,9 @@ kbd {
 .pos-escaneo label {
   display: block; font-weight: 700; font-size: .9rem; margin-bottom: 6px;
 }
+/* POS-57 · icono de código de barras al lado de «Escanear producto» */
+.pos-escaneo label.pos-escaneo__tit { display: flex; align-items: center; gap: 8px; }
+.pos-escaneo__ico { width: 30px; height: 20px; fill: var(--pos-tinta); flex-shrink: 0; }
 .pos-escaneo input {
   width: 100%; padding: 18px 16px; font-size: 1.3rem;
   border: 3px solid var(--pos-verde); border-radius: 12px;
