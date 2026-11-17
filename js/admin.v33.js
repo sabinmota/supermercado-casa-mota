@@ -2511,6 +2511,22 @@ function _badgeTexto(b) {
        : 'Favorito';
 }
 
+/* 547 · Pedido del dueño: en la lista de Productos, la foto lleva en la
+ * esquina superior derecha el icono «Mayor» (cajas apiladas) si el producto
+ * tiene marcada la casilla de vender al por mayor (`p.mayor.activo`). Así se
+ * ve de un vistazo cuáles ya están en la tienda del Mayor y cuáles no.
+ * Al marcar la casilla el panel ya exige unidad y precio > 0, así que
+ * «activo» equivale a «aparece en /mayor». */
+function _fotoConMayor(p) {
+  const enMayor = !!(p.mayor && p.mayor.activo);
+  return `<span class="td-img-wrap">` +
+    `<img src="${p.image}" alt="${p.name}" class="td-img" onerror="this.src='images/logo-casamota.png'" />` +
+    (enMayor
+      ? `<span class="td-mayor" title="Se vende en la tienda al por mayor${p.mayor.unidad ? ' · ' + p.mayor.unidad : ''}${Number(p.mayor.precio) > 0 ? ' · RD$ ' + fmt$(p.mayor.precio) : ''}"><i class="fas fa-boxes-stacked"></i></span>`
+      : '') +
+    `</span>`;
+}
+
 function renderProductsTable() {
   const q       = document.getElementById('prodSearch')?.value || '';
   const cat     = document.getElementById('prodCatFilter')?.value || '';
@@ -2590,7 +2606,7 @@ function renderProductsTable() {
     const tr = document.createElement('tr');
     tr.dataset.pid = p.id;
     tr.innerHTML = `
-      <td><img src="${p.image}" alt="${p.name}" class="td-img" onerror="this.src='images/logo-casamota.png'" /></td>
+      <td>${_fotoConMayor(p)}</td>
       <td>${p.name}${_esSoloCajaAdm(p) ? ' <span class="sc-pill" title="Se factura en la caja; no se muestra en la tienda ni en la app">Solo caja</span>' : ''}</td>
       <td><span class="td-cat">${catLabel(p.category)}</span></td>
       <td><strong>RD$ ${fmt$(p.price)}</strong>${p.originalPrice ? `<br><small style="text-decoration:line-through;color:#aaa">RD$ ${fmt$(p.originalPrice)}</small>` : ''}</td>
