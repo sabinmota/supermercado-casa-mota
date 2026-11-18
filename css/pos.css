@@ -409,6 +409,8 @@ kbd {
 }
 .pos-hit__n { font-size: .9rem; font-weight: 600; }
 .pos-hit__p { font-size: .95rem; color: var(--pos-verde); font-weight: 700; }
+/* POS-58 · unidad de medida junto al precio en los resultados de búsqueda */
+.pos-hit__u { color: #4b5563; font-weight: 600; }
 .pos-hit--sintasa { border-color: var(--pos-rojo); background: #fff7f6; }
 .pos-hit__av {
   font-size: .72rem; color: var(--pos-rojo); font-weight: 700; text-transform: uppercase;

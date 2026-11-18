@@ -696,7 +696,11 @@
       h += '<button type="button" class="pos-hit' + (sinTasa ? ' pos-hit--sintasa' : '') +
            '" data-id="' + esc(x.id) + '">' +
              '<span class="pos-hit__n">' + esc(x.name) + '</span>' +
-             '<span class="pos-hit__p">RD$ ' + dinero(x.price) + '</span>' +
+             /* POS-58 · pedido del dueño: también la unidad de medida, para
+              * distinguir presentaciones del mismo producto (360g, lb…).
+              * Mismo formato que la foto del último producto: «RD$ 65.00 / 360g». */
+             '<span class="pos-hit__p">RD$ ' + dinero(x.price) +
+               (x.unit ? ' <span class="pos-hit__u">/ ' + esc(x.unit) + '</span>' : '') + '</span>' +
              (sinTasa ? '<span class="pos-hit__av">sin ITBIS</span>' : '') +
            '</button>';
     }
