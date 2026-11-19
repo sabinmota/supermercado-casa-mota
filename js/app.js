@@ -4413,10 +4413,28 @@ function _heroDatos(cfg) {
   const gana  = parseInt(cfg.loyaltyPointsEarned,  10) || 1;
   const envio = parseFloat(cfg.freeShippingMin || 0) || 3800;
   const n = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
-  const pts = `${gana} punto${gana !== 1 ? 's' : ''}`;
-  document.querySelectorAll('.js-hero-puntos').forEach(el => { el.textContent = `${pts} por cada RD$ ${n(pesos)}`; });
-  document.querySelectorAll('.js-hero-puntos-corto').forEach(el => { el.textContent = `${pts} · RD$ ${n(pesos)}`; });
-  document.querySelectorAll('.js-hero-envio').forEach(el => { el.textContent = `RD$ ${n(envio)}`; });
+  const ptxt = `punto${gana !== 1 ? 's' : ''}`;
+  const pts = `${gana} ${ptxt}`;
+  const poner = (sel, txt) => document.querySelectorAll(sel).forEach(el => { el.textContent = txt; });
+  poner('.js-hero-puntos',       `${pts} por cada RD$ ${n(pesos)}`);
+  poner('.js-hero-puntos-corto', `${pts} · RD$ ${n(pesos)}`);
+  poner('.js-hero-envio',        `RD$ ${n(envio)}`);
+  // 551 · piezas sueltas de los diseños de Fable (el «1» gigante, el sello…)
+  poner('.js-hero-gana',  String(gana));
+  poner('.js-hero-ptxt',  ptxt);
+  poner('.js-hero-pts',   pts);
+  poner('.js-hero-pesos', `RD$ ${n(pesos)}`);
+  _heroTarjeta();
+}
+
+/* 551 · La tarjeta del club muestra los puntos y el nombre DEL CLIENTE que
+ * mira la tienda (los de su sesión), no un número inventado. */
+function _heroTarjeta() {
+  const c = currentClient || {};
+  const saldo = parseInt(c.loyaltyPoints, 10) || 0;
+  const nombre = String(c.name || '').trim().split(/\s+/)[0] || 'Cliente fiel';
+  document.querySelectorAll('.js-hero-saldo').forEach(el => { el.textContent = saldo.toLocaleString('en-US'); });
+  document.querySelectorAll('.js-hero-cliente').forEach(el => { el.textContent = nombre; });
 }
 
 /* Botón de cada anuncio. Puntos y cupones abren «Mi cuenta» en esa sección;

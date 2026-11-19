@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '531', KEY = 'cm_app_ver';
+        var VER = '532', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -129,10 +129,12 @@
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- 551 · letras de los anuncios del carrusel (diseños de Fable) -->
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@800&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,400;1,9..144,500&family=Yellowtail&display=swap" rel="stylesheet" />
   <!-- Font Awesome -->
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=347" />
+  <link rel="stylesheet" href="css/style.css?v=348" />
   <link rel="stylesheet" href="css/logo-animado.css?v=7" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
@@ -518,89 +520,204 @@
 
   <!-- ===================== HERO BANNER ===================== -->
   <section class="hero">
-    <!-- 550 · Pedido del dueño: el carrusel ya no repite las fotos de las
-         categorías; anuncia lo que ofrece Casa Mota. Las cifras de puntos y
-         del envío gratis se rellenan con la configuración del panel
-         (js/app.js · _heroDatos), así el anuncio nunca dice otra cosa. -->
+    <!-- 551 · Diseños de Fable 5.2 (pedido del dueño), hechos en HTML/CSS: sin
+         fotos, todo es texto y dibujo vectorial. Las cifras de puntos y del
+         envío gratis se rellenan con la configuración del panel
+         (js/app.js · _heroDatos), así el anuncio nunca dice otra cosa.
+         Los dos anuncios de cumpleaños de Fable NO están: la tienda no pide
+         la fecha de nacimiento, así que ese cupón hoy no existe. -->
     <div class="hero-slider" id="heroSlider">
-      <div class="hero-slide hero-slide--club active">
-        <div class="hero-content">
-          <p class="hero-tag"><i class="fas fa-star"></i> Programa de fidelidad</p>
-          <h1>Compra, acumula<br /><span>y gana premios</span></h1>
-          <p class="hero-desc">Ganas <b class="js-hero-puntos">1 punto por cada RD$ 100</b> en tus compras y los usas para pagar tu próximo pedido.</p>
-          <button class="hero-btn" onclick="heroAccion('puntos')">
-            Ver mis puntos <i class="fas fa-arrow-right"></i>
-          </button>
+      <!-- 1 · Ofertas retro -->
+      <div class="hero-slide hb hb--retro active">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Supermercado Casa Mota</p>
+          <h2 class="hb-retro__tit">OFERTAS</h2>
+          <p class="hb-retro__script">¡a buen precio!</p>
+          <div class="hb-retro__fila">
+            <span class="hb-retro__tag">Busca la etiqueta oferta</span>
+            <button class="hb-btn hb-btn--rojo" onclick="heroAccion('ofertas')">Ver ofertas <span aria-hidden="true">→</span></button>
+          </div>
         </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hv-circle"><i class="fas fa-star"></i></div>
-          <span class="hv-chip hv-chip--a"><i class="fas fa-coins"></i> <span class="js-hero-puntos-corto">1 punto · RD$ 100</span></span>
-          <span class="hv-chip hv-chip--b"><i class="fas fa-wallet"></i> Paga con tus puntos</span>
-          <span class="hv-chip hv-chip--c"><i class="fas fa-arrow-trend-up"></i> Más compras, más puntos</span>
-        </div>
-      </div>
-      <div class="hero-slide hero-slide--envio">
-        <div class="hero-content">
-          <p class="hero-tag"><i class="fas fa-truck-fast"></i> Delivery gratis</p>
-          <h1>Tu pedido en tu puerta,<br /><span>sin costo</span></h1>
-          <p class="hero-desc">Compras desde <b class="js-hero-envio">RD$ 3,800</b> reciben envío completamente gratis a domicilio.</p>
-          <button class="hero-btn" onclick="heroAccion('comprar')">
-            Empezar a comprar <i class="fas fa-arrow-right"></i>
-          </button>
-        </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hv-circle"><i class="fas fa-truck-fast"></i></div>
-          <span class="hv-chip hv-chip--a"><i class="fas fa-bolt"></i> Rápido</span>
-          <span class="hv-chip hv-chip--b"><i class="fas fa-location-dot"></i> A tu puerta</span>
-          <span class="hv-chip hv-chip--c"><i class="fas fa-circle-check"></i> Sin costo</span>
+        <div class="hb-vis" aria-hidden="true">
+          <div class="hb-burst"><div class="hb-burst__in"><div class="hb-burst__circ">
+            <span class="hb-burst__a">Precio</span><span class="hb-burst__b">%</span><span class="hb-burst__c">rebajado</span>
+          </div></div></div>
         </div>
       </div>
-      <div class="hero-slide hero-slide--precios">
-        <div class="hero-content">
-          <p class="hero-tag"><i class="fas fa-tag"></i> Precios exclusivos App</p>
-          <h1>Precios que<br /><span>solo tú ves</span></h1>
-          <p class="hero-desc">Comprando en la App de Casa Mota accedes a ofertas especiales para nuestros clientes registrados.</p>
-          <button class="hero-btn" onclick="heroAccion('ofertas')">
-            Ver ofertas <i class="fas fa-arrow-right"></i>
-          </button>
+
+      <!-- 2 · Club de clientes (tarjeta) -->
+      <div class="hero-slide hb hb--club">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Programa de fidelidad</p>
+          <h2 class="hb-serif">Tu compra vale <em>más de lo que pagas.</em></h2>
+          <p class="hb-desc">Ganas <span class="js-hero-puntos">1 punto por cada RD$ 100</span> y los usas para pagar tu próximo pedido.</p>
+          <button class="hb-btn hb-btn--oro" onclick="heroAccion('puntos')">Ver mis puntos <span aria-hidden="true">→</span></button>
         </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hv-circle"><i class="fas fa-mobile-screen-button"></i></div>
-          <span class="hv-chip hv-chip--a"><i class="fas fa-tag"></i> Solo en la App</span>
-          <span class="hv-chip hv-chip--b"><i class="fas fa-percent"></i> Ofertas especiales</span>
-          <span class="hv-chip hv-chip--c"><i class="fas fa-piggy-bank"></i> Ahorra más</span>
-        </div>
-      </div>
-      <div class="hero-slide hero-slide--cupones">
-        <div class="hero-content">
-          <p class="hero-tag"><i class="fas fa-ticket"></i> Cupones electrónicos</p>
-          <h1>Cupones de regalo<br /><span>por ser cliente fiel</span></h1>
-          <p class="hero-desc">En fechas especiales te enviamos cupones de descuento directamente a tu cuenta.</p>
-          <button class="hero-btn" onclick="heroAccion('cupones')">
-            Ver mis cupones <i class="fas fa-arrow-right"></i>
-          </button>
-        </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hv-circle"><i class="fas fa-ticket"></i></div>
-          <span class="hv-chip hv-chip--a"><i class="fas fa-gift"></i> Cupón de regalo</span>
-          <span class="hv-chip hv-chip--b"><i class="fas fa-user-check"></i> Directo a tu cuenta</span>
-          <span class="hv-chip hv-chip--c"><i class="fas fa-calendar-days"></i> Fechas especiales</span>
+        <div class="hb-vis" aria-hidden="true">
+          <div class="hb-card">
+            <div class="hb-card__b"></div>
+            <div class="hb-card__f">
+              <div class="hb-card__top"><div><b>Casa Mota</b><small>Club de clientes</small></div><span class="hb-card__star"><i class="fas fa-star"></i></span></div>
+              <div class="hb-card__pts"><span class="js-hero-saldo">0</span><small>puntos</small></div>
+              <div class="hb-card__pie"><span class="js-hero-cliente">Cliente fiel</span><span class="js-hero-puntos-corto">1 punto · RD$ 100</span></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="hero-slide hero-slide--cumple">
-        <div class="hero-content">
-          <p class="hero-tag"><i class="fas fa-cake-candles"></i> Tu cumpleaños</p>
-          <h1>En tu cumpleaños,<br /><span>Casa Mota te regala</span></h1>
-          <p class="hero-desc">Celebra con nosotros: por tu cumpleaños recibes un cupón de regalo en tu cuenta.</p>
-          <button class="hero-btn" onclick="heroAccion('cupones')">
-            Ver mis cupones <i class="fas fa-arrow-right"></i>
-          </button>
+
+      <!-- 3 · Delivery (mapa) -->
+      <div class="hero-slide hb hb--mapa">
+        <div class="hb-txt">
+          <span class="hb-pill">Delivery gratis</span>
+          <h2 class="hb-sans">De la Casa <span>a tu casa.</span></h2>
+          <p class="hb-desc">En compras desde <span class="js-hero-envio">RD$ 3,800</span> te llevamos el pedido sin cobrarte el envío.</p>
+          <button class="hb-btn hb-btn--verde" onclick="heroAccion('comprar')">Empezar a comprar <span aria-hidden="true">→</span></button>
         </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hv-circle"><i class="fas fa-cake-candles"></i></div>
-          <span class="hv-chip hv-chip--a"><i class="fas fa-champagne-glasses"></i> ¡Feliz cumpleaños!</span>
-          <span class="hv-chip hv-chip--b"><i class="fas fa-gift"></i> Cupón de regalo</span>
-          <span class="hv-chip hv-chip--c"><i class="fas fa-heart"></i> Con cariño, Casa Mota</span>
+        <div class="hb-vis" aria-hidden="true">
+          <svg class="hb-mapa__svg" viewBox="0 0 600 380" preserveAspectRatio="xMidYMid slice">
+            <rect width="600" height="380" fill="#E3EBDD"/>
+            <path d="M530 0H600V380H570C540 300 552 200 520 120C508 80 512 40 530 0Z" fill="#D3E3EC"/>
+            <rect x="250" y="20" width="110" height="46" rx="6" fill="#C9DDB8"/>
+            <rect x="398" y="196" width="60" height="70" rx="6" fill="#C9DDB8"/>
+            <path d="M0 80H600M0 180H600M0 280H600M100 0V380M230 0V380M380 0V380M470 0V380" stroke="#fff" stroke-width="14"/>
+            <path d="M20 380L320 0" stroke="#fff" stroke-width="22"/>
+            <path d="M150 280H230V180H470V82" fill="none" stroke="#1B7A41" stroke-width="6" stroke-linejoin="round"/>
+            <circle cx="380" cy="180" r="9" fill="#F7C948" stroke="#fff" stroke-width="3"/><circle cx="380" cy="180" r="3" fill="#10301C"/>
+            <circle cx="150" cy="280" r="24" fill="#1B7A41" opacity=".18"/><circle cx="150" cy="280" r="16" fill="#2E8B57"/>
+            <text x="150" y="284" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="#fff">CM</text>
+            <rect x="108" y="312" width="84" height="22" rx="11" fill="#fff"/>
+            <text x="150" y="327" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="#10301C">Casa Mota</text>
+            <circle cx="470" cy="46" r="22" fill="#10301C"/><path d="M455 58L470 82L485 58Z" fill="#10301C"/>
+            <path d="M459 50L470 39L481 50V58H459Z" fill="#F7C948"/>
+            <rect x="378" y="36" width="72" height="22" rx="11" fill="#fff"/>
+            <text x="414" y="51" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="#10301C">Tu puerta</text>
+          </svg>
+          <div class="hb-mapa__card">
+            <span class="hb-mapa__ok"><i class="fas fa-check"></i></span>
+            <div><small>Envío</small><b>RD$ 0</b><span>en compras desde <span class="js-hero-envio">RD$ 3,800</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 · Cupones (ticket dorado) -->
+      <div class="hero-slide hb hb--club hb--cupon">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Cupones electrónicos</p>
+          <h2 class="hb-serif">Un regalo <em>por ser cliente fiel.</em></h2>
+          <p class="hb-desc">En fechas especiales te enviamos cupones de descuento directamente a tu cuenta.</p>
+          <button class="hb-btn hb-btn--oro" onclick="heroAccion('cupones')">Ver mis cupones <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="hb-vis" aria-hidden="true">
+          <div class="hb-tick">
+            <div class="hb-tick__b"></div>
+            <div class="hb-tick__f">
+              <div class="hb-tick__main"><small>Casa Mota</small><b>Cupón</b><span>de regalo</span><small>Directo a tu cuenta</small></div>
+              <div class="hb-tick__lado"><i class="fas fa-star"></i><em>para ti</em></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 · Ofertas (rojo) -->
+      <div class="hero-slide hb hb--rojo">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Ofertas</p>
+          <h2 class="hb-cond">Precios rebajados.</h2>
+          <p class="hb-desc">Los productos en oferta llevan su etiqueta y los tienes todos juntos en un solo sitio.</p>
+          <button class="hb-btn hb-btn--amarillo" onclick="heroAccion('ofertas')">Ver ofertas <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="hb-vis" aria-hidden="true">
+          <span class="hb-giga">%</span>
+          <div class="hb-lado"><p class="hb-lado__k">Así de fácil</p><p class="hb-lado__t">Busca la etiqueta <span class="hb-am">oferta</span></p></div>
+        </div>
+      </div>
+
+      <!-- 6 · Delivery retro -->
+      <div class="hero-slide hb hb--retro">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Supermercado Casa Mota</p>
+          <h2 class="hb-retro__tit">DELIVERY</h2>
+          <p class="hb-retro__script">¡gratis!</p>
+          <div class="hb-retro__fila">
+            <span class="hb-retro__tag">En compras desde <span class="js-hero-envio">RD$ 3,800</span></span>
+            <button class="hb-btn hb-btn--rojo" onclick="heroAccion('comprar')">Empezar a comprar <span aria-hidden="true">→</span></button>
+          </div>
+        </div>
+        <div class="hb-vis" aria-hidden="true">
+          <div class="hb-burst"><div class="hb-burst__in"><div class="hb-burst__circ">
+            <span class="hb-burst__a">Envío</span><span class="hb-burst__b hb-burst__b--rd">RD$0</span><span class="hb-burst__c">a tu puerta</span>
+          </div></div></div>
+        </div>
+      </div>
+
+      <!-- 7 · Fidelidad (el «1» gigante) -->
+      <div class="hero-slide hb hb--uno">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Programa de fidelidad</p>
+          <h2 class="hb-cond">Cada compra suma.</h2>
+          <p class="hb-desc">Los puntos se acumulan solos y los usas para pagar tu próximo pedido.</p>
+          <button class="hb-btn hb-btn--amarillo" onclick="heroAccion('puntos')">Ver mis puntos <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="hb-vis" aria-hidden="true">
+          <span class="hb-giga js-hero-gana">1</span>
+          <div class="hb-lado"><p class="hb-lado__k">Así de simple</p><p class="hb-lado__t"><span class="js-hero-ptxt">punto</span> por cada <span class="hb-am js-hero-pesos">RD$ 100</span></p></div>
+        </div>
+      </div>
+
+      <!-- 8 · Cupones (avisos) -->
+      <div class="hero-slide hb hb--avisos">
+        <div class="hb-txt">
+          <span class="hb-pill">Cupones electrónicos</span>
+          <h2 class="hb-sans">Te llega <span>un cupón.</span></h2>
+          <p class="hb-desc">En fechas especiales te enviamos cupones de descuento directamente a tu cuenta.</p>
+          <button class="hb-btn hb-btn--verde" onclick="heroAccion('cupones')">Ver mis cupones <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="hb-vis" aria-hidden="true">
+          <div class="hb-avisos__circ"></div>
+          <div class="hb-aviso hb-aviso--1"><span class="hb-aviso__ico"><i class="fas fa-ticket"></i></span><div><small>Casa Mota · ahora</small><b>Tienes un cupón nuevo</b><span>Ya está en tu cuenta. Úsalo en tu próximo pedido.</span></div></div>
+          <div class="hb-aviso hb-aviso--2"><span class="hb-aviso__ico"><i class="fas fa-gift"></i></span><div><small>Casa Mota</small><b>Cupón de regalo</b><span>Directo a tu cuenta, sin pedirlo.</span></div></div>
+          <div class="hb-aviso hb-aviso--3"><span class="hb-aviso__ico"><i class="fas fa-calendar-days"></i></span><div><small>Casa Mota</small><b>Fechas especiales</b><span>Te avisamos cuando haya uno para ti.</span></div></div>
+        </div>
+      </div>
+
+      <!-- 9 · Delivery (frutas) -->
+      <div class="hero-slide hb hb--fresco">
+        <div class="hb-txt">
+          <p class="hb-eyebrow">Delivery gratis</p>
+          <h2 class="hb-sans">Fresco, a tu puerta, <span>sin costo.</span></h2>
+          <p class="hb-desc">En compras desde <span class="js-hero-envio">RD$ 3,800</span> el envío no se cobra.</p>
+          <button class="hb-btn hb-btn--cuadro" onclick="heroAccion('comprar')">Empezar a comprar <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="hb-vis hb-grid" aria-hidden="true">
+          <div style="background:#FF8A7A"><svg viewBox="0 0 100 100"><path d="M8 38A42 42 0 0 0 92 38Z" fill="#1C7A42"/><path d="M15 38A35 35 0 0 0 85 38Z" fill="#fff"/><path d="M19 38A31 31 0 0 0 81 38Z" fill="#E5392F"/><circle cx="37" cy="50" r="3" fill="#222"/><circle cx="50" cy="56" r="3" fill="#222"/><circle cx="63" cy="50" r="3" fill="#222"/></svg></div>
+          <div style="background:#0E3B22"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="#F7A93B"/><circle cx="50" cy="50" r="32" fill="#F39A1E"/><path d="M50 18V82M18 50H82M27 27L73 73M73 27L27 73" stroke="#FBD38D" stroke-width="3"/><circle cx="50" cy="50" r="5" fill="#FBD38D"/></svg></div>
+          <div style="background:#F9D04E"><svg viewBox="0 0 100 100"><path d="M50 6C68 6 74 30 80 50C88 76 72 94 50 94C28 94 12 76 20 50C26 30 32 6 50 6Z" fill="#1C5E32"/><path d="M50 16C63 16 67 36 72 52C78 72 66 86 50 86C34 86 22 72 28 52C33 36 37 16 50 16Z" fill="#CFE3A0"/><circle cx="50" cy="62" r="14" fill="#8B5A3C"/></svg></div>
+          <div style="background:#1C7A42"><svg viewBox="0 0 100 100"><path d="M24 18C14 52 34 86 82 82C86 81 87 77 83 76C48 70 35 50 35 20C35 14 26 12 24 18Z" fill="#F7D24A"/><path d="M24 18L25 9L32 10L34 18Z" fill="#6B4A1F"/></svg></div>
+          <div style="background:#FFF8E6"><svg viewBox="0 0 100 100"><circle cx="50" cy="56" r="34" fill="#E5392F"/><path d="M50 26L56 17L58 28L68 23L62 32L50 35L38 32L32 23L42 28L44 17Z" fill="#1C7A42"/><circle cx="38" cy="46" r="6" fill="#F47C6E"/></svg></div>
+          <div style="background:#F592B5"><svg viewBox="0 0 100 100"><path d="M50 30C56 16 72 12 80 18C70 24 62 28 50 30Z" fill="#1C7A42"/><g fill="#5B2A86"><circle cx="29" cy="38" r="8"/><circle cx="44" cy="38" r="8"/><circle cx="59" cy="38" r="8"/><circle cx="74" cy="38" r="8"/><circle cx="36" cy="52" r="8"/><circle cx="51" cy="52" r="8"/><circle cx="66" cy="52" r="8"/><circle cx="43" cy="66" r="8"/><circle cx="58" cy="66" r="8"/><circle cx="51" cy="80" r="8"/></g></svg></div>
+        </div>
+      </div>
+
+      <!-- 10 · Fidelidad (serif + arco) -->
+      <div class="hero-slide hb hb--arco">
+        <div class="hb-txt">
+          <p class="hb-eyebrow hb-eyebrow--raya">Programa de fidelidad</p>
+          <h2 class="hb-serif hb-serif--fino">Compra, acumula <em>y gana.</em></h2>
+          <p class="hb-desc">Ganas <span class="js-hero-puntos">1 punto por cada RD$ 100</span>. Se suman solos y los usas para pagar tu próximo pedido.</p>
+          <button class="hb-btn hb-link" onclick="heroAccion('puntos')">Ver mis puntos <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="hb-vis" aria-hidden="true">
+          <div class="hb-arco">
+            <div class="hb-arco__fondo"></div>
+            <svg class="hb-arco__frutas" viewBox="0 0 260 150">
+              <ellipse cx="130" cy="142" rx="128" ry="8" fill="#D3E0CB"/>
+              <circle cx="140" cy="88" r="52" fill="#F39A1E"/><circle cx="120" cy="68" r="12" fill="#F7B860"/>
+              <path d="M148 38C158 24 176 24 182 30C172 38 160 40 148 38Z" fill="#1C7A42"/>
+              <ellipse cx="216" cy="116" rx="34" ry="26" fill="#F5D33F"/><ellipse cx="205" cy="108" rx="8" ry="5" fill="#FAE68C"/>
+              <g transform="translate(8 40) scale(.95)"><path d="M50 6C68 6 74 30 80 50C88 76 72 94 50 94C28 94 12 76 20 50C26 30 32 6 50 6Z" fill="#1C5E32"/><path d="M50 16C63 16 67 36 72 52C78 72 66 86 50 86C34 86 22 72 28 52C33 36 37 16 50 16Z" fill="#CFE3A0"/><circle cx="50" cy="62" r="14" fill="#8B5A3C"/><circle cx="45" cy="57" r="4" fill="#A9765A"/></g>
+            </svg>
+            <div class="hb-sello"><em class="js-hero-pts">1 punto</em><small>cada <span class="js-hero-pesos">RD$ 100</span></small></div>
+          </div>
         </div>
       </div>
     </div>
@@ -613,6 +730,11 @@
         <span class="dot" onclick="goToSlide(2)"></span>
         <span class="dot" onclick="goToSlide(3)"></span>
         <span class="dot" onclick="goToSlide(4)"></span>
+        <span class="dot" onclick="goToSlide(5)"></span>
+        <span class="dot" onclick="goToSlide(6)"></span>
+        <span class="dot" onclick="goToSlide(7)"></span>
+        <span class="dot" onclick="goToSlide(8)"></span>
+        <span class="dot" onclick="goToSlide(9)"></span>
       </div>
       <button class="slider-next" onclick="nextSlide()" aria-label="Siguiente"><i class="fas fa-chevron-right"></i></button>
     </div>
@@ -1492,7 +1614,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=303"></script>
   <script src="js/favorites.js?v=285"></script>
-  <script src="js/app.js?v=397"></script>
+  <script src="js/app.js?v=398"></script>
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/busqueda-voz.js?v=2"></script>
