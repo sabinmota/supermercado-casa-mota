@@ -429,8 +429,24 @@ function _validateEAN(code) {
   const len = code.length;
   const validLengths = { 6: 'UPC-E', 8: 'EAN-8', 12: 'UPC-A', 13: 'EAN-13', 14: 'ITF-14' };
 
+  /* 552 · Pedido del dueño: un producto chino trae el código 6911272409
+   * (10 cifras) y el panel lo rechazaba sin remedio porque solo admitía
+   * 6, 8, 12, 13 o 14. Hay códigos reales de otras longitudes (Code 128,
+   * Code 39, ITF de suplidor) que la pistola lee igual, y la caja, la tienda
+   * y /mayor ya los buscan tal cual. Ahora una longitud fuera del estándar
+   * (6–14 cifras, lo que cabe en el campo) se trata como el dígito de
+   * control malo del build 493: aviso naranja y se guarda CONFIRMANDO.
+   * Menos de 6 cifras sigue bloqueado (no es un código, es un despiste). */
   if (!validLengths[len]) {
-    return { valid: false, type: '', error: `Longitud inválida (${len} dígitos). Debe ser 6, 8, 12, 13 o 14` };
+    if (len >= 6 && len <= 14) {
+      return {
+        valid: false,
+        confirmable: true,
+        type: 'No estándar',
+        error: `${len} dígitos: no es un EAN/UPC (esos tienen 8, 12, 13 o 14)`
+      };
+    }
+    return { valid: false, type: '', error: `Longitud inválida (${len} dígitos). Debe tener de 6 a 14` };
   }
 
   // ── UPC-E de 6 dígitos (sin número de sistema ni check) ──────────────────
@@ -484,11 +500,11 @@ function _validateEAN(code) {
     if (exp8 === chk8) return { valid: true, type: 'EAN-8', error: '' };
 
     // Ningún formato de 8 dígitos válido
-    // 493 · soloDigito: el formato es bueno y solo falla el dígito de control
+    // 493 · confirmable: el formato es bueno y solo falla el dígito de control
     // → saveProduct deja guardarlo si el dueño lo confirma (etiquetas propias).
     return {
       valid: false,
-      soloDigito: true,
+      confirmable: true,
       type: 'EAN-8 / UPC-E',
       error: `Dígito verificador inválido para EAN-8 y UPC-E`
     };
@@ -513,7 +529,7 @@ function _validateEAN(code) {
   if (calcCheck !== check) {
     return {
       valid: false,
-      soloDigito: true,   // 493 · ver arriba: se puede guardar confirmando
+      confirmable: true,   // 493 · ver arriba: se puede guardar confirmando
       type: validLengths[len],
       error: `Dígito verificador incorrecto (esperado: ${calcCheck}, ingresado: ${check})`
     };
@@ -606,7 +622,7 @@ function _checkBarcodeUnique(val, excludeId = null) {
   /* 493 · Solo falla el dígito de control: aviso NARANJA, no rojo, porque se
    * puede guardar confirmando (etiquetas propias del suplidor). Se sigue
    * comprobando que no esté repetido: eso nunca se puede saltar. */
-  if (!eanResult.valid && eanResult.soloDigito) {
+  if (!eanResult.valid && eanResult.confirmable) {
     const dupNs = _codigoEnUso(val, excludeId ?? editingProductId);
     if (dupNs) {
       status.innerHTML = `<span style="color:#e65100">⚠️ Ya asignado a "${dupNs.name}"</span>`;
@@ -696,7 +712,7 @@ function _checkBarcodeAlt(val) {
   if (!/^\d+$/.test(v)) { pinta('<span style="color:#1a7c3e;font-weight:600">✅ Código alfanumérico</span>', '#1a7c3e'); return; }
 
   const ean = _validateEAN(v);
-  if (!ean.valid && ean.soloDigito) {
+  if (!ean.valid && ean.confirmable) {
     pinta(`<span style="color:#b45309" title="${ean.error}">⚠️ No cumple el estándar · al guardar se pedirá confirmar</span>`, '#e65100'); return;
   }
   if (!ean.valid) { pinta(`<span style="color:#e53935">❌ ${ean.error}</span>`, '#e53935'); return; }
@@ -3807,7 +3823,7 @@ function saveProduct() {
 
   // 2) Validar formato EAN / UPC (longitud + solo números + dígito verificador)
   const eanResult = _validateEAN(barcodeVal);
-  if (!eanResult.valid && !eanResult.soloDigito) {
+  if (!eanResult.valid && !eanResult.confirmable) {
     _barcodeError(`⚠️ Código inválido: ${eanResult.error}`);
     _unlock(); return;
   }
@@ -3823,7 +3839,7 @@ function saveProduct() {
    *    si se confirma. Letras, longitudes raras y repetidos siguen bloqueados.
    *    Se pregunta SOLO si el código cambió o es un producto nuevo: editar el
    *    precio de un producto que ya lo tenía no vuelve a preguntar. */
-  if (!eanResult.valid && eanResult.soloDigito) {
+  if (!eanResult.valid && eanResult.confirmable) {
     const previo = editingProductId
       ? (adminProducts.find(p => String(p.id) === String(editingProductId)) || {}).barcode
       : null;
@@ -3865,10 +3881,10 @@ function saveProduct() {
   } else if (altVal) {
     if (altVal === barcodeVal) { _altError('⚠️ El código alternativo es igual al principal. Bórrelo o ponga otro.'); _unlock(); return; }
     const altEan = _validateEAN(altVal);
-    if (!altEan.valid && !altEan.soloDigito) { _altError(`⚠️ Código alternativo inválido: ${altEan.error}`); _unlock(); return; }
+    if (!altEan.valid && !altEan.confirmable) { _altError(`⚠️ Código alternativo inválido: ${altEan.error}`); _unlock(); return; }
     const altDup = _codigoEnUso(altVal, editingProductId);
     if (altDup) { _altError(`⚠️ El código alternativo ya está asignado a "${altDup.name}"`); _unlock(); return; }
-    if (!altEan.valid && altEan.soloDigito) {
+    if (!altEan.valid && altEan.confirmable) {
       const previoAlt = editingProductId
         ? (adminProducts.find(p => String(p.id) === String(editingProductId)) || {}).barcode_alt
         : null;

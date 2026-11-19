@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '513';
+      const VER = '514';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1817,7 +1817,7 @@
                    oninput="_checkBarcodeUnique(this.value)" />
             <span id="pBarcodeStatus" style="font-size:.75rem;white-space:nowrap;min-width:160px"></span>
           </div>
-          <small style="color:#6b7280;font-size:.72rem">Compatible con lectores láser · 6, 8, 12, 13 o 14 dígitos. Si el código no cumple el estándar (etiqueta propia del suplidor), se puede guardar confirmando.</small>
+          <small style="color:#6b7280;font-size:.72rem">Compatible con lectores láser · de 6 a 14 dígitos. Si el código no cumple el estándar EAN/UPC (etiqueta propia del suplidor, otra longitud), se puede guardar confirmando.</small>
         </div>
         <!-- 494 · Código alternativo (opcional) · seguridad/86 -->
         <div class="form-group">
@@ -3599,7 +3599,7 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=427"></script>
+  <script src="js/admin.v33.js?v=428"></script>
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
