@@ -4338,6 +4338,9 @@ html.es-app-nativa .header {
   .hb-card { transform: scale(.72); }
   .hb-tick { transform: scale(.74); }
   .hb--mapa .hb-vis, .hb-grid { position: relative; width: calc(100% + 44px); max-width: none; height: 200px; margin: -26px -22px 0; }
+  /* 551b · el mapa entero (misma proporción que el dibujo, 600×380): con
+     200 px de alto se cortaban la casa de «Tu puerta» y la ruta. */
+  .hb--mapa .hb-vis { height: auto; aspect-ratio: 600 / 380; }
   .hb--mapa .hb-vis::before { display: none; }
   .hb-mapa__card { right: 12px; bottom: 12px; padding: 10px 14px; }
   .hb-mapa__card b { font-size: 1.2rem; }
