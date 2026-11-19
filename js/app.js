@@ -666,6 +666,7 @@ async function applyStoreInfo() {
 
   // ── Precachear settings para el checkout (evita segunda llamada a la API) ──
   if (!_checkoutSettingsCache) _checkoutSettingsCache = s;
+  _heroDatos(s);   // 550 · cifras del carrusel desde la configuración del panel
 
   const phone    = s.storePhone    || '';
   const address  = s.storeAddress  || '';
@@ -3153,8 +3154,8 @@ function renderCartItems() {
   if (cart.length === 0) {
     wrapper.innerHTML = `
       <div class="cart-empty">
-        <i class="fas fa-cart-shopping"></i>
-        <p>Tu carrito está vacío</p>
+        <img class="cart-empty__ilustracion" src="images/carrito-vacio.png?v=2" alt="" width="1040" height="992">
+        <p>¡Tu carrito está vacío!</p>
         <span>Agrega productos para comenzar</span>
       </div>`;
     if (footer) footer.classList.add('hidden');
@@ -4401,6 +4402,35 @@ function startSlider() {
 function resetSliderTimer() {
   clearInterval(sliderTimer);
   startSlider();
+}
+
+/* 550 · Carrusel de publicidad. Las cifras (puntos y envío gratis) salen de
+ * la MISMA configuración que usa el checkout (_calcEnvio, _textoReglasPuntos),
+ * con los mismos valores por omisión: el anuncio nunca promete otra cosa. */
+function _heroDatos(cfg) {
+  cfg = cfg || {};
+  const pesos = parseInt(cfg.loyaltyPesosPerPoint, 10) || 100;
+  const gana  = parseInt(cfg.loyaltyPointsEarned,  10) || 1;
+  const envio = parseFloat(cfg.freeShippingMin || 0) || 3800;
+  const n = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const pts = `${gana} punto${gana !== 1 ? 's' : ''}`;
+  document.querySelectorAll('.js-hero-puntos').forEach(el => { el.textContent = `${pts} por cada RD$ ${n(pesos)}`; });
+  document.querySelectorAll('.js-hero-puntos-corto').forEach(el => { el.textContent = `${pts} · RD$ ${n(pesos)}`; });
+  document.querySelectorAll('.js-hero-envio').forEach(el => { el.textContent = `RD$ ${n(envio)}`; });
+}
+
+/* Botón de cada anuncio. Puntos y cupones abren «Mi cuenta» en esa sección;
+ * sin sesión, llevan a entrar (los puntos y cupones son de cada cliente). */
+function heroAccion(que) {
+  if (que === 'puntos' || que === 'cupones') {
+    if (!currentClient) { window.location.href = 'login-cliente.html'; return; }
+    const panel = document.getElementById('accountPanel');
+    if (panel && !panel.classList.contains('open')) toggleMyAccount();
+    setTimeout(() => accOpenView(que), 60);
+    return;
+  }
+  if (que === 'ofertas' && typeof window.verVitrina === 'function') window.verVitrina('offer');
+  document.getElementById('productsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ─── TOAST ────────────────────────────────────────────────────────────────────

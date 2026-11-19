@@ -28,7 +28,7 @@
       }
       /* 2) Versión */
       try {
-        var VER = '525', KEY = 'cm_app_ver';
+        var VER = '531', KEY = 'cm_app_ver';
         var stored = sessionStorage.getItem(KEY);
         if (stored !== VER) {
           sessionStorage.setItem(KEY, VER);
@@ -132,7 +132,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="vendor/fontawesome-6.4.0/css/all.min.css" />
 
-  <link rel="stylesheet" href="css/style.css?v=344" />
+  <link rel="stylesheet" href="css/style.css?v=347" />
   <link rel="stylesheet" href="css/logo-animado.css?v=7" />
   <style>
     /* Bloquear zoom por doble toque y pellizco en todos los navegadores móviles */
@@ -518,56 +518,103 @@
 
   <!-- ===================== HERO BANNER ===================== -->
   <section class="hero">
+    <!-- 550 · Pedido del dueño: el carrusel ya no repite las fotos de las
+         categorías; anuncia lo que ofrece Casa Mota. Las cifras de puntos y
+         del envío gratis se rellenan con la configuración del panel
+         (js/app.js · _heroDatos), así el anuncio nunca dice otra cosa. -->
     <div class="hero-slider" id="heroSlider">
-      <div class="hero-slide active">
+      <div class="hero-slide hero-slide--club active">
         <div class="hero-content">
-          <p class="hero-tag"><i class="fas fa-bolt"></i> Oferta del día</p>
-          <h1>Frutas Tropicales<br /><span>Frescas & Naturales</span></h1>
-          <p class="hero-desc">Seleccionadas cada mañana directamente del campo dominicano. Sabor auténtico en tu mesa.</p>
-          <button class="hero-btn" onclick="filterCategory('frutas', document.querySelector('[data-cat=frutas]'))">
+          <p class="hero-tag"><i class="fas fa-star"></i> Programa de fidelidad</p>
+          <h1>Compra, acumula<br /><span>y gana premios</span></h1>
+          <p class="hero-desc">Ganas <b class="js-hero-puntos">1 punto por cada RD$ 100</b> en tus compras y los usas para pagar tu próximo pedido.</p>
+          <button class="hero-btn" onclick="heroAccion('puntos')">
+            Ver mis puntos <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hv-circle"><i class="fas fa-star"></i></div>
+          <span class="hv-chip hv-chip--a"><i class="fas fa-coins"></i> <span class="js-hero-puntos-corto">1 punto · RD$ 100</span></span>
+          <span class="hv-chip hv-chip--b"><i class="fas fa-wallet"></i> Paga con tus puntos</span>
+          <span class="hv-chip hv-chip--c"><i class="fas fa-arrow-trend-up"></i> Más compras, más puntos</span>
+        </div>
+      </div>
+      <div class="hero-slide hero-slide--envio">
+        <div class="hero-content">
+          <p class="hero-tag"><i class="fas fa-truck-fast"></i> Delivery gratis</p>
+          <h1>Tu pedido en tu puerta,<br /><span>sin costo</span></h1>
+          <p class="hero-desc">Compras desde <b class="js-hero-envio">RD$ 3,800</b> reciben envío completamente gratis a domicilio.</p>
+          <button class="hero-btn" onclick="heroAccion('comprar')">
+            Empezar a comprar <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hv-circle"><i class="fas fa-truck-fast"></i></div>
+          <span class="hv-chip hv-chip--a"><i class="fas fa-bolt"></i> Rápido</span>
+          <span class="hv-chip hv-chip--b"><i class="fas fa-location-dot"></i> A tu puerta</span>
+          <span class="hv-chip hv-chip--c"><i class="fas fa-circle-check"></i> Sin costo</span>
+        </div>
+      </div>
+      <div class="hero-slide hero-slide--precios">
+        <div class="hero-content">
+          <p class="hero-tag"><i class="fas fa-tag"></i> Precios exclusivos App</p>
+          <h1>Precios que<br /><span>solo tú ves</span></h1>
+          <p class="hero-desc">Comprando en la App de Casa Mota accedes a ofertas especiales para nuestros clientes registrados.</p>
+          <button class="hero-btn" onclick="heroAccion('ofertas')">
             Ver ofertas <i class="fas fa-arrow-right"></i>
           </button>
         </div>
-        <div class="hero-image">
-          <img src="images/frutas.jpg" alt="Frutas tropicales frescas" />
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hv-circle"><i class="fas fa-mobile-screen-button"></i></div>
+          <span class="hv-chip hv-chip--a"><i class="fas fa-tag"></i> Solo en la App</span>
+          <span class="hv-chip hv-chip--b"><i class="fas fa-percent"></i> Ofertas especiales</span>
+          <span class="hv-chip hv-chip--c"><i class="fas fa-piggy-bank"></i> Ahorra más</span>
         </div>
       </div>
-      <div class="hero-slide">
-        <div class="hero-content hero-content--dark">
-          <p class="hero-tag tag--red"><i class="fas fa-fire"></i> Super oferta</p>
-          <h1>Carnes & Mariscos<br /><span>Calidad Premium</span></h1>
-          <p class="hero-desc">Cortes frescos de res, pollo y cerdo. Mariscos del día con la mejor calidad.</p>
-          <button class="hero-btn btn--red" onclick="filterCategory('carnes', document.querySelector('[data-cat=carnes]'))">
-            Explorar <i class="fas fa-arrow-right"></i>
+      <div class="hero-slide hero-slide--cupones">
+        <div class="hero-content">
+          <p class="hero-tag"><i class="fas fa-ticket"></i> Cupones electrónicos</p>
+          <h1>Cupones de regalo<br /><span>por ser cliente fiel</span></h1>
+          <p class="hero-desc">En fechas especiales te enviamos cupones de descuento directamente a tu cuenta.</p>
+          <button class="hero-btn" onclick="heroAccion('cupones')">
+            Ver mis cupones <i class="fas fa-arrow-right"></i>
           </button>
         </div>
-        <div class="hero-image">
-          <img src="images/carnes.png" alt="Carnes premium" />
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hv-circle"><i class="fas fa-ticket"></i></div>
+          <span class="hv-chip hv-chip--a"><i class="fas fa-gift"></i> Cupón de regalo</span>
+          <span class="hv-chip hv-chip--b"><i class="fas fa-user-check"></i> Directo a tu cuenta</span>
+          <span class="hv-chip hv-chip--c"><i class="fas fa-calendar-days"></i> Fechas especiales</span>
         </div>
       </div>
-      <div class="hero-slide">
-        <div class="hero-content hero-content--blue">
-          <p class="hero-tag tag--blue"><i class="fas fa-tag"></i> Descuentos especiales</p>
-          <h1>Despensa &amp;<br /><span>Productos Básicos</span></h1>
-          <p class="hero-desc">Todo lo que necesitas para tu hogar al mejor precio. Arroz, habichuelas, aceite y más.</p>
-          <button class="hero-btn btn--blue" onclick="filterCategory('despensa', document.querySelector('[data-cat=despensa]'))">
-            Ver productos <i class="fas fa-arrow-right"></i>
+      <div class="hero-slide hero-slide--cumple">
+        <div class="hero-content">
+          <p class="hero-tag"><i class="fas fa-cake-candles"></i> Tu cumpleaños</p>
+          <h1>En tu cumpleaños,<br /><span>Casa Mota te regala</span></h1>
+          <p class="hero-desc">Celebra con nosotros: por tu cumpleaños recibes un cupón de regalo en tu cuenta.</p>
+          <button class="hero-btn" onclick="heroAccion('cupones')">
+            Ver mis cupones <i class="fas fa-arrow-right"></i>
           </button>
         </div>
-        <div class="hero-image">
-          <img src="images/despensa.png" alt="Despensa y básicos" />
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hv-circle"><i class="fas fa-cake-candles"></i></div>
+          <span class="hv-chip hv-chip--a"><i class="fas fa-champagne-glasses"></i> ¡Feliz cumpleaños!</span>
+          <span class="hv-chip hv-chip--b"><i class="fas fa-gift"></i> Cupón de regalo</span>
+          <span class="hv-chip hv-chip--c"><i class="fas fa-heart"></i> Con cariño, Casa Mota</span>
         </div>
       </div>
     </div>
     <!-- Controles del slider -->
     <div class="slider-controls">
-      <button class="slider-prev" onclick="prevSlide()"><i class="fas fa-chevron-left"></i></button>
+      <button class="slider-prev" onclick="prevSlide()" aria-label="Anterior"><i class="fas fa-chevron-left"></i></button>
       <div class="slider-dots" id="sliderDots">
         <span class="dot active" onclick="goToSlide(0)"></span>
         <span class="dot" onclick="goToSlide(1)"></span>
         <span class="dot" onclick="goToSlide(2)"></span>
+        <span class="dot" onclick="goToSlide(3)"></span>
+        <span class="dot" onclick="goToSlide(4)"></span>
       </div>
-      <button class="slider-next" onclick="nextSlide()"><i class="fas fa-chevron-right"></i></button>
+      <button class="slider-next" onclick="nextSlide()" aria-label="Siguiente"><i class="fas fa-chevron-right"></i></button>
     </div>
   </section>
 
@@ -1445,7 +1492,7 @@
   <script src="js/products.js?v=300"></script>
   <script src="js/cupones.js?v=303"></script>
   <script src="js/favorites.js?v=285"></script>
-  <script src="js/app.js?v=391"></script>
+  <script src="js/app.js?v=397"></script>
   <!-- BUILD 483 · Vitrinas Novedades / Ofertas. DEBE ir después de app.js. -->
   <script src="js/vitrinas.js?v=2"></script>
   <script src="js/busqueda-voz.js?v=2"></script>

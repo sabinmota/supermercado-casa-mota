@@ -1168,27 +1168,52 @@ html.es-app-nativa .voice-search-btn { display: none !important; }
 .hero-slide { grid-area: 1/1; display: flex; align-items: center; justify-content: space-between; padding: 60px; background: linear-gradient(135deg, #f0faf4 0%, #d4edda 100%); opacity: 0; transition: opacity .7s ease; pointer-events: none; }
 .hero-slide.active { opacity: 1; pointer-events: all; }
 
-.hero-content { flex: 1; max-width: 520px; }
+.hero-content { flex: 1; max-width: 540px; position: relative; z-index: 1; }
 .hero-tag { display: inline-flex; align-items: center; gap: 6px; background: var(--green-pale); color: var(--green-primary); border: 1px solid rgba(26,124,62,.2); padding: 4px 14px; border-radius: 50px; font-size: .8rem; font-weight: 600; margin-bottom: 16px; }
-.tag--red { background: #ffebee; color: var(--red-accent); border-color: rgba(229,57,53,.2); }
-.tag--blue { background: #e3f2fd; color: var(--blue-accent); border-color: rgba(21,101,192,.2); }
 .hero-content h1 { font-size: 2.6rem; font-weight: 800; line-height: 1.15; color: var(--text-dark); margin-bottom: 12px; }
 .hero-content h1 span { color: var(--green-primary); }
-.hero-content--dark h1 span { color: var(--red-accent); }
-.hero-content--blue h1 span { color: var(--blue-accent); }
 .hero-desc { font-size: .95rem; color: var(--text-medium); margin-bottom: 28px; line-height: 1.7; }
 .hero-btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 28px; background: var(--green-primary); color: white; border-radius: var(--radius); font-size: .9rem; font-weight: 600; transition: all var(--transition); box-shadow: 0 4px 16px rgba(26,124,62,.3); }
 .hero-btn:hover { background: var(--green-dark); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,124,62,.35); }
-.btn--red { background: var(--red-accent); box-shadow: 0 4px 16px rgba(229,57,53,.3); }
-.btn--red:hover { background: #c62828; }
-.btn--blue { background: var(--blue-accent); box-shadow: 0 4px 16px rgba(21,101,192,.3); }
-.btn--blue:hover { background: #0d47a1; }
 
-.hero-slide:nth-child(2) { background: linear-gradient(135deg, #fff3f3 0%, #ffd7d7 100%); }
-.hero-slide:nth-child(3) { background: linear-gradient(135deg, #f0f4ff 0%, #d7e4ff 100%); }
+/* 550 · Carrusel de publicidad de Casa Mota (pedido del dueño). Fondo verde
+   oscuro de la marca y un acento de color por anuncio (--hc). Sin fotos: el
+   dibujo de la derecha es un círculo con icono y tres etiquetas. */
+.hero-slide { --hc: #3ddc84; --hc-txt: #0b3d20;
+  background: radial-gradient(circle at 82% 18%, rgba(255,255,255,.10), transparent 42%),
+              linear-gradient(135deg, #0b3d20 0%, #145e2e 55%, #1a7c3e 100%); }
+.hero-slide--club    { --hc: #f9b233; --hc-txt: #3d2600; }
+.hero-slide--envio   { --hc: #3ddc84; }
+.hero-slide--precios { --hc: #ffd54f; --hc-txt: #3d2f00; }
+.hero-slide--cupones { --hc: #ff8a80; --hc-txt: #4a0d09; }
+.hero-slide--cumple  { --hc: #f48fb1; --hc-txt: #4a0d24; }
+.hero-slide .hero-tag { background: rgba(255,255,255,.12); color: var(--hc); border-color: rgba(255,255,255,.22); }
+.hero-slide .hero-content h1 { color: #fff; }
+.hero-slide .hero-content h1 span { color: var(--hc); }
+.hero-slide .hero-desc { color: rgba(255,255,255,.82); }
+.hero-slide .hero-desc b { color: #fff; }
+.hero-slide .hero-btn { background: var(--hc); color: var(--hc-txt); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.hero-slide .hero-btn:hover { background: #fff; color: var(--green-dark); }
 
-.hero-image { flex-shrink: 0; width: 380px; height: 320px; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-lg); }
-.hero-image img { width: 100%; height: 100%; object-fit: cover; }
+.hero-visual { position: relative; flex-shrink: 0; width: 380px; height: 300px; }
+.hv-circle {
+  position: absolute; left: 50%; top: 50%; width: 190px; height: 190px; margin: -95px 0 0 -95px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 5rem; color: var(--hc-txt);
+  background: radial-gradient(circle at 35% 30%, #fff 0%, var(--hc) 62%);
+  box-shadow: 0 0 0 14px rgba(255,255,255,.07), 0 0 0 30px rgba(255,255,255,.04), 0 18px 40px rgba(0,0,0,.3);
+}
+.hv-chip {
+  position: absolute; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  padding: 8px 14px; border-radius: 50px; font-size: .82rem; font-weight: 700; color: #fff;
+  background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+.hv-chip i { color: var(--hc); }
+.hv-chip--a { left: 0;  top: 22px; }
+.hv-chip--b { right: 0; top: 120px; }
+.hv-chip--c { left: 18px; bottom: 26px; }
 
 /* Slider controls */
 .slider-controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; z-index: 10; }
@@ -2780,8 +2805,11 @@ html.es-app-nativa .voice-search-btn { display: none !important; }
   overscroll-behavior: contain;
 }
 .cart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-light); gap: 8px; padding: 40px 0; }
-.cart-empty i { font-size: 3rem; color: var(--border); }
-.cart-empty p { font-size: 1rem; font-weight: 600; color: var(--text-medium); }
+/* 549c · Carrito vacío: imagen elegida por el dueño (images/carrito-vacio.png,
+   190×186 px). Se muestra a 180 px como máximo para no agrandarla y que no
+   se vea borrosa. */
+.cart-empty__ilustracion { width: 180px; max-width: 70%; height: auto; margin-bottom: 6px; }
+.cart-empty p { font-size: 1.2rem; font-weight: 800; color: var(--red-accent); }
 .cart-empty span { font-size: .85rem; }
 .cart-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .cart-item-img { width: 72px; height: 72px; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; background: #fff; border: 1px solid var(--border); }
@@ -4197,7 +4225,13 @@ html.es-app-nativa .header {
 }
 @media (max-width: 900px) {
   .hero-slide { padding: 40px 24px; flex-direction: column; text-align: center; min-height: 500px; }
-  .hero-image { width: 100%; max-width: 320px; height: 220px; }
+  /* 550 · en móvil el dibujo es más pequeño y va debajo del texto */
+  .hero-visual { width: 100%; max-width: 320px; height: 210px; margin-top: 18px; }
+  .hv-circle { width: 120px; height: 120px; margin: -60px 0 0 -60px; font-size: 3.1rem; }
+  .hv-chip { font-size: .74rem; padding: 6px 11px; }
+  .hv-chip--a { top: 4px; }
+  .hv-chip--b { top: 92px; }
+  .hv-chip--c { bottom: 4px; left: 8px; }
   .products-grid { grid-template-columns: repeat(2,1fr); }
   .category-grid { grid-template-columns: repeat(2,1fr); }
   .modal-content { grid-template-columns: minmax(0, 1fr); }   /* 514 */

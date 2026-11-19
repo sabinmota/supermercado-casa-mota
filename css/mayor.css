@@ -217,6 +217,9 @@ html.es-app-nativa #mzDetalle { padding-top: calc(12px + env(safe-area-inset-top
 .mz-panel__pie[hidden] { display: none; }
 .mz-vacio { text-align: center; color: var(--text-medium); padding: 40px 10px; }
 .mz-vacio i { font-size: 2.4rem; color: var(--border); display: block; margin-bottom: 10px; }
+/* 549 · carrito vacío a color (mismo dibujo que la tienda) */
+.mz-vacio__ilustracion { display: block; width: 180px; max-width: 70%; height: auto; margin: 0 auto 6px; }
+.mz-vacio__tit { display: block; font-size: 1.15rem; font-weight: 800; color: var(--red-accent); margin-bottom: 4px; }
 
 .mz-linea { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #eef2ee; }
 .mz-linea img { width: 52px; height: 52px; object-fit: contain; border-radius: 8px; background: #f6f8f6; }

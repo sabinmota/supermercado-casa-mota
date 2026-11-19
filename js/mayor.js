@@ -536,7 +536,8 @@
     var b = $('cuentaCarrito'); b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
 
     if (!ids.length) {
-      $('lineasCarrito').innerHTML = '<div class="mz-vacio"><i class="fas fa-cart-shopping"></i>Tu pedido está vacío.<br>Añade productos del catálogo.</div>';
+      $('lineasCarrito').innerHTML = '<div class="mz-vacio"><img class="mz-vacio__ilustracion" src="images/carrito-vacio.png?v=2" alt="" width="1040" height="992">' +
+        '<b class="mz-vacio__tit">¡Tu pedido está vacío!</b>Añade productos del catálogo.</div>';
       $('checkout').hidden = true; $('pieCarrito').hidden = true;
       return;
     }
