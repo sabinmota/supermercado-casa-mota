@@ -4424,33 +4424,11 @@ function _heroDatos(cfg) {
   poner('.js-hero-ptxt',  ptxt);
   poner('.js-hero-pts',   pts);
   poner('.js-hero-pesos', `RD$ ${n(pesos)}`);
-  _heroTarjeta();
-}
-
-/* 551 · La tarjeta del club muestra los puntos y el nombre DEL CLIENTE que
- * mira la tienda, no un número inventado.
- * 551b · Los puntos NO se leen de la sesión: la sesión se guarda al entrar y
- * no trae los puntos (o trae los de aquel día), por eso la tarjeta salía en
- * «0». Se piden a la base con `DB.misDatos()`, el MISMO camino que usa
- * «Mi cuenta › Puntos», así la tarjeta y esa pantalla siempre dicen lo mismo.
- * Mientras llega la respuesta (o si no hay red) el número queda en «—», que
- * no afirma nada; nunca un «0» que no se ha comprobado. */
-function _heroPintarTarjeta(datos) {
-  const c = datos || {};
-  const nombre = String(c.name || '').trim().split(/\s+/)[0] || 'Cliente fiel';
-  document.querySelectorAll('.js-hero-cliente').forEach(el => { el.textContent = nombre; });
-  if (c.loyaltyPoints === undefined || c.loyaltyPoints === null) return;
-  const saldo = parseInt(c.loyaltyPoints, 10) || 0;
-  document.querySelectorAll('.js-hero-saldo').forEach(el => { el.textContent = saldo.toLocaleString('en-US'); });
-}
-async function _heroTarjeta() {
-  _heroPintarTarjeta({ name: currentClient?.name });
-  try {
-    const frescos = (typeof DB !== 'undefined' && DB.misDatos) ? await DB.misDatos() : null;
-    if (frescos) _heroPintarTarjeta({ ...currentClient, ...frescos });
-  } catch (e) {
-    console.warn('[carrusel] no se pudieron leer los puntos:', e && e.message);
-  }
+  /* 551c · Decisión del dueño: la tarjeta del club del anuncio es un DIBUJO
+   * FIJO («1,250 puntos · Cliente fiel», como el diseño de Fable). No se
+   * rellena con el nombre ni los puntos del cliente: el carrusel se ve en
+   * pantalla delante de otras personas y no es ético enseñar esos datos.
+   * Los puntos reales están en Mi cuenta › Puntos. */
 }
 
 /* Botón de cada anuncio. Puntos y cupones abren «Mi cuenta» en esa sección;
