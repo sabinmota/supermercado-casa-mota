@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '515';
+      const VER = '517';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=1" />
+  <link rel="stylesheet" href="css/conta.css?v=2" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -1064,7 +1064,7 @@
       <!-- ── Proveedores ── -->
       <div id="ctPanelProveedores" role="tabpanel" hidden>
         <div class="filter-bar">
-          <input type="text" class="filter-input" id="ctProvBuscar" placeholder="Buscar por nombre, contacto, RNC o teléfono…" />
+          <input type="text" class="filter-input" id="ctProvBuscar" placeholder="Buscar por nombre, representante, RNC, teléfono, ciudad o provincia…" />
           <span class="filter-count" id="ctProvCount"></span>
           <button type="button" class="btn-primary" id="ctBtnNuevoProv"><i class="fas fa-plus"></i> Nuevo proveedor</button>
         </div>
@@ -1072,7 +1072,7 @@
           <div class="table-wrap">
             <table class="data-table ct-tabla">
               <thead>
-                <tr><th>Nombre</th><th>Atención</th><th>RNC</th><th>Teléfonos</th><th class="n">Término</th><th class="n">Por pagar</th><th>Acciones</th></tr>
+                <tr><th>Nombre</th><th>Representante</th><th>RNC</th><th>Contacto</th><th>Ubicación</th><th class="n">Término</th><th class="n">Por pagar</th><th>Acciones</th></tr>
               </thead>
               <tbody id="ctProvTbody"></tbody>
             </table>
@@ -2729,7 +2729,7 @@
 
   <!-- 553 · Contabilidad: proveedor -->
   <div class="modal-backdrop hidden" id="ctProvModal">
-    <div class="modal" style="max-width:560px">
+    <div class="modal" style="max-width:680px">
       <div class="modal-header">
         <h3 id="ctProvTitulo"><i class="fas fa-building"></i> Nuevo proveedor</h3>
         <button class="modal-close-btn" type="button" data-ct-cerrar="ctProvModal"><i class="fas fa-times"></i></button>
@@ -2741,23 +2741,55 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="ctProvAtencion">Atención (contacto)</label>
-            <input type="text" class="form-input" id="ctProvAtencion" maxlength="120" placeholder="Persona de contacto" />
+            <label for="ctProvRepresentante">Representante</label>
+            <input type="text" class="form-input" id="ctProvRepresentante" maxlength="120" placeholder="Representante" autocomplete="off" />
           </div>
           <div class="form-group">
             <label for="ctProvRnc">RNC</label>
-            <input type="text" class="form-input" id="ctProvRnc" maxlength="20" placeholder="Ej: 1-01-00000-0" />
+            <input type="text" class="form-input" id="ctProvRnc" maxlength="20" placeholder="Ej: 1-01-00000-0" autocomplete="off" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label for="ctProvTel">Teléfonos</label>
-            <input type="text" class="form-input" id="ctProvTel" maxlength="120" placeholder="809-000-0000 / 829-000-0000" />
+            <input type="text" class="form-input" id="ctProvTel" maxlength="120" placeholder="809-000-0000 / 829-000-0000" autocomplete="off" />
           </div>
+          <div class="form-group">
+            <label for="ctProvCorreo">Correo electrónico</label>
+            <input type="email" class="form-input" id="ctProvCorreo" maxlength="120" placeholder="ventas@proveedor.com" autocomplete="off" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="ctProvDireccion">Dirección</label>
+          <input type="text" class="form-input" id="ctProvDireccion" maxlength="200" placeholder="Calle, número, edificio…" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctProvSector">Sector</label>
+            <input type="text" class="form-input" id="ctProvSector" maxlength="80" placeholder="Ej: Villa Consuelo" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="ctProvCiudad">Ciudad</label>
+            <input type="text" class="form-input" id="ctProvCiudad" maxlength="80" placeholder="Ej: Hato Mayor del Rey" autocomplete="off" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctProvProvincia">Provincia</label>
+            <select class="form-input" id="ctProvProvincia"></select>
+          </div>
+          <div class="form-group">
+            <label for="ctProvCp">Código postal</label>
+            <input type="text" class="form-input" id="ctProvCp" maxlength="5" inputmode="numeric" placeholder="Se pone solo al elegir la provincia" autocomplete="off" />
+            <small class="ct-ayuda" id="ctProvCpAyuda"></small>
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label for="ctProvTermino">Término de crédito (días) <span class="req">*</span></label>
             <input type="number" class="form-input" id="ctProvTermino" min="0" max="365" step="1" value="30" />
           </div>
+          <div class="form-group"></div>
         </div>
         <div class="form-group">
           <label for="ctProvNotas">Notas</label>
@@ -3920,7 +3952,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=1"></script>
+  <script src="js/conta.js?v=3"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

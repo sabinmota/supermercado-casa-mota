@@ -81,6 +81,9 @@
     DATOS_INVALIDOS:          'Los datos no llegaron correctamente.',
     ID_INVALIDO:              'Identificador no válido. Recarga la página.',
     FALTA_NOMBRE:             'Escribe el nombre del proveedor.',
+    CORREO_INVALIDO:          'El correo electrónico no es válido (ej. ventas@proveedor.com).',
+    PROVINCIA_INVALIDA:       'Elige la provincia de la lista.',
+    CODIGO_POSTAL_INVALIDO:   'El código postal debe tener 5 cifras.',
     TERMINO_INVALIDO:         'El término de crédito debe ser un número entero de 0 a 365 días.',
     PROVEEDOR_REPETIDO:       'Ya existe un proveedor con ese nombre.',
     PROVEEDOR_NO_EXISTE:      'Ese proveedor ya no existe. Recarga la página.',
@@ -153,6 +156,29 @@
     }
     return todo;
   }
+
+  /* ─── 553c · Provincias de la República Dominicana y su código postal ──────
+   * Los MISMOS 32 nombres que _conta_provincias() en la base (seguridad/112).
+   * Código = el de la capital de la provincia, leído uno a uno el 20-nov en
+   * do.micodigopostal.info (datos de INPOSDOM), no escrito de memoria.
+   * La Altagracia: la página de Higüey trae «00000» (sin dato); se usa 23000,
+   * el de San Rafael del Yuma (misma provincia, prefijo 23).
+   * Distrito Nacional y Santo Domingo: NO tienen uno solo, cambia por sector
+   * (DN 10101–10699, Santo Domingo 11xxx) → no se inventa: se pide escribirlo.
+   * El código se puede corregir siempre a mano (5 cifras). */
+  const PROVINCIAS = [
+    ['Azua', '71000'], ['Baoruco', '82000'], ['Barahona', '81000'], ['Dajabón', '63000'],
+    ['Distrito Nacional', ''], ['Duarte', '31000'], ['El Seibo', '24000'], ['Elías Piña', '73000'],
+    ['Espaillat', '56000'], ['Hato Mayor', '25000'], ['Hermanas Mirabal', '34000'],
+    ['Independencia', '83000'], ['La Altagracia', '23000'], ['La Romana', '22000'], ['La Vega', '41000'],
+    ['María Trinidad Sánchez', '33000'], ['Monseñor Nouel', '42000'], ['Monte Cristi', '62000'],
+    ['Monte Plata', '92000'], ['Pedernales', '84000'], ['Peravia', '94000'], ['Puerto Plata', '57000'],
+    ['Samaná', '32000'], ['San Cristóbal', '91000'], ['San José de Ocoa', '93000'], ['San Juan', '72000'],
+    ['San Pedro de Macorís', '21000'], ['Sánchez Ramírez', '43000'], ['Santiago', '51000'],
+    ['Santiago Rodríguez', '64000'], ['Santo Domingo', ''], ['Valverde', '61000'],
+  ];
+  const CP_POR_SECTOR = { 'Distrito Nacional': 'empieza por 10', 'Santo Domingo': 'empieza por 11' };
+  const cpDe = prov => (PROVINCIAS.find(p => p[0] === prov) || [])[1] || '';
 
   // ─── Estado ────────────────────────────────────────────────────────────────
   const S = {
@@ -388,15 +414,15 @@
   function pintarProveedores() {
     const tb = $('ctProvTbody');
     if (!tb) return;
-    if (S.error) { tb.innerHTML = `<tr><td colspan="7" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
+    if (S.error) { tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
     const q = $('ctProvBuscar')?.value || '';
     const lista = S.prov.filter(p => typeof _admBuscar === 'function'
-      ? _admBuscar(q, p.nombre, p.atencion, p.rnc, p.telefonos)
+      ? _admBuscar(q, p.nombre, p.representante, p.rnc, p.telefonos, p.correo, p.sector, p.ciudad, p.provincia)
       : (!q || (p.nombre + ' ' + p.rnc).toLowerCase().includes(q.toLowerCase())));
     const cnt = $('ctProvCount');
     if (cnt) cnt.textContent = lista.length ? plural(lista.length, 'proveedor', 'proveedores') : 'Sin resultados';
     if (!lista.length) {
-      tb.innerHTML = `<tr><td colspan="7" class="myr-vacio">${S.prov.length
+      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">${S.prov.length
         ? 'Ningún proveedor coincide con la búsqueda.'
         : 'Todavía no hay proveedores. Pulsa «Nuevo proveedor».'}</td></tr>`;
       return;
@@ -407,13 +433,19 @@
         ? `<b>${money(p.deuda)}</b><br><small class="ct-gris">${plural(Number(p.pendientes), 'factura', 'facturas')}</small>`
         : '<span class="ct-gris">—</span>';
       const tels = String(p.telefonos || '').split(/[\/,;]+/).map(t => t.trim()).filter(Boolean)
-        .map(t => `<a href="tel:${esc(t.replace(/[^\d+]/g, ''))}">${esc(t)}</a>`).join('<br>');
+        .map(t => `<a href="tel:${esc(t.replace(/[^\d+]/g, ''))}">${esc(t)}</a>`);
+      const contacto = tels.concat(p.correo ? [`<a href="mailto:${esc(p.correo)}" class="ct-correo">${esc(p.correo)}</a>`] : []).join('<br>');
+      const linea1 = [p.direccion, p.sector].filter(Boolean).map(esc).join(', ');
+      const linea2 = [p.ciudad, p.provincia].filter(Boolean).map(esc).join(', ') + (p.codigo_postal ? ` · ${esc(p.codigo_postal)}` : '');
+      const ubic = (linea1 || linea2.trim())
+        ? `${linea1 ? `${linea1}<br>` : ''}<small class="ct-gris">${linea2}</small>` : '<span class="ct-gris">—</span>';
       return `
         <tr>
           <td><strong>${esc(p.nombre)}</strong>${p.notas ? `<br><small class="ct-gris">${esc(p.notas)}</small>` : ''}</td>
-          <td>${esc(p.atencion) || '<span class="ct-gris">—</span>'}</td>
+          <td>${esc(p.representante) || '<span class="ct-gris">—</span>'}</td>
           <td>${esc(p.rnc) || '<span class="ct-gris">—</span>'}</td>
-          <td>${tels || '<span class="ct-gris">—</span>'}</td>
+          <td>${contacto || '<span class="ct-gris">—</span>'}</td>
+          <td class="ct-ubic">${ubic}</td>
           <td class="n">${plural(Number(p.termino_dias), 'día', 'días')}</td>
           <td class="n">${deuda}</td>
           <td><div class="action-btns">
@@ -512,20 +544,59 @@
     const p = id ? provPorId(id) : null;
     S.provEdit = p ? p.id : null;
     $('ctProvTitulo').innerHTML = p ? '<i class="fas fa-pen"></i> Editar proveedor' : '<i class="fas fa-building"></i> Nuevo proveedor';
-    $('ctProvNombre').value   = p ? p.nombre : '';
-    $('ctProvAtencion').value = p ? p.atencion : '';
-    $('ctProvRnc').value      = p ? p.rnc : '';
-    $('ctProvTel').value      = p ? p.telefonos : '';
-    $('ctProvTermino').value  = p ? p.termino_dias : 30;
-    $('ctProvNotas').value    = p ? p.notas : '';
+    const v = k => (p && p[k] != null ? p[k] : '');
+    $('ctProvNombre').value        = v('nombre');
+    $('ctProvRepresentante').value = v('representante');
+    $('ctProvRnc').value           = v('rnc');
+    $('ctProvTel').value           = v('telefonos');
+    $('ctProvCorreo').value        = v('correo');
+    $('ctProvDireccion').value     = v('direccion');
+    $('ctProvSector').value        = v('sector');
+    $('ctProvCiudad').value        = v('ciudad');
+    $('ctProvProvincia').value     = v('provincia');
+    $('ctProvCp').value            = v('codigo_postal');
+    $('ctProvTermino').value       = p ? p.termino_dias : 30;
+    $('ctProvNotas').value         = v('notas');
+    ayudaCp();
     errorModal('ctProvError', '');
     abrirModal('ctProvModal');
     setTimeout(() => $('ctProvNombre')?.focus(), 50);
   }
+  /* Al elegir la provincia se pone su código postal. Si el empleado ya había
+   * escrito otro a mano, NO se pisa (solo se cambia si estaba vacío o era el
+   * código automático de la provincia anterior). */
+  let _cpAuto = '';
+  function elegirProvincia() {
+    const prov = $('ctProvProvincia').value;
+    const cpEl = $('ctProvCp');
+    const nuevo = cpDe(prov);
+    const actual = cpEl.value.trim();
+    if (!actual || actual === _cpAuto) cpEl.value = nuevo;
+    _cpAuto = nuevo;
+    ayudaCp();
+    if (!nuevo && CP_POR_SECTOR[prov]) cpEl.focus();
+  }
+  function ayudaCp() {
+    const prov = $('ctProvProvincia').value;
+    _cpAuto = cpDe(prov);
+    const el = $('ctProvCpAyuda');
+    if (!el) return;
+    el.classList.toggle('ct-ayuda--aviso', !!CP_POR_SECTOR[prov]);
+    el.textContent = CP_POR_SECTOR[prov]
+      ? `En ${prov} el código cambia según el sector (${CP_POR_SECTOR[prov]}): escríbelo.`
+      : (prov ? `Código de ${prov}. Puedes cambiarlo si el sector tiene otro.` : '');
+  }
+
   async function guardarProveedor() {
     const nombre = $('ctProvNombre').value.trim();
     const term = num($('ctProvTermino').value);
-    if (!nombre) { errorModal('ctProvError', ERRORES.FALTA_NOMBRE); return; }
+    const correo = $('ctProvCorreo').value.trim().toLowerCase();
+    const provincia = $('ctProvProvincia').value;
+    const cp = $('ctProvCp').value.trim();
+    if (!nombre) { errorModal('ctProvError', ERRORES.FALTA_NOMBRE); $('ctProvNombre').focus(); return; }
+    if (correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) { errorModal('ctProvError', ERRORES.CORREO_INVALIDO); $('ctProvCorreo').focus(); return; }
+    if (provincia && !PROVINCIAS.some(p => p[0] === provincia)) { errorModal('ctProvError', ERRORES.PROVINCIA_INVALIDA); return; }
+    if (cp && !/^\d{5}$/.test(cp)) { errorModal('ctProvError', ERRORES.CODIGO_POSTAL_INVALIDO); $('ctProvCp').focus(); return; }
     if (term === null || isNaN(term) || term < 0 || term > 365 || term !== Math.trunc(term)) {
       errorModal('ctProvError', ERRORES.TERMINO_INVALIDO); return;
     }
@@ -535,8 +606,15 @@
           p_id: S.provEdit,
           p_datos: {
             nombre, termino_dias: term,
-            atencion: $('ctProvAtencion').value.trim(), rnc: $('ctProvRnc').value.trim(),
-            telefonos: $('ctProvTel').value.trim(), notas: $('ctProvNotas').value.trim(),
+            representante: $('ctProvRepresentante').value.trim(),
+            rnc: $('ctProvRnc').value.trim(),
+            telefonos: $('ctProvTel').value.trim(),
+            correo,
+            direccion: $('ctProvDireccion').value.trim(),
+            sector: $('ctProvSector').value.trim(),
+            ciudad: $('ctProvCiudad').value.trim(),
+            provincia, codigo_postal: cp,
+            notas: $('ctProvNotas').value.trim(),
           },
         });
         cerrarModal('ctProvModal');
@@ -1084,6 +1162,11 @@
       ]);
       let j = null;
       try { j = await res.json(); } catch (e) { j = null; }
+      /* 553d · 404/405 sin respuesta del lector = la Function no está publicada
+       * en Cloudflare (Pages trata el POST como un fichero normal). */
+      if ((res.status === 404 || res.status === 405) && !(j && j.error)) {
+        throw new Error(`El lector de facturas no está publicado todavía (${res.status}): falta subir functions/api/factura-ia.js.`);
+      }
       if (!res.ok || !j || !j.ok) throw new Error((j && j.error) || `El lector de facturas no respondió (${res.status}).`);
       aplicarLectura(j.factura || {});
     } catch (e) {
@@ -1257,6 +1340,10 @@
     document.querySelectorAll('[data-ct-cerrar]').forEach(b =>
       b.addEventListener('click', () => cerrarModal(b.getAttribute('data-ct-cerrar'))));
     $('ctProvGuardar').addEventListener('click', guardarProveedor);
+    $('ctProvProvincia').innerHTML = '<option value="">— Elige la provincia —</option>' +
+      PROVINCIAS.map(p => `<option value="${esc(p[0])}">${esc(p[0])}</option>`).join('');
+    $('ctProvProvincia').addEventListener('change', elegirProvincia);
+    $('ctProvCp').addEventListener('input', ev => { ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 5); });
     $('ctFacGuardar').addEventListener('click', guardarFactura);
     $('ctFacModalProv').addEventListener('change', () => { S.venEditado = false; autoVencimiento(); });
     $('ctFacEmision').addEventListener('input', autoVencimiento);
@@ -1305,5 +1392,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _S: S, _cargar: cargar, _clave: clave, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _clave: clave, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _hoy: hoy, _sumarDias: sumarDias };
 })();
