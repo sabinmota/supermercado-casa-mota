@@ -1,0 +1,1309 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   553 · CONTABILIDAD EN EL PANEL  (seguridad/111 · ejecutado 20-nov, 34/34)
+   ───────────────────────────────────────────────────────────────────────────
+   Tres pestañas:
+     · Cuentas por pagar: facturas de proveedores, avisos de vencidas y de
+       próximas a vencer (7 días), pronto pago, pagar de una vez y anular pago.
+     · Recepción de mercancía: proveedor + líneas a mano o leídas de la foto
+       de la factura con IA (/api/factura-ia). Al confirmar, la BASE crea sola
+       la factura por pagar. 🔴 NO toca el inventario (decisión del dueño).
+     · Proveedores: alta, edición y baja.
+
+   Decisiones del dueño (20-nov): solo Super Admin y Administrador (la base lo
+   comprueba en cada función conta_*); pago de una vez; solo monto total; la
+   foto se usa y se descarta (nunca se guarda); línea que no está en el
+   catálogo = «sin producto» (cuenta en el total, no toca ningún producto).
+
+   Emparejar cada línea con un producto del catálogo, en este orden:
+     1) código de barras (principal o alterno),
+     2) lo aprendido de ESE proveedor (la base recuerda cada línea confirmada),
+     3) por nombre: solo SUGIERE; el empleado decide.
+
+   Fichero aparte: no toca admin.v33.js ni api.js. Usa de ellos: _SB_URL,
+   _SB_HEADERS, _valeAdmin, fmt$, showAdminToast, adminProducts, DB.getProducts,
+   _admBuscar/_admTokens/_admNorm, getSession/getRole.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const money = n => 'RD$ ' + (typeof fmt$ === 'function' ? fmt$(n) : (Number(n) || 0).toFixed(2));
+  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const r3 = n => Math.round((Number(n) || 0) * 1000) / 1000;
+  const toast = (m, t) => { if (typeof showAdminToast === 'function') showAdminToast(m, t); else alert(m); };
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+
+  /* Número escrito por el empleado: admite coma decimal. '' → null. */
+  function num(v) {
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim().replace(/\s/g, '').replace(',', '.');
+    if (s === '') return null;
+    const n = Number(s);
+    return isFinite(n) ? n : NaN;
+  }
+
+  // ─── Fechas (siempre texto AAAA-MM-DD, sin Date para no correr un día) ─────
+  function hoy() {
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date());
+    } catch (e) {
+      return new Date().toISOString().slice(0, 10);
+    }
+  }
+  function sumarDias(iso, n) {
+    const [y, m, d] = String(iso).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + Number(n || 0))).toISOString().slice(0, 10);
+  }
+  function fFecha(iso) {
+    if (!iso) return '—';
+    const [y, m, d] = String(iso).slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function textoDias(d) {
+    d = Number(d);
+    if (d < 0) return `hace ${plural(-d, 'día', 'días')}`;
+    if (d === 0) return 'vence hoy';
+    if (d === 1) return 'vence mañana';
+    return `en ${d} días`;
+  }
+
+  // ─── Base de datos (funciones conta_* con el vale del panel) ──────────────
+  const ERRORES = {
+    SESION_INVALIDA:          'Tu sesión no es válida. Vuelve a entrar al panel.',
+    SESION_CADUCADA:          'Tu sesión caducó. Vuelve a entrar al panel.',
+    CUENTA_DESACTIVADA:       'Tu cuenta ya no está activa.',
+    SIN_PERMISO_CONTABILIDAD: 'Contabilidad es solo para Super Admin y Administrador.',
+    DATOS_INVALIDOS:          'Los datos no llegaron correctamente.',
+    ID_INVALIDO:              'Identificador no válido. Recarga la página.',
+    FALTA_NOMBRE:             'Escribe el nombre del proveedor.',
+    TERMINO_INVALIDO:         'El término de crédito debe ser un número entero de 0 a 365 días.',
+    PROVEEDOR_REPETIDO:       'Ya existe un proveedor con ese nombre.',
+    PROVEEDOR_NO_EXISTE:      'Ese proveedor ya no existe. Recarga la página.',
+    PROVEEDOR_CON_DEUDA:      'No se puede dar de baja: tiene facturas sin pagar.',
+    FACTURA_NO_EXISTE:        'Esa factura ya no existe. Recarga la página.',
+    FACTURA_YA_PAGADA:        'Esa factura ya estaba pagada.',
+    FACTURA_NO_PAGADA:        'Esa factura no está pagada.',
+    FACTURA_PAGADA:           'Una factura pagada no se puede cambiar ni borrar. Anula antes el pago.',
+    FACTURA_REPETIDA:         'Ese número de factura ya está registrado para este proveedor.',
+    FALTA_NUMERO:             'Escribe el número de la factura.',
+    FALTA_FECHA:              'Indica la fecha de la factura.',
+    FECHA_PAGO_FUTURA:        'La fecha de pago no puede ser posterior a hoy.',
+    FECHA_PAGO_INVALIDA:      'La fecha de pago no puede ser anterior a la emisión.',
+    FECHA_INVALIDA:           'Hay una fecha no válida.',
+    VENCIMIENTO_INVALIDO:     'El vencimiento no puede ser anterior a la emisión.',
+    MONTO_INVALIDO:           'El monto debe ser mayor que 0.',
+    PRONTO_PAGO_INCOMPLETO:   'Pronto pago: indica el % y también los días (o deja los dos vacíos).',
+    PRONTO_PAGO_INVALIDO:     'Pronto pago: el % va de 0 a 100 y los días de 0 a 365.',
+    SIN_LINEAS:               'Añade al menos una línea.',
+    DEMASIADAS_LINEAS:        'Una recepción admite como máximo 300 líneas.',
+    LINEA_INVALIDA:           'Hay una línea con datos no válidos.',
+    PRODUCTO_NO_EXISTE:       'Una línea apunta a un producto que ya no existe. Vuelve a emparejarla.',
+    FALTA_DESCRIPCION:        'Hay una línea sin descripción.',
+    CANTIDAD_INVALIDA:        'Hay una cantidad no válida (debe ser mayor que 0).',
+    COSTO_INVALIDO:           'Hay un costo no válido (debe ser 0 o más).',
+    TOTAL_INVALIDO:           'El total de la factura debe ser mayor que 0.',
+    TOTAL_CERO:               'El total de la factura no puede ser 0.',
+  };
+
+  function traducir(texto, status) {
+    let msg = String(texto || '');
+    try { const j = JSON.parse(msg); msg = [j.message, j.details, j.hint].filter(Boolean).join(' · ') || msg; } catch (e) { /* texto plano */ }
+    const linea = /linea (\d+)/.exec(msg);
+    const extra = linea ? ` (línea ${linea[1]})` : '';
+    const largo = /TEXTO_LARGO_([A-Z_]+)/.exec(msg);
+    if (largo) return `El campo «${largo[1].toLowerCase().replace(/_/g, ' ')}» es demasiado largo.`;
+    for (const k in ERRORES) if (msg.includes(k)) return ERRORES[k] + extra;
+    if (status === 404 || msg.includes('PGRST202')) return 'Falta la función en la base (SQL 111).';
+    console.error('[contabilidad] respuesta de la base:', texto);
+    return `No se pudo completar (${status})` + (msg ? `: ${msg.slice(0, 200)}` : '.');
+  }
+
+  function vale() {
+    try { return typeof _valeAdmin === 'function' ? _valeAdmin() : ''; } catch (e) { return ''; }
+  }
+
+  /* lista=true → por páginas de 1.000 (límite de Supabase, regla del dueño). */
+  async function rpc(fn, params, lista) {
+    const v = vale();
+    if (!v) throw new Error('Tu sesión caducó. Vuelve a entrar al panel.');
+    const cuerpo = JSON.stringify(Object.assign({ p_vale: v }, params || {}));
+    if (!lista) {
+      const res = await fetch(`${_SB_URL}/rpc/${fn}`, { method: 'POST', headers: _SB_HEADERS, body: cuerpo });
+      const t = await res.text();
+      if (!res.ok) throw new Error(traducir(t, res.status));
+      return (!t || t === 'null') ? null : JSON.parse(t);
+    }
+    let todo = [];
+    let desde = 0;
+    for (let vuelta = 0; vuelta < 200; vuelta++) {
+      const res = await fetch(`${_SB_URL}/rpc/${fn}?limit=1000&offset=${desde}`,
+        { method: 'POST', headers: _SB_HEADERS, body: cuerpo });
+      const t = await res.text();
+      if (!res.ok) throw new Error(traducir(t, res.status));
+      const filas = t ? JSON.parse(t) : [];
+      if (!Array.isArray(filas) || !filas.length) break;
+      todo = todo.concat(filas);
+      if (filas.length < 1000) break;
+      desde += filas.length;
+    }
+    return todo;
+  }
+
+  // ─── Estado ────────────────────────────────────────────────────────────────
+  const S = {
+    tab: 'pagar',
+    prov: [], fac: [], rec: [],
+    cargado: false, cargando: false, error: '',
+    codigos: {},          // proveedor_id → { clave: producto_id }
+    recLineas: {},        // recepcion_id → líneas (caché del historial)
+    abierta: null,        // recepción desplegada en el historial
+    lineas: [],           // recepción en curso
+    origen: 'manual',
+    foto: null,           // dataURL de la foto SOLO en memoria (nunca se guarda)
+    iaLeyendo: false,
+    guardando: false,
+    provEdit: null, facEdit: null, venEditado: false, pagoId: null, empIdx: null,
+  };
+
+  function permitido() {
+    try {
+      const s = typeof getSession === 'function' ? getSession() : null;
+      return !!(s && typeof getRole === 'function' && getRole(s.role).sections.includes('contabilidad'));
+    } catch (e) { return false; }
+  }
+
+  function productos() {
+    const l = (typeof adminProducts !== 'undefined' && Array.isArray(adminProducts)) ? adminProducts : [];
+    return l.filter(p => p && !p.deleted);
+  }
+  function prodPorId(id) {
+    return productos().find(p => String(p.id) === String(id)) || null;
+  }
+  function provPorId(id) {
+    return S.prov.find(p => String(p.id) === String(id)) || null;
+  }
+
+  async function cargar() {
+    if (S.cargando) return;
+    S.cargando = true;
+    if (!S.cargado) pintarCargando();
+    try {
+      const tareas = [
+        rpc('conta_leer_proveedores', {}, true),
+        rpc('conta_leer_facturas', {}, true),
+        rpc('conta_leer_recepciones', {}, true),
+      ];
+      if (!productos().length && typeof DB !== 'undefined' && typeof DB.getProducts === 'function') {
+        tareas.push(DB.getProducts({ full: true })
+          .then(l => { if (l && l.length) adminProducts = l; })
+          .catch(() => { /* sin catálogo: se puede recibir igual, todo «sin producto» */ }));
+      }
+      const [p, f, r] = await Promise.all(tareas);
+      S.prov = p || []; S.fac = f || []; S.rec = r || [];
+      S.cargado = true; S.error = '';
+      S.recLineas = {};
+    } catch (e) {
+      S.error = e.message || 'No se pudo cargar Contabilidad.';
+    } finally {
+      S.cargando = false;
+    }
+    pintarTodo();
+  }
+
+  // ─── Pintar ────────────────────────────────────────────────────────────────
+  function pintarCargando() {
+    ['ctFacTbody', 'ctProvTbody', 'ctRecHist'].forEach(id => {
+      const tb = $(id);
+      if (tb) tb.innerHTML = `<tr><td colspan="9" class="myr-vacio">Cargando…</td></tr>`;
+    });
+  }
+
+  function pintarTodo() {
+    pintarSelects();
+    pintarAvisos();
+    pintarFacturas();
+    pintarProveedores();
+    pintarHist();
+    pintarLineas();
+    pintarTotalesRec();
+  }
+
+  function provOpciones(vacio) {
+    return `<option value="">${vacio}</option>` + S.prov
+      .map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}${p.rnc ? ' · RNC ' + esc(p.rnc) : ''}</option>`).join('');
+  }
+  function pintarSelects() {
+    [['ctFacProv', 'Todos los proveedores'], ['ctRecProv', '— Elige el proveedor —'], ['ctFacModalProv', '— Elige el proveedor —']]
+      .forEach(([id, vacio]) => {
+        const sel = $(id);
+        if (!sel) return;
+        const antes = sel.value;
+        sel.innerHTML = provOpciones(vacio);
+        if (antes && provPorId(antes)) sel.value = antes;
+      });
+  }
+
+  function cuentas() {
+    const sin = S.fac.filter(f => !f.pagada);
+    const venc = sin.filter(f => f.estado === 'vencida');
+    const prox = sin.filter(f => f.estado === 'proxima');
+    const suma = l => l.reduce((a, f) => a + Number(f.monto || 0), 0);
+    return { sin, venc, prox, mSin: suma(sin), mVenc: suma(venc), mProx: suma(prox) };
+  }
+
+  function badge(venc, prox) {
+    const b = $('ctNavBadge');
+    if (!b) return;
+    const n = venc + prox;
+    b.hidden = !n;
+    b.textContent = n > 99 ? '99+' : String(n);
+    b.classList.toggle('ct-nav-badge--ambar', !venc && prox > 0);
+    b.title = `${plural(venc, 'factura vencida', 'facturas vencidas')} · ${plural(prox, 'próxima', 'próximas')} a vencer`;
+  }
+
+  function pintarAvisos() {
+    const box = $('ctAvisos');
+    if (!box) return;
+    if (S.error) {
+      box.hidden = false;
+      box.innerHTML = `<div class="ct-aviso ct-aviso--rojo"><i class="fas fa-triangle-exclamation"></i><span>${esc(S.error)}</span></div>`;
+      return;
+    }
+    const c = cuentas();
+    badge(c.venc.length, c.prox.length);
+    const nTab = $('ctTabNumPagar');
+    if (nTab) { nTab.hidden = !(c.venc.length + c.prox.length); nTab.textContent = c.venc.length + c.prox.length; }
+
+    const h = hoy();
+    const pp = c.sin.filter(f => Number(f.pronto_pago_pct) > 0 && f.pronto_pago_hasta && f.pronto_pago_hasta >= h)
+      .sort((a, b) => String(a.pronto_pago_hasta).localeCompare(String(b.pronto_pago_hasta)));
+    const MAX = 6;
+    const fila = (f, clase, icono, texto) => `
+      <div class="ct-aviso ${clase}">
+        <i class="fas ${icono}"></i>
+        <span>${texto}</span>
+        <button type="button" class="ct-aviso__btn" data-act="pagar" data-id="${esc(f.id)}"><i class="fas fa-money-bill-wave"></i> Pagar</button>
+      </div>`;
+    const mas = (l, est, txt) => l.length > MAX
+      ? `<button type="button" class="ct-aviso__mas" data-act="filtrar" data-estado="${est}">y ${l.length - MAX} ${txt} más…</button>` : '';
+
+    const html =
+      c.venc.sort((a, b) => a.dias - b.dias).slice(0, MAX).map(f => fila(f, 'ct-aviso--rojo', 'fa-circle-exclamation',
+        `La factura <b>${esc(f.numero)}</b> del proveedor <b>${esc(f.proveedor_nombre)}</b> está <b>vencida</b> ` +
+        `(${textoDias(f.dias)}, el ${fFecha(f.fecha_vencimiento)}) · ${money(f.monto)}`)).join('') +
+      mas(c.venc, 'vencida', 'vencidas') +
+      c.prox.sort((a, b) => a.dias - b.dias).slice(0, MAX).map(f => fila(f, 'ct-aviso--ambar', 'fa-clock',
+        `La factura <b>${esc(f.numero)}</b> del proveedor <b>${esc(f.proveedor_nombre)}</b> ` +
+        `${f.dias <= 1 ? textoDias(f.dias) : 'vence ' + textoDias(f.dias)} (${fFecha(f.fecha_vencimiento)}) · ${money(f.monto)}`)).join('') +
+      mas(c.prox, 'proxima', 'próximas') +
+      pp.slice(0, MAX).map(f => fila(f, 'ct-aviso--verde', 'fa-piggy-bank',
+        `Pronto pago: si pagas la factura <b>${esc(f.numero)}</b> de <b>${esc(f.proveedor_nombre)}</b> ` +
+        `hasta el <b>${fFecha(f.pronto_pago_hasta)}</b> ahorras <b>${money(Number(f.monto) - Number(f.monto_con_descuento))}</b> ` +
+        `(${Number(f.pronto_pago_pct)} %)`)).join('');
+
+    box.hidden = !html;
+    box.innerHTML = html;
+  }
+
+  const ESTADO = {
+    vencida:   ['Vencida', 'ct-est--vencida'],
+    proxima:   ['Próxima a vencer', 'ct-est--proxima'],
+    pendiente: ['Pendiente', 'ct-est--pendiente'],
+    pagada:    ['Pagada', 'ct-est--pagada'],
+  };
+
+  function pintarFacturas() {
+    const tb = $('ctFacTbody');
+    if (!tb) return;
+    const c = cuentas();
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    set('ctKpiPend', money(c.mSin)); set('ctKpiPendN', plural(c.sin.length, 'factura', 'facturas'));
+    set('ctKpiVenc', money(c.mVenc)); set('ctKpiVencN', plural(c.venc.length, 'factura', 'facturas'));
+    set('ctKpiProx', money(c.mProx)); set('ctKpiProxN', plural(c.prox.length, 'factura', 'facturas'));
+    if (S.error) { tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
+
+    const q    = $('ctFacBuscar')?.value || '';
+    const prov = $('ctFacProv')?.value || '';
+    const est  = $('ctFacEstado')?.value ?? 'sinpagar';
+    const buscar = typeof _admBuscar === 'function'
+      ? (f => _admBuscar(q, f.numero, f.proveedor_nombre))
+      : (f => !q || (f.numero + ' ' + f.proveedor_nombre).toLowerCase().includes(q.toLowerCase()));
+    const lista = S.fac.filter(f =>
+      (!prov || String(f.proveedor_id) === prov) &&
+      (est === '' || (est === 'sinpagar' ? !f.pagada : f.estado === est)) &&
+      buscar(f));
+
+    set('ctFacCount', lista.length ? plural(lista.length, 'factura', 'facturas') : 'Sin resultados');
+    if (!lista.length) {
+      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">${S.fac.length
+        ? 'Ninguna factura coincide con el filtro.'
+        : (S.prov.length
+          ? 'Todavía no hay facturas. Se crean solas al confirmar una <b>Recepción de mercancía</b>, o con «Nueva factura».'
+          : 'Empieza dando de alta tus <b>Proveedores</b>; después registra sus facturas.')}</td></tr>`;
+      return;
+    }
+
+    const h = hoy();
+    tb.innerHTML = lista.map(f => {
+      const [txtEst, claseEst] = ESTADO[f.estado] || [f.estado, ''];
+      const pct = Number(f.pronto_pago_pct) || 0;
+      let pp = '<span class="ct-gris">—</span>';
+      if (pct > 0) {
+        if (f.pagada) pp = `<span class="ct-gris">${pct} % hasta ${fFecha(f.pronto_pago_hasta)}</span>`;
+        else if (f.pronto_pago_hasta >= h) {
+          pp = `<span class="ct-pp"><b>${pct} %</b> hasta ${fFecha(f.pronto_pago_hasta)}<br><small>paga ${money(f.monto_con_descuento)}</small></span>`;
+        } else pp = `<span class="ct-gris">${pct} % · venció el ${fFecha(f.pronto_pago_hasta)}</span>`;
+      }
+      const venc = f.pagada
+        ? fFecha(f.fecha_vencimiento)
+        : `${fFecha(f.fecha_vencimiento)}<br><small class="ct-dias ct-dias--${esc(f.estado)}">${textoDias(f.dias)}</small>`;
+      const id = esc(f.id);
+      const deRec = f.recepcion_id
+        ? ` <button type="button" class="ct-icono" data-act="verrec" data-id="${esc(f.recepcion_id)}" title="Creada desde una recepción · ver líneas"><i class="fas fa-truck-ramp-box"></i></button>` : '';
+      const acciones = f.pagada
+        ? `<span class="ct-pagada">Pagada el ${fFecha(f.fecha_pago)}<br><small>${money(f.monto_pagado)}</small></span>
+           <button class="action-btn" data-act="anular" data-id="${id}" title="Anular el pago"><i class="fas fa-rotate-left"></i></button>`
+        : `<button class="btn-myr btn-myr--ok" data-act="pagar" data-id="${id}"><i class="fas fa-money-bill-wave"></i> Pagar</button>
+           <button class="action-btn action-btn-edit" data-act="editar" data-id="${id}" title="Editar"><i class="fas fa-pen"></i></button>
+           <button class="action-btn action-btn-del" data-act="borrar" data-id="${id}" title="Borrar"><i class="fas fa-trash"></i></button>`;
+      return `
+        <tr class="ct-fila--${esc(f.estado)}">
+          <td><strong>${esc(f.numero)}</strong>${deRec}${f.notas ? `<br><small class="ct-gris" title="${esc(f.notas)}">${esc(f.notas.slice(0, 40))}${f.notas.length > 40 ? '…' : ''}</small>` : ''}</td>
+          <td>${esc(f.proveedor_nombre)}</td>
+          <td>${fFecha(f.fecha_emision)}</td>
+          <td>${venc}</td>
+          <td class="n"><b>${money(f.monto)}</b></td>
+          <td>${pp}</td>
+          <td><span class="ct-est ${claseEst}">${txtEst}</span></td>
+          <td><div class="action-btns ct-acciones">${acciones}</div></td>
+        </tr>`;
+    }).join('');
+  }
+
+  function pintarProveedores() {
+    const tb = $('ctProvTbody');
+    if (!tb) return;
+    if (S.error) { tb.innerHTML = `<tr><td colspan="7" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
+    const q = $('ctProvBuscar')?.value || '';
+    const lista = S.prov.filter(p => typeof _admBuscar === 'function'
+      ? _admBuscar(q, p.nombre, p.atencion, p.rnc, p.telefonos)
+      : (!q || (p.nombre + ' ' + p.rnc).toLowerCase().includes(q.toLowerCase())));
+    const cnt = $('ctProvCount');
+    if (cnt) cnt.textContent = lista.length ? plural(lista.length, 'proveedor', 'proveedores') : 'Sin resultados';
+    if (!lista.length) {
+      tb.innerHTML = `<tr><td colspan="7" class="myr-vacio">${S.prov.length
+        ? 'Ningún proveedor coincide con la búsqueda.'
+        : 'Todavía no hay proveedores. Pulsa «Nuevo proveedor».'}</td></tr>`;
+      return;
+    }
+    tb.innerHTML = lista.map(p => {
+      const id = esc(p.id);
+      const deuda = Number(p.pendientes) > 0
+        ? `<b>${money(p.deuda)}</b><br><small class="ct-gris">${plural(Number(p.pendientes), 'factura', 'facturas')}</small>`
+        : '<span class="ct-gris">—</span>';
+      const tels = String(p.telefonos || '').split(/[\/,;]+/).map(t => t.trim()).filter(Boolean)
+        .map(t => `<a href="tel:${esc(t.replace(/[^\d+]/g, ''))}">${esc(t)}</a>`).join('<br>');
+      return `
+        <tr>
+          <td><strong>${esc(p.nombre)}</strong>${p.notas ? `<br><small class="ct-gris">${esc(p.notas)}</small>` : ''}</td>
+          <td>${esc(p.atencion) || '<span class="ct-gris">—</span>'}</td>
+          <td>${esc(p.rnc) || '<span class="ct-gris">—</span>'}</td>
+          <td>${tels || '<span class="ct-gris">—</span>'}</td>
+          <td class="n">${plural(Number(p.termino_dias), 'día', 'días')}</td>
+          <td class="n">${deuda}</td>
+          <td><div class="action-btns">
+            <button class="action-btn action-btn-edit" data-act="editprov" data-id="${id}" title="Editar"><i class="fas fa-pen"></i></button>
+            <button class="action-btn action-btn-del" data-act="bajaprov" data-id="${id}" title="Dar de baja"><i class="fas fa-trash"></i></button>
+          </div></td>
+        </tr>`;
+    }).join('');
+  }
+
+  function pintarHist() {
+    const tb = $('ctRecHist');
+    if (!tb) return;
+    if (S.error) { tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
+    if (!S.rec.length) {
+      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Todavía no hay recepciones.</td></tr>`;
+      return;
+    }
+    tb.innerHTML = S.rec.map(r => {
+      const abierta = String(S.abierta) === String(r.id);
+      const sin = Number(r.sin_producto) || 0;
+      const estFac = r.factura_id == null
+        ? '<span class="ct-gris">borrada</span>'
+        : (r.factura_pagada ? '<span class="ct-est ct-est--pagada">Pagada</span>' : '<span class="ct-est ct-est--pendiente">Por pagar</span>');
+      let det = '';
+      if (abierta) {
+        const ls = S.recLineas[r.id];
+        det = `<tr class="ct-det"><td colspan="8">${ls
+          ? `<table class="ct-det__tabla"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>Producto</th><th class="n">Cant.</th><th class="n">Costo</th><th class="n">Importe</th></tr></thead><tbody>${
+            ls.map(l => {
+              const p = l.producto_id ? prodPorId(l.producto_id) : null;
+              return `<tr><td>${l.orden}</td><td>${esc(l.codigo) || '—'}</td><td>${esc(l.descripcion)}</td>
+                <td>${l.producto_id ? esc(p ? p.name : '(producto ' + l.producto_id + ')') : '<span class="ct-sinprod">Sin producto</span>'}</td>
+                <td class="n">${Number(l.cantidad)}</td><td class="n">${money(l.costo_unitario)}</td><td class="n">${money(l.importe)}</td></tr>`;
+            }).join('')}</tbody></table>
+            <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>`
+          : 'Cargando líneas…'}</td></tr>`;
+      }
+      return `
+        <tr class="ct-hist-fila${abierta ? ' ct-hist-fila--abierta' : ''}" data-act="verrec" data-id="${esc(r.id)}" tabindex="0">
+          <td>${fFecha(r.fecha)}</td>
+          <td>${esc(r.proveedor_nombre)}</td>
+          <td><strong>${esc(r.numero_factura)}</strong></td>
+          <td>${r.origen === 'ia' ? '<span class="ct-ia-chip"><i class="fas fa-wand-magic-sparkles"></i> IA</span>' : 'Manual'}</td>
+          <td class="n">${Number(r.lineas)}${sin ? `<br><small class="ct-sinprod-txt">${sin} sin producto</small>` : ''}</td>
+          <td class="n">${r.monto_factura != null ? money(r.monto_factura) : '—'}</td>
+          <td>${estFac}</td>
+          <td><i class="fas fa-chevron-${abierta ? 'up' : 'down'} ct-gris"></i></td>
+        </tr>${det}`;
+    }).join('');
+  }
+
+  async function verRecepcion(id, forzarAbrir) {
+    if (!forzarAbrir && String(S.abierta) === String(id)) { S.abierta = null; pintarHist(); return; }
+    S.abierta = id;
+    pintarHist();
+    if (!S.recLineas[id]) {
+      try {
+        S.recLineas[id] = await rpc('conta_leer_recepcion_lineas', { p_id: id }, true);
+      } catch (e) {
+        toast(e.message, 'error');
+        S.abierta = null;
+      }
+      pintarHist();
+    }
+  }
+
+  // ─── Pestañas ──────────────────────────────────────────────────────────────
+  function irTab(tab) {
+    S.tab = tab;
+    document.querySelectorAll('[data-ct-tab]').forEach(b => {
+      const si = b.getAttribute('data-ct-tab') === tab;
+      b.classList.toggle('vp-tab--activa', si);
+      b.setAttribute('aria-selected', si ? 'true' : 'false');
+    });
+    [['pagar', 'ctPanelPagar'], ['recepcion', 'ctPanelRecepcion'], ['proveedores', 'ctPanelProveedores']]
+      .forEach(([t, id]) => { const el = $(id); if (el) el.hidden = t !== tab; });
+  }
+
+  // ─── Modales ───────────────────────────────────────────────────────────────
+  function abrirModal(id) { $(id)?.classList.remove('hidden'); }
+  function cerrarModal(id) { $(id)?.classList.add('hidden'); }
+  function errorModal(id, msg) { const e = $(id); if (e) { e.textContent = msg || ''; e.hidden = !msg; } }
+
+  /* Botón ocupado mientras la base contesta (evita dobles clics). */
+  async function ocupado(btnId, textoOcupado, fn) {
+    const btn = $(btnId);
+    const html = btn ? btn.innerHTML : '';
+    if (btn) { if (btn.disabled) return; btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${textoOcupado}`; }
+    try { return await fn(); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = html; } }
+  }
+
+  // Proveedor
+  function abrirProveedor(id) {
+    const p = id ? provPorId(id) : null;
+    S.provEdit = p ? p.id : null;
+    $('ctProvTitulo').innerHTML = p ? '<i class="fas fa-pen"></i> Editar proveedor' : '<i class="fas fa-building"></i> Nuevo proveedor';
+    $('ctProvNombre').value   = p ? p.nombre : '';
+    $('ctProvAtencion').value = p ? p.atencion : '';
+    $('ctProvRnc').value      = p ? p.rnc : '';
+    $('ctProvTel').value      = p ? p.telefonos : '';
+    $('ctProvTermino').value  = p ? p.termino_dias : 30;
+    $('ctProvNotas').value    = p ? p.notas : '';
+    errorModal('ctProvError', '');
+    abrirModal('ctProvModal');
+    setTimeout(() => $('ctProvNombre')?.focus(), 50);
+  }
+  async function guardarProveedor() {
+    const nombre = $('ctProvNombre').value.trim();
+    const term = num($('ctProvTermino').value);
+    if (!nombre) { errorModal('ctProvError', ERRORES.FALTA_NOMBRE); return; }
+    if (term === null || isNaN(term) || term < 0 || term > 365 || term !== Math.trunc(term)) {
+      errorModal('ctProvError', ERRORES.TERMINO_INVALIDO); return;
+    }
+    await ocupado('ctProvGuardar', 'Guardando…', async () => {
+      try {
+        await rpc('conta_guardar_proveedor', {
+          p_id: S.provEdit,
+          p_datos: {
+            nombre, termino_dias: term,
+            atencion: $('ctProvAtencion').value.trim(), rnc: $('ctProvRnc').value.trim(),
+            telefonos: $('ctProvTel').value.trim(), notas: $('ctProvNotas').value.trim(),
+          },
+        });
+        cerrarModal('ctProvModal');
+        toast(S.provEdit ? `✅ Proveedor «${nombre}» actualizado.` : `✅ Proveedor «${nombre}» dado de alta.`, 'success');
+        await cargar();
+      } catch (e) { errorModal('ctProvError', e.message); }
+    });
+  }
+  async function bajaProveedor(id) {
+    const p = provPorId(id);
+    if (!p) return;
+    if (Number(p.pendientes) > 0) { toast(ERRORES.PROVEEDOR_CON_DEUDA, 'warn'); return; }
+    if (!confirm(`¿Dar de baja al proveedor «${p.nombre}»?\n\nSus facturas pagadas y recepciones se conservan como historial.`)) return;
+    try {
+      await rpc('conta_borrar_proveedor', { p_id: p.id });
+      toast(`Proveedor «${p.nombre}» dado de baja.`, 'info');
+      await cargar();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  // Factura a mano
+  function abrirFactura(id) {
+    const f = id ? S.fac.find(x => String(x.id) === String(id)) : null;
+    if (!S.prov.length) { toast('Primero da de alta el proveedor en la pestaña «Proveedores».', 'warn'); return; }
+    S.facEdit = f ? f.id : null;
+    S.venEditado = !!f;
+    $('ctFacTitulo').innerHTML = f ? '<i class="fas fa-pen"></i> Editar factura' : '<i class="fas fa-file-invoice-dollar"></i> Nueva factura por pagar';
+    pintarSelects();
+    $('ctFacModalProv').value = f ? f.proveedor_id : ($('ctFacProv')?.value || '');
+    $('ctFacNumero').value  = f ? f.numero : '';
+    $('ctFacEmision').value = f ? f.fecha_emision : hoy();
+    $('ctFacVence').value   = f ? f.fecha_vencimiento : '';
+    $('ctFacMonto').value   = f ? f.monto : '';
+    $('ctFacPct').value     = f && Number(f.pronto_pago_pct) ? f.pronto_pago_pct : '';
+    $('ctFacDias').value    = f && Number(f.pronto_pago_dias) ? f.pronto_pago_dias : '';
+    $('ctFacNotas').value   = f ? f.notas : '';
+    errorModal('ctFacError', '');
+    autoVencimiento();
+    abrirModal('ctFacModal');
+    setTimeout(() => $(f ? 'ctFacMonto' : ($('ctFacModalProv').value ? 'ctFacNumero' : 'ctFacModalProv'))?.focus(), 50);
+  }
+  function autoVencimiento() {
+    const p = provPorId($('ctFacModalProv').value);
+    const emi = $('ctFacEmision').value;
+    const ayuda = $('ctFacVenceAyuda');
+    if (p && emi && !S.venEditado) $('ctFacVence').value = sumarDias(emi, p.termino_dias);
+    if (ayuda) ayuda.textContent = p ? `Término de ${p.nombre}: ${plural(Number(p.termino_dias), 'día', 'días')}. Se calcula solo; puedes cambiarlo.` : 'Se calcula solo: emisión + término del proveedor.';
+  }
+  function leerProntoPago(idPct, idDias) {
+    const pct = num($(idPct).value), dias = num($(idDias).value);
+    if ((pct !== null && (isNaN(pct) || pct < 0 || pct > 100)) ||
+        (dias !== null && (isNaN(dias) || dias < 0 || dias > 365 || dias !== Math.trunc(dias)))) {
+      throw new Error(ERRORES.PRONTO_PAGO_INVALIDO);
+    }
+    if (((pct || 0) > 0) !== ((dias || 0) > 0)) throw new Error(ERRORES.PRONTO_PAGO_INCOMPLETO);
+    return { pct: pct || 0, dias: dias || 0 };
+  }
+  async function guardarFactura() {
+    const prov = $('ctFacModalProv').value;
+    const numero = $('ctFacNumero').value.trim();
+    const emi = $('ctFacEmision').value;
+    const ven = $('ctFacVence').value;
+    const monto = num($('ctFacMonto').value);
+    let pp;
+    try {
+      if (!prov) throw new Error('Elige el proveedor.');
+      if (!numero) throw new Error(ERRORES.FALTA_NUMERO);
+      if (!emi) throw new Error(ERRORES.FALTA_FECHA);
+      if (ven && ven < emi) throw new Error(ERRORES.VENCIMIENTO_INVALIDO);
+      if (monto === null || isNaN(monto) || monto <= 0) throw new Error(ERRORES.MONTO_INVALIDO);
+      pp = leerProntoPago('ctFacPct', 'ctFacDias');
+    } catch (e) { errorModal('ctFacError', e.message); return; }
+    await ocupado('ctFacGuardar', 'Guardando…', async () => {
+      try {
+        await rpc('conta_guardar_factura', {
+          p_id: S.facEdit,
+          p_datos: {
+            proveedor_id: prov, numero, fecha_emision: emi, fecha_vencimiento: ven || '',
+            monto: r2(monto), pronto_pago_pct: pp.pct, pronto_pago_dias: pp.dias,
+            notas: $('ctFacNotas').value.trim(),
+          },
+        });
+        cerrarModal('ctFacModal');
+        toast(S.facEdit ? `✅ Factura ${numero} actualizada.` : `✅ Factura ${numero} registrada.`, 'success');
+        await cargar();
+      } catch (e) { errorModal('ctFacError', e.message); }
+    });
+  }
+  async function borrarFactura(id) {
+    const f = S.fac.find(x => String(x.id) === String(id));
+    if (!f) return;
+    const extra = f.recepcion_id ? '\n\nLa recepción de mercancía se conserva en el historial.' : '';
+    if (!confirm(`¿Borrar la factura ${f.numero} de ${f.proveedor_nombre} (${money(f.monto)})?${extra}`)) return;
+    try {
+      await rpc('conta_borrar_factura', { p_id: f.id });
+      toast(`Factura ${f.numero} borrada.`, 'info');
+      await cargar();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  // Pago (de una vez)
+  function montoAPagar(f, fecha) {
+    const pct = Number(f.pronto_pago_pct) || 0;
+    if (pct > 0 && fecha && f.pronto_pago_hasta && fecha <= f.pronto_pago_hasta) return r2(Number(f.monto) * (1 - pct / 100));
+    return Number(f.monto);
+  }
+  function abrirPago(id) {
+    const f = S.fac.find(x => String(x.id) === String(id));
+    if (!f || f.pagada) return;
+    S.pagoId = f.id;
+    $('ctPagoInfo').innerHTML = `
+      <div class="ct-pago__fila"><span>Factura</span><b>${esc(f.numero)}</b></div>
+      <div class="ct-pago__fila"><span>Proveedor</span><b>${esc(f.proveedor_nombre)}</b></div>
+      <div class="ct-pago__fila"><span>Emisión · vencimiento</span><b>${fFecha(f.fecha_emision)} · ${fFecha(f.fecha_vencimiento)}</b></div>
+      <div class="ct-pago__fila"><span>Monto de la factura</span><b>${money(f.monto)}</b></div>`;
+    const fe = $('ctPagoFecha');
+    fe.value = hoy(); fe.max = hoy(); fe.min = f.fecha_emision;
+    errorModal('ctPagoError', '');
+    calcPago();
+    abrirModal('ctPagoModal');
+  }
+  function calcPago() {
+    const f = S.fac.find(x => String(x.id) === String(S.pagoId));
+    if (!f) return;
+    const fecha = $('ctPagoFecha').value;
+    const pagar = montoAPagar(f, fecha);
+    const pct = Number(f.pronto_pago_pct) || 0;
+    $('ctPagoMonto').textContent = money(pagar);
+    let nota = 'Se paga el monto completo, de una vez.';
+    if (pct > 0) {
+      nota = pagar < Number(f.monto)
+        ? `✅ Dentro del pronto pago (${pct} % hasta el ${fFecha(f.pronto_pago_hasta)}): ahorras ${money(Number(f.monto) - pagar)}.`
+        : `El pronto pago (${pct} %) era hasta el ${fFecha(f.pronto_pago_hasta)}: se paga el monto completo.`;
+    }
+    $('ctPagoNota').textContent = nota;
+  }
+  async function confirmarPago() {
+    const f = S.fac.find(x => String(x.id) === String(S.pagoId));
+    if (!f) return;
+    const fecha = $('ctPagoFecha').value;
+    if (!fecha) { errorModal('ctPagoError', 'Indica la fecha del pago.'); return; }
+    if (fecha > hoy()) { errorModal('ctPagoError', ERRORES.FECHA_PAGO_FUTURA); return; }
+    if (fecha < f.fecha_emision) { errorModal('ctPagoError', ERRORES.FECHA_PAGO_INVALIDA); return; }
+    await ocupado('ctPagoConfirmar', 'Guardando…', async () => {
+      try {
+        const pagado = await rpc('conta_pagar_factura', { p_id: f.id, p_fecha: fecha });
+        cerrarModal('ctPagoModal');
+        toast(`✅ Factura ${f.numero} pagada: ${money(pagado)}.`, 'success');
+        await cargar();
+      } catch (e) { errorModal('ctPagoError', e.message); }
+    });
+  }
+  async function anularPago(id) {
+    const f = S.fac.find(x => String(x.id) === String(id));
+    if (!f || !f.pagada) return;
+    if (!confirm(`¿Anular el pago de la factura ${f.numero} (${money(f.monto_pagado)} el ${fFecha(f.fecha_pago)})?\n\nVolverá a quedar pendiente.`)) return;
+    try {
+      await rpc('conta_anular_pago', { p_id: f.id });
+      toast(`Pago de la factura ${f.numero} anulado.`, 'info');
+      await cargar();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  // ─── Recepción de mercancía ───────────────────────────────────────────────
+  const VIA = {
+    codigo:    'por código de barras',
+    aprendido: 'recordado de este proveedor',
+    elegido:   'elegido a mano',
+    catalogo:  'añadido del catálogo',
+  };
+
+  function norm(s) {
+    return typeof _admNorm === 'function' ? _admNorm(s)
+      : String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  }
+  function tokens(s) {
+    const t = typeof _admTokens === 'function' ? _admTokens(s) : norm(s).split(/\s+/).filter(Boolean);
+    return t.filter(x => x.length >= 2);
+  }
+  /* Misma clave que _conta_clave() en la base (seguridad/111). */
+  function clave(cod, desc) {
+    const c = String(cod || '').trim();
+    return c ? 'C:' + c.toUpperCase() : 'D:' + String(desc || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  }
+  function mismoCodigo(a, b) {
+    a = String(a || '').trim().toUpperCase().replace(/\s/g, '');
+    b = String(b || '').trim().toUpperCase().replace(/\s/g, '');
+    if (!a || !b) return false;
+    if (a === b) return true;
+    // UPC-A de 12 impreso como EAN-13 con un 0 delante (y al revés)
+    return /^\d+$/.test(a) && /^\d+$/.test(b) && a.replace(/^0+/, '') === b.replace(/^0+/, '');
+  }
+  function puntuar(desc, lista) {
+    const toks = tokens(desc);
+    if (!toks.length) return [];
+    return lista.map(p => {
+      const nombre = norm(p.name).replace(/[^\p{L}\p{N}\s]+/gu, ' ');
+      let n = 0;
+      toks.forEach(t => { if (nombre.includes(t)) n++; });
+      return { p, n, s: n / toks.length };
+    }).filter(x => x.n > 0)
+      .sort((a, b) => b.s - a.s || b.n - a.n || String(a.p.name).length - String(b.p.name).length);
+  }
+
+  /* Empareja una línea que el empleado no haya decidido a mano. */
+  function autoEmparejar(l) {
+    if (l.manual) return;
+    l.producto_id = null; l.via = ''; l.sugerido = null;
+    const prods = productos();
+    if (l.codigo) {
+      const p = prods.find(x => mismoCodigo(x.barcode, l.codigo) || mismoCodigo(x.barcode_alt, l.codigo));
+      if (p) { l.producto_id = p.id; l.via = 'codigo'; return; }
+    }
+    const mapa = S.codigos[$('ctRecProv')?.value || ''] || {};
+    const id = mapa[clave(l.codigo, l.descripcion)] || mapa[clave('', l.descripcion)];
+    if (id && prodPorId(id)) { l.producto_id = id; l.via = 'aprendido'; return; }
+    const mejor = puntuar(l.descripcion, prods)[0];
+    if (mejor && mejor.s >= 0.6) l.sugerido = mejor.p.id;
+  }
+
+  async function cargarCodigos(provId) {
+    if (!provId || S.codigos[provId]) return;
+    try {
+      const filas = await rpc('conta_leer_codigos', { p_proveedor: provId }, true);
+      const m = {};
+      (filas || []).forEach(f => { m[f.clave] = f.producto_id; });
+      S.codigos[provId] = m;
+    } catch (e) {
+      console.warn('[contabilidad] no se pudieron leer los productos recordados:', e.message);
+    }
+  }
+
+  function importe(l) {
+    const c = num(l.cantidad), k = num(l.costo);
+    if (c === null || k === null || isNaN(c) || isNaN(k)) return 0;
+    return r2(r3(c) * r2(k));
+  }
+
+  function celdaProducto(l, i) {
+    if (l.producto_id) {
+      const p = prodPorId(l.producto_id);
+      return `<div class="ct-prod">
+        <span class="ct-prod__ok"><i class="fas fa-circle-check"></i> ${esc(p ? p.name : '(producto)')}</span>
+        <small>${VIA[l.via] || ''}${p && p.unit ? ' · ' + esc(p.unit) : ''}</small>
+        <span class="ct-prod__btns">
+          <button type="button" class="ct-link" data-act="emparejar" data-i="${i}">Cambiar</button>
+          <button type="button" class="ct-link ct-link--rojo" data-act="soltar" data-i="${i}">Dejar sin producto</button>
+        </span></div>`;
+    }
+    const s = l.sugerido ? prodPorId(l.sugerido) : null;
+    return `<div class="ct-prod">
+      <span class="ct-sinprod">Sin producto</span>
+      ${s ? `<button type="button" class="ct-sug" data-act="sugerido" data-i="${i}" title="Usar este producto">¿Es «${esc(s.name)}»?</button>` : ''}
+      <span class="ct-prod__btns"><button type="button" class="ct-link" data-act="emparejar" data-i="${i}">Emparejar</button></span>
+    </div>`;
+  }
+
+  function pintarLineas() {
+    const tb = $('ctRecLineas');
+    if (!tb) return;
+    if (!S.lineas.length) {
+      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Añade productos del catálogo, una línea sin producto o lee la factura con IA.</td></tr>`;
+      return;
+    }
+    tb.innerHTML = S.lineas.map((l, i) => `
+      <tr data-i="${i}" class="${l.producto_id ? '' : 'ct-l--sin'}">
+        <td class="ct-l__n">${i + 1}</td>
+        <td><input class="ct-in ct-in--cod" data-campo="codigo" data-i="${i}" value="${esc(l.codigo)}" maxlength="40" placeholder="—" /></td>
+        <td><input class="ct-in ct-in--desc" data-campo="descripcion" data-i="${i}" value="${esc(l.descripcion)}" maxlength="200" placeholder="Descripción" /></td>
+        <td class="ct-l__prod">${celdaProducto(l, i)}</td>
+        <td class="n"><input class="ct-in ct-in--num" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0" /></td>
+        <td class="n"><input class="ct-in ct-in--num" data-campo="costo" data-i="${i}" value="${esc(l.costo)}" inputmode="decimal" placeholder="0.00" /></td>
+        <td class="n ct-l__imp">${money(importe(l))}</td>
+        <td><button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button></td>
+      </tr>`).join('');
+  }
+
+  function repintarCeldaProducto(i) {
+    const tr = document.querySelector(`#ctRecLineas tr[data-i="${i}"]`);
+    const l = S.lineas[i];
+    if (!tr || !l) return;
+    tr.classList.toggle('ct-l--sin', !l.producto_id);
+    const td = tr.querySelector('.ct-l__prod');
+    if (td) td.innerHTML = celdaProducto(l, i);
+  }
+
+  function totalesRec() {
+    const suma = r2(S.lineas.reduce((a, l) => a + importe(l), 0));
+    const t = num($('ctRecTotal')?.value);
+    const total = (t === null || isNaN(t)) ? null : r2(t);
+    return { suma, total, monto: total !== null ? total : suma };
+  }
+
+  function pintarTotalesRec() {
+    const box = $('ctRecTotales');
+    if (!box) return;
+    const { suma, total, monto } = totalesRec();
+    const sin = S.lineas.filter(l => !l.producto_id).length;
+    const p = provPorId($('ctRecProv')?.value);
+    const fecha = $('ctRecFecha')?.value;
+    const dif = total !== null ? r2(total - suma) : 0;
+    box.innerHTML = `
+      <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-sinprod-txt">(${sin} sin producto)</small>` : ''}</b></div>
+      <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
+      ${total !== null ? `<div><span>Total escrito de la factura</span><b>${money(total)}</b></div>` : ''}
+      ${total !== null && Math.abs(dif) >= 0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> Diferencia con la suma</span><b>${money(dif)}</b></div>` : ''}
+      <div class="mp-totales__tot"><span>Factura por pagar</span><b>${money(monto)}</b></div>
+      ${p && fecha ? `<div class="ct-vence"><span>Vencerá el</span><b>${fFecha(sumarDias(fecha, p.termino_dias))} <small>(${plural(Number(p.termino_dias), 'día', 'días')})</small></b></div>` : ''}`;
+    const btn = $('ctRecConfirmar');
+    if (btn && !S.guardando) btn.disabled = !S.lineas.length;
+  }
+
+  function agregarDelCatalogo(id) {
+    const p = prodPorId(id);
+    if (!p) return;
+    const ya = S.lineas.findIndex(l => String(l.producto_id) === String(p.id));
+    if (ya >= 0) {
+      const c = num(S.lineas[ya].cantidad);
+      S.lineas[ya].cantidad = String(r3((isNaN(c) || c === null ? 0 : c) + 1));
+      toast(`«${p.name}»: cantidad ${S.lineas[ya].cantidad}.`, 'info');
+    } else {
+      S.lineas.push({
+        codigo: String(p.barcode || '').trim(), descripcion: String(p.name || '').slice(0, 200),
+        cantidad: '1', costo: (p.costo !== null && p.costo !== undefined && p.costo !== '') ? String(p.costo) : '',
+        producto_id: p.id, via: 'catalogo', manual: true, sugerido: null,
+      });
+    }
+    $('ctRecBuscar').value = '';
+    $('ctRecResultados').innerHTML = '';
+    pintarLineas();
+    pintarTotalesRec();
+    $('ctRecBuscar').focus();
+  }
+
+  function buscarCatalogo() {
+    const q = $('ctRecBuscar').value;
+    const box = $('ctRecResultados');
+    if (!q.trim()) { box.innerHTML = ''; return; }
+    const prods = productos();
+    const res = (typeof _admBuscar === 'function'
+      ? prods.filter(p => _admBuscar(q, p.name, p.barcode, p.barcode_alt))
+      : prods.filter(p => norm(p.name).includes(norm(q)))).slice(0, 10);
+    box.innerHTML = res.length
+      ? res.map(p => `
+        <button type="button" class="mp-res" data-prod="${esc(p.id)}">
+          <span><b>${esc(p.name)}</b><small>${esc(p.unit || '')}${p.barcode ? ' · ' + esc(p.barcode) : ''}</small></span>
+          <span class="mp-res__precio">${p.costo !== null && p.costo !== undefined && p.costo !== '' ? 'costo ' + money(p.costo) : ''}</span>
+        </button>`).join('')
+      : `<div class="mp-res-vacio">${prods.length ? 'Ningún producto coincide. Puedes añadir una «línea sin producto».' : 'El catálogo aún no se ha cargado.'}</div>`;
+  }
+
+  function lineaLibre() {
+    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false, sugerido: null });
+    pintarLineas();
+    pintarTotalesRec();
+    document.querySelector(`#ctRecLineas input[data-campo="descripcion"][data-i="${S.lineas.length - 1}"]`)?.focus();
+  }
+
+  function vaciarRecepcion(sinPreguntar) {
+    if (!sinPreguntar && S.lineas.length && !confirm('¿Vaciar la recepción en curso? Se pierden las líneas que no has confirmado.')) return;
+    S.lineas = []; S.origen = 'manual'; S.foto = null;
+    ['ctRecNum', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNotas', 'ctRecBuscar'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    $('ctRecFecha').value = hoy();
+    $('ctRecResultados').innerHTML = '';
+    errorModal('ctRecError', '');
+    pintarFoto();
+    iaEstado('');
+    pintarLineas();
+    pintarTotalesRec();
+  }
+
+  function errorRec(msg, focoId) {
+    errorModal('ctRecError', msg);
+    if (focoId) $(focoId)?.focus();
+    return false;
+  }
+
+  async function confirmarRecepcion() {
+    if (S.guardando) return;
+    errorModal('ctRecError', '');
+    const provId = $('ctRecProv').value;
+    const numero = $('ctRecNum').value.trim();
+    const fecha = $('ctRecFecha').value;
+    if (!provId) return errorRec('Elige el proveedor.', 'ctRecProv');
+    if (!numero) return errorRec(ERRORES.FALTA_NUMERO, 'ctRecNum');
+    if (!fecha) return errorRec(ERRORES.FALTA_FECHA, 'ctRecFecha');
+    if (!S.lineas.length) return errorRec(ERRORES.SIN_LINEAS, 'ctRecBuscar');
+    for (let i = 0; i < S.lineas.length; i++) {
+      const l = S.lineas[i];
+      const c = num(l.cantidad), k = num(l.costo);
+      const foco = campo => `#ctRecLineas input[data-campo="${campo}"][data-i="${i}"]`;
+      if (!String(l.descripcion).trim()) { errorRec(`${ERRORES.FALTA_DESCRIPCION} (línea ${i + 1})`); document.querySelector(foco('descripcion'))?.focus(); return; }
+      if (c === null || isNaN(c) || c <= 0) { errorRec(`${ERRORES.CANTIDAD_INVALIDA} (línea ${i + 1})`); document.querySelector(foco('cantidad'))?.focus(); return; }
+      if (k === null || isNaN(k) || k < 0) { errorRec(`${ERRORES.COSTO_INVALIDO} (línea ${i + 1})`); document.querySelector(foco('costo'))?.focus(); return; }
+    }
+    const tRaw = num($('ctRecTotal').value);
+    if (tRaw !== null && (isNaN(tRaw) || tRaw <= 0)) return errorRec(ERRORES.TOTAL_INVALIDO, 'ctRecTotal');
+    let pp;
+    try { pp = leerProntoPago('ctRecPct', 'ctRecDias'); } catch (e) { return errorRec(e.message, 'ctRecPct'); }
+    const { suma, total, monto } = totalesRec();
+    if (monto <= 0) return errorRec(ERRORES.TOTAL_CERO);
+    if (total !== null && Math.abs(total - suma) >= 0.01 &&
+        !confirm(`El total escrito (${money(total)}) no coincide con la suma de las líneas (${money(suma)}).\n\nLa factura por pagar se creará por ${money(total)}. ¿Continuar?`)) return;
+    const sin = S.lineas.filter(l => !l.producto_id).length;
+    if (sin && !confirm(`${plural(sin, 'línea queda', 'líneas quedan')} «sin producto» (cuentan para el total, no tocan ningún producto). ¿Continuar?`)) return;
+
+    S.guardando = true;
+    try {
+      await ocupado('ctRecConfirmar', 'Guardando…', async () => {
+        const r = await rpc('conta_crear_recepcion', {
+          p_datos: {
+            proveedor_id: provId, numero_factura: numero, fecha, origen: S.origen,
+            pronto_pago_pct: pp.pct, pronto_pago_dias: pp.dias,
+            total_factura: total, notas: $('ctRecNotas').value.trim(),
+            lineas: S.lineas.map(l => ({
+              producto_id: l.producto_id || null,
+              codigo: String(l.codigo || '').trim(),
+              descripcion: String(l.descripcion).trim(),
+              cantidad: r3(num(l.cantidad)),
+              costo_unitario: r2(num(l.costo)),
+            })),
+          },
+        });
+        delete S.codigos[provId];   // la base aprendió líneas nuevas
+        vaciarRecepcion(true);
+        toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.`, 'success');
+        await cargar();
+        if (r && r.recepcion_id) verRecepcion(r.recepcion_id, true);
+      });
+    } catch (e) {
+      errorRec(e.message);
+    } finally {
+      S.guardando = false;
+      pintarTotalesRec();
+    }
+  }
+
+  // Emparejar a mano
+  function abrirEmparejar(i) {
+    const l = S.lineas[i];
+    if (!l) return;
+    S.empIdx = i;
+    $('ctEmpLinea').innerHTML = `Línea ${i + 1}: <b>${esc(l.descripcion || '(sin descripción)')}</b>${l.codigo ? ` · código ${esc(l.codigo)}` : ''}`;
+    $('ctEmpBuscar').value = '';
+    listaEmparejar();
+    abrirModal('ctEmpModal');
+    setTimeout(() => $('ctEmpBuscar')?.focus(), 50);
+  }
+  function listaEmparejar() {
+    const l = S.lineas[S.empIdx];
+    if (!l) return;
+    const q = $('ctEmpBuscar').value;
+    const prods = productos();
+    let res;
+    if (q.trim()) {
+      res = (typeof _admBuscar === 'function' ? prods.filter(p => _admBuscar(q, p.name, p.barcode, p.barcode_alt))
+        : prods.filter(p => norm(p.name).includes(norm(q)))).slice(0, 30);
+    } else {
+      res = puntuar(l.descripcion, prods).slice(0, 15).map(x => x.p);
+    }
+    $('ctEmpLista').innerHTML = res.length
+      ? (q.trim() ? '' : '<div class="ct-emp__tit">Parecidos por el nombre</div>') + res.map(p => `
+        <button type="button" class="mp-res" data-prod="${esc(p.id)}">
+          <span><b>${esc(p.name)}</b><small>${esc(p.unit || '')}${p.barcode ? ' · ' + esc(p.barcode) : ''}</small></span>
+          <span class="mp-res__precio">${p.costo !== null && p.costo !== undefined && p.costo !== '' ? 'costo ' + money(p.costo) : ''}</span>
+        </button>`).join('')
+      : `<div class="mp-res-vacio">${q.trim() ? 'Ningún producto coincide.' : 'Escribe el nombre o el código de barras para buscar.'}</div>`;
+  }
+  function asignar(i, prodId, via) {
+    const l = S.lineas[i];
+    if (!l) return;
+    l.producto_id = prodId; l.via = via; l.manual = true; l.sugerido = null;
+    repintarCeldaProducto(i);
+    pintarTotalesRec();
+  }
+
+  // ─── IA: leer la foto de la factura ───────────────────────────────────────
+  function iaEstado(html, tipo) {
+    const el = $('ctIaEstado');
+    if (!el) return;
+    el.hidden = !html;
+    el.className = 'ct-ia__estado' + (tipo ? ' ct-ia__estado--' + tipo : '');
+    el.innerHTML = html || '';
+  }
+  function pintarFoto() {
+    const box = $('ctIaFotoVista');
+    if (!box) return;
+    box.hidden = !S.foto;
+    box.innerHTML = S.foto
+      ? `<img src="${S.foto}" alt="Foto de la factura (solo en esta pantalla, no se guarda)" />
+         <small>Solo en esta pantalla para comparar. No se guarda.</small>` : '';
+  }
+
+  /* Reduce la foto en el navegador (lado mayor 1.800 px, JPEG) para que
+   * viaje rápido y quepa en el límite de Groq (4 MB en base64). */
+  async function prepararFoto(file) {
+    if (!file || !/^image\//.test(file.type || 'image/')) throw new Error('El archivo no es una imagen.');
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, mal) => {
+        const i = new Image();
+        i.onload = () => ok(i);
+        i.onerror = () => mal(new Error('No se pudo abrir la foto. Prueba con una foto JPG o PNG.'));
+        i.src = url;
+      });
+      const MAX = 1800;
+      const k = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * k));
+      const h = Math.max(1, Math.round(img.naturalHeight * k));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      let q = 0.85;
+      let data = c.toDataURL('image/jpeg', q);
+      while (data.length > 3500000 && q > 0.45) { q -= 0.1; data = c.toDataURL('image/jpeg', q); }
+      if (data.length > 3800000) throw new Error('La foto es demasiado grande incluso reducida.');
+      return data;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function leerFactura(file) {
+    if (S.iaLeyendo) return;
+    const provId = $('ctRecProv').value;
+    if (!provId) { toast('Elige primero el proveedor: así se emparejan solos los productos que ya conoce.', 'warn'); $('ctRecProv').focus(); return; }
+    S.iaLeyendo = true;
+    const btn = $('ctIaBtn');
+    if (btn) btn.classList.add('ct-ia__btn--ocupado');
+    try {
+      iaEstado('<i class="fas fa-spinner fa-spin"></i> Preparando la foto…', 'info');
+      const imagen = await prepararFoto(file);
+      S.foto = imagen;
+      pintarFoto();
+      iaEstado('<i class="fas fa-spinner fa-spin"></i> La IA está leyendo la factura… (puede tardar unos segundos)', 'info');
+      const [res] = await Promise.all([
+        fetch('/api/factura-ia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CM-Vale': vale() },
+          body: JSON.stringify({ imagen }),
+        }),
+        cargarCodigos(provId),
+      ]);
+      let j = null;
+      try { j = await res.json(); } catch (e) { j = null; }
+      if (!res.ok || !j || !j.ok) throw new Error((j && j.error) || `El lector de facturas no respondió (${res.status}).`);
+      aplicarLectura(j.factura || {});
+    } catch (e) {
+      iaEstado(`<i class="fas fa-triangle-exclamation"></i> ${esc(e.message || 'No se pudo leer la factura.')} Puedes meter las líneas a mano.`, 'error');
+    } finally {
+      S.iaLeyendo = false;
+      if (btn) btn.classList.remove('ct-ia__btn--ocupado');
+      const inp = $('ctIaFoto');
+      if (inp) inp.value = '';   // se suelta el archivo; se puede volver a elegir el mismo
+    }
+  }
+
+  function aplicarLectura(f) {
+    const lineas = Array.isArray(f.lineas) ? f.lineas : [];
+    if (!lineas.length) {
+      iaEstado('<i class="fas fa-triangle-exclamation"></i> La IA no encontró líneas de productos en la foto. Prueba con otra foto más clara y recta, o mételas a mano.', 'error');
+      return;
+    }
+    if (f.numero && !$('ctRecNum').value.trim()) $('ctRecNum').value = String(f.numero).slice(0, 40);
+    if (f.fecha && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) $('ctRecFecha').value = f.fecha;
+    if (f.total > 0 && !$('ctRecTotal').value.trim()) $('ctRecTotal').value = r2(f.total);
+    if (f.ncf && !$('ctRecNotas').value.trim()) $('ctRecNotas').value = ('NCF ' + f.ncf).slice(0, 500);
+
+    const nuevas = lineas.map(x => ({
+      codigo: String(x.codigo || '').slice(0, 40),
+      descripcion: String(x.descripcion || '').slice(0, 200),
+      cantidad: x.cantidad > 0 ? String(r3(x.cantidad)) : '',
+      costo: x.costo_unitario >= 0 && x.costo_unitario !== null ? String(r2(x.costo_unitario)) : '',
+      producto_id: null, via: '', manual: false, sugerido: null,
+    }));
+    nuevas.forEach(autoEmparejar);
+    if (S.lineas.length && !confirm(`La IA leyó ${plural(nuevas.length, 'línea', 'líneas')}.\n\nAceptar = SUSTITUIR las ${S.lineas.length} líneas actuales.\nCancelar = AÑADIRLAS al final.`)) {
+      S.lineas = S.lineas.concat(nuevas);
+    } else {
+      S.lineas = nuevas;
+    }
+    S.origen = 'ia';
+    const emp = nuevas.filter(l => l.producto_id).length;
+    const faltan = nuevas.filter(l => !(num(l.cantidad) > 0) || l.costo === '').length;
+    iaEstado(`<i class="fas fa-circle-check"></i> La IA leyó <b>${plural(nuevas.length, 'línea', 'líneas')}</b>: ` +
+      `${emp} emparejada${emp === 1 ? '' : 's'} con el catálogo, ${nuevas.length - emp} sin producto.` +
+      `${faltan ? ` <b>${faltan} con cantidad o costo por completar.</b>` : ''} ` +
+      `<b>Revisa cada línea con la foto antes de confirmar</b>: la IA puede equivocarse.`, 'ok');
+    pintarLineas();
+    pintarTotalesRec();
+  }
+
+  // ─── Avisos al entrar al panel (número del menú + aviso una vez al día) ───
+  async function avisosInicio() {
+    if (!permitido() || !vale()) return;
+    try {
+      const a = await rpc('conta_avisos', {});
+      if (!a) return;
+      const venc = Number(a.vencidas) || 0, prox = Number(a.proximas) || 0;
+      if (!S.cargado) badge(venc, prox);
+      const marca = 'cm_ct_aviso_' + hoy();
+      let visto = false;
+      try { visto = sessionStorage.getItem(marca) === '1'; sessionStorage.setItem(marca, '1'); } catch (e) { /* sin almacenamiento */ }
+      if (!visto && (venc || prox)) {
+        const partes = [];
+        if (venc) partes.push(`<b>${plural(venc, 'factura vencida', 'facturas vencidas')}</b> (${money(a.monto_vencido)})`);
+        if (prox) partes.push(`${plural(prox, 'próxima', 'próximas')} a vencer`);
+        toast(`Contabilidad: ${partes.join(' y ')}.`, venc ? 'error' : 'warn');
+      }
+    } catch (e) {
+      console.warn('[contabilidad] avisos:', e.message);
+    }
+  }
+
+  // ─── Montaje ───────────────────────────────────────────────────────────────
+  function montar() {
+    if (!$('sec-contabilidad')) return;
+
+    document.querySelectorAll('[data-ct-tab]').forEach(b =>
+      b.addEventListener('click', () => irTab(b.getAttribute('data-ct-tab'))));
+    $('ctBtnRecargar').addEventListener('click', () => { S.codigos = {}; cargar(); });
+
+    ['ctFacBuscar'].forEach(id => $(id).addEventListener('input', pintarFacturas));
+    ['ctFacProv', 'ctFacEstado'].forEach(id => $(id).addEventListener('change', pintarFacturas));
+    $('ctProvBuscar').addEventListener('input', pintarProveedores);
+    $('ctBtnNuevaFac').addEventListener('click', () => abrirFactura());
+    $('ctBtnNuevoProv').addEventListener('click', () => abrirProveedor());
+
+    // Acciones de tablas y avisos (delegación)
+    const sec = $('sec-contabilidad');
+    sec.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b || !sec.contains(b)) return;
+      const act = b.getAttribute('data-act');
+      const id = b.getAttribute('data-id');
+      const i = Number(b.getAttribute('data-i'));
+      if (act === 'pagar') abrirPago(id);
+      else if (act === 'editar') abrirFactura(id);
+      else if (act === 'borrar') borrarFactura(id);
+      else if (act === 'anular') anularPago(id);
+      else if (act === 'editprov') abrirProveedor(id);
+      else if (act === 'bajaprov') bajaProveedor(id);
+      else if (act === 'filtrar') { irTab('pagar'); $('ctFacEstado').value = b.getAttribute('data-estado'); pintarFacturas(); }
+      else if (act === 'verrec') {
+        if (b.tagName === 'BUTTON') { irTab('recepcion'); verRecepcion(id, true).then(() => $('ctRecHist').scrollIntoView({ block: 'start', behavior: 'smooth' })); }
+        else verRecepcion(id);
+      }
+      else if (act === 'quitar') { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); }
+      else if (act === 'emparejar') abrirEmparejar(i);
+      else if (act === 'soltar') { const l = S.lineas[i]; if (l) { l.producto_id = null; l.via = ''; l.manual = true; l.sugerido = null; repintarCeldaProducto(i); pintarTotalesRec(); } }
+      else if (act === 'sugerido') { const l = S.lineas[i]; if (l && l.sugerido) asignar(i, l.sugerido, 'elegido'); }
+    });
+    $('ctRecHist').addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' && ev.target.classList.contains('ct-hist-fila')) ev.target.click();
+    });
+
+    // Recepción
+    $('ctRecFecha').value = hoy();
+    $('ctRecProv').addEventListener('change', async () => {
+      const id = $('ctRecProv').value;
+      await cargarCodigos(id);
+      S.lineas.forEach(autoEmparejar);
+      pintarLineas();
+      pintarTotalesRec();
+    });
+    ['ctRecTotal', 'ctRecFecha'].forEach(id => $(id).addEventListener('input', pintarTotalesRec));
+    $('ctRecBuscar').addEventListener('input', buscarCatalogo);
+    $('ctRecBuscar').addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const primero = $('ctRecResultados').querySelector('[data-prod]');
+        if (primero) agregarDelCatalogo(primero.getAttribute('data-prod'));
+      } else if (ev.key === 'Escape') { $('ctRecResultados').innerHTML = ''; }
+    });
+    $('ctRecResultados').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-prod]');
+      if (b) agregarDelCatalogo(b.getAttribute('data-prod'));
+    });
+    document.addEventListener('click', ev => {
+      if (!ev.target.closest('.ct-buscar')) { const r = $('ctRecResultados'); if (r) r.innerHTML = ''; }
+    });
+    $('ctRecAddLibre').addEventListener('click', lineaLibre);
+    $('ctRecLimpiar').addEventListener('click', () => vaciarRecepcion(false));
+    $('ctRecConfirmar').addEventListener('click', confirmarRecepcion);
+
+    const tbL = $('ctRecLineas');
+    tbL.addEventListener('input', ev => {
+      const el = ev.target;
+      const campo = el.getAttribute('data-campo');
+      const l = S.lineas[Number(el.getAttribute('data-i'))];
+      if (!campo || !l) return;
+      l[campo] = el.value;
+      if (campo === 'cantidad' || campo === 'costo') {
+        const td = el.closest('tr').querySelector('.ct-l__imp');
+        if (td) td.textContent = money(importe(l));
+        pintarTotalesRec();
+      }
+    });
+    tbL.addEventListener('change', ev => {
+      const el = ev.target;
+      const campo = el.getAttribute('data-campo');
+      const i = Number(el.getAttribute('data-i'));
+      const l = S.lineas[i];
+      if (!l || (campo !== 'codigo' && campo !== 'descripcion')) return;
+      if (!l.manual) { autoEmparejar(l); repintarCeldaProducto(i); pintarTotalesRec(); }
+    });
+
+    // IA
+    $('ctIaFoto').addEventListener('change', ev => {
+      const f = ev.target.files && ev.target.files[0];
+      if (f) leerFactura(f);
+    });
+    $('ctIaFotoVista').addEventListener('click', () => $('ctIaFotoVista').classList.toggle('ct-ia__vista--grande'));
+
+    // Modales
+    document.querySelectorAll('[data-ct-cerrar]').forEach(b =>
+      b.addEventListener('click', () => cerrarModal(b.getAttribute('data-ct-cerrar'))));
+    $('ctProvGuardar').addEventListener('click', guardarProveedor);
+    $('ctFacGuardar').addEventListener('click', guardarFactura);
+    $('ctFacModalProv').addEventListener('change', () => { S.venEditado = false; autoVencimiento(); });
+    $('ctFacEmision').addEventListener('input', autoVencimiento);
+    $('ctFacVence').addEventListener('input', () => { S.venEditado = true; });
+    $('ctPagoFecha').addEventListener('input', calcPago);
+    $('ctPagoConfirmar').addEventListener('click', confirmarPago);
+    $('ctEmpBuscar').addEventListener('input', listaEmparejar);
+    $('ctEmpLista').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-prod]');
+      if (!b) return;
+      asignar(S.empIdx, b.getAttribute('data-prod'), 'elegido');
+      cerrarModal('ctEmpModal');
+    });
+    document.addEventListener('keydown', ev => {
+      if (ev.key !== 'Escape') return;
+      ['ctEmpModal', 'ctPagoModal', 'ctFacModal', 'ctProvModal'].some(id => {
+        const m = $(id);
+        if (m && !m.classList.contains('hidden')) { cerrarModal(id); return true; }
+        return false;
+      });
+    });
+
+    // No perder una recepción a medias al cerrar la pestaña
+    window.addEventListener('beforeunload', ev => {
+      if (S.lineas.length) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+
+    // Cargar al entrar en la sección (mismo patrón que ventas-pos.js)
+    if (typeof window.showSection === 'function' && !window.showSection._conConta) {
+      const original = window.showSection;
+      const envuelta = function (id) {
+        const r = original.apply(this, arguments);
+        if (id === 'contabilidad' && permitido()) cargar();
+        return r;
+      };
+      envuelta._conConta = true;
+      envuelta._conMas = original._conMas;
+      envuelta._conVentas = original._conVentas;
+      window.showSection = envuelta;
+    }
+
+    setTimeout(avisosInicio, 1500);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar);
+  else montar();
+
+  // Para las pruebas
+  window.CasaMotaConta = { _S: S, _cargar: cargar, _clave: clave, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _hoy: hoy, _sumarDias: sumarDias };
+})();

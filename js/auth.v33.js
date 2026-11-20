@@ -9,7 +9,8 @@ const ROLES = {
     label: 'Super Admin',
     color: '#7c3aed',
     icon:  'fa-crown',
-    sections: ['dashboard','products','orders','inventory','customers','mayoristas','staff','drivers','loyalty','reportes','cupones','notificaciones','settings','categories','respaldo','ventaspos'],
+    // 553 · 'contabilidad' (seguridad/111: la base también exige superadmin/admin)
+    sections: ['dashboard','products','orders','inventory','customers','mayoristas','staff','drivers','loyalty','reportes','contabilidad','cupones','notificaciones','settings','categories','respaldo','ventaspos'],
     canEditPrices:    true,
     canDeleteProducts:true,
     canCreateProducts:true,
@@ -21,7 +22,7 @@ const ROLES = {
     label: 'Administrador',
     color: '#1565c0',
     icon:  'fa-user-shield',
-    sections: ['dashboard','products','orders','inventory','customers','mayoristas','drivers','loyalty','reportes','cupones','notificaciones','settings','categories','respaldo','ventaspos'],
+    sections: ['dashboard','products','orders','inventory','customers','mayoristas','drivers','loyalty','reportes','contabilidad','cupones','notificaciones','settings','categories','respaldo','ventaspos'],
     canEditPrices:    true,
     canDeleteProducts:true,
     canCreateProducts:true,

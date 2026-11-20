@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '514';
+      const VER = '515';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -49,6 +49,8 @@
        estaba: el rediseño es reversible sin deshacer nada. -->
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
+  <!-- 553 · Contabilidad -->
+  <link rel="stylesheet" href="css/conta.css?v=1" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -205,6 +207,13 @@
         <li class="dsh-sep">
           <a href="#" class="nav-link" data-section="reportes" onclick="showSection('reportes',this)">
             <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20v-4"/><path d="M12 20V10"/><path d="M18 20V4"/></svg><span>Reportes</span>
+          </a>
+        </li>
+        <!-- 553 · Contabilidad (js/conta.js · seguridad/111). Solo Super Admin y
+             Administrador. El número rojo cuenta facturas vencidas + próximas. -->
+        <li>
+          <a href="#" class="nav-link" data-section="contabilidad" onclick="showSection('contabilidad',this)">
+            <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg><span>Contabilidad</span><span class="ct-nav-badge" id="ctNavBadge" hidden></span>
           </a>
         </li>
         <li>
@@ -907,6 +916,167 @@
             </thead>
             <tbody id="myrTbody"></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 553 · CONTABILIDAD (js/conta.js · css/conta.css · seguridad/111) ─── -->
+    <section class="section-content" id="sec-contabilidad">
+      <div class="page-header ct-cabecera">
+        <h1>Contabilidad</h1>
+        <button type="button" class="btn-secondary" id="ctBtnRecargar"><i class="fas fa-rotate"></i> Actualizar</button>
+      </div>
+
+      <div class="ct-avisos" id="ctAvisos" hidden></div>
+
+      <div class="vp-tabs ct-tabs" role="tablist">
+        <button type="button" class="vp-tab vp-tab--activa" data-ct-tab="pagar" role="tab" aria-selected="true" aria-controls="ctPanelPagar">
+          <i class="fas fa-file-invoice-dollar"></i> Cuentas por pagar <span class="ct-tab-num" id="ctTabNumPagar" hidden></span>
+        </button>
+        <button type="button" class="vp-tab" data-ct-tab="recepcion" role="tab" aria-selected="false" aria-controls="ctPanelRecepcion">
+          <i class="fas fa-truck-ramp-box"></i> Recepción de mercancía
+        </button>
+        <button type="button" class="vp-tab" data-ct-tab="proveedores" role="tab" aria-selected="false" aria-controls="ctPanelProveedores">
+          <i class="fas fa-building"></i> Proveedores
+        </button>
+      </div>
+
+      <!-- ── Cuentas por pagar ── -->
+      <div id="ctPanelPagar" role="tabpanel">
+        <div class="ct-kpis">
+          <div class="vp-kpi"><span class="vp-kpi__lbl">Total por pagar</span><b id="ctKpiPend">RD$ 0.00</b><small id="ctKpiPendN">0 facturas</small></div>
+          <div class="vp-kpi ct-kpi--rojo"><span class="vp-kpi__lbl">Vencido</span><b id="ctKpiVenc">RD$ 0.00</b><small id="ctKpiVencN">0 facturas</small></div>
+          <div class="vp-kpi ct-kpi--ambar"><span class="vp-kpi__lbl">Vence en 7 días</span><b id="ctKpiProx">RD$ 0.00</b><small id="ctKpiProxN">0 facturas</small></div>
+        </div>
+        <div class="filter-bar">
+          <input type="text" class="filter-input" id="ctFacBuscar" placeholder="Buscar por nº de factura o proveedor…" />
+          <select class="filter-select" id="ctFacProv"><option value="">Todos los proveedores</option></select>
+          <select class="filter-select" id="ctFacEstado">
+            <option value="sinpagar" selected>Sin pagar</option>
+            <option value="vencida">Vencidas</option>
+            <option value="proxima">Próximas a vencer</option>
+            <option value="pendiente">Pendientes (al día)</option>
+            <option value="pagada">Pagadas</option>
+            <option value="">Todas</option>
+          </select>
+          <span class="filter-count" id="ctFacCount"></span>
+          <button type="button" class="btn-primary" id="ctBtnNuevaFac"><i class="fas fa-plus"></i> Nueva factura</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="data-table ct-tabla">
+              <thead>
+                <tr><th>Nº factura</th><th>Proveedor</th><th>Emisión</th><th>Vencimiento</th><th class="n">Monto</th><th>Pronto pago</th><th>Estado</th><th>Acciones</th></tr>
+              </thead>
+              <tbody id="ctFacTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Recepción de mercancía ── -->
+      <div id="ctPanelRecepcion" role="tabpanel" hidden>
+        <div class="card ct-rec">
+          <div class="ct-rec__cab">
+            <div class="form-group">
+              <label for="ctRecProv">Proveedor <span class="req">*</span></label>
+              <select class="form-input" id="ctRecProv"></select>
+            </div>
+            <div class="form-group">
+              <label for="ctRecNum">Nº de factura <span class="req">*</span></label>
+              <input type="text" class="form-input" id="ctRecNum" maxlength="40" placeholder="Ej: 000123" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="ctRecFecha">Fecha de la factura <span class="req">*</span></label>
+              <input type="date" class="form-input" id="ctRecFecha" />
+            </div>
+            <div class="form-group">
+              <label for="ctRecTotal">Total de la factura</label>
+              <input type="text" class="form-input" id="ctRecTotal" inputmode="decimal" placeholder="Vacío = suma de líneas" />
+            </div>
+            <div class="form-group">
+              <label>Pronto pago</label>
+              <div class="ct-pp-in">
+                <input type="text" class="form-input" id="ctRecPct" inputmode="decimal" placeholder="%" aria-label="Porcentaje de pronto pago" />
+                <span>% si pago en</span>
+                <input type="text" class="form-input" id="ctRecDias" inputmode="numeric" placeholder="días" aria-label="Días de pronto pago" />
+                <span>días</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="ctRecNotas">Notas</label>
+              <input type="text" class="form-input" id="ctRecNotas" maxlength="500" placeholder="Opcional (NCF, observaciones…)" />
+            </div>
+          </div>
+
+          <div class="ct-ia">
+            <label class="ct-ia__btn" id="ctIaBtn">
+              <input type="file" id="ctIaFoto" accept="image/*" hidden />
+              <i class="fas fa-wand-magic-sparkles"></i>
+              <span><b>Leer la factura con IA</b><small>Sube o haz una foto de la factura: la IA rellena las líneas y tú las corriges.</small></span>
+            </label>
+            <div class="ct-ia__estado" id="ctIaEstado" hidden></div>
+            <div class="ct-ia__vista" id="ctIaFotoVista" hidden title="Pulsa para ampliar o reducir"></div>
+          </div>
+
+          <div class="ct-rec__add">
+            <div class="form-group mp-buscar ct-buscar">
+              <label for="ctRecBuscar">Añadir producto del catálogo</label>
+              <input type="text" class="form-input" id="ctRecBuscar" placeholder="Nombre o código de barras (puedes usar la pistola)…" autocomplete="off" />
+              <div class="mp-resultados" id="ctRecResultados"></div>
+            </div>
+            <button type="button" class="btn-secondary" id="ctRecAddLibre"><i class="fas fa-plus"></i> Línea sin producto</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table ct-lineas">
+              <thead>
+                <tr><th>#</th><th>Código</th><th>Descripción</th><th>Producto del catálogo</th><th class="n">Cantidad</th><th class="n">Costo unit.</th><th class="n">Importe</th><th></th></tr>
+              </thead>
+              <tbody id="ctRecLineas"></tbody>
+            </table>
+          </div>
+
+          <div class="ct-rec__pie">
+            <p class="myr-nota"><i class="fas fa-circle-info"></i> La recepción <b>no cambia el inventario</b> (ni existencias ni costos). Al confirmar se crea sola la factura en <b>Cuentas por pagar</b>.</p>
+            <div class="mp-totales ct-rec__totales" id="ctRecTotales"></div>
+          </div>
+          <div class="myr-error" id="ctRecError" hidden></div>
+          <div class="ct-rec__botones">
+            <button type="button" class="btn-secondary" id="ctRecLimpiar"><i class="fas fa-eraser"></i> Vaciar</button>
+            <button type="button" class="btn-primary" id="ctRecConfirmar" disabled><i class="fas fa-check-circle"></i> Confirmar recepción</button>
+          </div>
+        </div>
+
+        <h3 class="ct-subtit">Recepciones anteriores</h3>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="data-table ct-tabla">
+              <thead>
+                <tr><th>Fecha</th><th>Proveedor</th><th>Nº factura</th><th>Origen</th><th class="n">Líneas</th><th class="n">Factura</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody id="ctRecHist"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Proveedores ── -->
+      <div id="ctPanelProveedores" role="tabpanel" hidden>
+        <div class="filter-bar">
+          <input type="text" class="filter-input" id="ctProvBuscar" placeholder="Buscar por nombre, contacto, RNC o teléfono…" />
+          <span class="filter-count" id="ctProvCount"></span>
+          <button type="button" class="btn-primary" id="ctBtnNuevoProv"><i class="fas fa-plus"></i> Nuevo proveedor</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="data-table ct-tabla">
+              <thead>
+                <tr><th>Nombre</th><th>Atención</th><th>RNC</th><th>Teléfonos</th><th class="n">Término</th><th class="n">Por pagar</th><th>Acciones</th></tr>
+              </thead>
+              <tbody id="ctProvTbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -2557,6 +2727,153 @@
     </div>
   </div>
 
+  <!-- 553 · Contabilidad: proveedor -->
+  <div class="modal-backdrop hidden" id="ctProvModal">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <h3 id="ctProvTitulo"><i class="fas fa-building"></i> Nuevo proveedor</h3>
+        <button class="modal-close-btn" type="button" data-ct-cerrar="ctProvModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="ctProvNombre">Nombre <span class="req">*</span></label>
+          <input type="text" class="form-input" id="ctProvNombre" maxlength="120" placeholder="Ej: Distribuidora del Este, SRL" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctProvAtencion">Atención (contacto)</label>
+            <input type="text" class="form-input" id="ctProvAtencion" maxlength="120" placeholder="Persona de contacto" />
+          </div>
+          <div class="form-group">
+            <label for="ctProvRnc">RNC</label>
+            <input type="text" class="form-input" id="ctProvRnc" maxlength="20" placeholder="Ej: 1-01-00000-0" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctProvTel">Teléfonos</label>
+            <input type="text" class="form-input" id="ctProvTel" maxlength="120" placeholder="809-000-0000 / 829-000-0000" />
+          </div>
+          <div class="form-group">
+            <label for="ctProvTermino">Término de crédito (días) <span class="req">*</span></label>
+            <input type="number" class="form-input" id="ctProvTermino" min="0" max="365" step="1" value="30" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="ctProvNotas">Notas</label>
+          <input type="text" class="form-input" id="ctProvNotas" maxlength="500" placeholder="Opcional" />
+        </div>
+        <div class="myr-error" id="ctProvError" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" type="button" data-ct-cerrar="ctProvModal">Cancelar</button>
+        <button class="btn-primary" type="button" id="ctProvGuardar"><i class="fas fa-save"></i> Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 553 · Contabilidad: factura por pagar (a mano) -->
+  <div class="modal-backdrop hidden" id="ctFacModal">
+    <div class="modal" style="max-width:600px">
+      <div class="modal-header">
+        <h3 id="ctFacTitulo"><i class="fas fa-file-invoice-dollar"></i> Nueva factura por pagar</h3>
+        <button class="modal-close-btn" type="button" data-ct-cerrar="ctFacModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctFacModalProv">Proveedor <span class="req">*</span></label>
+            <select class="form-input" id="ctFacModalProv"></select>
+          </div>
+          <div class="form-group">
+            <label for="ctFacNumero">Nº de factura <span class="req">*</span></label>
+            <input type="text" class="form-input" id="ctFacNumero" maxlength="40" autocomplete="off" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctFacEmision">Fecha de emisión <span class="req">*</span></label>
+            <input type="date" class="form-input" id="ctFacEmision" />
+          </div>
+          <div class="form-group">
+            <label for="ctFacVence">Fecha de vencimiento</label>
+            <input type="date" class="form-input" id="ctFacVence" />
+            <small class="ct-ayuda" id="ctFacVenceAyuda"></small>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctFacMonto">Monto total (RD$) <span class="req">*</span></label>
+            <input type="text" class="form-input" id="ctFacMonto" inputmode="decimal" placeholder="0.00" />
+          </div>
+          <div class="form-group">
+            <label>Pronto pago</label>
+            <div class="ct-pp-in">
+              <input type="text" class="form-input" id="ctFacPct" inputmode="decimal" placeholder="%" aria-label="Porcentaje de pronto pago" />
+              <span>% en</span>
+              <input type="text" class="form-input" id="ctFacDias" inputmode="numeric" placeholder="días" aria-label="Días de pronto pago" />
+              <span>días</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="ctFacNotas">Notas</label>
+          <input type="text" class="form-input" id="ctFacNotas" maxlength="500" placeholder="Opcional" />
+        </div>
+        <div class="myr-error" id="ctFacError" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" type="button" data-ct-cerrar="ctFacModal">Cancelar</button>
+        <button class="btn-primary" type="button" id="ctFacGuardar"><i class="fas fa-save"></i> Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 553 · Contabilidad: pagar factura (de una vez) -->
+  <div class="modal-backdrop hidden" id="ctPagoModal">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-header">
+        <h3><i class="fas fa-money-bill-wave"></i> Pagar factura</h3>
+        <button class="modal-close-btn" type="button" data-ct-cerrar="ctPagoModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="ct-pago" id="ctPagoInfo"></div>
+        <div class="form-group">
+          <label for="ctPagoFecha">Fecha del pago</label>
+          <input type="date" class="form-input" id="ctPagoFecha" />
+        </div>
+        <div class="mp-totales">
+          <div class="mp-totales__tot"><span>A pagar</span><b id="ctPagoMonto">RD$ 0.00</b></div>
+        </div>
+        <p class="myr-nota" id="ctPagoNota"></p>
+        <div class="myr-error" id="ctPagoError" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" type="button" data-ct-cerrar="ctPagoModal">Cancelar</button>
+        <button class="btn-primary" type="button" id="ctPagoConfirmar"><i class="fas fa-check-circle"></i> Marcar como pagada</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 553 · Contabilidad: emparejar una línea con un producto del catálogo -->
+  <div class="modal-backdrop hidden" id="ctEmpModal">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <h3><i class="fas fa-link"></i> Emparejar con un producto</h3>
+        <button class="modal-close-btn" type="button" data-ct-cerrar="ctEmpModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="ct-emp__linea" id="ctEmpLinea"></p>
+        <input type="text" class="form-input" id="ctEmpBuscar" placeholder="Buscar por nombre o código de barras…" autocomplete="off" />
+        <div class="ct-emp__lista" id="ctEmpLista"></div>
+        <p class="myr-nota"><i class="fas fa-circle-info"></i> Se recordará para las próximas facturas de este proveedor.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" type="button" data-ct-cerrar="ctEmpModal">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════ SECCIÓN REPORTES ══════════════ -->
   <section class="section-content" id="sec-reportes">
 
@@ -3595,13 +3912,15 @@
        El panel lo necesita porque chat.js (Maya) lee los favoritos del
        cliente. Debe cargarse ANTES de chat.js. -->
   <script src="js/almacen-cliente.js?v=1"></script>
-  <script src="js/auth.v33.js?v=307"></script>
+  <script src="js/auth.v33.js?v=308"></script>
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
   <script src="js/admin.v33.js?v=428"></script>
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
+  <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
+  <script src="js/conta.js?v=1"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
