@@ -278,7 +278,7 @@ function _goPage(section, scrollToId, page) {
       const cat = document.getElementById('prodCatFilter')?.value || '';
       const badge = document.getElementById('prodBadgeFilter')?.value || '';
       return adminProducts.filter(p =>
-        _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category) &&
+        _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category, p.refs_txt) &&
         (!cat || p.category === cat) && (!badge || p.badge === badge) &&
         _pasaFiltroVenta(p)   // 491 · MISMO criterio que renderProductsTable
       ).length;
@@ -295,7 +295,7 @@ function _goPage(section, scrollToId, page) {
       const q = document.getElementById('invSearch')?.value || '';
       const filter = document.getElementById('invStockFilter')?.value || '';
       return adminProducts.filter(p =>
-        _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category) &&
+        _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category, p.refs_txt) &&
         (!filter || (filter === 'low' ? p.stock < 20 : p.stock >= 20))
       ).length;
     })(),
@@ -2552,7 +2552,7 @@ function renderProductsTable() {
     .filter(p => {
       if (!p || !p.name) return false;
       // BUILD 399: búsqueda por palabras sueltas en cualquier orden.
-      const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category);
+      const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category, p.refs_txt);
       const matchC = !cat   || p.category === cat;
       const matchB = !badge || p.badge    === badge;
       return matchQ && matchC && matchB && _pasaFiltroVenta(p);   // 491
@@ -5542,7 +5542,7 @@ function renderInventory() {
 
   const list = adminProducts.filter(p => {
     // BUILD 399: por palabras sueltas en cualquier orden.
-    const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category);
+    const matchQ = _admBuscar(q, p.name, p.description, p.barcode, p.barcode_alt, p.unit, p.category, p.refs_txt);
     const matchF = !filter || (filter === 'low' ? Number(p.stock) < 20 : Number(p.stock) >= 20);
     return matchQ && matchF;
   }).sort((a, b) => {

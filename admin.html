@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '517';
+      const VER = '518';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=2" />
+  <link rel="stylesheet" href="css/conta.css?v=3" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -637,7 +637,7 @@
 
       <!-- Filtros -->
       <div class="filter-bar">
-        <input type="text" class="filter-input" placeholder="Buscar por nombre, descripción o código de barras…" id="prodSearch" oninput="_debouncedRenderProducts()" style="flex:1;min-width:220px" />
+        <input type="text" class="filter-input" placeholder="Buscar por nombre, descripción, código de barras o referencia…" id="prodSearch" oninput="_debouncedRenderProducts()" style="flex:1;min-width:220px" />
         <select class="filter-select" id="prodCatFilter" onchange="_pages.products=1; renderProductsTable()">
           <option value="">Todas las categorías</option>
           <option value="aceites_vinagres">Aceites y Vinagres</option>
@@ -1022,10 +1022,10 @@
           <div class="ct-rec__add">
             <div class="form-group mp-buscar ct-buscar">
               <label for="ctRecBuscar">Añadir producto del catálogo</label>
-              <input type="text" class="form-input" id="ctRecBuscar" placeholder="Nombre o código de barras (puedes usar la pistola)…" autocomplete="off" />
+              <input type="text" class="form-input" id="ctRecBuscar" placeholder="Nombre, código de barras o referencia (puedes usar la pistola)…" autocomplete="off" />
               <div class="mp-resultados" id="ctRecResultados"></div>
             </div>
-            <button type="button" class="btn-secondary" id="ctRecAddLibre"><i class="fas fa-plus"></i> Línea sin producto</button>
+            <button type="button" class="btn-secondary" id="ctRecAddLibre"><i class="fas fa-plus"></i> Línea manual</button>
           </div>
 
           <div class="table-wrap">
@@ -2002,6 +2002,14 @@
           </div>
           <small style="color:#6b7280;font-size:.72rem">Úselo si el suplidor trae este mismo producto con otro código. La caja, la tienda y la sincronización de precios lo reconocen igual que el principal.</small>
         </div>
+        <!-- 553e · Referencia del proveedor (lo gestiona js/referencias-prov.js · seguridad/113) -->
+        <div class="form-group" id="pRefsBox" hidden>
+          <label><i class="fas fa-tag" style="margin-right:5px;color:#6b7280"></i>Referencia del proveedor (opcional)</label>
+          <div id="pRefsLista"></div>
+          <button type="button" class="btn-secondary ref-add" id="pRefsAdd"><i class="fas fa-plus"></i> Añadir referencia</button>
+          <small id="pRefsAviso" class="ref-aviso" hidden></small>
+          <small style="color:#6b7280;font-size:.72rem;display:block">El código que pone cada proveedor a este producto en su factura. Sirve para buscar el producto y para emparejar las líneas en Recepción de mercancía.</small>
+        </div>
         <!-- 476 · ITBIS obligatorio (lo gestiona js/itbis-lotes.js · seguridad/78) -->
         <div class="form-group">
           <label for="pItbis">ITBIS <span style="color:#e53935;font-weight:700">*</span></label>
@@ -2896,9 +2904,9 @@
       </div>
       <div class="modal-body">
         <p class="ct-emp__linea" id="ctEmpLinea"></p>
-        <input type="text" class="form-input" id="ctEmpBuscar" placeholder="Buscar por nombre o código de barras…" autocomplete="off" />
+        <input type="text" class="form-input" id="ctEmpBuscar" placeholder="Buscar por nombre, código de barras o referencia…" autocomplete="off" />
         <div class="ct-emp__lista" id="ctEmpLista"></div>
-        <p class="myr-nota"><i class="fas fa-circle-info"></i> Se recordará para las próximas facturas de este proveedor.</p>
+        <p class="myr-nota" id="ctEmpNota"></p>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" type="button" data-ct-cerrar="ctEmpModal">Cancelar</button>
@@ -3948,11 +3956,11 @@
   <!-- Datos de productos de la tienda -->
   <script src="js/products.js?v=300"></script>
   <!-- Lógica del admin -->
-  <script src="js/admin.v33.js?v=428"></script>
+  <script src="js/admin.v33.js?v=429"></script>
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=3"></script>
+  <script src="js/conta.js?v=4"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
@@ -3966,6 +3974,8 @@
 <script src="js/itbis-lotes.js?v=5"></script>
 <!-- 491 · «Solo venta en caja» (casilla del producto · seguridad/80). DESPUÉS de itbis-lotes.js -->
 <script src="js/solo-caja.js?v=1"></script>
+<!-- 553e · «Referencia del proveedor» en la ficha (seguridad/113). DESPUÉS de solo-caja.js -->
+<script src="js/referencias-prov.js?v=1"></script>
   <!-- 472 · pestaña «Cierres de turno» de Ventas POS (fichero aparte) -->
   <script src="js/cierres-pos.js?v=8"></script>
   <!-- IA: qué modelo se usa. DEBE ir ANTES de ai.js, chat.js y del script

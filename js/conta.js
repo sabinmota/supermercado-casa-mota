@@ -12,12 +12,16 @@
    Decisiones del dueño (20-nov): solo Super Admin y Administrador (la base lo
    comprueba en cada función conta_*); pago de una vez; solo monto total; la
    foto se usa y se descarta (nunca se guarda); línea que no está en el
-   catálogo = «sin producto» (cuenta en el total, no toca ningún producto).
+   catálogo = «No emparejado» (cuenta en el total, no toca ningún producto).
 
-   Emparejar cada línea con un producto del catálogo, en este orden:
-     1) código de barras (principal o alterno),
-     2) lo aprendido de ESE proveedor (la base recuerda cada línea confirmada),
-     3) por nombre: solo SUGIERE; el empleado decide.
+   553e · Emparejar cada línea con un producto del catálogo SOLO por su código:
+     1) referencia del proveedor elegido (ficha del producto, seguridad/113),
+     2) código de barras (principal o alterno).
+   🔴 YA NO se empareja ni se sugiere por la descripción (decisión del dueño:
+      la de la factura casi nunca coincide con la del catálogo). Lo que no
+      casa queda «No emparejado» y se empareja a mano; si la línea trae
+      código, al confirmar queda guardado como referencia de ese proveedor.
+   Las referencias las carga y guarda js/referencias-prov.js (CasaMotaRefs).
 
    Fichero aparte: no toca admin.v33.js ni api.js. Usa de ellos: _SB_URL,
    _SB_HEADERS, _valeAdmin, fmt$, showAdminToast, adminProducts, DB.getProducts,
@@ -185,7 +189,6 @@
     tab: 'pagar',
     prov: [], fac: [], rec: [],
     cargado: false, cargando: false, error: '',
-    codigos: {},          // proveedor_id → { clave: producto_id }
     recLineas: {},        // recepcion_id → líneas (caché del historial)
     abierta: null,        // recepción desplegada en el historial
     lineas: [],           // recepción en curso
@@ -227,8 +230,9 @@
       if (!productos().length && typeof DB !== 'undefined' && typeof DB.getProducts === 'function') {
         tareas.push(DB.getProducts({ full: true })
           .then(l => { if (l && l.length) adminProducts = l; })
-          .catch(() => { /* sin catálogo: se puede recibir igual, todo «sin producto» */ }));
+          .catch(() => { /* sin catálogo: se puede recibir igual, todo «No emparejado» */ }));
       }
+      if (window.CasaMotaRefs) tareas.push(window.CasaMotaRefs.cargar(true));
       const [p, f, r] = await Promise.all(tareas);
       S.prov = p || []; S.fac = f || []; S.rec = r || [];
       S.cargado = true; S.error = '';
@@ -478,7 +482,7 @@
             ls.map(l => {
               const p = l.producto_id ? prodPorId(l.producto_id) : null;
               return `<tr><td>${l.orden}</td><td>${esc(l.codigo) || '—'}</td><td>${esc(l.descripcion)}</td>
-                <td>${l.producto_id ? esc(p ? p.name : '(producto ' + l.producto_id + ')') : '<span class="ct-sinprod">Sin producto</span>'}</td>
+                <td>${l.producto_id ? esc(p ? p.name : '(producto ' + l.producto_id + ')') : '<span class="ct-noemp">No emparejado</span>'}</td>
                 <td class="n">${Number(l.cantidad)}</td><td class="n">${money(l.costo_unitario)}</td><td class="n">${money(l.importe)}</td></tr>`;
             }).join('')}</tbody></table>
             <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>`
@@ -490,7 +494,7 @@
           <td>${esc(r.proveedor_nombre)}</td>
           <td><strong>${esc(r.numero_factura)}</strong></td>
           <td>${r.origen === 'ia' ? '<span class="ct-ia-chip"><i class="fas fa-wand-magic-sparkles"></i> IA</span>' : 'Manual'}</td>
-          <td class="n">${Number(r.lineas)}${sin ? `<br><small class="ct-sinprod-txt">${sin} sin producto</small>` : ''}</td>
+          <td class="n">${Number(r.lineas)}${sin ? `<br><small class="ct-noemp-txt">${sin} no emparejada${sin === 1 ? '' : 's'}</small>` : ''}</td>
           <td class="n">${r.monto_factura != null ? money(r.monto_factura) : '—'}</td>
           <td>${estFac}</td>
           <td><i class="fas fa-chevron-${abierta ? 'up' : 'down'} ct-gris"></i></td>
@@ -780,24 +784,15 @@
 
   // ─── Recepción de mercancía ───────────────────────────────────────────────
   const VIA = {
-    codigo:    'por código de barras',
-    aprendido: 'recordado de este proveedor',
-    elegido:   'elegido a mano',
-    catalogo:  'añadido del catálogo',
+    referencia: 'por referencia del proveedor',
+    codigo:     'por código de barras',
+    elegido:    'emparejado a mano',
+    catalogo:   'añadido del catálogo',
   };
 
   function norm(s) {
     return typeof _admNorm === 'function' ? _admNorm(s)
       : String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  }
-  function tokens(s) {
-    const t = typeof _admTokens === 'function' ? _admTokens(s) : norm(s).split(/\s+/).filter(Boolean);
-    return t.filter(x => x.length >= 2);
-  }
-  /* Misma clave que _conta_clave() en la base (seguridad/111). */
-  function clave(cod, desc) {
-    const c = String(cod || '').trim();
-    return c ? 'C:' + c.toUpperCase() : 'D:' + String(desc || '').trim().replace(/\s+/g, ' ').toUpperCase();
   }
   function mismoCodigo(a, b) {
     a = String(a || '').trim().toUpperCase().replace(/\s/g, '');
@@ -807,50 +802,45 @@
     // UPC-A de 12 impreso como EAN-13 con un 0 delante (y al revés)
     return /^\d+$/.test(a) && /^\d+$/.test(b) && a.replace(/^0+/, '') === b.replace(/^0+/, '');
   }
-  function puntuar(desc, lista) {
-    const toks = tokens(desc);
-    if (!toks.length) return [];
-    return lista.map(p => {
-      const nombre = norm(p.name).replace(/[^\p{L}\p{N}\s]+/gu, ' ');
-      let n = 0;
-      toks.forEach(t => { if (nombre.includes(t)) n++; });
-      return { p, n, s: n / toks.length };
-    }).filter(x => x.n > 0)
-      .sort((a, b) => b.s - a.s || b.n - a.n || String(a.p.name).length - String(b.p.name).length);
+  function esBarcodeDe(p, cod) {
+    return !!p && (mismoCodigo(p.barcode, cod) || mismoCodigo(p.barcode_alt, cod));
   }
 
-  /* Empareja una línea que el empleado no haya decidido a mano. */
+  /* Empareja una línea que el empleado no haya decidido a mano.
+   * SOLO por código: referencia del proveedor y, si no, código de barras. */
   function autoEmparejar(l) {
     if (l.manual) return;
-    l.producto_id = null; l.via = ''; l.sugerido = null;
-    const prods = productos();
-    if (l.codigo) {
-      const p = prods.find(x => mismoCodigo(x.barcode, l.codigo) || mismoCodigo(x.barcode_alt, l.codigo));
-      if (p) { l.producto_id = p.id; l.via = 'codigo'; return; }
-    }
-    const mapa = S.codigos[$('ctRecProv')?.value || ''] || {};
-    const id = mapa[clave(l.codigo, l.descripcion)] || mapa[clave('', l.descripcion)];
-    if (id && prodPorId(id)) { l.producto_id = id; l.via = 'aprendido'; return; }
-    const mejor = puntuar(l.descripcion, prods)[0];
-    if (mejor && mejor.s >= 0.6) l.sugerido = mejor.p.id;
+    l.producto_id = null; l.via = '';
+    const cod = String(l.codigo || '').trim();
+    if (!cod) return;
+    const R = window.CasaMotaRefs;
+    const idRef = R ? R.productoDe($('ctRecProv')?.value || '', cod) : null;
+    if (idRef && prodPorId(idRef)) { l.producto_id = idRef; l.via = 'referencia'; return; }
+    const p = productos().find(x => esBarcodeDe(x, cod));
+    if (p) { l.producto_id = p.id; l.via = 'codigo'; }
   }
 
-  async function cargarCodigos(provId) {
-    if (!provId || S.codigos[provId]) return;
-    try {
-      const filas = await rpc('conta_leer_codigos', { p_proveedor: provId }, true);
-      const m = {};
-      (filas || []).forEach(f => { m[f.clave] = f.producto_id; });
-      S.codigos[provId] = m;
-    } catch (e) {
-      console.warn('[contabilidad] no se pudieron leer los productos recordados:', e.message);
-    }
+  /* Al confirmar: la línea emparejada A MANO que trae un código que no es el
+   * de barras del producto queda guardada como referencia del proveedor. */
+  function guardaReferencia(l) {
+    const cod = String(l.codigo || '').trim();
+    return !!(l.producto_id && l.via === 'elegido' && cod && !esBarcodeDe(prodPorId(l.producto_id), cod));
   }
 
   function importe(l) {
     const c = num(l.cantidad), k = num(l.costo);
     if (c === null || k === null || isNaN(c) || isNaN(k)) return 0;
     return r2(r3(c) * r2(k));
+  }
+
+  /* Debajo del código: «No emparejado» si la línea no casa con el catálogo. */
+  function estadoCodigo(l) {
+    if (l.producto_id) {
+      return guardaReferencia(l)
+        ? '<small class="ct-ref-nueva" title="Al confirmar se guarda en la ficha del producto"><i class="fas fa-bookmark"></i> se guardará como referencia</small>'
+        : '';
+    }
+    return '<span class="ct-noemp">No emparejado</span>';
   }
 
   function celdaProducto(l, i) {
@@ -861,13 +851,11 @@
         <small>${VIA[l.via] || ''}${p && p.unit ? ' · ' + esc(p.unit) : ''}</small>
         <span class="ct-prod__btns">
           <button type="button" class="ct-link" data-act="emparejar" data-i="${i}">Cambiar</button>
-          <button type="button" class="ct-link ct-link--rojo" data-act="soltar" data-i="${i}">Dejar sin producto</button>
+          <button type="button" class="ct-link ct-link--rojo" data-act="soltar" data-i="${i}">Quitar emparejamiento</button>
         </span></div>`;
     }
-    const s = l.sugerido ? prodPorId(l.sugerido) : null;
     return `<div class="ct-prod">
-      <span class="ct-sinprod">Sin producto</span>
-      ${s ? `<button type="button" class="ct-sug" data-act="sugerido" data-i="${i}" title="Usar este producto">¿Es «${esc(s.name)}»?</button>` : ''}
+      <span class="ct-gris">—</span>
       <span class="ct-prod__btns"><button type="button" class="ct-link" data-act="emparejar" data-i="${i}">Emparejar</button></span>
     </div>`;
   }
@@ -876,13 +864,14 @@
     const tb = $('ctRecLineas');
     if (!tb) return;
     if (!S.lineas.length) {
-      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Añade productos del catálogo, una línea sin producto o lee la factura con IA.</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Añade productos del catálogo, una línea manual o lee la factura con IA.</td></tr>`;
       return;
     }
     tb.innerHTML = S.lineas.map((l, i) => `
       <tr data-i="${i}" class="${l.producto_id ? '' : 'ct-l--sin'}">
         <td class="ct-l__n">${i + 1}</td>
-        <td><input class="ct-in ct-in--cod" data-campo="codigo" data-i="${i}" value="${esc(l.codigo)}" maxlength="40" placeholder="—" /></td>
+        <td><input class="ct-in ct-in--cod" data-campo="codigo" data-i="${i}" value="${esc(l.codigo)}" maxlength="40" placeholder="Referencia" />
+          <div class="ct-l__codest">${estadoCodigo(l)}</div></td>
         <td><input class="ct-in ct-in--desc" data-campo="descripcion" data-i="${i}" value="${esc(l.descripcion)}" maxlength="200" placeholder="Descripción" /></td>
         <td class="ct-l__prod">${celdaProducto(l, i)}</td>
         <td class="n"><input class="ct-in ct-in--num" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0" /></td>
@@ -899,6 +888,8 @@
     tr.classList.toggle('ct-l--sin', !l.producto_id);
     const td = tr.querySelector('.ct-l__prod');
     if (td) td.innerHTML = celdaProducto(l, i);
+    const est = tr.querySelector('.ct-l__codest');
+    if (est) est.innerHTML = estadoCodigo(l);
   }
 
   function totalesRec() {
@@ -917,7 +908,7 @@
     const fecha = $('ctRecFecha')?.value;
     const dif = total !== null ? r2(total - suma) : 0;
     box.innerHTML = `
-      <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-sinprod-txt">(${sin} sin producto)</small>` : ''}</b></div>
+      <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-noemp-txt">(${sin} no emparejada${sin === 1 ? '' : 's'})</small>` : ''}</b></div>
       <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
       ${total !== null ? `<div><span>Total escrito de la factura</span><b>${money(total)}</b></div>` : ''}
       ${total !== null && Math.abs(dif) >= 0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> Diferencia con la suma</span><b>${money(dif)}</b></div>` : ''}
@@ -939,7 +930,7 @@
       S.lineas.push({
         codigo: String(p.barcode || '').trim(), descripcion: String(p.name || '').slice(0, 200),
         cantidad: '1', costo: (p.costo !== null && p.costo !== undefined && p.costo !== '') ? String(p.costo) : '',
-        producto_id: p.id, via: 'catalogo', manual: true, sugerido: null,
+        producto_id: p.id, via: 'catalogo', manual: true,
       });
     }
     $('ctRecBuscar').value = '';
@@ -954,23 +945,30 @@
     const box = $('ctRecResultados');
     if (!q.trim()) { box.innerHTML = ''; return; }
     const prods = productos();
+    box.innerHTML = listaCatalogo(q, 10,
+      prods.length ? 'Ningún producto coincide. Puedes añadir una «línea manual».' : 'El catálogo aún no se ha cargado.');
+  }
+
+  /* Busca por nombre, código de barras, alterno y referencia del proveedor. */
+  function listaCatalogo(q, max, vacio) {
+    const prods = productos();
     const res = (typeof _admBuscar === 'function'
-      ? prods.filter(p => _admBuscar(q, p.name, p.barcode, p.barcode_alt))
-      : prods.filter(p => norm(p.name).includes(norm(q)))).slice(0, 10);
-    box.innerHTML = res.length
+      ? prods.filter(p => _admBuscar(q, p.name, p.barcode, p.barcode_alt, p.refs_txt))
+      : prods.filter(p => norm(p.name).includes(norm(q)))).slice(0, max);
+    return res.length
       ? res.map(p => `
         <button type="button" class="mp-res" data-prod="${esc(p.id)}">
-          <span><b>${esc(p.name)}</b><small>${esc(p.unit || '')}${p.barcode ? ' · ' + esc(p.barcode) : ''}</small></span>
+          <span><b>${esc(p.name)}</b><small>${esc(p.unit || '')}${p.barcode ? ' · ' + esc(p.barcode) : ''}${p.refs_txt ? ' · ref. ' + esc(p.refs_txt) : ''}</small></span>
           <span class="mp-res__precio">${p.costo !== null && p.costo !== undefined && p.costo !== '' ? 'costo ' + money(p.costo) : ''}</span>
         </button>`).join('')
-      : `<div class="mp-res-vacio">${prods.length ? 'Ningún producto coincide. Puedes añadir una «línea sin producto».' : 'El catálogo aún no se ha cargado.'}</div>`;
+      : `<div class="mp-res-vacio">${vacio}</div>`;
   }
 
   function lineaLibre() {
-    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false, sugerido: null });
+    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false });
     pintarLineas();
     pintarTotalesRec();
-    document.querySelector(`#ctRecLineas input[data-campo="descripcion"][data-i="${S.lineas.length - 1}"]`)?.focus();
+    document.querySelector(`#ctRecLineas input[data-campo="codigo"][data-i="${S.lineas.length - 1}"]`)?.focus();
   }
 
   function vaciarRecepcion(sinPreguntar) {
@@ -1019,7 +1017,7 @@
     if (total !== null && Math.abs(total - suma) >= 0.01 &&
         !confirm(`El total escrito (${money(total)}) no coincide con la suma de las líneas (${money(suma)}).\n\nLa factura por pagar se creará por ${money(total)}. ¿Continuar?`)) return;
     const sin = S.lineas.filter(l => !l.producto_id).length;
-    if (sin && !confirm(`${plural(sin, 'línea queda', 'líneas quedan')} «sin producto» (cuentan para el total, no tocan ningún producto). ¿Continuar?`)) return;
+    if (sin && !confirm(`${plural(sin, 'línea queda', 'líneas quedan')} «No emparejado» (cuentan para el total, no tocan ningún producto). ¿Continuar?`)) return;
 
     S.guardando = true;
     try {
@@ -1035,12 +1033,14 @@
               descripcion: String(l.descripcion).trim(),
               cantidad: r3(num(l.cantidad)),
               costo_unitario: r2(num(l.costo)),
+              guardar_referencia: guardaReferencia(l),
             })),
           },
         });
-        delete S.codigos[provId];   // la base aprendió líneas nuevas
+        const nRef = Number(r && r.referencias_guardadas) || 0;
         vaciarRecepcion(true);
-        toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.`, 'success');
+        toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.` +
+          (nRef ? ` ${plural(nRef, 'referencia guardada', 'referencias guardadas')} en el catálogo.` : ''), 'success');
         await cargar();
         if (r && r.recepcion_id) verRecepcion(r.recepcion_id, true);
       });
@@ -1057,7 +1057,11 @@
     const l = S.lineas[i];
     if (!l) return;
     S.empIdx = i;
+    const prov = provPorId($('ctRecProv').value);
     $('ctEmpLinea').innerHTML = `Línea ${i + 1}: <b>${esc(l.descripcion || '(sin descripción)')}</b>${l.codigo ? ` · código ${esc(l.codigo)}` : ''}`;
+    $('ctEmpNota').innerHTML = l.codigo && prov
+      ? `<i class="fas fa-circle-info"></i> «<b>${esc(l.codigo)}</b>» quedará guardado como referencia de <b>${esc(prov.nombre)}</b> en el producto que elijas: la próxima factura se emparejará sola.`
+      : '<i class="fas fa-circle-info"></i> Esta línea no trae código: se empareja solo en esta recepción.';
     $('ctEmpBuscar').value = '';
     listaEmparejar();
     abrirModal('ctEmpModal');
@@ -1067,26 +1071,14 @@
     const l = S.lineas[S.empIdx];
     if (!l) return;
     const q = $('ctEmpBuscar').value;
-    const prods = productos();
-    let res;
-    if (q.trim()) {
-      res = (typeof _admBuscar === 'function' ? prods.filter(p => _admBuscar(q, p.name, p.barcode, p.barcode_alt))
-        : prods.filter(p => norm(p.name).includes(norm(q)))).slice(0, 30);
-    } else {
-      res = puntuar(l.descripcion, prods).slice(0, 15).map(x => x.p);
-    }
-    $('ctEmpLista').innerHTML = res.length
-      ? (q.trim() ? '' : '<div class="ct-emp__tit">Parecidos por el nombre</div>') + res.map(p => `
-        <button type="button" class="mp-res" data-prod="${esc(p.id)}">
-          <span><b>${esc(p.name)}</b><small>${esc(p.unit || '')}${p.barcode ? ' · ' + esc(p.barcode) : ''}</small></span>
-          <span class="mp-res__precio">${p.costo !== null && p.costo !== undefined && p.costo !== '' ? 'costo ' + money(p.costo) : ''}</span>
-        </button>`).join('')
-      : `<div class="mp-res-vacio">${q.trim() ? 'Ningún producto coincide.' : 'Escribe el nombre o el código de barras para buscar.'}</div>`;
+    $('ctEmpLista').innerHTML = q.trim()
+      ? listaCatalogo(q, 30, 'Ningún producto coincide.')
+      : '<div class="mp-res-vacio">Escribe el nombre, el código de barras o la referencia para buscar el producto.</div>';
   }
   function asignar(i, prodId, via) {
     const l = S.lineas[i];
     if (!l) return;
-    l.producto_id = prodId; l.via = via; l.manual = true; l.sugerido = null;
+    l.producto_id = prodId; l.via = via; l.manual = true;
     repintarCeldaProducto(i);
     pintarTotalesRec();
   }
@@ -1158,7 +1150,7 @@
           headers: { 'Content-Type': 'application/json', 'X-CM-Vale': vale() },
           body: JSON.stringify({ imagen }),
         }),
-        cargarCodigos(provId),
+        window.CasaMotaRefs ? window.CasaMotaRefs.cargar() : null,
       ]);
       let j = null;
       try { j = await res.json(); } catch (e) { j = null; }
@@ -1195,7 +1187,7 @@
       descripcion: String(x.descripcion || '').slice(0, 200),
       cantidad: x.cantidad > 0 ? String(r3(x.cantidad)) : '',
       costo: x.costo_unitario >= 0 && x.costo_unitario !== null ? String(r2(x.costo_unitario)) : '',
-      producto_id: null, via: '', manual: false, sugerido: null,
+      producto_id: null, via: '', manual: false,
     }));
     nuevas.forEach(autoEmparejar);
     if (S.lineas.length && !confirm(`La IA leyó ${plural(nuevas.length, 'línea', 'líneas')}.\n\nAceptar = SUSTITUIR las ${S.lineas.length} líneas actuales.\nCancelar = AÑADIRLAS al final.`)) {
@@ -1207,7 +1199,7 @@
     const emp = nuevas.filter(l => l.producto_id).length;
     const faltan = nuevas.filter(l => !(num(l.cantidad) > 0) || l.costo === '').length;
     iaEstado(`<i class="fas fa-circle-check"></i> La IA leyó <b>${plural(nuevas.length, 'línea', 'líneas')}</b>: ` +
-      `${emp} emparejada${emp === 1 ? '' : 's'} con el catálogo, ${nuevas.length - emp} sin producto.` +
+      `${emp} emparejada${emp === 1 ? '' : 's'} por referencia o código de barras, ${nuevas.length - emp} no emparejada${nuevas.length - emp === 1 ? '' : 's'}.` +
       `${faltan ? ` <b>${faltan} con cantidad o costo por completar.</b>` : ''} ` +
       `<b>Revisa cada línea con la foto antes de confirmar</b>: la IA puede equivocarse.`, 'ok');
     pintarLineas();
@@ -1242,7 +1234,7 @@
 
     document.querySelectorAll('[data-ct-tab]').forEach(b =>
       b.addEventListener('click', () => irTab(b.getAttribute('data-ct-tab'))));
-    $('ctBtnRecargar').addEventListener('click', () => { S.codigos = {}; cargar(); });
+    $('ctBtnRecargar').addEventListener('click', () => cargar());
 
     ['ctFacBuscar'].forEach(id => $(id).addEventListener('input', pintarFacturas));
     ['ctFacProv', 'ctFacEstado'].forEach(id => $(id).addEventListener('change', pintarFacturas));
@@ -1271,8 +1263,7 @@
       }
       else if (act === 'quitar') { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); }
       else if (act === 'emparejar') abrirEmparejar(i);
-      else if (act === 'soltar') { const l = S.lineas[i]; if (l) { l.producto_id = null; l.via = ''; l.manual = true; l.sugerido = null; repintarCeldaProducto(i); pintarTotalesRec(); } }
-      else if (act === 'sugerido') { const l = S.lineas[i]; if (l && l.sugerido) asignar(i, l.sugerido, 'elegido'); }
+      else if (act === 'soltar') { const l = S.lineas[i]; if (l) { l.producto_id = null; l.via = ''; l.manual = true; repintarCeldaProducto(i); pintarTotalesRec(); } }
     });
     $('ctRecHist').addEventListener('keydown', ev => {
       if (ev.key === 'Enter' && ev.target.classList.contains('ct-hist-fila')) ev.target.click();
@@ -1281,8 +1272,7 @@
     // Recepción
     $('ctRecFecha').value = hoy();
     $('ctRecProv').addEventListener('change', async () => {
-      const id = $('ctRecProv').value;
-      await cargarCodigos(id);
+      if (window.CasaMotaRefs) await window.CasaMotaRefs.cargar();
       S.lineas.forEach(autoEmparejar);
       pintarLineas();
       pintarTotalesRec();
@@ -1392,5 +1382,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _clave: clave, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _hoy: hoy, _sumarDias: sumarDias };
 })();
