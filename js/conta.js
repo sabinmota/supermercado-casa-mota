@@ -23,6 +23,13 @@
       código, al confirmar queda guardado como referencia de ese proveedor.
    Las referencias las carga y guarda js/referencias-prov.js (CasaMotaRefs).
 
+   553f · Editar una recepción guardada (seguridad/114, conta_editar_recepcion):
+     botón «Editar recepción» en el historial → se carga en el formulario.
+     «Volver a emparejar» prueba otra vez las líneas «No emparejado» con las
+     referencias y códigos de hoy (sin foto ni IA). Factura por pagar → se
+     puede cambiar todo menos el proveedor (la factura se actualiza sola).
+     Factura pagada o borrada → SOLO emparejar (la base lo vuelve a exigir).
+
    Fichero aparte: no toca admin.v33.js ni api.js. Usa de ellos: _SB_URL,
    _SB_HEADERS, _valeAdmin, fmt$, showAdminToast, adminProducts, DB.getProducts,
    _admBuscar/_admTokens/_admNorm, getSession/getRole.
@@ -115,6 +122,9 @@
     COSTO_INVALIDO:           'Hay un costo no válido (debe ser 0 o más).',
     TOTAL_INVALIDO:           'El total de la factura debe ser mayor que 0.',
     TOTAL_CERO:               'El total de la factura no puede ser 0.',
+    RECEPCION_NO_EXISTE:      'Esa recepción ya no existe. Recarga la página.',
+    PROVEEDOR_NO_SE_CAMBIA:   'El proveedor de una recepción guardada no se puede cambiar.',
+    SOLO_EMPAREJAR:           'La factura está pagada o borrada: solo se pueden emparejar las líneas.',
   };
 
   function traducir(texto, status) {
@@ -125,7 +135,7 @@
     const largo = /TEXTO_LARGO_([A-Z_]+)/.exec(msg);
     if (largo) return `El campo «${largo[1].toLowerCase().replace(/_/g, ' ')}» es demasiado largo.`;
     for (const k in ERRORES) if (msg.includes(k)) return ERRORES[k] + extra;
-    if (status === 404 || msg.includes('PGRST202')) return 'Falta la función en la base (SQL 111).';
+    if (status === 404 || msg.includes('PGRST202')) return 'Falta una función en la base: hay un SQL de Contabilidad sin ejecutar.';
     console.error('[contabilidad] respuesta de la base:', texto);
     return `No se pudo completar (${status})` + (msg ? `: ${msg.slice(0, 200)}` : '.');
   }
@@ -197,6 +207,7 @@
     iaLeyendo: false,
     guardando: false,
     provEdit: null, facEdit: null, venEditado: false, pagoId: null, empIdx: null,
+    edit: null,           // 553f · recepción guardada que se está editando (null = nueva)
   };
 
   function permitido() {
@@ -276,6 +287,17 @@
         sel.innerHTML = provOpciones(vacio);
         if (antes && provPorId(antes)) sel.value = antes;
       });
+    asegurarProvEdit();
+  }
+  /* 553f · En edición el proveedor está fijo, aunque ya esté dado de baja. */
+  function asegurarProvEdit() {
+    const sel = $('ctRecProv');
+    if (!S.edit || !sel) return;
+    const id = String(S.edit.proveedor_id);
+    if (!Array.from(sel.options).some(o => o.value === id)) {
+      sel.insertAdjacentHTML('beforeend', `<option value="${esc(id)}">${esc(S.edit.proveedor_nombre)} (dado de baja)</option>`);
+    }
+    sel.value = id;
   }
 
   function cuentas() {
@@ -485,7 +507,12 @@
                 <td>${l.producto_id ? esc(p ? p.name : '(producto ' + l.producto_id + ')') : '<span class="ct-noemp">No emparejado</span>'}</td>
                 <td class="n">${Number(l.cantidad)}</td><td class="n">${money(l.costo_unitario)}</td><td class="n">${money(l.importe)}</td></tr>`;
             }).join('')}</tbody></table>
-            <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>`
+            <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
+            <div class="ct-det__acc">
+              <button type="button" class="btn-secondary ct-btn-sm" data-act="editrec" data-id="${esc(r.id)}"><i class="fas fa-pen-to-square"></i> Editar recepción</button>
+              ${r.factura_id == null ? '<small class="ct-gris">Factura borrada: solo se puede emparejar.</small>' : (r.factura_pagada ? '<small class="ct-gris">Factura pagada: solo se puede emparejar.</small>' : '')}
+              ${r.editado_en ? `<small class="ct-editada"><i class="fas fa-clock-rotate-left"></i> Editada por ${esc(nombreEmpleado(r.editado_por))} el ${fFechaHora(r.editado_en)}</small>` : ''}
+            </div>`
           : 'Cargando líneas…'}</td></tr>`;
       }
       return `
@@ -493,13 +520,32 @@
           <td>${fFecha(r.fecha)}</td>
           <td>${esc(r.proveedor_nombre)}</td>
           <td><strong>${esc(r.numero_factura)}</strong></td>
-          <td>${r.origen === 'ia' ? '<span class="ct-ia-chip"><i class="fas fa-wand-magic-sparkles"></i> IA</span>' : 'Manual'}</td>
+          <td>${r.origen === 'ia' ? '<span class="ct-ia-chip"><i class="fas fa-wand-magic-sparkles"></i> IA</span>' : 'Manual'}${r.editado_en ? '<br><small class="ct-gris">editada</small>' : ''}</td>
           <td class="n">${Number(r.lineas)}${sin ? `<br><small class="ct-noemp-txt">${sin} no emparejada${sin === 1 ? '' : 's'}</small>` : ''}</td>
           <td class="n">${r.monto_factura != null ? money(r.monto_factura) : '—'}</td>
           <td>${estFac}</td>
           <td><i class="fas fa-chevron-${abierta ? 'up' : 'down'} ct-gris"></i></td>
         </tr>${det}`;
     }).join('');
+  }
+
+  /* 553f · Quién editó (lista del Personal que ya carga el panel). */
+  function nombreEmpleado(id) {
+    try {
+      const yo = typeof getSession === 'function' ? getSession() : null;
+      if (yo && String(yo.id) === String(id)) return 'usted';
+      const l = (typeof staffList !== 'undefined' && Array.isArray(staffList)) ? staffList : [];
+      const s = l.find(x => String(x.id) === String(id));
+      if (s) return [s.firstName, s.lastName].filter(Boolean).join(' ') || s.email || 'un administrador';
+    } catch (e) { /* sin lista de personal */ }
+    return 'un administrador';
+  }
+  function fFechaHora(iso) {
+    try {
+      return new Date(iso).toLocaleString('es-DO', {
+        timeZone: 'America/Santo_Domingo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) { return fFecha(iso); }
   }
 
   async function verRecepcion(id, forzarAbrir) {
@@ -788,6 +834,7 @@
     codigo:     'por código de barras',
     elegido:    'emparejado a mano',
     catalogo:   'añadido del catálogo',
+    guardado:   'guardado en la recepción',
   };
 
   function norm(s) {
@@ -860,9 +907,13 @@
     </div>`;
   }
 
+  /* 553f · Factura pagada o borrada: solo se cambia el emparejamiento. */
+  function soloEmparejar() { return !!(S.edit && S.edit.modo === 'solo_emparejar'); }
+
   function pintarLineas() {
     const tb = $('ctRecLineas');
     if (!tb) return;
+    const dis = soloEmparejar() ? ' disabled' : '';
     if (!S.lineas.length) {
       tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Añade productos del catálogo, una línea manual o lee la factura con IA.</td></tr>`;
       return;
@@ -870,14 +921,14 @@
     tb.innerHTML = S.lineas.map((l, i) => `
       <tr data-i="${i}" class="${l.producto_id ? '' : 'ct-l--sin'}">
         <td class="ct-l__n">${i + 1}</td>
-        <td><input class="ct-in ct-in--cod" data-campo="codigo" data-i="${i}" value="${esc(l.codigo)}" maxlength="40" placeholder="Referencia" />
+        <td><input class="ct-in ct-in--cod" data-campo="codigo" data-i="${i}" value="${esc(l.codigo)}" maxlength="40" placeholder="Referencia"${dis} />
           <div class="ct-l__codest">${estadoCodigo(l)}</div></td>
-        <td><input class="ct-in ct-in--desc" data-campo="descripcion" data-i="${i}" value="${esc(l.descripcion)}" maxlength="200" placeholder="Descripción" /></td>
+        <td><input class="ct-in ct-in--desc" data-campo="descripcion" data-i="${i}" value="${esc(l.descripcion)}" maxlength="200" placeholder="Descripción"${dis} /></td>
         <td class="ct-l__prod">${celdaProducto(l, i)}</td>
-        <td class="n"><input class="ct-in ct-in--num" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0" /></td>
-        <td class="n"><input class="ct-in ct-in--num" data-campo="costo" data-i="${i}" value="${esc(l.costo)}" inputmode="decimal" placeholder="0.00" /></td>
+        <td class="n"><input class="ct-in ct-in--num" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0"${dis} /></td>
+        <td class="n"><input class="ct-in ct-in--num" data-campo="costo" data-i="${i}" value="${esc(l.costo)}" inputmode="decimal" placeholder="0.00"${dis} /></td>
         <td class="n ct-l__imp">${money(importe(l))}</td>
-        <td><button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button></td>
+        <td>${dis ? '' : `<button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button>`}</td>
       </tr>`).join('');
   }
 
@@ -912,13 +963,31 @@
       <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
       ${total !== null ? `<div><span>Total escrito de la factura</span><b>${money(total)}</b></div>` : ''}
       ${total !== null && Math.abs(dif) >= 0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> Diferencia con la suma</span><b>${money(dif)}</b></div>` : ''}
-      <div class="mp-totales__tot"><span>Factura por pagar</span><b>${money(monto)}</b></div>
-      ${p && fecha ? `<div class="ct-vence"><span>Vencerá el</span><b>${fFecha(sumarDias(fecha, p.termino_dias))} <small>(${plural(Number(p.termino_dias), 'día', 'días')})</small></b></div>` : ''}`;
+      ${pieFactura(monto, p, fecha)}`;
     const btn = $('ctRecConfirmar');
     if (btn && !S.guardando) btn.disabled = !S.lineas.length;
   }
 
+  /* Pie de totales: lo que quedará en Cuentas por pagar. */
+  function pieFactura(monto, p, fecha) {
+    const E = S.edit;
+    if (E && E.factura_id == null) {
+      return '<div class="mp-totales__tot"><span>Factura</span><b class="ct-gris">borrada</b></div>';
+    }
+    if (E && E.pagada) {
+      return `<div class="mp-totales__tot"><span>Factura pagada</span><b>${money(E.monto)}</b></div>`;
+    }
+    let ven = '';
+    if (E && fecha === E.fecha && E.vencimiento) {
+      ven = `<div class="ct-vence"><span>Vence el</span><b>${fFecha(E.vencimiento)}</b></div>`;
+    } else if (p && fecha) {
+      ven = `<div class="ct-vence"><span>Vencerá el</span><b>${fFecha(sumarDias(fecha, p.termino_dias))} <small>(${plural(Number(p.termino_dias), 'día', 'días')})</small></b></div>`;
+    }
+    return `<div class="mp-totales__tot"><span>Factura por pagar</span><b>${money(monto)}</b></div>${ven}`;
+  }
+
   function agregarDelCatalogo(id) {
+    if (soloEmparejar()) return;
     const p = prodPorId(id);
     if (!p) return;
     const ya = S.lineas.findIndex(l => String(l.producto_id) === String(p.id));
@@ -965,6 +1034,7 @@
   }
 
   function lineaLibre() {
+    if (soloEmparejar()) return;
     S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false });
     pintarLineas();
     pintarTotalesRec();
@@ -978,10 +1048,112 @@
     $('ctRecFecha').value = hoy();
     $('ctRecResultados').innerHTML = '';
     errorModal('ctRecError', '');
+    if (S.edit) { S.edit = null; pintarSelects(); }
+    pintarModoEdicion();
     pintarFoto();
     iaEstado('');
     pintarLineas();
     pintarTotalesRec();
+  }
+
+  // ─── 553f · Editar una recepción guardada ─────────────────────────────────────────
+  async function editarRecepcion(id) {
+    const r = S.rec.find(x => String(x.id) === String(id));
+    if (!r) return;
+    if (S.lineas.length && !confirm(S.edit
+      ? '¿Salir de la recepción que estás editando sin guardar los cambios?'
+      : 'Hay una recepción a medias en el formulario. ¿Descartarla para editar esta?')) return;
+    let ls;
+    try {
+      ls = S.recLineas[id] || await rpc('conta_leer_recepcion_lineas', { p_id: id }, true);
+    } catch (e) { toast(e.message, 'error'); return; }
+    vaciarRecepcion(true);
+    const pagada = r.factura_id != null && !!r.factura_pagada;
+    S.edit = {
+      id: r.id, proveedor_id: r.proveedor_id, proveedor_nombre: r.proveedor_nombre,
+      numero: r.numero_factura, fecha: String(r.fecha).slice(0, 10), notas: r.notas || '',
+      factura_id: r.factura_id, pagada, monto: r.monto_factura,
+      vencimiento: r.factura_vencimiento ? String(r.factura_vencimiento).slice(0, 10) : '',
+      modo: (r.factura_id != null && !pagada) ? 'completa' : 'solo_emparejar',
+    };
+    S.origen = r.origen || 'manual';
+    asegurarProvEdit();
+    $('ctRecNum').value = r.numero_factura || '';
+    $('ctRecFecha').value = S.edit.fecha;
+    /* Total vacío = suma de líneas (igual que al crear); solo se rellena si la
+     * factura quedó por un monto distinto de la suma. */
+    $('ctRecTotal').value = (r.monto_factura != null && Math.abs(Number(r.monto_factura) - Number(r.suma_lineas)) >= 0.01)
+      ? String(r2(r.monto_factura)) : '';
+    $('ctRecPct').value = Number(r.factura_pct) > 0 ? String(Number(r.factura_pct)) : '';
+    $('ctRecDias').value = Number(r.factura_dias) > 0 ? String(Number(r.factura_dias)) : '';
+    $('ctRecNotas').value = r.notas || '';
+    S.lineas = (ls || []).map(l => ({
+      codigo: String(l.codigo || ''), descripcion: String(l.descripcion || ''),
+      cantidad: String(Number(l.cantidad)), costo: String(Number(l.costo_unitario)),
+      producto_id: l.producto_id || null, via: l.producto_id ? 'guardado' : '',
+      manual: !!l.producto_id,   // lo ya emparejado no se toca al volver a emparejar
+    }));
+    irTab('recepcion');
+    pintarModoEdicion();
+    pintarLineas();
+    pintarTotalesRec();
+    $('ctPanelRecepcion')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function pintarModoEdicion() {
+    const E = S.edit, solo = soloEmparejar();
+    const ban = $('ctRecEditando');
+    if (ban) {
+      ban.hidden = !E;
+      const txt = $('ctRecEditTxt');
+      if (txt && E) {
+        const motivo = E.factura_id == null
+          ? 'La factura se borró: solo se pueden <b>emparejar</b> las líneas (no se vuelve a crear).'
+          : (E.pagada ? 'La factura está <b>pagada</b>: solo se pueden <b>emparejar</b> las líneas.'
+                      : 'Al guardar se actualiza también la factura en Cuentas por pagar.');
+        txt.innerHTML = `<i class="fas fa-pen-to-square"></i> Editando la factura <b>${esc(E.numero)}</b> de <b>${esc(E.proveedor_nombre)}</b>. <span>${motivo}</span>`;
+      }
+    }
+    ['ctRecNum', 'ctRecFecha', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNotas', 'ctRecBuscar', 'ctRecAddLibre', 'ctIaFoto']
+      .forEach(id => { const el = $(id); if (el) el.disabled = solo; });
+    $('ctIaBtn')?.classList.toggle('ct-ia__btn--bloq', solo);
+    const prov = $('ctRecProv');
+    if (prov) prov.disabled = !!E;
+    const limpiar = $('ctRecLimpiar');
+    if (limpiar) limpiar.hidden = !!E;
+    const btn = $('ctRecConfirmar');
+    if (btn && !S.guardando) {
+      btn.innerHTML = E ? '<i class="fas fa-floppy-disk"></i> Guardar cambios' : '<i class="fas fa-check-circle"></i> Confirmar recepción';
+    }
+  }
+
+  /* Vuelve a probar SOLO las líneas «No emparejado» con las referencias y
+   * códigos de hoy. Lo ya emparejado se respeta. Sin foto ni IA. */
+  async function volverAEmparejar() {
+    const btn = $('ctRecReemparejar');
+    if (btn) btn.disabled = true;
+    try {
+      if (window.CasaMotaRefs) await window.CasaMotaRefs.cargar(true);
+      const antes = S.lineas.filter(l => !l.producto_id).length;
+      S.lineas.forEach(l => { if (!l.producto_id) { l.manual = false; autoEmparejar(l); } });
+      const quedan = S.lineas.filter(l => !l.producto_id).length;
+      const n = antes - quedan;
+      pintarLineas();
+      pintarTotalesRec();
+      if (!antes) toast('Todas las líneas ya estaban emparejadas.', 'info');
+      else toast(n
+        ? `${plural(n, 'línea emparejada', 'líneas emparejadas')} por referencia o código de barras.${quedan ? ` Quedan ${quedan} «No emparejado»: emparejálas a mano.` : ''} Pulsa «Guardar cambios».`
+        : `Ninguna línea casa todavía con una referencia o un código de barras. Quedan ${quedan} «No emparejado»: emparejálas a mano.`,
+        n ? 'success' : 'info');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function cancelarEdicion() {
+    if (!S.edit) return;
+    if (!confirm('¿Salir sin guardar los cambios de esta recepción?')) return;
+    vaciarRecepcion(true);
   }
 
   function errorRec(msg, focoId) {
@@ -1013,30 +1185,42 @@
     let pp;
     try { pp = leerProntoPago('ctRecPct', 'ctRecDias'); } catch (e) { return errorRec(e.message, 'ctRecPct'); }
     const { suma, total, monto } = totalesRec();
+    const E = S.edit, solo = soloEmparejar();
     if (monto <= 0) return errorRec(ERRORES.TOTAL_CERO);
-    if (total !== null && Math.abs(total - suma) >= 0.01 &&
-        !confirm(`El total escrito (${money(total)}) no coincide con la suma de las líneas (${money(suma)}).\n\nLa factura por pagar se creará por ${money(total)}. ¿Continuar?`)) return;
+    if (!solo && total !== null && Math.abs(total - suma) >= 0.01 &&
+        !confirm(`El total escrito (${money(total)}) no coincide con la suma de las líneas (${money(suma)}).\n\nLa factura por pagar ${E ? 'quedará' : 'se creará'} por ${money(total)}. ¿Continuar?`)) return;
     const sin = S.lineas.filter(l => !l.producto_id).length;
     if (sin && !confirm(`${plural(sin, 'línea queda', 'líneas quedan')} «No emparejado» (cuentan para el total, no tocan ningún producto). ¿Continuar?`)) return;
 
     S.guardando = true;
     try {
       await ocupado('ctRecConfirmar', 'Guardando…', async () => {
-        const r = await rpc('conta_crear_recepcion', {
-          p_datos: {
-            proveedor_id: provId, numero_factura: numero, fecha, origen: S.origen,
-            pronto_pago_pct: pp.pct, pronto_pago_dias: pp.dias,
-            total_factura: total, notas: $('ctRecNotas').value.trim(),
-            lineas: S.lineas.map(l => ({
-              producto_id: l.producto_id || null,
-              codigo: String(l.codigo || '').trim(),
-              descripcion: String(l.descripcion).trim(),
-              cantidad: r3(num(l.cantidad)),
-              costo_unitario: r2(num(l.costo)),
-              guardar_referencia: guardaReferencia(l),
-            })),
-          },
-        });
+        const datos = {
+          proveedor_id: provId, numero_factura: numero, fecha, origen: S.origen,
+          pronto_pago_pct: pp.pct, pronto_pago_dias: pp.dias,
+          total_factura: total, notas: $('ctRecNotas').value.trim(),
+          lineas: S.lineas.map(l => ({
+            producto_id: l.producto_id || null,
+            codigo: String(l.codigo || '').trim(),
+            descripcion: String(l.descripcion).trim(),
+            cantidad: r3(num(l.cantidad)),
+            costo_unitario: r2(num(l.costo)),
+            guardar_referencia: guardaReferencia(l),
+          })),
+        };
+        if (E) {
+          const r = await rpc('conta_editar_recepcion', { p_id: E.id, p_datos: datos });
+          const nRef = Number(r && r.referencias_guardadas) || 0;
+          const id = E.id;
+          vaciarRecepcion(true);
+          toast(`✅ Cambios guardados en la recepción ${esc(numero)}.` +
+            (r && r.modo === 'completa' ? ` Factura por ${money(r.monto)} · vence el ${fFecha(r.vencimiento)}.` : '') +
+            (nRef ? ` ${plural(nRef, 'referencia guardada', 'referencias guardadas')} en el catálogo.` : ''), 'success');
+          await cargar();
+          verRecepcion(id, true);
+          return;
+        }
+        const r = await rpc('conta_crear_recepcion', { p_datos: datos });
         const nRef = Number(r && r.referencias_guardadas) || 0;
         vaciarRecepcion(true);
         toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.` +
@@ -1048,6 +1232,7 @@
       errorRec(e.message);
     } finally {
       S.guardando = false;
+      pintarModoEdicion();   // ocupado() devuelve el texto viejo del botón
       pintarTotalesRec();
     }
   }
@@ -1261,7 +1446,8 @@
         if (b.tagName === 'BUTTON') { irTab('recepcion'); verRecepcion(id, true).then(() => $('ctRecHist').scrollIntoView({ block: 'start', behavior: 'smooth' })); }
         else verRecepcion(id);
       }
-      else if (act === 'quitar') { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); }
+      else if (act === 'quitar') { if (!soloEmparejar()) { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); } }
+      else if (act === 'editrec') editarRecepcion(id);
       else if (act === 'emparejar') abrirEmparejar(i);
       else if (act === 'soltar') { const l = S.lineas[i]; if (l) { l.producto_id = null; l.via = ''; l.manual = true; repintarCeldaProducto(i); pintarTotalesRec(); } }
     });
@@ -1295,6 +1481,8 @@
     });
     $('ctRecAddLibre').addEventListener('click', lineaLibre);
     $('ctRecLimpiar').addEventListener('click', () => vaciarRecepcion(false));
+    $('ctRecReemparejar').addEventListener('click', volverAEmparejar);
+    $('ctRecCancelarEdit').addEventListener('click', cancelarEdicion);
     $('ctRecConfirmar').addEventListener('click', confirmarRecepcion);
 
     const tbL = $('ctRecLineas');
@@ -1382,5 +1570,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
 })();

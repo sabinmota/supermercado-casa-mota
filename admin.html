@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '518';
+      const VER = '519';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=3" />
+  <link rel="stylesheet" href="css/conta.css?v=4" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -977,6 +977,14 @@
       <!-- ── Recepción de mercancía ── -->
       <div id="ctPanelRecepcion" role="tabpanel" hidden>
         <div class="card ct-rec">
+          <!-- 553f · Editar una recepción guardada (js/conta.js · seguridad/114) -->
+          <div class="ct-editando" id="ctRecEditando" hidden>
+            <p id="ctRecEditTxt"></p>
+            <div class="ct-editando__btns">
+              <button type="button" class="btn-secondary ct-btn-sm" id="ctRecReemparejar"><i class="fas fa-link"></i> Volver a emparejar</button>
+              <button type="button" class="btn-secondary ct-btn-sm" id="ctRecCancelarEdit"><i class="fas fa-xmark"></i> Cancelar edición</button>
+            </div>
+          </div>
           <div class="ct-rec__cab">
             <div class="form-group">
               <label for="ctRecProv">Proveedor <span class="req">*</span></label>
@@ -3960,7 +3968,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=4"></script>
+  <script src="js/conta.js?v=5"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
