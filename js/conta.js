@@ -125,7 +125,21 @@
     RECEPCION_NO_EXISTE:      'Esa recepción ya no existe. Recarga la página.',
     PROVEEDOR_NO_SE_CAMBIA:   'El proveedor de una recepción guardada no se puede cambiar.',
     SOLO_EMPAREJAR:           'La factura está pagada o borrada: solo se pueden emparejar las líneas.',
+    METODO_PAGO_INVALIDO:     'Elige el método de pago: efectivo, cheque o transferencia bancaria.',
+    FALTA_NUMERO_PAGO:        'Escribe el número del cheque o de la transferencia.',
+    NUMERO_PAGO_LARGO:        'El número del cheque o de la transferencia admite como máximo 30 caracteres.',
+    BANCO_INVALIDO:           'Elige la entidad bancaria de la lista.',
   };
+
+  /* 553g · Método de pago. Los MISMOS 4 bancos que _conta_bancos() en la base
+   * (seguridad/115); la base rechaza cualquier otro. */
+  const BANCOS = ['Bco. Popular Dominicano', 'Banreservas', 'Bco. Bhd', 'Asoc. La Nacional'];
+  const METODOS = { efectivo: 'Efectivo', cheque: 'Cheque', transferencia: 'Transferencia' };
+  function textoMetodo(f) {
+    if (!f.metodo_pago) return 'método no registrado';
+    if (f.metodo_pago === 'efectivo') return 'Efectivo';
+    return `${METODOS[f.metodo_pago] || f.metodo_pago} nº ${f.pago_numero || '—'} · ${f.pago_banco || '—'}`;
+  }
 
   function traducir(texto, status) {
     let msg = String(texto || '');
@@ -418,7 +432,7 @@
       const deRec = f.recepcion_id
         ? ` <button type="button" class="ct-icono" data-act="verrec" data-id="${esc(f.recepcion_id)}" title="Creada desde una recepción · ver líneas"><i class="fas fa-truck-ramp-box"></i></button>` : '';
       const acciones = f.pagada
-        ? `<span class="ct-pagada">Pagada el ${fFecha(f.fecha_pago)}<br><small>${money(f.monto_pagado)}</small></span>
+        ? `<span class="ct-pagada">Pagada el ${fFecha(f.fecha_pago)}<br><small>${money(f.monto_pagado)}</small><br><small class="ct-metodo-txt">${esc(textoMetodo(f))}</small></span>
            <button class="action-btn" data-act="anular" data-id="${id}" title="Anular el pago"><i class="fas fa-rotate-left"></i></button>`
         : `<button class="btn-myr btn-myr--ok" data-act="pagar" data-id="${id}"><i class="fas fa-money-bill-wave"></i> Pagar</button>
            <button class="action-btn action-btn-edit" data-act="editar" data-id="${id}" title="Editar"><i class="fas fa-pen"></i></button>
@@ -782,9 +796,28 @@
       <div class="ct-pago__fila"><span>Monto de la factura</span><b>${money(f.monto)}</b></div>`;
     const fe = $('ctPagoFecha');
     fe.value = hoy(); fe.max = hoy(); fe.min = f.fecha_emision;
+    // 553g · el método se elige cada vez (nada marcado de antemano)
+    document.querySelectorAll('input[name="ctPagoMetodo"]').forEach(r => { r.checked = false; });
+    $('ctPagoNumero').value = '';
+    $('ctPagoBanco').value = '';
+    elegirMetodo();
     errorModal('ctPagoError', '');
     calcPago();
     abrirModal('ctPagoModal');
+  }
+  function metodoElegido() {
+    const r = document.querySelector('input[name="ctPagoMetodo"]:checked');
+    return r ? r.value : '';
+  }
+  /* Cheque y transferencia piden nº y banco; efectivo no. */
+  function elegirMetodo() {
+    const m = metodoElegido();
+    const conBanco = m === 'cheque' || m === 'transferencia';
+    $('ctPagoBancoBox').hidden = !conBanco;
+    $('ctPagoNumeroLbl').innerHTML = (m === 'transferencia' ? 'Nº de transferencia' : 'Nº de cheque') + ' <span class="req">*</span>';
+    $('ctPagoNumero').placeholder = m === 'transferencia' ? 'Ej: 0012345678' : 'Ej: 004512';
+    document.querySelectorAll('.ct-metodo').forEach(l => l.classList.toggle('ct-metodo--sel', !!l.querySelector('input:checked')));
+    errorModal('ctPagoError', '');
   }
   function calcPago() {
     const f = S.fac.find(x => String(x.id) === String(S.pagoId));
@@ -808,11 +841,23 @@
     if (!fecha) { errorModal('ctPagoError', 'Indica la fecha del pago.'); return; }
     if (fecha > hoy()) { errorModal('ctPagoError', ERRORES.FECHA_PAGO_FUTURA); return; }
     if (fecha < f.fecha_emision) { errorModal('ctPagoError', ERRORES.FECHA_PAGO_INVALIDA); return; }
+    const metodo = metodoElegido();
+    const numero = $('ctPagoNumero').value.trim();
+    const banco = $('ctPagoBanco').value;
+    if (!metodo) { errorModal('ctPagoError', ERRORES.METODO_PAGO_INVALIDO); document.querySelector('input[name="ctPagoMetodo"]')?.focus(); return; }
+    if (metodo !== 'efectivo') {
+      if (!numero) { errorModal('ctPagoError', ERRORES.FALTA_NUMERO_PAGO); $('ctPagoNumero').focus(); return; }
+      if (!BANCOS.includes(banco)) { errorModal('ctPagoError', ERRORES.BANCO_INVALIDO); $('ctPagoBanco').focus(); return; }
+    }
     await ocupado('ctPagoConfirmar', 'Guardando…', async () => {
       try {
-        const pagado = await rpc('conta_pagar_factura', { p_id: f.id, p_fecha: fecha });
+        const pagado = await rpc('conta_pagar_factura', {
+          p_id: f.id, p_fecha: fecha, p_metodo: metodo,
+          p_numero: metodo === 'efectivo' ? null : numero,
+          p_banco: metodo === 'efectivo' ? null : banco,
+        });
         cerrarModal('ctPagoModal');
-        toast(`✅ Factura ${f.numero} pagada: ${money(pagado)}.`, 'success');
+        toast(`✅ Factura ${f.numero} pagada: ${money(pagado)} · ${esc(textoMetodo({ metodo_pago: metodo, pago_numero: numero, pago_banco: banco }))}.`, 'success');
         await cargar();
       } catch (e) { errorModal('ctPagoError', e.message); }
     });
@@ -1527,6 +1572,9 @@
     $('ctFacEmision').addEventListener('input', autoVencimiento);
     $('ctFacVence').addEventListener('input', () => { S.venEditado = true; });
     $('ctPagoFecha').addEventListener('input', calcPago);
+    $('ctPagoBanco').innerHTML = '<option value="">— Elige la entidad bancaria —</option>' +
+      BANCOS.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    $('ctPagoMetodos').addEventListener('change', elegirMetodo);
     $('ctPagoConfirmar').addEventListener('click', confirmarPago);
     $('ctEmpBuscar').addEventListener('input', listaEmparejar);
     $('ctEmpLista').addEventListener('click', ev => {

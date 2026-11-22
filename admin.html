@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '519';
+      const VER = '520';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=4" />
+  <link rel="stylesheet" href="css/conta.css?v=5" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -2886,6 +2886,25 @@
       </div>
       <div class="modal-body">
         <div class="ct-pago" id="ctPagoInfo"></div>
+        <!-- 553g · Método de pago (seguridad/115) -->
+        <div class="form-group">
+          <label>Método de pago <span class="req">*</span></label>
+          <div class="ct-metodos" id="ctPagoMetodos" role="radiogroup" aria-label="Método de pago">
+            <label class="ct-metodo"><input type="radio" name="ctPagoMetodo" value="efectivo" /><i class="fas fa-money-bill-wave"></i><span>Efectivo</span></label>
+            <label class="ct-metodo"><input type="radio" name="ctPagoMetodo" value="cheque" /><i class="fas fa-money-check"></i><span>Cheque</span></label>
+            <label class="ct-metodo"><input type="radio" name="ctPagoMetodo" value="transferencia" /><i class="fas fa-building-columns"></i><span>Transferencia bancaria</span></label>
+          </div>
+        </div>
+        <div class="ct-pago__banco" id="ctPagoBancoBox" hidden>
+          <div class="form-group">
+            <label for="ctPagoNumero" id="ctPagoNumeroLbl">Nº de cheque <span class="req">*</span></label>
+            <input type="text" class="form-input" id="ctPagoNumero" maxlength="30" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="form-group">
+            <label for="ctPagoBanco">Entidad bancaria <span class="req">*</span></label>
+            <select class="form-input" id="ctPagoBanco"></select>
+          </div>
+        </div>
         <div class="form-group">
           <label for="ctPagoFecha">Fecha del pago</label>
           <input type="date" class="form-input" id="ctPagoFecha" />
@@ -3968,7 +3987,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=5"></script>
+  <script src="js/conta.js?v=6"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
