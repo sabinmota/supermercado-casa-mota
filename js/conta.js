@@ -132,8 +132,8 @@
   };
 
   /* 553g · Método de pago. Los MISMOS 4 bancos que _conta_bancos() en la base
-   * (seguridad/115); la base rechaza cualquier otro. */
-  const BANCOS = ['Bco. Popular Dominicano', 'Banreservas', 'Bco. Bhd', 'Asoc. La Nacional'];
+   * (seguridad/115, nombres sin «Bco.» desde el 116); la base rechaza cualquier otro. */
+  const BANCOS = ['Banco Popular Dominicano', 'Banreservas', 'Banco Bhd', 'Asoc. La Nacional'];
   const METODOS = { efectivo: 'Efectivo', cheque: 'Cheque', transferencia: 'Transferencia' };
   function textoMetodo(f) {
     if (!f.metodo_pago) return 'método no registrado';
