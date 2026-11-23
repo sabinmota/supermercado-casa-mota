@@ -129,7 +129,14 @@
     FALTA_NUMERO_PAGO:        'Escribe el número del cheque o de la transferencia.',
     NUMERO_PAGO_LARGO:        'El número del cheque o de la transferencia admite como máximo 30 caracteres.',
     BANCO_INVALIDO:           'Elige la entidad bancaria de la lista.',
+    CREDITO_MAYOR_QUE_FACTURA: 'Lo no recibido no puede valer más que el total de la factura.',
+    conta_facturas_credito_ck: 'El monto no puede ser menor que el crédito por mercancía no recibida.',
   };
+
+  /* 555 · Lo que de verdad se debe de una factura: monto − crédito (mercancía
+   * no recibida, seguridad/117). Si la base aún no trae a_pagar, el monto. */
+  const creditoDe = f => Number(f && f.credito) || 0;
+  const aPagarDe  = f => (f && f.a_pagar != null) ? Number(f.a_pagar) : Number(f && f.monto) || 0;
 
   /* 553g · Método de pago. Los MISMOS 4 bancos que _conta_bancos() en la base
    * (seguridad/115, nombres sin «Bco.» desde el 116); la base rechaza cualquier otro. */
@@ -318,7 +325,7 @@
     const sin = S.fac.filter(f => !f.pagada);
     const venc = sin.filter(f => f.estado === 'vencida');
     const prox = sin.filter(f => f.estado === 'proxima');
-    const suma = l => l.reduce((a, f) => a + Number(f.monto || 0), 0);
+    const suma = l => l.reduce((a, f) => a + aPagarDe(f), 0);   // 555 · ya sin el crédito
     return { sin, venc, prox, mSin: suma(sin), mVenc: suma(venc), mProx: suma(prox) };
   }
 
@@ -361,15 +368,15 @@
     const html =
       c.venc.sort((a, b) => a.dias - b.dias).slice(0, MAX).map(f => fila(f, 'ct-aviso--rojo', 'fa-circle-exclamation',
         `La factura <b>${esc(f.numero)}</b> del proveedor <b>${esc(f.proveedor_nombre)}</b> está <b>vencida</b> ` +
-        `(${textoDias(f.dias)}, el ${fFecha(f.fecha_vencimiento)}) · ${money(f.monto)}`)).join('') +
+        `(${textoDias(f.dias)}, el ${fFecha(f.fecha_vencimiento)}) · ${money(aPagarDe(f))}`)).join('') +
       mas(c.venc, 'vencida', 'vencidas') +
       c.prox.sort((a, b) => a.dias - b.dias).slice(0, MAX).map(f => fila(f, 'ct-aviso--ambar', 'fa-clock',
         `La factura <b>${esc(f.numero)}</b> del proveedor <b>${esc(f.proveedor_nombre)}</b> ` +
-        `${f.dias <= 1 ? textoDias(f.dias) : 'vence ' + textoDias(f.dias)} (${fFecha(f.fecha_vencimiento)}) · ${money(f.monto)}`)).join('') +
+        `${f.dias <= 1 ? textoDias(f.dias) : 'vence ' + textoDias(f.dias)} (${fFecha(f.fecha_vencimiento)}) · ${money(aPagarDe(f))}`)).join('') +
       mas(c.prox, 'proxima', 'próximas') +
       pp.slice(0, MAX).map(f => fila(f, 'ct-aviso--verde', 'fa-piggy-bank',
         `Pronto pago: si pagas la factura <b>${esc(f.numero)}</b> de <b>${esc(f.proveedor_nombre)}</b> ` +
-        `hasta el <b>${fFecha(f.pronto_pago_hasta)}</b> ahorras <b>${money(Number(f.monto) - Number(f.monto_con_descuento))}</b> ` +
+        `hasta el <b>${fFecha(f.pronto_pago_hasta)}</b> ahorras <b>${money(aPagarDe(f) - Number(f.monto_con_descuento))}</b> ` +
         `(${Number(f.pronto_pago_pct)} %)`)).join('');
 
     box.hidden = !html;
@@ -443,7 +450,8 @@
           <td>${esc(f.proveedor_nombre)}</td>
           <td>${fFecha(f.fecha_emision)}</td>
           <td>${venc}</td>
-          <td class="n"><b>${money(f.monto)}</b></td>
+          <td class="n"><b>${money(f.monto)}</b>${creditoDe(f) > 0
+            ? `<br><small class="ct-cred-txt">crédito − ${money(creditoDe(f))}</small><br><small class="ct-cred-txt"><b>a pagar ${money(aPagarDe(f))}</b></small>` : ''}</td>
           <td>${pp}</td>
           <td><span class="ct-est ${claseEst}">${txtEst}</span></td>
           <td><div class="action-btns ct-acciones">${acciones}</div></td>
@@ -517,11 +525,14 @@
           ? `<table class="ct-det__tabla"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>Producto</th><th class="n">Cant.</th><th class="n">Costo</th><th class="n">Importe</th></tr></thead><tbody>${
             ls.map(l => {
               const p = l.producto_id ? prodPorId(l.producto_id) : null;
-              return `<tr><td>${l.orden}</td><td>${esc(l.codigo) || '—'}</td><td>${esc(l.descripcion)}</td>
+              return `<tr${l.recibido === false ? ' class="ct-det--norec"' : ''}><td>${l.orden}</td><td>${esc(l.codigo) || '—'}</td><td>${esc(l.descripcion)}${l.recibido === false ? ' <span class="ct-norec">No recibido</span>' : ''}</td>
                 <td>${l.producto_id ? esc(p ? p.name : '(producto ' + l.producto_id + ')') : '<span class="ct-noemp">No emparejado</span>'}</td>
                 <td class="n">${Number(l.cantidad)}</td><td class="n">${money(l.costo_unitario)}</td><td class="n">${money(l.importe)}</td></tr>`;
             }).join('')}</tbody></table>
-            <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
+            <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${(() => {
+              const c = r2(ls.filter(l => l.recibido === false).reduce((a, l) => a + Number(l.importe || 0), 0));
+              return c > 0 ? ` · <span class="ct-cred-txt">Créditos (no recibido) − ${money(c)}</span>` : '';
+            })()}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
             <div class="ct-det__acc">
               <button type="button" class="btn-secondary ct-btn-sm" data-act="editrec" data-id="${esc(r.id)}"><i class="fas fa-pen-to-square"></i> Editar recepción</button>
               ${r.factura_id == null ? '<small class="ct-gris">Factura borrada: solo se puede emparejar.</small>' : (r.factura_pagada ? '<small class="ct-gris">Factura pagada: solo se puede emparejar.</small>' : '')}
@@ -780,10 +791,12 @@
   }
 
   // Pago (de una vez)
+  /* 555 · Se paga monto − crédito; el pronto pago se calcula sobre eso. */
   function montoAPagar(f, fecha) {
+    const base = aPagarDe(f);
     const pct = Number(f.pronto_pago_pct) || 0;
-    if (pct > 0 && fecha && f.pronto_pago_hasta && fecha <= f.pronto_pago_hasta) return r2(Number(f.monto) * (1 - pct / 100));
-    return Number(f.monto);
+    if (pct > 0 && fecha && f.pronto_pago_hasta && fecha <= f.pronto_pago_hasta) return r2(base * (1 - pct / 100));
+    return r2(base);
   }
   function abrirPago(id) {
     const f = S.fac.find(x => String(x.id) === String(id));
@@ -793,7 +806,9 @@
       <div class="ct-pago__fila"><span>Factura</span><b>${esc(f.numero)}</b></div>
       <div class="ct-pago__fila"><span>Proveedor</span><b>${esc(f.proveedor_nombre)}</b></div>
       <div class="ct-pago__fila"><span>Emisión · vencimiento</span><b>${fFecha(f.fecha_emision)} · ${fFecha(f.fecha_vencimiento)}</b></div>
-      <div class="ct-pago__fila"><span>Monto de la factura</span><b>${money(f.monto)}</b></div>`;
+      <div class="ct-pago__fila"><span>Monto de la factura</span><b>${money(f.monto)}</b></div>${creditoDe(f) > 0 ? `
+      <div class="ct-pago__fila ct-pago__fila--cred"><span>Crédito (mercancía no recibida)</span><b>− ${money(creditoDe(f))}</b></div>
+      <div class="ct-pago__fila"><span>Lo que se debe</span><b>${money(aPagarDe(f))}</b></div>` : ''}`;
     const fe = $('ctPagoFecha');
     fe.value = hoy(); fe.max = hoy(); fe.min = f.fecha_emision;
     // 553g · el método se elige cada vez (nada marcado de antemano)
@@ -826,11 +841,15 @@
     const pagar = montoAPagar(f, fecha);
     const pct = Number(f.pronto_pago_pct) || 0;
     $('ctPagoMonto').textContent = money(pagar);
-    let nota = 'Se paga el monto completo, de una vez.';
+    const base = aPagarDe(f);
+    const conCred = creditoDe(f) > 0;
+    let nota = conCred
+      ? `Se paga de una vez, ya descontado el crédito de ${money(creditoDe(f))}.`
+      : 'Se paga el monto completo, de una vez.';
     if (pct > 0) {
-      nota = pagar < Number(f.monto)
-        ? `✅ Dentro del pronto pago (${pct} % hasta el ${fFecha(f.pronto_pago_hasta)}): ahorras ${money(Number(f.monto) - pagar)}.`
-        : `El pronto pago (${pct} %) era hasta el ${fFecha(f.pronto_pago_hasta)}: se paga el monto completo.`;
+      nota = pagar < base
+        ? `✅ Dentro del pronto pago (${pct} % hasta el ${fFecha(f.pronto_pago_hasta)}): ahorras ${money(base - pagar)}.`
+        : `El pronto pago (${pct} %) era hasta el ${fFecha(f.pronto_pago_hasta)}: se paga ${conCred ? 'lo que se debe' : 'el monto completo'}.`;
     }
     $('ctPagoNota').textContent = nota;
   }
@@ -955,17 +974,28 @@
   /* 553f · Factura pagada o borrada: solo se cambia el emparejamiento. */
   function soloEmparejar() { return !!(S.edit && S.edit.modo === 'solo_emparejar'); }
 
+  /* 555 · ¿Llegó la mercancía de esta línea? Por defecto sí (también lo que
+   * lee la IA). Lo NO recibido pasa a «Créditos disponibles». */
+  const recibida = l => l.recibido !== false;
+  function creditoRec() { return r2(S.lineas.filter(l => !recibida(l)).reduce((a, l) => a + importe(l), 0)); }
+
   function pintarLineas() {
     const tb = $('ctRecLineas');
     if (!tb) return;
     const dis = soloEmparejar() ? ' disabled' : '';
-    if (!S.lineas.length) {
-      tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Añade productos del catálogo, una línea manual o lee la factura con IA.</td></tr>`;
+    pintarCreditos();
+    const vis = S.lineas.map((l, i) => ({ l, i })).filter(x => recibida(x.l));
+    if (!vis.length) {
+      tb.innerHTML = `<tr><td colspan="10" class="myr-vacio">${S.lineas.length
+        ? 'Todas las líneas están en <b>Créditos disponibles</b> (no recibidas).'
+        : 'Añade productos del catálogo, una línea manual o lee la factura con IA.'}</td></tr>`;
       return;
     }
-    tb.innerHTML = S.lineas.map((l, i) => `
+    tb.innerHTML = vis.map(({ l, i }, n) => `
       <tr data-i="${i}" class="${l.producto_id ? '' : 'ct-l--sin'}">
-        <td class="ct-l__n">${i + 1}</td>
+        <td class="ct-l__n">${n + 1}</td>
+        <td class="ct-rc"><button type="button" class="ct-chk ct-chk--si ct-chk--on" data-act="recibido" data-i="${i}" title="Recibido" aria-label="Recibido" aria-pressed="true"${dis}><i class="fas fa-check"></i></button></td>
+        <td class="ct-rc"><button type="button" class="ct-chk ct-chk--no" data-act="norecibido" data-i="${i}" title="Marcar como NO recibido: pasa a Créditos disponibles" aria-label="No recibido" aria-pressed="false"${dis}><i class="fas fa-xmark"></i></button></td>
         <td><input class="ct-in ct-in--cod" data-campo="codigo" data-i="${i}" value="${esc(l.codigo)}" maxlength="40" placeholder="Referencia"${dis} />
           <div class="ct-l__codest">${estadoCodigo(l)}</div></td>
         <td><input class="ct-in ct-in--desc" data-campo="descripcion" data-i="${i}" value="${esc(l.descripcion)}" maxlength="200" placeholder="Descripción"${dis} /></td>
@@ -975,6 +1005,40 @@
         <td class="n ct-l__imp">${money(importe(l))}</td>
         <td>${dis ? '' : `<button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button>`}</td>
       </tr>`).join('');
+  }
+
+  /* Debajo del total: lo no recibido, con su valor, para descontar al pagar. */
+  function pintarCreditos() {
+    const box = $('ctRecCreditos');
+    if (!box) return;
+    const dis = soloEmparejar() ? ' disabled' : '';
+    const no = S.lineas.map((l, i) => ({ l, i })).filter(x => !recibida(x.l));
+    box.hidden = !no.length;
+    if (!no.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `
+      <h4 class="ct-creditos__tit"><i class="fas fa-hand-holding-dollar"></i> Créditos disponibles
+        <small>Mercancía facturada que NO se recibió: se descuenta al pagar esta factura.</small></h4>
+      <div class="table-wrap"><table class="data-table ct-lineas ct-creditos__tabla">
+        <thead><tr><th>Código</th><th class="n">Cantidad</th><th>Descripción</th><th class="n">Valor total</th><th></th></tr></thead>
+        <tbody>${no.map(({ l, i }) => `
+          <tr>
+            <td>${esc(l.codigo) || '—'}</td>
+            <td class="n">${esc(l.cantidad)}</td>
+            <td>${esc(l.descripcion) || '—'}</td>
+            <td class="n"><b>${money(importe(l))}</b></td>
+            <td class="n"><button type="button" class="btn-secondary ct-btn-sm" data-act="recibido" data-i="${i}"${dis}><i class="fas fa-rotate-left"></i> Volver a recibido</button></td>
+          </tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="3"><b>Total de créditos</b></td><td class="n"><b>${money(creditoRec())}</b></td><td></td></tr></tfoot>
+      </table></div>`;
+  }
+
+  /* Marca una línea como recibida o no; la no recibida se va a Créditos. */
+  function marcarRecibido(i, si) {
+    const l = S.lineas[i];
+    if (!l || soloEmparejar() || recibida(l) === si) return;
+    l.recibido = si;
+    pintarLineas();
+    pintarTotalesRec();
   }
 
   function repintarCeldaProducto(i) {
@@ -1000,11 +1064,12 @@
     if (!box) return;
     const { suma, total, monto } = totalesRec();
     const sin = S.lineas.filter(l => !l.producto_id).length;
+    const nNo = S.lineas.filter(l => !recibida(l)).length;
     const p = provPorId($('ctRecProv')?.value);
     const fecha = $('ctRecFecha')?.value;
     const dif = total !== null ? r2(total - suma) : 0;
     box.innerHTML = `
-      <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-noemp-txt">(${sin} no emparejada${sin === 1 ? '' : 's'})</small>` : ''}</b></div>
+      <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-noemp-txt">(${sin} no emparejada${sin === 1 ? '' : 's'})</small>` : ''}${nNo ? ` <small class="ct-cred-txt">(${nNo} no recibida${nNo === 1 ? '' : 's'})</small>` : ''}</b></div>
       <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
       ${total !== null ? `<div><span>Total escrito de la factura</span><b>${money(total)}</b></div>` : ''}
       ${total !== null && Math.abs(dif) >= 0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> Diferencia con la suma</span><b>${money(dif)}</b></div>` : ''}
@@ -1022,13 +1087,20 @@
     if (E && E.pagada) {
       return `<div class="mp-totales__tot"><span>Factura pagada</span><b>${money(E.monto)}</b></div>`;
     }
+    // 555 · la factura sigue por el total del proveedor; el crédito se resta aparte
+    const cred = creditoRec();
+    const credHtml = cred > 0
+      ? `<div><span>Total de la factura</span><b>${money(monto)}</b></div>
+         <div class="ct-cred-txt"><span>Créditos disponibles (no recibido)</span><b>− ${money(cred)}</b></div>
+         <div class="mp-totales__tot"><span>A pagar</span><b>${money(r2(monto - cred))}</b></div>`
+      : `<div class="mp-totales__tot"><span>Factura por pagar</span><b>${money(monto)}</b></div>`;
     let ven = '';
     if (E && fecha === E.fecha && E.vencimiento) {
       ven = `<div class="ct-vence"><span>Vence el</span><b>${fFecha(E.vencimiento)}</b></div>`;
     } else if (p && fecha) {
       ven = `<div class="ct-vence"><span>Vencerá el</span><b>${fFecha(sumarDias(fecha, p.termino_dias))} <small>(${plural(Number(p.termino_dias), 'día', 'días')})</small></b></div>`;
     }
-    return `<div class="mp-totales__tot"><span>Factura por pagar</span><b>${money(monto)}</b></div>${ven}`;
+    return `${credHtml}${ven}`;
   }
 
   function agregarDelCatalogo(id) {
@@ -1044,7 +1116,7 @@
       S.lineas.push({
         codigo: String(p.barcode || '').trim(), descripcion: String(p.name || '').slice(0, 200),
         cantidad: '1', costo: (p.costo !== null && p.costo !== undefined && p.costo !== '') ? String(p.costo) : '',
-        producto_id: p.id, via: 'catalogo', manual: true,
+        producto_id: p.id, via: 'catalogo', manual: true, recibido: true,
       });
     }
     $('ctRecBuscar').value = '';
@@ -1080,7 +1152,7 @@
 
   function lineaLibre() {
     if (soloEmparejar()) return;
-    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false });
+    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false, recibido: true });
     pintarLineas();
     pintarTotalesRec();
     document.querySelector(`#ctRecLineas input[data-campo="codigo"][data-i="${S.lineas.length - 1}"]`)?.focus();
@@ -1136,6 +1208,7 @@
       codigo: String(l.codigo || ''), descripcion: String(l.descripcion || ''),
       cantidad: String(Number(l.cantidad)), costo: String(Number(l.costo_unitario)),
       producto_id: l.producto_id || null, via: l.producto_id ? 'guardado' : '',
+      recibido: l.recibido !== false,   // 555 · las de antes del 117 cuentan como recibidas
       manual: !!l.producto_id,   // lo ya emparejado no se toca al volver a emparejar
     }));
     irTab('recepcion');
@@ -1232,6 +1305,8 @@
     const { suma, total, monto } = totalesRec();
     const E = S.edit, solo = soloEmparejar();
     if (monto <= 0) return errorRec(ERRORES.TOTAL_CERO);
+    const cred = creditoRec();
+    if (cred > monto) return errorRec(ERRORES.CREDITO_MAYOR_QUE_FACTURA);
     if (!solo && total !== null && Math.abs(total - suma) >= 0.01 &&
         !confirm(`El total escrito (${money(total)}) no coincide con la suma de las líneas (${money(suma)}).\n\nLa factura por pagar ${E ? 'quedará' : 'se creará'} por ${money(total)}. ¿Continuar?`)) return;
     const sin = S.lineas.filter(l => !l.producto_id).length;
@@ -1251,15 +1326,18 @@
             cantidad: r3(num(l.cantidad)),
             costo_unitario: r2(num(l.costo)),
             guardar_referencia: guardaReferencia(l),
+            recibido: recibida(l),
           })),
         };
+        const txtCred = r => (Number(r && r.credito) > 0)
+          ? ` Crédito por lo no recibido: ${money(r.credito)} · a pagar ${money(r.a_pagar)}.` : '';
         if (E) {
           const r = await rpc('conta_editar_recepcion', { p_id: E.id, p_datos: datos });
           const nRef = Number(r && r.referencias_guardadas) || 0;
           const id = E.id;
           vaciarRecepcion(true);
           toast(`✅ Cambios guardados en la recepción ${esc(numero)}.` +
-            (r && r.modo === 'completa' ? ` Factura por ${money(r.monto)} · vence el ${fFecha(r.vencimiento)}.` : '') +
+            (r && r.modo === 'completa' ? ` Factura por ${money(r.monto)} · vence el ${fFecha(r.vencimiento)}.` + txtCred(r) : '') +
             (nRef ? ` ${plural(nRef, 'referencia guardada', 'referencias guardadas')} en el catálogo.` : ''), 'success');
           await cargar();
           verRecepcion(id, true);
@@ -1268,7 +1346,7 @@
         const r = await rpc('conta_crear_recepcion', { p_datos: datos });
         const nRef = Number(r && r.referencias_guardadas) || 0;
         vaciarRecepcion(true);
-        toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.` +
+        toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.` + txtCred(r) +
           (nRef ? ` ${plural(nRef, 'referencia guardada', 'referencias guardadas')} en el catálogo.` : ''), 'success');
         await cargar();
         if (r && r.recepcion_id) verRecepcion(r.recepcion_id, true);
@@ -1418,6 +1496,7 @@
       cantidad: x.cantidad > 0 ? String(r3(x.cantidad)) : '',
       costo: x.costo_unitario >= 0 && x.costo_unitario !== null ? String(r2(x.costo_unitario)) : '',
       producto_id: null, via: '', manual: false,
+      recibido: true,   // 555 · lo leído por la IA se da por recibido; se desmarca a mano
     }));
     nuevas.forEach(autoEmparejar);
     if (S.lineas.length && !confirm(`La IA leyó ${plural(nuevas.length, 'línea', 'líneas')}.\n\nAceptar = SUSTITUIR las ${S.lineas.length} líneas actuales.\nCancelar = AÑADIRLAS al final.`)) {
@@ -1493,6 +1572,8 @@
       }
       else if (act === 'quitar') { if (!soloEmparejar()) { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); } }
       else if (act === 'editrec') editarRecepcion(id);
+      else if (act === 'recibido') marcarRecibido(i, true);
+      else if (act === 'norecibido') marcarRecibido(i, false);
       else if (act === 'emparejar') abrirEmparejar(i);
       else if (act === 'soltar') { const l = S.lineas[i]; if (l) { l.producto_id = null; l.via = ''; l.manual = true; repintarCeldaProducto(i); pintarTotalesRec(); } }
     });

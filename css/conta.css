@@ -160,6 +160,23 @@
 .ct-rec__totales small { font-weight: 500; font-size: .76rem; }
 .ct-dif { color: #a15c00; }
 .ct-vence { color: var(--text-mid, #59615e); font-size: .84rem !important; }
+/* 555 · Recibido / No recibido y Créditos disponibles */
+.ct-lineas .ct-rc { width: 1%; text-align: center; white-space: nowrap; font-size: .7rem; }
+.ct-lineas td.ct-rc { padding-top: 11px; }
+.ct-chk { width: 30px; height: 30px; border-radius: 6px; border: 2px solid #c9cfcc; background: #fff; color: #c9cfcc; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: .9rem; transition: all .15s; }
+.ct-chk--si.ct-chk--on { border-color: #2e8b3e; background: #e9f6ee; color: #2e8b3e; }
+.ct-chk--no:hover:not(:disabled) { border-color: #d32f2f; color: #d32f2f; background: #fdecea; }
+.ct-chk:disabled { cursor: not-allowed; opacity: .6; }
+.ct-creditos { margin-top: 16px; border: 1px solid #f3c9c5; background: #fff7f6; border-radius: 10px; padding: 12px 14px; }
+.ct-creditos[hidden] { display: none; }
+.ct-creditos__tit { margin: 0 0 8px; font-size: .95rem; color: #9b2c1f; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.ct-creditos__tit small { font-weight: 500; font-size: .76rem; color: var(--text-mid, #59615e); }
+.ct-creditos__tabla td, .ct-creditos__tabla th { background: transparent; }
+.ct-creditos__tabla tfoot td { border-top: 1px solid #f3c9c5; color: #9b2c1f; }
+.ct-cred-txt { color: #b42318; }
+.ct-norec { display: inline-block; background: #fdecea; color: #b42318; border-radius: 999px; padding: 1px 7px; font-size: .68rem; font-weight: 700; margin-left: 4px; }
+.ct-det--norec td { color: #9b2c1f; }
+.ct-pago__fila--cred b, .ct-pago__fila--cred span { color: #b42318; }
 .ct-rec__botones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 .ct-rec__botones .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
