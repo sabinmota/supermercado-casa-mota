@@ -4357,7 +4357,18 @@ html.es-app-nativa .header {
   .hb-aviso--1 span { display: block; }
   .hb-arco { transform: scale(.66); }
   .products-grid { grid-template-columns: repeat(2,1fr); }
-  .category-grid { grid-template-columns: repeat(2,1fr); }
+  /* 554 · Pedido del dueño: en la app las 8 categorías ocupaban 4 filas y
+     había que bajar mucho para ver los productos. Ahora son SOLO 2 filas que
+     se deslizan a los lados (como las vitrinas de Novedades y Ofertas). La
+     columna siguiente asoma a la derecha para que se vea que hay más. */
+  .category-grid {
+    grid-template-columns: none; grid-template-rows: repeat(2, auto);
+    grid-auto-flow: column; grid-auto-columns: calc((100% - 2 * 14px) / 2.4);
+    gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory;
+    padding: 2px 2px 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .category-grid::-webkit-scrollbar { display: none; }
+  .category-grid .cat-card { scroll-snap-align: start; }
   .modal-content { grid-template-columns: minmax(0, 1fr); }   /* 514 */
   .modal-img { height: 240px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .modal-img img { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
@@ -4407,7 +4418,7 @@ html.es-app-nativa .header {
   .cart-panel { width: 100%; border-radius: 0; }
   .footer-grid { grid-template-columns: 1fr; }
   .promo-inner { grid-template-columns: 1fr; }
-  .category-grid { grid-template-columns: repeat(2,1fr); }
+  .category-grid { gap: 10px; grid-auto-columns: 42vw; }   /* 554 · igual que las vitrinas */
 }
 
 /* ============================================================
