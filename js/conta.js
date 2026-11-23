@@ -130,12 +130,21 @@
     NUMERO_PAGO_LARGO:        'El número del cheque o de la transferencia admite como máximo 30 caracteres.',
     BANCO_INVALIDO:           'Elige la entidad bancaria de la lista.',
     CREDITO_MAYOR_QUE_FACTURA: 'Lo no recibido no puede valer más que el total de la factura.',
+    NCF_INVALIDO:             'El e-NCF no es válido: E + 12 cifras (ej. E310000008681) o B + 10 cifras (ej. B0100000123).',
+    NCF_REPETIDO:             'Ese e-NCF ya está registrado en otra factura de este proveedor.',
+    conta_facturas_ncf_ck:    'El e-NCF no es válido: E + 12 cifras o B + 10 cifras.',
     conta_facturas_credito_ck: 'El monto no puede ser menor que el crédito por mercancía no recibida.',
   };
 
   /* 555 · Lo que de verdad se debe de una factura: monto − crédito (mercancía
    * no recibida, seguridad/117). Si la base aún no trae a_pagar, el monto. */
   const creditoDe = f => Number(f && f.credito) || 0;
+
+  /* 557 · e-NCF en su propio campo (seguridad/118). Misma regla que
+   * _conta_ncf() en la base: sin espacios ni guiones, mayúsculas;
+   * E + 12 cifras (e-CF) o B + 10 cifras (NCF de papel). '' = sin e-NCF. */
+  const limpiarNcf = s => String(s || '').replace(/[\s-]/g, '').toUpperCase();
+  const ncfValido  = s => !s || /^(B\d{10}|E\d{12})$/.test(s);
   const aPagarDe  = f => (f && f.a_pagar != null) ? Number(f.a_pagar) : Number(f && f.monto) || 0;
 
   /* 553g · Método de pago. Los MISMOS 4 bancos que _conta_bancos() en la base
@@ -404,7 +413,7 @@
     const prov = $('ctFacProv')?.value || '';
     const est  = $('ctFacEstado')?.value ?? 'sinpagar';
     const buscar = typeof _admBuscar === 'function'
-      ? (f => _admBuscar(q, f.numero, f.proveedor_nombre))
+      ? (f => _admBuscar(q, f.numero, f.proveedor_nombre, f.ncf))
       : (f => !q || (f.numero + ' ' + f.proveedor_nombre).toLowerCase().includes(q.toLowerCase()));
     const lista = S.fac.filter(f =>
       (!prov || String(f.proveedor_id) === prov) &&
@@ -446,7 +455,7 @@
            <button class="action-btn action-btn-del" data-act="borrar" data-id="${id}" title="Borrar"><i class="fas fa-trash"></i></button>`;
       return `
         <tr class="ct-fila--${esc(f.estado)}">
-          <td><strong>${esc(f.numero)}</strong>${deRec}${f.notas ? `<br><small class="ct-gris" title="${esc(f.notas)}">${esc(f.notas.slice(0, 40))}${f.notas.length > 40 ? '…' : ''}</small>` : ''}</td>
+          <td><strong>${esc(f.numero)}</strong>${deRec}${f.ncf ? `<br><small class="ct-ncf-txt" title="Comprobante fiscal">e-NCF ${esc(f.ncf)}</small>` : ''}${f.notas ? `<br><small class="ct-gris" title="${esc(f.notas)}">${esc(f.notas.slice(0, 40))}${f.notas.length > 40 ? '…' : ''}</small>` : ''}</td>
           <td>${esc(f.proveedor_nombre)}</td>
           <td>${fFecha(f.fecha_emision)}</td>
           <td>${venc}</td>
@@ -532,7 +541,7 @@
             <p class="ct-nota">Suma de líneas ${money(r.suma_lineas)}${r.monto_factura != null ? ` · Factura ${money(r.monto_factura)}` : ''}${(() => {
               const c = r2(ls.filter(l => l.recibido === false).reduce((a, l) => a + Number(l.importe || 0), 0));
               return c > 0 ? ` · <span class="ct-cred-txt">Créditos (no recibido) − ${money(c)}</span>` : '';
-            })()}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
+            })()}${r.ncf ? ` · <span class="ct-ncf-txt">e-NCF ${esc(r.ncf)}</span>` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
             <div class="ct-det__acc">
               <button type="button" class="btn-secondary ct-btn-sm" data-act="editrec" data-id="${esc(r.id)}"><i class="fas fa-pen-to-square"></i> Editar recepción</button>
               ${r.factura_id == null ? '<small class="ct-gris">Factura borrada: solo se puede emparejar.</small>' : (r.factura_pagada ? '<small class="ct-gris">Factura pagada: solo se puede emparejar.</small>' : '')}
@@ -726,6 +735,7 @@
     $('ctFacPct').value     = f && Number(f.pronto_pago_pct) ? f.pronto_pago_pct : '';
     $('ctFacDias').value    = f && Number(f.pronto_pago_dias) ? f.pronto_pago_dias : '';
     $('ctFacNotas').value   = f ? f.notas : '';
+    $('ctFacNcf').value     = f ? (f.ncf || '') : '';
     errorModal('ctFacError', '');
     autoVencimiento();
     abrirModal('ctFacModal');
@@ -753,8 +763,10 @@
     const emi = $('ctFacEmision').value;
     const ven = $('ctFacVence').value;
     const monto = num($('ctFacMonto').value);
+    const ncf = limpiarNcf($('ctFacNcf').value);
     let pp;
     try {
+      if (!ncfValido(ncf)) { $('ctFacNcf').focus(); throw new Error(ERRORES.NCF_INVALIDO); }
       if (!prov) throw new Error('Elige el proveedor.');
       if (!numero) throw new Error(ERRORES.FALTA_NUMERO);
       if (!emi) throw new Error(ERRORES.FALTA_FECHA);
@@ -770,6 +782,7 @@
             proveedor_id: prov, numero, fecha_emision: emi, fecha_vencimiento: ven || '',
             monto: r2(monto), pronto_pago_pct: pp.pct, pronto_pago_dias: pp.dias,
             notas: $('ctFacNotas').value.trim(),
+            ncf,
           },
         });
         cerrarModal('ctFacModal');
@@ -1161,7 +1174,7 @@
   function vaciarRecepcion(sinPreguntar) {
     if (!sinPreguntar && S.lineas.length && !confirm('¿Vaciar la recepción en curso? Se pierden las líneas que no has confirmado.')) return;
     S.lineas = []; S.origen = 'manual'; S.foto = null;
-    ['ctRecNum', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNotas', 'ctRecBuscar'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    ['ctRecNum', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNcf', 'ctRecNotas', 'ctRecBuscar'].forEach(id => { const el = $(id); if (el) el.value = ''; });
     $('ctRecFecha').value = hoy();
     $('ctRecResultados').innerHTML = '';
     errorModal('ctRecError', '');
@@ -1188,7 +1201,7 @@
     const pagada = r.factura_id != null && !!r.factura_pagada;
     S.edit = {
       id: r.id, proveedor_id: r.proveedor_id, proveedor_nombre: r.proveedor_nombre,
-      numero: r.numero_factura, fecha: String(r.fecha).slice(0, 10), notas: r.notas || '',
+      numero: r.numero_factura, fecha: String(r.fecha).slice(0, 10), notas: r.notas || '', ncf: r.ncf || '',
       factura_id: r.factura_id, pagada, monto: r.monto_factura,
       vencimiento: r.factura_vencimiento ? String(r.factura_vencimiento).slice(0, 10) : '',
       modo: (r.factura_id != null && !pagada) ? 'completa' : 'solo_emparejar',
@@ -1204,6 +1217,7 @@
     $('ctRecPct').value = Number(r.factura_pct) > 0 ? String(Number(r.factura_pct)) : '';
     $('ctRecDias').value = Number(r.factura_dias) > 0 ? String(Number(r.factura_dias)) : '';
     $('ctRecNotas').value = r.notas || '';
+    $('ctRecNcf').value = r.ncf || '';
     S.lineas = (ls || []).map(l => ({
       codigo: String(l.codigo || ''), descripcion: String(l.descripcion || ''),
       cantidad: String(Number(l.cantidad)), costo: String(Number(l.costo_unitario)),
@@ -1232,7 +1246,7 @@
         txt.innerHTML = `<i class="fas fa-pen-to-square"></i> Editando la factura <b>${esc(E.numero)}</b> de <b>${esc(E.proveedor_nombre)}</b>. <span>${motivo}</span>`;
       }
     }
-    ['ctRecNum', 'ctRecFecha', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNotas', 'ctRecBuscar', 'ctRecAddLibre', 'ctIaFoto']
+    ['ctRecNum', 'ctRecFecha', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNcf', 'ctRecNotas', 'ctRecBuscar', 'ctRecAddLibre', 'ctIaFoto']
       .forEach(id => { const el = $(id); if (el) el.disabled = solo; });
     $('ctIaBtn')?.classList.toggle('ct-ia__btn--bloq', solo);
     const prov = $('ctRecProv');
@@ -1289,6 +1303,8 @@
     if (!provId) return errorRec('Elige el proveedor.', 'ctRecProv');
     if (!numero) return errorRec(ERRORES.FALTA_NUMERO, 'ctRecNum');
     if (!fecha) return errorRec(ERRORES.FALTA_FECHA, 'ctRecFecha');
+    const ncf = limpiarNcf($('ctRecNcf').value);
+    if (!ncfValido(ncf)) return errorRec(ERRORES.NCF_INVALIDO, 'ctRecNcf');
     if (!S.lineas.length) return errorRec(ERRORES.SIN_LINEAS, 'ctRecBuscar');
     for (let i = 0; i < S.lineas.length; i++) {
       const l = S.lineas[i];
@@ -1318,7 +1334,7 @@
         const datos = {
           proveedor_id: provId, numero_factura: numero, fecha, origen: S.origen,
           pronto_pago_pct: pp.pct, pronto_pago_dias: pp.dias,
-          total_factura: total, notas: $('ctRecNotas').value.trim(),
+          total_factura: total, notas: $('ctRecNotas').value.trim(), ncf,
           lineas: S.lineas.map(l => ({
             producto_id: l.producto_id || null,
             codigo: String(l.codigo || '').trim(),
@@ -1488,7 +1504,8 @@
     if (f.numero && !$('ctRecNum').value.trim()) $('ctRecNum').value = String(f.numero).slice(0, 40);
     if (f.fecha && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) $('ctRecFecha').value = f.fecha;
     if (f.total > 0 && !$('ctRecTotal').value.trim()) $('ctRecTotal').value = r2(f.total);
-    if (f.ncf && !$('ctRecNotas').value.trim()) $('ctRecNotas').value = ('NCF ' + f.ncf).slice(0, 500);
+    // 557 · el e-NCF va a SU campo (antes se escribía en Notas)
+    if (f.ncf && !$('ctRecNcf').value.trim()) $('ctRecNcf').value = limpiarNcf(f.ncf).slice(0, 20);
 
     const nuevas = lineas.map(x => ({
       codigo: String(x.codigo || '').slice(0, 40),

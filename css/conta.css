@@ -81,8 +81,11 @@
 /* Recepción */
 .ct-rec { padding: 18px 20px; margin-bottom: 20px; }
 .ct-rec__cab { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 0 14px; }
+/* 557 · fila 2: pronto pago (2 columnas) + e-NCF + notas */
 .ct-rec__cab .form-group:nth-child(5) { grid-column: span 2; }
-.ct-rec__cab .form-group:nth-child(6) { grid-column: span 2; }
+.ct-ncf { font-family: monospace; letter-spacing: .06em; text-transform: uppercase; }
+.ct-ncf::placeholder { text-transform: none; letter-spacing: normal; font-family: inherit; }
+.ct-ncf-txt { font-family: monospace; letter-spacing: .04em; color: var(--text-mid, #59615e); }
 .ct-pp-in { display: flex; align-items: center; gap: 8px; }
 .ct-pp-in .form-input { width: 76px; flex: 0 0 auto; text-align: right; }
 .ct-pp-in span { font-size: .82rem; color: var(--text-mid, #59615e); white-space: nowrap; }
@@ -229,7 +232,7 @@
 
 @media (max-width: 1100px) {
   .ct-rec__cab { grid-template-columns: 1fr 1fr; }
-  .ct-rec__cab .form-group:nth-child(5), .ct-rec__cab .form-group:nth-child(6) { grid-column: span 1; }
+  .ct-rec__cab .form-group:nth-child(5) { grid-column: span 2; }
   .ct-ia { grid-template-columns: 1fr; }
   .ct-rec__pie { flex-direction: column; }
   .ct-rec__totales { min-width: 0; width: 100%; }

@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '523';
+      const VER = '524';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=6" />
+  <link rel="stylesheet" href="css/conta.css?v=7" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -1011,9 +1011,14 @@
                 <span>días</span>
               </div>
             </div>
+            <!-- 557 · e-NCF en su propio campo (seguridad/118) -->
+            <div class="form-group">
+              <label for="ctRecNcf">e-NCF (comprobante fiscal)</label>
+              <input type="text" class="form-input ct-ncf" id="ctRecNcf" maxlength="20" placeholder="Ej: E310000008681" autocomplete="off" spellcheck="false" />
+            </div>
             <div class="form-group">
               <label for="ctRecNotas">Notas</label>
-              <input type="text" class="form-input" id="ctRecNotas" maxlength="500" placeholder="Opcional (NCF, observaciones…)" />
+              <input type="text" class="form-input" id="ctRecNotas" maxlength="500" placeholder="Opcional (observaciones)" />
             </div>
           </div>
 
@@ -2866,9 +2871,16 @@
             </div>
           </div>
         </div>
-        <div class="form-group">
-          <label for="ctFacNotas">Notas</label>
-          <input type="text" class="form-input" id="ctFacNotas" maxlength="500" placeholder="Opcional" />
+        <div class="form-row">
+          <!-- 557 · e-NCF en su propio campo (seguridad/118) -->
+          <div class="form-group">
+            <label for="ctFacNcf">e-NCF (comprobante fiscal)</label>
+            <input type="text" class="form-input ct-ncf" id="ctFacNcf" maxlength="20" placeholder="Ej: E310000008681" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="form-group">
+            <label for="ctFacNotas">Notas</label>
+            <input type="text" class="form-input" id="ctFacNotas" maxlength="500" placeholder="Opcional" />
+          </div>
         </div>
         <div class="myr-error" id="ctFacError" hidden></div>
       </div>
@@ -3989,7 +4001,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=8"></script>
+  <script src="js/conta.js?v=9"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
