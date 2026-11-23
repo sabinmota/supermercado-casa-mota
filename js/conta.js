@@ -1085,7 +1085,8 @@
       <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-noemp-txt">(${sin} no emparejada${sin === 1 ? '' : 's'})</small>` : ''}${nNo ? ` <small class="ct-cred-txt">(${nNo} no recibida${nNo === 1 ? '' : 's'})</small>` : ''}</b></div>
       <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
       ${total !== null ? `<div><span>Total escrito de la factura</span><b>${money(total)}</b></div>` : ''}
-      ${total !== null && Math.abs(dif) >= 0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> Diferencia con la suma</span><b>${money(dif)}</b></div>` : ''}
+      ${total !== null && dif >= 0.01 ? `<div><span>ITBIS de la factura</span><b>${money(dif)}</b></div>` : ''}
+      ${total !== null && dif <= -0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> El total es menor que la suma</span><b>${money(dif)}</b></div>` : ''}
       ${pieFactura(monto, p, fecha)}`;
     const btn = $('ctRecConfirmar');
     if (btn && !S.guardando) btn.disabled = !S.lineas.length;

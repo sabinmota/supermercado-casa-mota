@@ -85,6 +85,7 @@
 .ct-rec__cab .form-group:nth-child(5) { grid-column: span 2; }
 .ct-ncf { font-family: monospace; letter-spacing: .06em; text-transform: uppercase; }
 .ct-ncf::placeholder { text-transform: none; letter-spacing: normal; font-family: inherit; }
+label.ct-ncf-lbl { color: #ea580c; }
 .ct-ncf-txt { font-family: monospace; letter-spacing: .04em; color: var(--text-mid, #59615e); }
 .ct-pp-in { display: flex; align-items: center; gap: 8px; }
 .ct-pp-in .form-input { width: 76px; flex: 0 0 auto; text-align: right; }
