@@ -733,7 +733,12 @@ input, select, textarea { font-family: var(--font); }
   z-index: 2000;
   display: inline-block;
   line-height: 0;
+  touch-action: none;          /* 556 · se puede arrastrar con el dedo sin mover la página */
+  cursor: grab;
 }
+/* 556 · mientras se arrastra el icono de Maya (js/chat.js) */
+.chat-fab-wrap--moviendo { cursor: grabbing; }
+.chat-fab-wrap--moviendo .chat-fab { transform: scale(1.08); transition: none; }
 
 /* ── Botón flotante (FAB) ── */
 .chat-fab {

@@ -426,6 +426,8 @@ const _QUICK_SUGGESTIONS_ADMIN = [
   '¿Cuántos pedidos entregados tiene Sabin Mota?',
   '¿Quiénes son los clientes que más han comprado?',
   '¿Cuántos pedidos ha entregado cada repartidor?',
+  '¿Cuánto se le debe a cada proveedor?',          // 556
+  '¿Tengo créditos a mi favor con algún proveedor?',
   'Dame ideas de descripciones para frutas',
 ];
 
@@ -1029,6 +1031,284 @@ function chatToggleMic() {
   }
 }
 
+// ─── 556 · PROVEEDORES: QUÉ SE DEBE, CRÉDITOS Y GENERALES (solo panel) ──────
+/* Pedido del dueño (22-nov): que Maya diga qué se le debe a un proveedor, si
+ * hay créditos a su favor (mercancía facturada y NO recibida, seguridad/117) y
+ * las generales de un proveedor.
+ * 🔴 Igual que los costos (520): se contesta AQUÍ, en el navegador, con las
+ *    funciones de Contabilidad (conta_leer_proveedores / conta_leer_facturas,
+ *    con el vale) y FUERA de `_chatHistory`. Las deudas no se mandan a Groq.
+ * Solo Super Admin y Administrador (la base vuelve a comprobarlo). */
+let _chatConta     = null;
+let _chatContaHora = 0;
+const _CHAT_CONTA_TTL = 60 * 1000;   // 1 min: un pago nuevo se ve enseguida
+
+function _chatPuedeConta() {
+  try {
+    const s = (typeof getSession === 'function') ? getSession() : null;
+    return !!(s && typeof getRole === 'function' && getRole(s.role).sections.includes('contabilidad'));
+  } catch (e) { return false; }
+}
+
+/* Lectura por páginas de 1.000 (límite de Supabase). */
+async function _chatRpcConta(fn) {
+  const vale = (typeof _valeAdmin === 'function') ? _valeAdmin() : '';
+  if (!vale) throw new Error('SESION_CADUCADA');
+  let todo = [], desde = 0;
+  for (let vuelta = 0; vuelta < 50; vuelta++) {
+    const res = await _chatFetch(`${_SB_URL}/rpc/${fn}?limit=1000&offset=${desde}`, {
+      method: 'POST', headers: _SB_HEADERS, body: JSON.stringify({ p_vale: vale }),
+    });
+    const t = await res.text();
+    if (!res.ok) throw new Error(t || `HTTP ${res.status}`);
+    const filas = t ? JSON.parse(t) : [];
+    if (!Array.isArray(filas) || !filas.length) break;
+    todo = todo.concat(filas);
+    if (filas.length < 1000) break;
+    desde += filas.length;
+  }
+  return todo;
+}
+
+async function _chatCargarConta(force = false) {
+  if (!force && _chatConta && (Date.now() - _chatContaHora) < _CHAT_CONTA_TTL) return _chatConta;
+  const [prov, fac] = await Promise.all([_chatRpcConta('conta_leer_proveedores'), _chatRpcConta('conta_leer_facturas')]);
+  _chatConta = { prov: prov || [], fac: fac || [] };
+  _chatContaHora = Date.now();
+  return _chatConta;
+}
+
+// Palabras de un nombre de proveedor que no sirven para reconocerlo.
+const _PROV_VACIAS = new Set((
+  's r l srl sa sas eirl c por de del la las el los y e import imports importadora comercial ' +
+  'comercializadora distribuidora distribuidor distribuciones dominicana dominicano grupo cia compania hermanos hnos'
+).split(/\s+/));
+
+const _soloLetras = s => _norm(s).replace(/[^a-z0-9ñ\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/* El proveedor que nombra el mensaje (el de más coincidencias) o null. */
+function _buscarProveedorChat(msg, provs) {
+  const m = ' ' + _soloLetras(msg) + ' ';
+  let mejor = null, puntos = 0;
+  (provs || []).forEach(p => {
+    const completo = _soloLetras(p.nombre);
+    let s = (completo && m.includes(' ' + completo + ' ')) ? 100 : 0;
+    completo.split(' ').filter(t => t.length >= 3 && !_PROV_VACIAS.has(t))
+      .forEach(t => { if (m.includes(' ' + t + ' ')) s += 10 + t.length; });
+    if (s > puntos) { puntos = s; mejor = p; }
+  });
+  return mejor;
+}
+
+const _fechaChat = iso => { if (!iso) return '—'; const [y, mm, d] = String(iso).slice(0, 10).split('-'); return `${d}/${mm}/${y}`; };
+const _aPagarChat  = f => (f.a_pagar != null) ? Number(f.a_pagar) : Number(f.monto) || 0;
+const _creditoChat = f => Number(f.credito) || 0;
+const _pluralChat  = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+
+function _venceChat(f) {
+  const d = Number(f.dias);
+  if (f.estado === 'vencida') return `**vencida** hace ${_pluralChat(-d, 'día', 'días')}`;
+  if (d === 0) return 'vence **hoy**';
+  if (d === 1) return 'vence mañana';
+  return `vence el ${_fechaChat(f.fecha_vencimiento)} (en ${d} días)`;
+}
+
+function _sinPagarDe(fac, p) {
+  return fac.filter(f => !f.pagada && (!p || String(f.proveedor_id) === String(p.id)))
+    .sort((a, b) => String(a.fecha_vencimiento).localeCompare(String(b.fecha_vencimiento)));
+}
+
+function _respDeudaProveedor(p, fac) {
+  const sin = _sinPagarDe(fac, p);
+  if (!sin.length) return `✅ No le debes nada a **${p.nombre}**: no tiene facturas sin pagar.`;
+  const total = sin.reduce((a, f) => a + _aPagarChat(f), 0);
+  const cred  = sin.reduce((a, f) => a + _creditoChat(f), 0);
+  const venc  = sin.filter(f => f.estado === 'vencida');
+  const MAX = 15;
+  const lineas = sin.slice(0, MAX).map(f => {
+    let t = `• Factura **${f.numero}** — ${_venceChat(f)} — ${_rd(_aPagarChat(f))}`;
+    if (_creditoChat(f) > 0) t += ` (factura ${_rd(f.monto)} − crédito ${_rd(_creditoChat(f))})`;
+    if (Number(f.pronto_pago_pct) > 0 && f.pronto_pago_hasta && f.estado !== 'vencida' && f.monto_con_descuento != null) {
+      t += `\n   Pronto pago ${Number(f.pronto_pago_pct)} % hasta el ${_fechaChat(f.pronto_pago_hasta)}: pagas ${_rd(f.monto_con_descuento)}`;
+    }
+    return t;
+  });
+  return `📒 **${p.nombre}** — ${_pluralChat(sin.length, 'factura sin pagar', 'facturas sin pagar')}:\n`
+       + lineas.join('\n')
+       + (sin.length > MAX ? `\n…y ${sin.length - MAX} más (las ves en Contabilidad → Cuentas por pagar).` : '')
+       + `\n\n**Total que se le debe: ${_rd(total)}**`
+       + (venc.length ? `\n⚠️ ${_pluralChat(venc.length, 'vencida', 'vencidas')} por ${_rd(venc.reduce((a, f) => a + _aPagarChat(f), 0))}.` : '')
+       + (cred > 0
+         ? `\n💚 Créditos a tu favor (mercancía facturada y no recibida): **${_rd(cred)}**, ya descontados del total.`
+         : '\nNo hay créditos a tu favor con este proveedor.');
+}
+
+function _respDeudaTodos(prov, fac) {
+  const sin = _sinPagarDe(fac, null);
+  if (!sin.length) return '✅ No tienes facturas de proveedores sin pagar.';
+  const porProv = {};
+  sin.forEach(f => {
+    const k = String(f.proveedor_id);
+    const g = porProv[k] || (porProv[k] = { nombre: f.proveedor_nombre || 'Proveedor', total: 0, n: 0, venc: 0, cred: 0 });
+    g.total += _aPagarChat(f); g.n++; g.cred += _creditoChat(f);
+    if (f.estado === 'vencida') g.venc++;
+  });
+  const grupos = Object.values(porProv).sort((a, b) => b.total - a.total);
+  const total = grupos.reduce((a, g) => a + g.total, 0);
+  const cred  = grupos.reduce((a, g) => a + g.cred, 0);
+  return `💼 Se debe **${_rd(total)}** a ${_pluralChat(grupos.length, 'proveedor', 'proveedores')}:\n`
+       + grupos.map(g => `• **${g.nombre}** — ${_rd(g.total)} (${_pluralChat(g.n, 'factura', 'facturas')}`
+                       + `${g.venc ? `, ${_pluralChat(g.venc, 'vencida', 'vencidas')}` : ''})`).join('\n')
+       + (cred > 0 ? `\n\n💚 Créditos a tu favor en total: **${_rd(cred)}** (ya descontados).` : '')
+       + '\n\nPregúntame por uno en concreto para ver sus facturas.';
+}
+
+function _respCreditos(p, fac) {
+  const con = _sinPagarDe(fac, p).filter(f => _creditoChat(f) > 0);
+  if (!con.length) {
+    return p ? `No tienes créditos a tu favor con **${p.nombre}**.`
+             : 'No tienes créditos a tu favor con ningún proveedor ahora mismo.';
+  }
+  const total = con.reduce((a, f) => a + _creditoChat(f), 0);
+  return `💚 Créditos a tu favor${p ? ` con **${p.nombre}**` : ''} (mercancía facturada que NO se recibió). `
+       + 'Se descuentan solos al pagar cada factura:\n'
+       + con.map(f => `• ${p ? '' : `**${f.proveedor_nombre}** — `}factura **${f.numero}**: ${_rd(_creditoChat(f))}`).join('\n')
+       + `\n\n**Total de créditos: ${_rd(total)}**`;
+}
+
+function _respGenerales(p, fac) {
+  const tels = String(p.telefonos || '').trim();
+  const dir  = [p.direccion, p.sector].filter(Boolean).join(', ');
+  const ciu  = [p.ciudad, p.provincia].filter(Boolean).join(', ') + (p.codigo_postal ? ` · CP ${p.codigo_postal}` : '');
+  const filas = [
+    ['Representante', p.representante], ['RNC', p.rnc], ['Teléfonos', tels], ['Correo', p.correo],
+    ['Dirección', dir], ['Ciudad / provincia', ciu.trim()],
+    ['Término de crédito', p.termino_dias != null ? _pluralChat(Number(p.termino_dias), 'día', 'días') : ''],
+    ['Notas', p.notas],
+  ].filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '');
+  const sin = _sinPagarDe(fac, p);
+  const total = sin.reduce((a, f) => a + _aPagarChat(f), 0);
+  const cred  = sin.reduce((a, f) => a + _creditoChat(f), 0);
+  return `🏢 **${p.nombre}**\n`
+       + (filas.length ? filas.map(([k, v]) => `• ${k}: ${v}`).join('\n') : '• (sin más datos en su ficha)')
+       + '\n\n' + (sin.length
+         ? `Se le debe **${_rd(total)}** (${_pluralChat(sin.length, 'factura', 'facturas')})`
+           + (cred > 0 ? ` · créditos a tu favor ${_rd(cred)}.` : '.')
+         : 'No tiene facturas sin pagar.');
+}
+
+const _RX_DEUDA = /\b(debo|debemos|debe|deben|deuda|deudas|adeud\w*|por pagar|sin pagar|pendientes?)\b/;
+const _RX_CRED  = /\b(credito|creditos|nota de credito|notas de credito|a mi favor|a favor)\b/;
+const _RX_GEN   = /\b(generales|datos|informacion|info|ficha|contacto|telefono|telefonos|direccion|rnc|representante|correo|email)\b/;
+const _RX_PROV  = /\b(proveedor|proveedores|suplidor|suplidores)\b/;
+
+/* Devuelve el texto de la respuesta, o null si el mensaje no va de proveedores
+ * (entonces sigue el camino normal de Maya). */
+async function _chatRespuestaProveedor(msg) {
+  if (!_IS_ADMIN) return null;
+  const m = _norm(msg);
+  const deuda = _RX_DEUDA.test(m), cred = _RX_CRED.test(m), gen = _RX_GEN.test(m);
+  if (!deuda && !cred && !gen) return null;
+  const menciona = _RX_PROV.test(m);
+  const credExplicito = cred && (/\bfavor\b/.test(m) || /\bnotas? de credito\b/.test(m));
+  const aTodos = /\ba quien(es)?\b/.test(m) || /\bcada proveedor\b/.test(m) || /\bcada suplidor\b/.test(m);
+
+  if (!_chatPuedeConta()) {
+    return (menciona || credExplicito)
+      ? '🔒 Lo de los proveedores (deudas, créditos y generales) es solo para **Super Admin** y **Administrador**.'
+      : null;
+  }
+
+  let datos;
+  try {
+    datos = await _chatCargarConta();
+  } catch (e) {
+    const t = String(e.message || '');
+    if (t.includes('SIN_PERMISO_CONTABILIDAD')) return '🔒 Lo de los proveedores es solo para Super Admin y Administrador.';
+    if (t.includes('SESION_') || t.includes('CUENTA_DESACTIVADA')) return '🔒 Tu sesión del panel caducó. Sal y vuelve a entrar, y pregúntame otra vez.';
+    return (menciona || credExplicito) ? '😕 No pude leer Contabilidad ahora mismo. Inténtalo de nuevo en un momento.' : null;
+  }
+
+  const p = _buscarProveedorChat(msg, datos.prov);
+  if (!p && !menciona && !credExplicito && !(deuda && aTodos)) return null;
+
+  if (p && gen) return _respGenerales(p, datos.fac);
+  if (cred && !deuda) return _respCreditos(p, datos.fac);
+  if (deuda) return p ? _respDeudaProveedor(p, datos.fac) : _respDeudaTodos(datos.prov, datos.fac);
+  if (cred) return _respCreditos(p, datos.fac);
+  // Pide generales sin decir de quién
+  const nombres = datos.prov.map(x => x.nombre).sort((a, b) => String(a).localeCompare(String(b), 'es'));
+  return nombres.length
+    ? `¿De qué proveedor? Tus proveedores: ${nombres.slice(0, 20).join(', ')}${nombres.length > 20 ? '…' : ''}.`
+    : 'Todavía no tienes proveedores. Créalos en Contabilidad → Proveedores.';
+}
+
+// ─── 556 · MOVER EL ICONO DE MAYA ARRASTRÁNDOLO (solo panel) ────────────────
+/* Pedido del dueño: a veces tapa lo que hay debajo. Se arrastra con el ratón
+ * o el dedo y se queda donde se suelte (se recuerda en este navegador). Un
+ * toque sin mover sigue abriendo el chat. Nunca se sale de la pantalla. */
+(function _mayaArrastrable() {
+  if (!_IS_ADMIN) return;
+  const CLAVE = 'cm_maya_pos';
+  function iniciar() {
+    const wrap = document.getElementById('chatFabWrap');
+    if (!wrap) return;
+    function colocar(x, y) {
+      const w = wrap.offsetWidth || 68, h = wrap.offsetHeight || 68;
+      x = Math.min(Math.max(4, x), Math.max(4, innerWidth - w - 4));
+      y = Math.min(Math.max(4, y), Math.max(4, innerHeight - h - 4));
+      wrap.style.left = x + 'px'; wrap.style.top = y + 'px';
+      wrap.style.right = 'auto'; wrap.style.bottom = 'auto';
+    }
+    try {
+      const g = JSON.parse(localStorage.getItem(CLAVE) || 'null');
+      if (g && isFinite(g.x) && isFinite(g.y)) colocar(g.x, g.y);
+    } catch (e) { /* sin almacenamiento: posición de siempre */ }
+
+    let ini = null, movido = false;
+    wrap.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const r = wrap.getBoundingClientRect();
+      ini = { px: e.clientX, py: e.clientY, x: r.left, y: r.top, id: e.pointerId };
+      movido = false;
+    });
+    window.addEventListener('pointermove', e => {
+      if (!ini || e.pointerId !== ini.id) return;
+      const dx = e.clientX - ini.px, dy = e.clientY - ini.py;
+      if (!movido && Math.hypot(dx, dy) < 6) return;   // un toque no es arrastrar
+      if (!movido) {
+        movido = true;
+        wrap.classList.add('chat-fab-wrap--moviendo');
+        try { wrap.setPointerCapture(e.pointerId); } catch (_) { /* no importa */ }
+      }
+      colocar(ini.x + dx, ini.y + dy);
+      e.preventDefault();
+    });
+    function soltar(e) {
+      if (!ini || (e && e.pointerId !== ini.id)) return;
+      ini = null;
+      if (!movido) return;
+      wrap.classList.remove('chat-fab-wrap--moviendo');
+      const r = wrap.getBoundingClientRect();
+      try { localStorage.setItem(CLAVE, JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) })); } catch (_) { /* no importa */ }
+    }
+    window.addEventListener('pointerup', soltar);
+    window.addEventListener('pointercancel', soltar);
+    // Al soltar después de arrastrar, el clic NO abre el chat.
+    wrap.addEventListener('click', e => {
+      if (movido) { e.stopPropagation(); e.preventDefault(); movido = false; }
+    }, true);
+    // Si la ventana se hace más pequeña, que no quede fuera.
+    window.addEventListener('resize', () => {
+      if (!wrap.style.left || wrap.style.display === 'none') return;
+      const r = wrap.getBoundingClientRect();
+      colocar(r.left, r.top);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
+  else iniciar();
+})();
+
 // ─── TOGGLE CHAT ─────────────────────────────────────────────────────────────
 
 function toggleChat() {
@@ -1111,7 +1391,7 @@ function _chatRenderWelcome() {
       <div class="chat-welcome-text">
         <strong>${greeting}</strong>
         ${_IS_ADMIN
-          ? 'Soy <strong>Maya</strong>, tu asistente de gestión de <strong>Casa Mota</strong>. Consulto inventario, pedidos y clientes en tiempo real. 📊'
+          ? 'Soy <strong>Maya</strong>, tu asistente de gestión de <strong>Casa Mota</strong>. Consulto inventario, pedidos, clientes y proveedores en tiempo real. 📊'
           : 'Soy el asistente virtual de <strong>Casa Mota</strong>. Puedo ayudarte a encontrar productos, precios y armar tu lista de compras. 🛒'
         }
       </div>
@@ -1226,6 +1506,27 @@ async function _chatSendMsg(msg) {
     _chatTyping = false;
     if (sendBtn) sendBtn.disabled = false;
     return;
+  }
+
+  /* 556 · Proveedores (deudas, créditos, generales): también aquí, sin Groq
+   * y fuera del historial. Si no va de proveedores, devuelve null y sigue. */
+  if (_IS_ADMIN && (_RX_DEUDA.test(_norm(msg)) || _RX_CRED.test(_norm(msg)) || _RX_GEN.test(_norm(msg)))) {
+    _chatTyping = true;
+    const burbuja = _chatAppendMsg('bot', '', true);
+    let texto = null;
+    try {
+      texto = await _chatRespuestaProveedor(msg);
+    } catch (e) {
+      console.error('[Chat] proveedores:', e);
+      texto = '😕 No pude consultar los proveedores ahora mismo. Inténtalo de nuevo.';
+    }
+    if (burbuja && burbuja.isConnected) burbuja.remove();
+    _chatTyping = false;
+    if (texto !== null) {
+      _chatAppendMsg('bot', texto);
+      if (sendBtn) sendBtn.disabled = false;
+      return;
+    }
   }
 
   _chatHistory.push({ role: 'user', content: msg });
