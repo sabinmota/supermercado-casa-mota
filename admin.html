@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '526';
+      const VER = '527';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=8" />
+  <link rel="stylesheet" href="css/conta.css?v=9" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -1022,14 +1022,22 @@
             </div>
           </div>
 
+          <!-- 559 · Varias páginas: primero se suben TODAS, después «Analizar con IA» -->
           <div class="ct-ia">
             <label class="ct-ia__btn" id="ctIaBtn">
-              <input type="file" id="ctIaFoto" accept="image/*" hidden />
+              <input type="file" id="ctIaFoto" accept="image/*" multiple hidden />
               <i class="fas fa-wand-magic-sparkles"></i>
-              <span><b>Leer la factura con IA</b><small>Sube o haz una foto de la factura: la IA rellena las líneas y tú las corriges.</small></span>
+              <span><b>Leer la factura con IA</b><small>Sube las fotos de TODAS las páginas de la factura y después pulsa «Analizar con IA».</small></span>
             </label>
             <div class="ct-ia__estado" id="ctIaEstado" hidden></div>
-            <div class="ct-ia__vista" id="ctIaFotoVista" hidden title="Pulsa para ampliar o reducir"></div>
+          </div>
+          <div class="ct-ia__paginas" id="ctIaPaginas" hidden>
+            <div class="ct-ia__miniaturas" id="ctIaMiniaturas"></div>
+            <div class="ct-ia__acciones">
+              <button type="button" class="btn-primary" id="ctIaAnalizar"><i class="fas fa-wand-magic-sparkles"></i> Analizar con IA</button>
+              <button type="button" class="btn-secondary" id="ctIaQuitarTodas"><i class="fas fa-xmark"></i> Quitar fotos</button>
+              <small>Solo en esta pantalla para comparar. No se guardan.</small>
+            </div>
           </div>
 
           <div class="ct-rec__add">
@@ -4001,7 +4009,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=10"></script>
+  <script src="js/conta.js?v=11"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

@@ -108,7 +108,8 @@ async function comprobarPermiso(vale) {
 
 /* ── Topes de uso (memoria de esta copia del servidor) ────────────────────────
  * La protección de verdad es la sesión; esto solo frena insistencias. */
-const TOPE = { VENTANA_MS: 60_000, POR_IP: 8, GLOBAL: 30 };
+/* 559 · Una factura de varias páginas = una petición por página (+ reintentos). */
+const TOPE = { VENTANA_MS: 60_000, POR_IP: 20, GLOBAL: 40 };
 const _ips = new Map();
 let _global = { inicio: 0, n: 0 };
 
@@ -137,7 +138,10 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
   "numero": "número de la factura tal como aparece (o \\"\\" si no se ve)",
   "fecha": "fecha de emisión en formato AAAA-MM-DD (o \\"\\")",
   "ncf": "NCF o e-CF si aparece (ej. B0100000123 o E310000000123), o \\"\\"",
-  "total": número con el TOTAL A PAGAR de la factura (o null),
+  "subtotal": número con el SUBTOTAL del bloque de totales (antes del ITBIS), o null,
+  "descuento": número con el DESCUENTO total del bloque de totales, o null,
+  "itbis": número con el ITBIS (impuesto) TOTAL cobrado en la factura, o null,
+  "total": número con el TOTAL A PAGAR final de la factura (ya con ITBIS), o null,
   "lineas": [
     { "codigo": "código del artículo o de barras si aparece, o \\"\\"",
       "descripcion": "descripción del artículo tal como está escrita",
@@ -148,6 +152,11 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
 }
 Reglas:
 - Una entrada en "lineas" por cada fila de artículo. NO incluyas filas de subtotal, ITBIS, descuento, total, flete ni notas.
+- "costo_unitario" es el precio por unidad tal como sale en la columna de precio, SIN sumarle el ITBIS de la línea.
+- TOTALES: casi siempre están al pie de la última página, en un bloque con filas como SUBTOTAL, DESCUENTO, ITBIS (o "ITBIS 18%", "ITBIS 16%", "I.T.B.I.S.", "IMPUESTO", "IMP.") y TOTAL / TOTAL A PAGAR / NETO A PAGAR. Léelo con mucho cuidado, cifra por cifra.
+- "itbis" es SOLO el importe del impuesto (no el subtotal ni el total). Si hay varias filas de ITBIS (varias tasas), súmalas. Si la factura dice ITBIS 0 o exento, pon 0.
+- Comprueba: normalmente subtotal − descuento + itbis = total. Si no te cuadra, vuelve a leer esas cifras.
+- Si esta página NO tiene el bloque de totales (es una página intermedia), pon null en subtotal, descuento, itbis y total. No uses un "subtotal de página" o "van" como total.
 - Los números van sin "RD$", sin separador de miles y con punto decimal (1,250.50 → 1250.5). Si la factura usa coma decimal (1.250,50), conviértelo igual.
 - Si una línea no muestra el precio por unidad pero sí el importe y la cantidad, pon "costo_unitario": null y rellena "importe".
 - Si un dato no se lee con seguridad, pon null (números) o "" (textos). NO inventes datos.
@@ -206,12 +215,18 @@ function limpiar(obj) {
       costo_unitario: costo === null ? null : r2(costo),
     });
   }
-  const total = aNumero(o.total);
+  const monto = (v, cero) => {
+    const n = aNumero(v);
+    return n !== null && (cero ? n >= 0 : n > 0) && n < 1e9 ? r2(n) : null;
+  };
   return {
     numero: aTexto(o.numero, 40),
     fecha: aFecha(o.fecha),
     ncf: aTexto(o.ncf, 20),
-    total: total !== null && total > 0 && total < 1e9 ? r2(total) : null,
+    subtotal: monto(o.subtotal, false),
+    descuento: monto(o.descuento, true),
+    itbis: monto(o.itbis ?? o.impuesto, true),
+    total: monto(o.total, false),
     lineas,
   };
 }
@@ -227,7 +242,19 @@ function sacarJson(texto) {
   return null;
 }
 
-async function llamarGroq(env, modelo, imagen, conExtras) {
+/* 559 · ¿Cuántos segundos pide Groq esperar? (cabecera retry-after o el texto
+ * "Please try again in 1m2.5s"). Se redondea hacia arriba. */
+function esperaGroq(res, msg) {
+  const h = Number(res.headers.get('retry-after'));
+  if (isFinite(h) && h > 0) return Math.ceil(h);
+  const m = /try again in\s*(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:([\d.]+)s)?/i.exec(msg || '');
+  if (m && (m[1] || m[2] || m[3])) {
+    return Math.max(1, Math.ceil((Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0)));
+  }
+  return 0;
+}
+
+async function llamarGroq(env, modelo, imagen, conExtras, aviso) {
   const cuerpo = {
     model: modelo,
     temperature: 0,
@@ -235,7 +262,7 @@ async function llamarGroq(env, modelo, imagen, conExtras) {
     messages: [{
       role: 'user',
       content: [
-        { type: 'text', text: PROMPT },
+        { type: 'text', text: PROMPT + aviso },
         { type: 'image_url', image_url: { url: imagen } },
       ],
     }],
@@ -285,7 +312,7 @@ export async function onRequestPost(context) {
   const ip = request.headers.get('CF-Connecting-IP') || 'desconocida';
   const esperaIp = topeIp(ip);
   if (esperaIp) {
-    return json({ ok: false, error: `Demasiadas lecturas seguidas. Espera ${esperaIp} s.` }, 429, { 'Retry-After': String(esperaIp) });
+    return json({ ok: false, error: `Demasiadas lecturas seguidas. Espera ${esperaIp} s.`, espera: esperaIp }, 429, { 'Retry-After': String(esperaIp) });
   }
 
   const permiso = await comprobarPermiso(vale);
@@ -293,7 +320,7 @@ export async function onRequestPost(context) {
 
   const esperaG = topeGlobal();
   if (esperaG) {
-    return json({ ok: false, error: `El lector está ocupado. Prueba en ${esperaG} s.` }, 429, { 'Retry-After': String(esperaG) });
+    return json({ ok: false, error: `El lector está ocupado. Prueba en ${esperaG} s.`, espera: esperaG }, 429, { 'Retry-After': String(esperaG) });
   }
 
   const largo = Number(request.headers.get('Content-Length') || 0);
@@ -309,17 +336,29 @@ export async function onRequestPost(context) {
   }
   if (imagen.length > MAX_IMAGEN_CHARS) return json({ ok: false, error: 'La foto es demasiado grande.' }, 413);
 
+  /* 559 · Factura de varias páginas: el panel manda una página por petición
+   * y dice cuál es; la IA sabe así que puede no haber totales en esta. */
+  const de = Number.isInteger(body.de) && body.de > 1 && body.de <= 20 ? body.de : 1;
+  const pagina = Number.isInteger(body.pagina) && body.pagina >= 1 && body.pagina <= de ? body.pagina : 1;
+  const aviso = de > 1
+    ? `\nEsta foto es la PÁGINA ${pagina} DE ${de} de la MISMA factura.` +
+      (pagina < de ? ' Probablemente no tiene el bloque de totales: si no lo ves, pon null en subtotal, descuento, itbis y total.' : ' Es la última: el bloque de totales suele estar al pie.')
+    : '';
+
   /* Se prueba cada modelo en orden. Se pasa al siguiente SOLO si este está
    * bloqueado/no existe en la cuenta o no admite imágenes; cualquier otro
    * error (cupo, clave, foto grande) se devuelve tal cual. */
   const fallos = [];
   for (const modelo of ordenModelos(env)) {
-    const r = await probarModelo(env, modelo, imagen);
+    const r = await probarModelo(env, modelo, imagen, aviso);
     if (r.ok) {
       _modeloBueno = { nombre: modelo, hasta: Date.now() + MODELO_BUENO_MS };
       return json({ ok: true, modelo, factura: limpiar(r.crudo) });
     }
-    if (!r.siguiente) return json({ ok: false, error: r.error }, r.status);
+    if (!r.siguiente) {
+      const extra = r.espera ? { 'Retry-After': String(r.espera) } : {};
+      return json({ ok: false, error: r.error, espera: r.espera || 0, diario: !!r.diario }, r.status, extra);
+    }
     if (_modeloBueno.nombre === modelo) _modeloBueno = { nombre: '', hasta: 0 };
     fallos.push(`${modelo}: ${r.motivo}`);
   }
@@ -337,15 +376,15 @@ export async function onRequestPost(context) {
  *   { ok: true, crudo }                       → leyó la factura
  *   { ok: false, siguiente: true, motivo }    → este modelo no sirve, probar otro
  *   { ok: false, siguiente: false, status, error } → parar y avisar */
-async function probarModelo(env, modelo, imagen) {
+async function probarModelo(env, modelo, imagen, aviso) {
   let res;
   try {
-    res = await llamarGroq(env, modelo, imagen, true);
+    res = await llamarGroq(env, modelo, imagen, true, aviso);
     /* Si el modelo no acepta el modo JSON o el formato de razonamiento, se
      * repite sin esos extras (el texto se limpia igual). Solo un reintento. */
     if (res.status === 400) {
       const t = await res.clone().text().catch(() => '');
-      if (/response_format|reasoning_format|json/i.test(t)) res = await llamarGroq(env, modelo, imagen, false);
+      if (/response_format|reasoning_format|json/i.test(t)) res = await llamarGroq(env, modelo, imagen, false, aviso);
     }
   } catch (e) {
     const tarde = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
@@ -358,7 +397,18 @@ async function probarModelo(env, modelo, imagen) {
     let msg = '';
     try { msg = (JSON.parse(t).error || {}).message || ''; } catch { msg = t.slice(0, 200); }
     if (res.status === 401) return { ok: false, siguiente: false, status: 502, error: 'La clave de Groq no es válida.' };
-    if (res.status === 429) return { ok: false, siguiente: false, status: 429, error: 'Se acabó por ahora el cupo de la IA en Groq. Prueba en unos minutos.' };
+    /* 559 · 429 = límite de Groq. El de POR MINUTO se pasa solo: se devuelve
+     * cuánto esperar y el panel reintenta solo con una cuenta atrás. El de
+     * POR DÍA no se pasa reintentando: se dice claro. */
+    if (res.status === 429) {
+      if (/per day|\(TPD\)|\(RPD\)/i.test(msg)) {
+        return { ok: false, siguiente: false, status: 429, diario: true,
+          error: 'Se acabó el cupo de HOY de la IA en Groq (límite diario). Vuelve a intentarlo mañana o mete las líneas a mano.' };
+      }
+      const espera = Math.min(120, esperaGroq(res, msg) || 15);
+      return { ok: false, siguiente: false, status: 429, espera,
+        error: `La IA está ocupada (límite por minuto de Groq). Se puede volver a intentar en ${espera} s.` };
+    }
     if (res.status === 413) return { ok: false, siguiente: false, status: 413, error: 'La foto es demasiado grande para la IA.' };
     if (res.status === 403 || res.status === 404 ||
         (/model/i.test(msg) && /(not found|does not exist|not allowed|blocked|permission|access|decommissioned)/i.test(msg))) {
@@ -382,6 +432,6 @@ async function probarModelo(env, modelo, imagen) {
   return { ok: true, crudo };
 }
 
-/* Para las pruebas (no se usa en producción). */
-export const _pruebas = { limpiar, sacarJson, aNumero, aFecha, ordenModelos,
-  _reiniciar: () => { _modeloBueno = { nombre: '', hasta: 0 }; } };
+/* 553d · Aquí había `export const _pruebas`, que solo servía para las pruebas.
+ * Se quita: en una Pages Function solo deben exportarse los onRequest*, y lo
+ * que no se usa se borra (regla del dueño). */

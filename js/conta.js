@@ -233,8 +233,10 @@
     abierta: null,        // recepción desplegada en el historial
     lineas: [],           // recepción en curso
     origen: 'manual',
-    foto: null,           // dataURL de la foto SOLO en memoria (nunca se guarda)
+    paginas: [],          // 559 · [{ src, leida }] fotos de las páginas SOLO en memoria (nunca se guardan)
     iaLeyendo: false,
+    iaCancelar: false,
+    iaTot: null,          // 559 · { subtotal, descuento, itbis, total } leídos del pie de la factura
     guardando: false,
     provEdit: null, facEdit: null, venEditado: false, pagoId: null, empIdx: null,
     edit: null,           // 553f · recepción guardada que se está editando (null = nueva)
@@ -1084,12 +1086,38 @@
     box.innerHTML = `
       <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-noemp-txt">(${sin} no emparejada${sin === 1 ? '' : 's'})</small>` : ''}${nNo ? ` <small class="ct-cred-txt">(${nNo} no recibida${nNo === 1 ? '' : 's'})</small>` : ''}</b></div>
       <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
-      ${total !== null ? `<div><span>Total escrito de la factura</span><b>${money(total)}</b></div>` : ''}
-      ${total !== null && dif >= 0.01 ? `<div><span>ITBIS de la factura</span><b>${money(dif)}</b></div>` : ''}
-      ${total !== null && dif <= -0.01 ? `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> El total es menor que la suma</span><b>${money(dif)}</b></div>` : ''}
+      ${filasImpuesto(suma, total, dif)}
       ${pieFactura(monto, p, fecha)}`;
     const btn = $('ctRecConfirmar');
     if (btn && !S.guardando) btn.disabled = !S.lineas.length;
+  }
+
+  /* 558/559 · Entre la suma y el pie: desglose leído del pie de la factura
+   * (subtotal, descuento, ITBIS) y avisos si no cuadra. Sin desglose leído,
+   * lo que el total pasa de la suma es el ITBIS (558). Solo se muestra. */
+  function filasImpuesto(suma, total, dif) {
+    const T = S.iaTot;
+    const fila = (t, v) => `<div><span>${t}</span><b>${v}</b></div>`;
+    const aviso = (t, v) => `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> ${t}</span>${v ? `<b>${v}</b>` : ''}</div>`;
+    let h = '';
+    if (T && T.subtotal !== null) h += fila('Subtotal de la factura', money(T.subtotal));
+    if (T && T.descuento > 0) h += fila('Descuento de la factura', '− ' + money(T.descuento));
+    if (T && T.itbis !== null) h += fila('ITBIS de la factura', money(T.itbis));
+    if (total !== null) h += fila('Total escrito de la factura', money(total));
+    if (!T || T.itbis === null) {
+      if (total !== null && dif >= 0.01) h += fila('ITBIS de la factura', money(dif));
+      if (total !== null && dif <= -0.01) h += aviso('El total es menor que la suma', money(dif));
+      return h;
+    }
+    if (T.subtotal !== null && Math.abs(T.subtotal - suma) >= 1) {
+      h += aviso(`La suma de las líneas no cuadra con el subtotal de la factura: revisa si falta alguna línea o algún precio.`, money(r2(suma - T.subtotal)));
+    }
+    const base = T.subtotal !== null ? T.subtotal : suma;
+    const esperado = r2(base - (T.descuento || 0) + T.itbis);
+    if (total !== null && Math.abs(esperado - total) >= 1) {
+      h += aviso(`Subtotal − descuento + ITBIS da ${money(esperado)}, no el total: revisa el ITBIS con la foto.`);
+    }
+    return h;
   }
 
   /* Pie de totales: lo que quedará en Cuentas por pagar. */
@@ -1174,14 +1202,14 @@
 
   function vaciarRecepcion(sinPreguntar) {
     if (!sinPreguntar && S.lineas.length && !confirm('¿Vaciar la recepción en curso? Se pierden las líneas que no has confirmado.')) return;
-    S.lineas = []; S.origen = 'manual'; S.foto = null;
+    S.lineas = []; S.origen = 'manual'; S.paginas = []; S.iaTot = null;
     ['ctRecNum', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNcf', 'ctRecNotas', 'ctRecBuscar'].forEach(id => { const el = $(id); if (el) el.value = ''; });
     $('ctRecFecha').value = hoy();
     $('ctRecResultados').innerHTML = '';
     errorModal('ctRecError', '');
     if (S.edit) { S.edit = null; pintarSelects(); }
     pintarModoEdicion();
-    pintarFoto();
+    pintarPaginas();
     iaEstado('');
     pintarLineas();
     pintarTotalesRec();
@@ -1250,6 +1278,7 @@
     ['ctRecNum', 'ctRecFecha', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNcf', 'ctRecNotas', 'ctRecBuscar', 'ctRecAddLibre', 'ctIaFoto']
       .forEach(id => { const el = $(id); if (el) el.disabled = solo; });
     $('ctIaBtn')?.classList.toggle('ct-ia__btn--bloq', solo);
+    pintarPaginas();
     const prov = $('ctRecProv');
     if (prov) prov.disabled = !!E;
     const limpiar = $('ctRecLimpiar');
@@ -1408,7 +1437,7 @@
     pintarTotalesRec();
   }
 
-  // ─── IA: leer la foto de la factura ───────────────────────────────────────
+  // ─── IA: leer las fotos de la factura ─────────────────────────────────────
   function iaEstado(html, tipo) {
     const el = $('ctIaEstado');
     if (!el) return;
@@ -1416,13 +1445,75 @@
     el.className = 'ct-ia__estado' + (tipo ? ' ct-ia__estado--' + tipo : '');
     el.innerHTML = html || '';
   }
-  function pintarFoto() {
-    const box = $('ctIaFotoVista');
+
+  /* 559 · Una factura puede venir en varias páginas: primero se suben TODAS
+   * y después se pulsa «Analizar con IA». Las fotos viven solo en memoria. */
+  const MAX_PAGINAS = 10;
+  const MAX_REINTENTOS = 6;
+
+  function pintarPaginas() {
+    const box = $('ctIaPaginas');
     if (!box) return;
-    box.hidden = !S.foto;
-    box.innerHTML = S.foto
-      ? `<img src="${S.foto}" alt="Foto de la factura (solo en esta pantalla, no se guarda)" />
-         <small>Solo en esta pantalla para comparar. No se guarda.</small>` : '';
+    const n = S.paginas.length, bloq = soloEmparejar();
+    box.hidden = !n;
+    $('ctIaMiniaturas').innerHTML = S.paginas.map((p, i) => `
+      <figure class="ct-ia__pag${p.res ? ' ct-ia__pag--leida' : ''}">
+        <img src="${p.src}" alt="Página ${i + 1} de la factura (solo en esta pantalla, no se guarda)" title="Pulsa para ampliar o reducir" />
+        <figcaption>Pág. ${i + 1}${p.res ? ' <i class="fas fa-circle-check" title="Ya leída"></i>' : ''}</figcaption>
+        ${S.iaLeyendo || bloq ? '' : `<button type="button" class="ct-ia__quitar" data-ia-quitar="${i}" title="Quitar esta página" aria-label="Quitar la página ${i + 1}"><i class="fas fa-xmark"></i></button>`}
+      </figure>`).join('');
+    const an = $('ctIaAnalizar');
+    if (an) {
+      an.disabled = S.iaLeyendo || bloq || !n;
+      an.innerHTML = S.iaLeyendo
+        ? '<i class="fas fa-spinner fa-spin"></i> Analizando…'
+        : `<i class="fas fa-wand-magic-sparkles"></i> Analizar con IA${n > 1 ? ` (${n} páginas)` : ''}`;
+    }
+    const q = $('ctIaQuitarTodas');
+    if (q) {
+      q.disabled = bloq;
+      q.innerHTML = S.iaLeyendo ? '<i class="fas fa-stop"></i> Detener' : '<i class="fas fa-xmark"></i> Quitar fotos';
+    }
+    $('ctIaBtn')?.classList.toggle('ct-ia__btn--ocupado', S.iaLeyendo);
+  }
+
+  async function agregarPaginas(files) {
+    const lista = Array.from(files || []);
+    if (!lista.length || S.iaLeyendo || soloEmparejar()) return;
+    const sitio = MAX_PAGINAS - S.paginas.length;
+    if (sitio <= 0) { toast(`Máximo ${MAX_PAGINAS} páginas por factura.`, 'warn'); return; }
+    if (lista.length > sitio) toast(`Solo se añaden ${sitio}: máximo ${MAX_PAGINAS} páginas por factura.`, 'warn');
+    iaEstado('<i class="fas fa-spinner fa-spin"></i> Preparando las fotos…', 'info');
+    let mal = '';
+    for (const f of lista.slice(0, sitio)) {
+      try { S.paginas.push({ src: await prepararFoto(f), res: null }); }
+      catch (e) { mal = e.message || 'No se pudo abrir la foto.'; }
+    }
+    pintarPaginas();
+    if (!S.paginas.length) { iaEstado(`<i class="fas fa-triangle-exclamation"></i> ${esc(mal || 'No se pudo abrir la foto.')}`, 'error'); return; }
+    estadoListas(mal);
+  }
+
+  function estadoListas(mal) {
+    const n = S.paginas.length;
+    if (!n) { iaEstado(''); return; }
+    iaEstado(`<i class="fas fa-images"></i> <b>${plural(n, 'página lista', 'páginas listas')}</b>. ` +
+      `Si la factura tiene más páginas, súbelas también; cuando estén todas, pulsa <b>«Analizar con IA»</b>.` +
+      (mal ? `<br><i class="fas fa-triangle-exclamation"></i> ${esc(mal)}` : ''), 'info');
+  }
+
+  function quitarPagina(i) {
+    if (S.iaLeyendo || !S.paginas[i]) return;
+    S.paginas.splice(i, 1);
+    pintarPaginas();
+    estadoListas();
+  }
+
+  function quitarTodas() {
+    if (S.iaLeyendo) { S.iaCancelar = true; return; }   // durante la lectura el botón es «Detener»
+    S.paginas = [];
+    pintarPaginas();
+    iaEstado('');
   }
 
   /* Reduce la foto en el navegador (lado mayor 1.800 px, JPEG) para que
@@ -1456,47 +1547,99 @@
     }
   }
 
-  async function leerFactura(file) {
-    if (S.iaLeyendo) return;
-    const provId = $('ctRecProv').value;
-    if (!provId) { toast('Elige primero el proveedor: así se emparejan solos los productos que ya conoce.', 'warn'); $('ctRecProv').focus(); return; }
-    S.iaLeyendo = true;
-    const btn = $('ctIaBtn');
-    if (btn) btn.classList.add('ct-ia__btn--ocupado');
-    try {
-      iaEstado('<i class="fas fa-spinner fa-spin"></i> Preparando la foto…', 'info');
-      const imagen = await prepararFoto(file);
-      S.foto = imagen;
-      pintarFoto();
-      iaEstado('<i class="fas fa-spinner fa-spin"></i> La IA está leyendo la factura… (puede tardar unos segundos)', 'info');
-      const [res] = await Promise.all([
-        fetch('/api/factura-ia', {
+  /* Cuenta atrás visible antes de reintentar solo (límite por minuto de Groq). */
+  async function esperarIa(seg, motivo) {
+    for (let s = seg; s > 0; s--) {
+      if (S.iaCancelar) throw new Error('CANCELADO');
+      iaEstado(`<i class="fas fa-hourglass-half"></i> ${esc(motivo)} Se vuelve a intentar sola en <b>${s} s</b>… (no hace falta hacer nada)`, 'info');
+      await new Promise(ok => setTimeout(ok, 1000));
+    }
+  }
+
+  /* Lee UNA página. Si Groq está ocupado (límite por minuto) espera lo que
+   * pide y reintenta sola; el límite DIARIO no se reintenta. */
+  async function leerPagina(src, pagina, de) {
+    const txt = de > 1 ? ` (página ${pagina} de ${de})` : '';
+    for (let intento = 0; ; intento++) {
+      if (S.iaCancelar) throw new Error('CANCELADO');
+      iaEstado(`<i class="fas fa-spinner fa-spin"></i> La IA está leyendo la factura${txt}… (puede tardar unos segundos)`, 'info');
+      let res, j = null;
+      try {
+        res = await fetch('/api/factura-ia', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CM-Vale': vale() },
-          body: JSON.stringify({ imagen }),
-        }),
-        window.CasaMotaRefs ? window.CasaMotaRefs.cargar() : null,
-      ]);
-      let j = null;
+          body: JSON.stringify({ imagen: src, pagina, de }),
+        });
+      } catch (e) {
+        if (intento < 1) { await esperarIa(5, `No se pudo contactar con el lector${txt}.`); continue; }
+        throw new Error('No se pudo contactar con el lector de facturas. Revisa la conexión.');
+      }
       try { j = await res.json(); } catch (e) { j = null; }
       /* 553d · 404/405 sin respuesta del lector = la Function no está publicada
        * en Cloudflare (Pages trata el POST como un fichero normal). */
       if ((res.status === 404 || res.status === 405) && !(j && j.error)) {
         throw new Error(`El lector de facturas no está publicado todavía (${res.status}): falta subir functions/api/factura-ia.js.`);
       }
-      if (!res.ok || !j || !j.ok) throw new Error((j && j.error) || `El lector de facturas no respondió (${res.status}).`);
-      aplicarLectura(j.factura || {});
-    } catch (e) {
-      iaEstado(`<i class="fas fa-triangle-exclamation"></i> ${esc(e.message || 'No se pudo leer la factura.')} Puedes meter las líneas a mano.`, 'error');
-    } finally {
-      S.iaLeyendo = false;
-      if (btn) btn.classList.remove('ct-ia__btn--ocupado');
-      const inp = $('ctIaFoto');
-      if (inp) inp.value = '';   // se suelta el archivo; se puede volver a elegir el mismo
+      if (res.ok && j && j.ok) return j.factura || {};
+      if (res.status === 429 && !(j && j.diario) && intento < MAX_REINTENTOS) {
+        const seg = Math.min(120, Math.max(1, Number(j && j.espera) || Number(res.headers.get('Retry-After')) || 15));
+        await esperarIa(seg, `La IA está ocupada (límite por minuto de Groq)${txt}.`);
+        continue;
+      }
+      throw new Error((j && j.error) || `El lector de facturas no respondió (${res.status}).`);
     }
   }
 
-  function aplicarLectura(f) {
+  /* Junta las páginas: líneas en orden; número, fecha y e-NCF de la primera
+   * que los traiga; totales del pie (la ÚLTIMA página que trae el total). */
+  function unirPaginas(lista) {
+    const f = { numero: '', fecha: '', ncf: '', subtotal: null, descuento: null, itbis: null, total: null, lineas: [] };
+    lista.forEach(r => {
+      if (!r) return;
+      if (!f.numero && r.numero) f.numero = r.numero;
+      if (!f.fecha && r.fecha) f.fecha = r.fecha;
+      if (!f.ncf && r.ncf) f.ncf = r.ncf;
+      if (Array.isArray(r.lineas)) f.lineas = f.lineas.concat(r.lineas);
+    });
+    const alReves = lista.filter(Boolean).reverse();
+    const pie = alReves.find(r => r.total > 0) || alReves.find(r => r.itbis !== null && r.itbis !== undefined);
+    if (pie) ['subtotal', 'descuento', 'itbis', 'total'].forEach(k => { f[k] = pie[k] ?? null; });
+    return f;
+  }
+
+  async function analizarPaginas() {
+    if (S.iaLeyendo || !S.paginas.length || soloEmparejar()) return;
+    if (!$('ctRecProv').value) {
+      toast('Elige primero el proveedor: así se emparejan solos los productos que ya conoce.', 'warn');
+      $('ctRecProv').focus();
+      return;
+    }
+    S.iaLeyendo = true; S.iaCancelar = false;
+    pintarPaginas();
+    const N = S.paginas.length;
+    try {
+      if (window.CasaMotaRefs) await window.CasaMotaRefs.cargar();
+      for (let i = 0; i < N; i++) {
+        const p = S.paginas[i];
+        if (!p.res) { p.res = await leerPagina(p.src, i + 1, N); pintarPaginas(); }
+      }
+      aplicarLectura(unirPaginas(S.paginas.map(p => p.res)), N);
+    } catch (e) {
+      const leidas = S.paginas.filter(p => p.res).length;
+      const guardadas = leidas
+        ? ` ${plural(leidas, 'página ya leída se queda', 'páginas ya leídas se quedan')} en esta pantalla: al volver a pulsar «Analizar con IA» solo se leen las que faltan.`
+        : '';
+      if (e.message === 'CANCELADO') iaEstado(`<i class="fas fa-circle-info"></i> Lectura detenida.${guardadas}`, 'info');
+      else iaEstado(`<i class="fas fa-triangle-exclamation"></i> ${esc(e.message || 'No se pudo leer la factura.')}${guardadas} También puedes meter las líneas a mano.`, 'error');
+    } finally {
+      S.iaLeyendo = false; S.iaCancelar = false;
+      pintarPaginas();
+    }
+  }
+
+  const montoONull = v => (v === null || v === undefined || v === '' || isNaN(Number(v)) || Number(v) < 0) ? null : r2(Number(v));
+
+  function aplicarLectura(f, nPag) {
     const lineas = Array.isArray(f.lineas) ? f.lineas : [];
     if (!lineas.length) {
       iaEstado('<i class="fas fa-triangle-exclamation"></i> La IA no encontró líneas de productos en la foto. Prueba con otra foto más clara y recta, o mételas a mano.', 'error');
@@ -1505,6 +1648,9 @@
     if (f.numero && !$('ctRecNum').value.trim()) $('ctRecNum').value = String(f.numero).slice(0, 40);
     if (f.fecha && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) $('ctRecFecha').value = f.fecha;
     if (f.total > 0 && !$('ctRecTotal').value.trim()) $('ctRecTotal').value = r2(f.total);
+    // 559 · desglose del pie de la factura (solo para mostrar y comprobar; no se guarda)
+    const tot = { subtotal: montoONull(f.subtotal), descuento: montoONull(f.descuento), itbis: montoONull(f.itbis), total: montoONull(f.total) };
+    S.iaTot = Object.values(tot).some(v => v !== null) ? tot : null;
     // 557 · el e-NCF va a SU campo (antes se escribía en Notas)
     if (f.ncf && !$('ctRecNcf').value.trim()) $('ctRecNcf').value = limpiarNcf(f.ncf).slice(0, 20);
 
@@ -1525,10 +1671,14 @@
     S.origen = 'ia';
     const emp = nuevas.filter(l => l.producto_id).length;
     const faltan = nuevas.filter(l => !(num(l.cantidad) > 0) || l.costo === '').length;
-    iaEstado(`<i class="fas fa-circle-check"></i> La IA leyó <b>${plural(nuevas.length, 'línea', 'líneas')}</b>: ` +
+    const pags = nPag > 1 ? ` de <b>${nPag} páginas</b>` : '';
+    const pie = tot.itbis !== null
+      ? ` ITBIS leído: <b>${money(tot.itbis)}</b>.`
+      : (tot.total === null ? ' <b>No encontró el total de la factura: escríbelo a mano.</b>' : ' No encontró el ITBIS en el pie.');
+    iaEstado(`<i class="fas fa-circle-check"></i> La IA leyó <b>${plural(nuevas.length, 'línea', 'líneas')}</b>${pags}: ` +
       `${emp} emparejada${emp === 1 ? '' : 's'} por referencia o código de barras, ${nuevas.length - emp} no emparejada${nuevas.length - emp === 1 ? '' : 's'}.` +
-      `${faltan ? ` <b>${faltan} con cantidad o costo por completar.</b>` : ''} ` +
-      `<b>Revisa cada línea con la foto antes de confirmar</b>: la IA puede equivocarse.`, 'ok');
+      `${faltan ? ` <b>${faltan} con cantidad o costo por completar.</b>` : ''}${pie} ` +
+      `<b>Revisa cada línea con las fotos antes de confirmar</b>: la IA puede equivocarse.`, 'ok');
     pintarLineas();
     pintarTotalesRec();
   }
@@ -1651,12 +1801,20 @@
       if (!l.manual) { autoEmparejar(l); repintarCeldaProducto(i); pintarTotalesRec(); }
     });
 
-    // IA
+    // IA · 559: se suben las páginas (una o varias cada vez) y después «Analizar con IA»
     $('ctIaFoto').addEventListener('change', ev => {
-      const f = ev.target.files && ev.target.files[0];
-      if (f) leerFactura(f);
+      const files = ev.target.files;
+      agregarPaginas(files);
+      ev.target.value = '';   // se suelta; se puede volver a elegir la misma foto
     });
-    $('ctIaFotoVista').addEventListener('click', () => $('ctIaFotoVista').classList.toggle('ct-ia__vista--grande'));
+    $('ctIaAnalizar').addEventListener('click', analizarPaginas);
+    $('ctIaQuitarTodas').addEventListener('click', quitarTodas);
+    $('ctIaMiniaturas').addEventListener('click', ev => {
+      const q = ev.target.closest('[data-ia-quitar]');
+      if (q) { quitarPagina(Number(q.getAttribute('data-ia-quitar'))); return; }
+      const fig = ev.target.closest('.ct-ia__pag');
+      if (fig) fig.classList.toggle('ct-ia__pag--grande');
+    });
 
     // Modales
     document.querySelectorAll('[data-ct-cerrar]').forEach(b =>
@@ -1717,5 +1875,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
 })();
