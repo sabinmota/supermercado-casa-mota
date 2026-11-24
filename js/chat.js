@@ -1266,8 +1266,12 @@ async function _chatRespuestaProveedor(msg) {
     } catch (e) { /* sin almacenamiento: posición de siempre */ }
 
     let ini = null, movido = false;
+    /* 560 · Sin esto el navegador arrastraba la FOTO como imagen (un Maya
+     * «fantasma»), cancelaba el puntero y el icono no se movía. */
+    wrap.addEventListener('dragstart', e => e.preventDefault());
     wrap.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
+      if (e.pointerType === 'mouse') e.preventDefault();   // ni arrastre nativo ni selección de texto
       const r = wrap.getBoundingClientRect();
       ini = { px: e.clientX, py: e.clientY, x: r.left, y: r.top, id: e.pointerId };
       movido = false;

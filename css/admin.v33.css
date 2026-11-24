@@ -735,7 +735,11 @@ input, select, textarea { font-family: var(--font); }
   line-height: 0;
   touch-action: none;          /* 556 · se puede arrastrar con el dedo sin mover la página */
   cursor: grab;
+  user-select: none; -webkit-user-select: none;   /* 560 · sin seleccionar al arrastrar */
 }
+/* 560 · La foto de Maya NO se arrastra como imagen (eso dejaba un «fantasma»
+ * y cancelaba el movimiento): los toques van al botón, no a la foto. */
+.chat-fab-wrap img { pointer-events: none; -webkit-user-drag: none; user-drag: none; }
 /* 556 · mientras se arrastra el icono de Maya (js/chat.js) */
 .chat-fab-wrap--moviendo { cursor: grabbing; }
 .chat-fab-wrap--moviendo .chat-fab { transform: scale(1.08); transition: none; }
