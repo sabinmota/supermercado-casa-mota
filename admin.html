@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '528';
+      const VER = '530';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=9" />
+  <link rel="stylesheet" href="css/conta.css?v=11" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -2777,13 +2777,13 @@
           </div>
           <div class="form-group">
             <label for="ctProvRnc">RNC</label>
-            <input type="text" class="form-input" id="ctProvRnc" maxlength="20" placeholder="Ej: 1-01-00000-0" autocomplete="off" />
+            <input type="text" class="form-input" id="ctProvRnc" maxlength="20" inputmode="numeric" placeholder="Escribe solo los números: 101003693" autocomplete="off" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label for="ctProvTel">Teléfonos</label>
-            <input type="text" class="form-input" id="ctProvTel" maxlength="120" placeholder="809-000-0000 / 829-000-0000" autocomplete="off" />
+            <input type="text" class="form-input" id="ctProvTel" maxlength="120" inputmode="tel" placeholder="Escribe solo los números: 8092273000" autocomplete="off" />
           </div>
           <div class="form-group">
             <label for="ctProvCorreo">Correo electrónico</label>
@@ -2792,7 +2792,12 @@
         </div>
         <div class="form-group">
           <label for="ctProvDireccion">Dirección</label>
-          <input type="text" class="form-input" id="ctProvDireccion" maxlength="200" placeholder="Calle, número, edificio…" autocomplete="off" />
+          <!-- 561 · Al escribir, sugerencias de Google Maps (functions/api/direccion.js) -->
+          <div class="ct-dir">
+            <input type="text" class="form-input" id="ctProvDireccion" maxlength="200" placeholder="Escribe la dirección o el nombre del negocio y elige en la lista…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ctProvDirSug" />
+            <div class="ct-dir__sug" id="ctProvDirSug" role="listbox" hidden></div>
+          </div>
+          <small class="ct-ayuda" id="ctProvDirAyuda"></small>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -4009,7 +4014,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=11"></script>
+  <script src="js/conta.js?v=13"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

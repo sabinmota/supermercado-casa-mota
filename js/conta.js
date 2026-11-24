@@ -93,6 +93,8 @@
     ID_INVALIDO:              'Identificador no válido. Recarga la página.',
     FALTA_NOMBRE:             'Escribe el nombre del proveedor.',
     CORREO_INVALIDO:          'El correo electrónico no es válido (ej. ventas@proveedor.com).',
+    RNC_INVALIDO:             'El RNC debe tener 9 números (1-01-00369-3) o, si es una cédula, 11 (001-0000000-1).',
+    TEL_INVALIDO:             'Cada teléfono debe tener 10 números (809-227-3000). Revisa el último.',
     PROVINCIA_INVALIDA:       'Elige la provincia de la lista.',
     CODIGO_POSTAL_INVALIDO:   'El código postal debe tener 5 cifras.',
     TERMINO_INVALIDO:         'El término de crédito debe ser un número entero de 0 a 365 días.',
@@ -643,6 +645,10 @@
     $('ctProvCp').value            = v('codigo_postal');
     $('ctProvTermino').value       = p ? p.termino_dias : 30;
     $('ctProvNotas').value         = v('notas');
+    // 561 · lo guardado antes también se ve con sus guiones
+    $('ctProvRnc').value = formatoRnc($('ctProvRnc').value) || $('ctProvRnc').value;
+    $('ctProvTel').value = formatoTel($('ctProvTel').value);
+    cerrarSugDir(); ayudaDir(''); nuevaSesionDir();
     ayudaCp();
     errorModal('ctProvError', '');
     abrirModal('ctProvModal');
@@ -673,6 +679,189 @@
       : (prov ? `Código de ${prov}. Puedes cambiarlo si el sector tiene otro.` : '');
   }
 
+  // ─── 561 · Guiones automáticos: se escriben solo los números ─────────────────
+  const soloDig = s => String(s || '').replace(/\D/g, '');
+  /* RNC de 9 cifras → 1-01-00369-3 · cédula de 11 → 001-0000000-1. Mientras se
+   * escribe se va poniendo el guion que toca. */
+  function formatoRnc(v) {
+    const d = soloDig(v).slice(0, 11);
+    if (d.length <= 9) {
+      return [d.slice(0, 1), d.slice(1, 3), d.slice(3, 8), d.slice(8, 9)].filter(Boolean).join('-');
+    }
+    return [d.slice(0, 3), d.slice(3, 10), d.slice(10, 11)].filter(Boolean).join('-');
+  }
+  /* Teléfonos: cada 10 cifras es un teléfono 809-227-3000; el siguiente va
+   * detrás de « / ». Si el texto trae letras (p. ej. «ext. 12») no se toca. */
+  const TEL_SOLO_NUM = /^[\d\s\-\/().+]*$/;
+  function formatoTel(v) {
+    if (!TEL_SOLO_NUM.test(v)) return v;
+    const d = soloDig(v);
+    const tels = [];
+    for (let i = 0; i < d.length; i += 10) {
+      const t = d.slice(i, i + 10);
+      tels.push([t.slice(0, 3), t.slice(3, 6), t.slice(6, 10)].filter(Boolean).join('-'));
+    }
+    return tels.join(' / ');
+  }
+  function rncValido(v) { const n = soloDig(v).length; return !v.trim() || n === 9 || n === 11; }
+  function telValido(v) { return !v.trim() || !TEL_SOLO_NUM.test(v) || soloDig(v).length % 10 === 0; }
+
+  /* Pone el formato sin que el cursor salte: se cuenta cuántas cifras había
+   * antes del cursor y se deja detrás de esas mismas cifras. Borrar sobre un
+   * guion borra la cifra de antes (si no, el guion volvería y parecería que
+   * la tecla no hace nada). */
+  function mascara(el, formatear) {
+    const aplicar = () => {
+      const v = el.value, pos = el.selectionStart == null ? v.length : el.selectionStart;
+      const cifras = soloDig(v.slice(0, pos)).length;
+      const nuevo = formatear(v);
+      if (nuevo === v) return;
+      el.value = nuevo;
+      let p = 0, vistas = 0;
+      while (p < nuevo.length && vistas < cifras) { if (/\d/.test(nuevo[p])) vistas++; p++; }
+      if (document.activeElement === el) el.setSelectionRange(p, p);
+    };
+    el.addEventListener('keydown', ev => {
+      if (ev.key !== 'Backspace' || el.selectionStart !== el.selectionEnd) return;
+      const pos = el.selectionStart, v = el.value;
+      if (pos > 0 && /[\s\-\/]/.test(v[pos - 1]) && TEL_SOLO_NUM.test(v)) {
+        let q = pos - 1;
+        while (q > 0 && /[\s\-\/]/.test(v[q - 1])) q--;
+        if (q > 0) {
+          ev.preventDefault();
+          el.value = v.slice(0, q - 1) + v.slice(pos);
+          el.setSelectionRange(q - 1, q - 1);
+          aplicar();
+        }
+      }
+    });
+    el.addEventListener('input', aplicar);
+    return aplicar;
+  }
+
+  // ─── 561 · Dirección con sugerencias de Google Maps (functions/api/direccion.js) ─
+  const DIR = { sesion: '', timer: null, pedido: 0, lista: [], activo: -1, apagado: false };
+  const nuevaSesionDir = () => {
+    DIR.sesion = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : 'cm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  };
+  function ayudaDir(msg, aviso) {
+    const el = $('ctProvDirAyuda');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('ct-ayuda--aviso', !!aviso);
+  }
+  function cerrarSugDir() {
+    const box = $('ctProvDirSug');
+    if (box) { box.hidden = true; box.innerHTML = ''; }
+    $('ctProvDireccion')?.setAttribute('aria-expanded', 'false');
+    DIR.lista = []; DIR.activo = -1;
+  }
+  async function pedirDir(cuerpo) {
+    const res = await fetch('/api/direccion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CM-Vale': vale() },
+      body: JSON.stringify(Object.assign({ sesion: DIR.sesion }, cuerpo)),
+    });
+    let j = null;
+    try { j = await res.json(); } catch (e) { j = null; }
+    if ((res.status === 404 || res.status === 405) && !(j && j.error)) {
+      throw Object.assign(new Error('Las sugerencias de Google Maps aún no están publicadas (falta subir functions/api/direccion.js). Escribe la dirección a mano.'), { apagar: true });
+    }
+    if (!res.ok || !j || !j.ok) {
+      throw Object.assign(new Error((j && j.error) || `Google Maps no respondió (${res.status}).`), { apagar: !!(j && j.sinClave) });
+    }
+    return j;
+  }
+  function pintarSugDir() {
+    const box = $('ctProvDirSug');
+    if (!box) return;
+    if (!DIR.lista.length) { cerrarSugDir(); return; }
+    box.innerHTML = DIR.lista.map((s, i) => `
+      <button type="button" class="ct-dir__op${i === DIR.activo ? ' ct-dir__op--activa' : ''}" role="option" aria-selected="${i === DIR.activo}" data-dir="${i}">
+        <i class="fas fa-location-dot"></i>
+        <span><b>${esc(s.principal)}</b>${s.secundario ? `<small>${esc(s.secundario)}</small>` : ''}</span>
+      </button>`).join('') +
+      '<div class="ct-dir__pie">Sugerencias de Google Maps · elige la tuya o sigue escribiendo</div>';
+    box.hidden = false;
+    $('ctProvDireccion').setAttribute('aria-expanded', 'true');
+  }
+  function buscarDir() {
+    clearTimeout(DIR.timer);
+    if (DIR.apagado) return;
+    const q = $('ctProvDireccion').value.trim();
+    if (q.length < 3) { cerrarSugDir(); return; }
+    DIR.timer = setTimeout(async () => {
+      const mio = ++DIR.pedido;
+      if (!DIR.sesion) nuevaSesionDir();
+      try {
+        const j = await pedirDir({ accion: 'buscar', texto: q });
+        if (mio !== DIR.pedido) return;   // llegó tarde: ya se escribió otra cosa
+        DIR.lista = Array.isArray(j.sugerencias) ? j.sugerencias : [];
+        DIR.activo = -1;
+        pintarSugDir();
+        ayudaDir(DIR.lista.length ? '' : 'Google Maps no encuentra esa dirección: puedes escribirla a mano.');
+      } catch (e) {
+        if (mio !== DIR.pedido) return;
+        cerrarSugDir();
+        if (e.apagar) DIR.apagado = true;
+        ayudaDir(e.message, true);
+      }
+    }, 350);
+  }
+  /* «Provincia de Hato Mayor», «Hato Mayor Province»… → «Hato Mayor». */
+  function provinciaDe(txt) {
+    const n = norm(String(txt || '').replace(/^provincia\s+(de\s+)?/i, '').replace(/\s+province$/i, ''));
+    if (!n) return '';
+    const exacta = PROVINCIAS.find(p => norm(p[0]) === n);
+    if (exacta) return exacta[0];
+    const parecida = PROVINCIAS.filter(p => n.includes(norm(p[0]))).sort((a, b) => b[0].length - a[0].length)[0];
+    return parecida ? parecida[0] : '';
+  }
+  async function elegirDir(i) {
+    const s = DIR.lista[i];
+    if (!s) return;
+    cerrarSugDir();
+    clearTimeout(DIR.timer); DIR.pedido++;
+    ayudaDir('Completando la dirección con Google Maps…');
+    try {
+      const j = await pedirDir({ accion: 'detalle', id: s.id });
+      const L = j.lugar || {};
+      if (L.direccion) $('ctProvDireccion').value = String(L.direccion).slice(0, 200);
+      if (L.sector) $('ctProvSector').value = String(L.sector).slice(0, 80);
+      if (L.ciudad) $('ctProvCiudad').value = String(L.ciudad).slice(0, 80);
+      const prov = provinciaDe(L.provincia);
+      if (prov) { $('ctProvProvincia').value = prov; elegirProvincia(); }
+      if (/^\d{5}$/.test(L.codigo_postal || '')) { $('ctProvCp').value = L.codigo_postal; ayudaCp(); }
+      const faltan = [!$('ctProvSector').value.trim() && 'sector', !$('ctProvCiudad').value.trim() && 'ciudad',
+        !$('ctProvProvincia').value && 'provincia', !$('ctProvCp').value.trim() && 'código postal'].filter(Boolean);
+      ayudaDir(faltan.length
+        ? `Rellenado con Google Maps. Google no trae: ${faltan.join(', ')}; complétalo a mano.`
+        : 'Rellenado con Google Maps. Revísalo antes de guardar.', faltan.length > 0);
+    } catch (e) {
+      if (e.apagar) DIR.apagado = true;
+      ayudaDir(e.message, true);
+    } finally {
+      nuevaSesionDir();   // cada dirección elegida cierra su sesión de Google
+    }
+  }
+  function teclaDir(ev) {
+    const box = $('ctProvDirSug');
+    if (!box || box.hidden || !DIR.lista.length) return;
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      const n = DIR.lista.length;
+      DIR.activo = ev.key === 'ArrowDown' ? (DIR.activo + 1) % n : (DIR.activo - 1 + n) % n;
+      pintarSugDir();
+    } else if (ev.key === 'Enter' && DIR.activo >= 0) {
+      ev.preventDefault();
+      elegirDir(DIR.activo);
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault(); ev.stopPropagation();
+      cerrarSugDir();
+    }
+  }
+
   async function guardarProveedor() {
     const nombre = $('ctProvNombre').value.trim();
     const term = num($('ctProvTermino').value);
@@ -681,6 +870,8 @@
     const cp = $('ctProvCp').value.trim();
     if (!nombre) { errorModal('ctProvError', ERRORES.FALTA_NOMBRE); $('ctProvNombre').focus(); return; }
     if (correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) { errorModal('ctProvError', ERRORES.CORREO_INVALIDO); $('ctProvCorreo').focus(); return; }
+    if (!rncValido($('ctProvRnc').value)) { errorModal('ctProvError', ERRORES.RNC_INVALIDO); $('ctProvRnc').focus(); return; }
+    if (!telValido($('ctProvTel').value)) { errorModal('ctProvError', ERRORES.TEL_INVALIDO); $('ctProvTel').focus(); return; }
     if (provincia && !PROVINCIAS.some(p => p[0] === provincia)) { errorModal('ctProvError', ERRORES.PROVINCIA_INVALIDA); return; }
     if (cp && !/^\d{5}$/.test(cp)) { errorModal('ctProvError', ERRORES.CODIGO_POSTAL_INVALIDO); $('ctProvCp').focus(); return; }
     if (term === null || isNaN(term) || term < 0 || term > 365 || term !== Math.trunc(term)) {
@@ -986,6 +1177,15 @@
     </div>`;
   }
 
+  /* 562 · Debajo de la cantidad leída por la IA: si se corrigió con los
+   * importes de la factura, o si hay que revisarla (= empaque de la caja). */
+  function notaCantidad(l) {
+    const caja = l.empaque ? ` (caja de ${l.empaque})` : '';
+    if (l.iaNota === 'corregida') return `<small class="ct-cant-nota" title="La IA leyó otra cantidad; se corrigió con el importe impreso de la línea"><i class="fas fa-wrench"></i> corregida${caja}</small>`;
+    if (l.iaNota === 'revisar') return `<small class="ct-cant-nota ct-cant-nota--aviso" title="La cantidad coincide con el empaque de la caja: puede que la IA lo haya tomado como cantidad"><i class="fas fa-triangle-exclamation"></i> revisa${caja}</small>`;
+    return '';
+  }
+
   /* 553f · Factura pagada o borrada: solo se cambia el emparejamiento. */
   function soloEmparejar() { return !!(S.edit && S.edit.modo === 'solo_emparejar'); }
 
@@ -1015,7 +1215,7 @@
           <div class="ct-l__codest">${estadoCodigo(l)}</div></td>
         <td><input class="ct-in ct-in--desc" data-campo="descripcion" data-i="${i}" value="${esc(l.descripcion)}" maxlength="200" placeholder="Descripción"${dis} /></td>
         <td class="ct-l__prod">${celdaProducto(l, i)}</td>
-        <td class="n"><input class="ct-in ct-in--num" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0"${dis} /></td>
+        <td class="n"><input class="ct-in ct-in--num${l.iaNota === 'revisar' ? ' ct-in--revisar' : ''}" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0"${dis} />${notaCantidad(l)}</td>
         <td class="n"><input class="ct-in ct-in--num" data-campo="costo" data-i="${i}" value="${esc(l.costo)}" inputmode="decimal" placeholder="0.00"${dis} /></td>
         <td class="n ct-l__imp">${money(importe(l))}</td>
         <td>${dis ? '' : `<button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button>`}</td>
@@ -1591,19 +1791,46 @@
   }
 
   /* Junta las páginas: líneas en orden; número, fecha y e-NCF de la primera
-   * que los traiga; totales del pie (la ÚLTIMA página que trae el total). */
+   * que los traiga; totales del pie (la ÚLTIMA página que trae el total).
+   * 562 · Cada página se compara con SU pie («Sub total Cantidad Página» y
+   * subtotal de la página): si no cuadra, se avisa con el número de página.
+   * Si ninguna página trae el total de la factura pero TODAS traen el de su
+   * página, el total de la factura es la suma de las páginas. */
   function unirPaginas(lista) {
-    const f = { numero: '', fecha: '', ncf: '', subtotal: null, descuento: null, itbis: null, total: null, lineas: [] };
-    lista.forEach(r => {
+    const f = { numero: '', fecha: '', ncf: '', subtotal: null, descuento: null, itbis: null, total: null, lineas: [], avisos: [] };
+    const N = lista.length;
+    lista.forEach((r, i) => {
       if (!r) return;
       if (!f.numero && r.numero) f.numero = r.numero;
       if (!f.fecha && r.fecha) f.fecha = r.fecha;
       if (!f.ncf && r.ncf) f.ncf = r.ncf;
-      if (Array.isArray(r.lineas)) f.lineas = f.lineas.concat(r.lineas);
+      const ls = Array.isArray(r.lineas) ? r.lineas : [];
+      f.lineas = f.lineas.concat(ls);
+      const P = r.pagina, txt = N > 1 ? `Página ${i + 1}` : 'La factura';
+      if (!P || !ls.length) return;
+      const cant = r3(ls.reduce((a, l) => a + (Number(l.cantidad) || 0), 0));
+      const sub = r2(ls.reduce((a, l) => a + r2((Number(l.cantidad) || 0) * (Number(l.costo_unitario) || 0)), 0));
+      if (P.cantidad > 0 && Math.abs(cant - P.cantidad) > 0.01) {
+        f.avisos.push(`${txt}: las cantidades leídas suman ${cant} y el pie dice ${P.cantidad}.`);
+      }
+      if (P.subtotal > 0 && Math.abs(sub - P.subtotal) >= 1) {
+        f.avisos.push(`${txt}: las líneas suman ${money(sub)} sin ITBIS y el pie dice ${money(P.subtotal)}.`);
+      }
     });
-    const alReves = lista.filter(Boolean).reverse();
+    const ok = lista.filter(Boolean);
+    // «Página 2 de 3» impreso en la factura y se subieron menos fotos
+    const deMax = Math.max(0, ...ok.map(r => (r.pagina && Number(r.pagina.de)) || 0));
+    if (deMax > N) f.avisos.unshift(`La factura dice que tiene ${deMax} páginas y se ${N === 1 ? 'subió 1' : `subieron ${N}`}: falta subir alguna.`);
+    const alReves = ok.slice().reverse();
     const pie = alReves.find(r => r.total > 0) || alReves.find(r => r.itbis !== null && r.itbis !== undefined);
-    if (pie) ['subtotal', 'descuento', 'itbis', 'total'].forEach(k => { f[k] = pie[k] ?? null; });
+    if (pie) {
+      ['subtotal', 'descuento', 'itbis', 'total'].forEach(k => { f[k] = pie[k] ?? null; });
+    } else if (ok.length === N && ok.every(r => r.pagina && r.pagina.total > 0)) {
+      const suma = k => r2(ok.reduce((a, r) => a + (Number(r.pagina[k]) || 0), 0));
+      f.total = suma('total');
+      f.itbis = ok.every(r => r.pagina.itbis !== null) ? suma('itbis') : null;
+      f.subtotal = ok.every(r => r.pagina.subtotal !== null) ? suma('subtotal') : null;
+    }
     return f;
   }
 
@@ -1623,7 +1850,7 @@
         const p = S.paginas[i];
         if (!p.res) { p.res = await leerPagina(p.src, i + 1, N); pintarPaginas(); }
       }
-      aplicarLectura(unirPaginas(S.paginas.map(p => p.res)), N);
+      aplicarLectura(unirPaginas(S.paginas.map(p => p.res)), N);   // 1 página también pasa por aquí (se compara con su pie)
     } catch (e) {
       const leidas = S.paginas.filter(p => p.res).length;
       const guardadas = leidas
@@ -1661,6 +1888,9 @@
       costo: x.costo_unitario >= 0 && x.costo_unitario !== null ? String(r2(x.costo_unitario)) : '',
       producto_id: null, via: '', manual: false,
       recibido: true,   // 555 · lo leído por la IA se da por recibido; se desmarca a mano
+      // 562 · aviso bajo la cantidad (no se guarda; se quita al tocar la cantidad)
+      iaNota: x.corregida ? 'corregida' : (x.revisar ? 'revisar' : ''),
+      empaque: Number(x.empaque) > 1 ? Number(x.empaque) : null,
     }));
     nuevas.forEach(autoEmparejar);
     if (S.lineas.length && !confirm(`La IA leyó ${plural(nuevas.length, 'línea', 'líneas')}.\n\nAceptar = SUSTITUIR las ${S.lineas.length} líneas actuales.\nCancelar = AÑADIRLAS al final.`)) {
@@ -1671,14 +1901,21 @@
     S.origen = 'ia';
     const emp = nuevas.filter(l => l.producto_id).length;
     const faltan = nuevas.filter(l => !(num(l.cantidad) > 0) || l.costo === '').length;
+    const nCorr = nuevas.filter(l => l.iaNota === 'corregida').length;
+    const nRev = nuevas.filter(l => l.iaNota === 'revisar').length;
+    const avisos = Array.isArray(f.avisos) ? f.avisos : [];
     const pags = nPag > 1 ? ` de <b>${nPag} páginas</b>` : '';
     const pie = tot.itbis !== null
       ? ` ITBIS leído: <b>${money(tot.itbis)}</b>.`
       : (tot.total === null ? ' <b>No encontró el total de la factura: escríbelo a mano.</b>' : ' No encontró el ITBIS en el pie.');
-    iaEstado(`<i class="fas fa-circle-check"></i> La IA leyó <b>${plural(nuevas.length, 'línea', 'líneas')}</b>${pags}: ` +
+    const extra =
+      (nCorr ? `<br><i class="fas fa-wrench"></i> <b>${plural(nCorr, 'cantidad corregida', 'cantidades corregidas')}</b> con los importes impresos en la factura (la IA había leído otra cosa, p. ej. el empaque «* 12»).` : '') +
+      (nRev ? `<br><i class="fas fa-triangle-exclamation"></i> <b>${plural(nRev, 'cantidad', 'cantidades')} por revisar</b>: coincide${nRev === 1 ? '' : 'n'} con el empaque de la caja.` : '') +
+      avisos.map(a => `<br><i class="fas fa-triangle-exclamation"></i> <b>${esc(a)}</b>`).join('');
+    iaEstado(`<i class="fas ${avisos.length || nRev ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i> La IA leyó <b>${plural(nuevas.length, 'línea', 'líneas')}</b>${pags}: ` +
       `${emp} emparejada${emp === 1 ? '' : 's'} por referencia o código de barras, ${nuevas.length - emp} no emparejada${nuevas.length - emp === 1 ? '' : 's'}.` +
-      `${faltan ? ` <b>${faltan} con cantidad o costo por completar.</b>` : ''}${pie} ` +
-      `<b>Revisa cada línea con las fotos antes de confirmar</b>: la IA puede equivocarse.`, 'ok');
+      `${faltan ? ` <b>${faltan} con cantidad o costo por completar.</b>` : ''}${pie}${extra} ` +
+      `<br><b>Revisa cada línea con las fotos antes de confirmar</b>: la IA puede equivocarse.`, avisos.length || nRev ? 'aviso' : 'ok');
     pintarLineas();
     pintarTotalesRec();
   }
@@ -1786,6 +2023,12 @@
       const l = S.lineas[Number(el.getAttribute('data-i'))];
       if (!campo || !l) return;
       l[campo] = el.value;
+      // 562 · si el empleado toca la cantidad, el aviso de la IA ya no aplica
+      if (campo === 'cantidad' && l.iaNota) {
+        l.iaNota = '';
+        el.classList.remove('ct-in--revisar');
+        el.parentElement.querySelector('.ct-cant-nota')?.remove();
+      }
       if (campo === 'cantidad' || campo === 'costo') {
         const td = el.closest('tr').querySelector('.ct-l__imp');
         if (td) td.textContent = money(importe(l));
@@ -1824,6 +2067,17 @@
       PROVINCIAS.map(p => `<option value="${esc(p[0])}">${esc(p[0])}</option>`).join('');
     $('ctProvProvincia').addEventListener('change', elegirProvincia);
     $('ctProvCp').addEventListener('input', ev => { ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 5); });
+    // 561 · guiones automáticos y sugerencias de Google Maps
+    mascara($('ctProvRnc'), formatoRnc);
+    mascara($('ctProvTel'), formatoTel);
+    $('ctProvDireccion').addEventListener('input', buscarDir);
+    $('ctProvDireccion').addEventListener('keydown', teclaDir);
+    $('ctProvDireccion').addEventListener('blur', () => setTimeout(cerrarSugDir, 200));
+    $('ctProvDirSug').addEventListener('mousedown', ev => ev.preventDefault());   // que el clic no quite el foco antes de elegir
+    $('ctProvDirSug').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-dir]');
+      if (b) elegirDir(Number(b.getAttribute('data-dir')));
+    });
     $('ctFacGuardar').addEventListener('click', guardarFactura);
     $('ctFacModalProv').addEventListener('change', () => { S.venEditado = false; autoVencimiento(); });
     $('ctFacEmision').addEventListener('input', autoVencimiento);
@@ -1875,5 +2129,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _lineas: () => S.lineas, _formatoRnc: formatoRnc, _formatoTel: formatoTel, _provinciaDe: provinciaDe, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
 })();

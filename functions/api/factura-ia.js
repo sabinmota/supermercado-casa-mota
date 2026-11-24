@@ -145,18 +145,31 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
   "lineas": [
     { "codigo": "código del artículo o de barras si aparece, o \\"\\"",
       "descripcion": "descripción del artículo tal como está escrita",
-      "cantidad": número,
-      "costo_unitario": número (precio por unidad),
-      "importe": número (total de la línea) }
-  ]
+      "cantidad": número de la columna CANT./CANTIDAD tal cual (cajas, fardos o unidades facturadas),
+      "unidad": "unidad facturada si aparece (CJ, UND, FD, PQ, SC…) o \\"\\"",
+      "empaque": unidades que trae cada caja si aparecen junto a la unidad (\\"CJ * 12\\" → 12, \\"CJ*24\\" → 24), o null,
+      "costo_unitario": precio de UNA unidad facturada (una caja si se factura por caja) SIN ITBIS y ya con el descuento,
+      "precio_con_itbis": precio de UNA unidad facturada CON ITBIS si hay esa columna, o null,
+      "importe": total de la línea SIN ITBIS si hay esa columna, o null,
+      "importe_con_itbis": total de la línea CON ITBIS si hay esa columna (p. ej. VALOR C/ITBIS), o null }
+  ],
+  "pagina": { "numero": número de esta página si lo dice (\\"Página 2 de 3\\" → 2), o null,
+              "de": total de páginas de la factura si lo dice (\\"Página 2 de 3\\" → 3), o null,
+              "cantidad": suma de cantidades del pie de ESTA página (p. ej. \\"Sub total Cantidad Página 2\\"),
+              "subtotal": subtotal SIN ITBIS de ESTA página (gravado + exento),
+              "itbis": ITBIS de ESTA página,
+              "total": total general de ESTA página } o null si la página no trae totales de página
 }
 Reglas:
 - Una entrada en "lineas" por cada fila de artículo. NO incluyas filas de subtotal, ITBIS, descuento, total, flete ni notas.
-- "costo_unitario" es el precio por unidad tal como sale en la columna de precio, SIN sumarle el ITBIS de la línea.
+- 🔴 "cantidad" es el número de la columna CANT. TAL CUAL. Ejemplo: "1.00 CJ * 12" → cantidad 1, unidad "CJ", empaque 12. "2.00 CJ * 24" → cantidad 2, empaque 24. NUNCA uses el empaque (12, 24…) ni el tamaño del producto (12/32 OZ, 24/350 ML…) como cantidad, y NUNCA multipliques la cantidad por el empaque.
+- "costo_unitario" es el precio de UNA unidad facturada SIN ITBIS: la columna PRECIO o PRECIO/UND S/ITBIS (si hay % de descuento, el precio ya descontado). NO le sumes el ITBIS. NO lo dividas entre el empaque.
+- Comprueba CADA línea: cantidad × precio_con_itbis ≈ importe_con_itbis (o cantidad × costo_unitario ≈ importe). Si no cuadra, la cantidad está mal leída: vuelve a leer la columna CANT.
+- Si el pie de la página trae "Sub total Cantidad Página", la suma de tus cantidades de esa página debe dar ese número.
 - TOTALES: casi siempre están al pie de la última página, en un bloque con filas como SUBTOTAL, DESCUENTO, ITBIS (o "ITBIS 18%", "ITBIS 16%", "I.T.B.I.S.", "IMPUESTO", "IMP.") y TOTAL / TOTAL A PAGAR / NETO A PAGAR. Léelo con mucho cuidado, cifra por cifra.
 - "itbis" es SOLO el importe del impuesto (no el subtotal ni el total). Si hay varias filas de ITBIS (varias tasas), súmalas. Si la factura dice ITBIS 0 o exento, pon 0.
 - Comprueba: normalmente subtotal − descuento + itbis = total. Si no te cuadra, vuelve a leer esas cifras.
-- Si esta página NO tiene el bloque de totales (es una página intermedia), pon null en subtotal, descuento, itbis y total. No uses un "subtotal de página" o "van" como total.
+- "subtotal", "descuento", "itbis" y "total" son SOLO los de la FACTURA COMPLETA (normalmente al pie de la última página). Los que dicen "Página N" o "van" son de la página: van en "pagina", NO en esos campos. Si esta página no trae los totales de la factura completa, pon null en subtotal, descuento, itbis y total.
 - Los números van sin "RD$", sin separador de miles y con punto decimal (1,250.50 → 1250.5). Si la factura usa coma decimal (1.250,50), conviértelo igual.
 - Si una línea no muestra el precio por unidad pero sí el importe y la cantidad, pon "costo_unitario": null y rellena "importe".
 - Si un dato no se lee con seguridad, pon null (números) o "" (textos). NO inventes datos.
@@ -204,8 +217,29 @@ function limpiar(obj) {
     if (!descripcion) continue;
     let cantidad = aNumero(x.cantidad ?? x.qty);
     let costo = aNumero(x.costo_unitario ?? x.precio ?? x.price);
-    const imp = aNumero(x.importe ?? x.total);
+    const imp = aNumero(x.importe);
+    const pc = aNumero(x.precio_con_itbis);
+    const ic = aNumero(x.importe_con_itbis ?? x.total);
+    let emp = aNumero(x.empaque);
+    if (!(emp > 1 && emp <= 1000 && Number.isInteger(emp))) emp = null;
     if (cantidad !== null && (cantidad <= 0 || cantidad > 999999)) cantidad = null;
+    /* 562 · La cantidad se COMPRUEBA con los importes impresos de la línea:
+     * importe / precio (sin ITBIS) o, si no, importe C/ITBIS / precio C/ITBIS.
+     * Si la IA tomó el empaque como cantidad («1.00 CJ * 12» leído como 12),
+     * los importes lo delatan y se corrige aquí, no se confía en la IA. */
+    /* Primero el par CON ITBIS (son dos columnas impresas: PRECIO/UND C/ITBIS y
+     * VALOR C/ITBIS); el par sin ITBIS a veces lo calcula la propia IA con su
+     * cantidad equivocada y se «confirmaría» solo. */
+    const ref = (ic > 0 && pc > 0) ? ic / pc : ((imp > 0 && costo > 0) ? imp / costo : null);
+    let corregida = false, revisar = false;
+    if (ref !== null && ref > 0 && ref <= 999999) {
+      if (cantidad === null || Math.abs(cantidad - ref) > Math.max(0.011, ref * 0.01)) {
+        cantidad = r3(ref);
+        corregida = true;
+      }
+    }
+    // Sin corrección y la cantidad es justo el empaque de la caja: que lo mire una persona.
+    if (!corregida && cantidad !== null && emp && cantidad === emp) revisar = true;
     if ((costo === null || costo < 0) && imp !== null && imp >= 0 && cantidad) costo = imp / cantidad;
     if (costo !== null && (costo < 0 || costo > 99999999)) costo = null;
     lineas.push({
@@ -213,16 +247,31 @@ function limpiar(obj) {
       descripcion,
       cantidad: cantidad === null ? null : r3(cantidad),
       costo_unitario: costo === null ? null : r2(costo),
+      unidad: aTexto(x.unidad, 10),
+      empaque: emp,
+      corregida,
+      revisar,
     });
   }
   const monto = (v, cero) => {
     const n = aNumero(v);
     return n !== null && (cero ? n >= 0 : n > 0) && n < 1e9 ? r2(n) : null;
   };
+  const pg = (o.pagina && typeof o.pagina === 'object') ? o.pagina : null;
+  const entero = v => { const n = aNumero(v); return Number.isInteger(n) && n >= 1 && n <= 50 ? n : null; };
+  const pagina = pg ? {
+    numero: entero(pg.numero),
+    de: entero(pg.de),
+    cantidad: monto(pg.cantidad, false),
+    subtotal: monto(pg.subtotal, true),
+    itbis: monto(pg.itbis, true),
+    total: monto(pg.total, false),
+  } : null;
   return {
     numero: aTexto(o.numero, 40),
     fecha: aFecha(o.fecha),
     ncf: aTexto(o.ncf, 20),
+    pagina: pagina && Object.values(pagina).some(v => v !== null) ? pagina : null,
     subtotal: monto(o.subtotal, false),
     descuento: monto(o.descuento, true),
     itbis: monto(o.itbis ?? o.impuesto, true),

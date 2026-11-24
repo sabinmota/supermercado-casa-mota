@@ -107,6 +107,7 @@ label.ct-ncf-lbl { color: #ea580c; }
 .ct-ia__estado[hidden] { display: none; }
 .ct-ia__estado--info  { background: #eef2f6; color: #2e3b4e; }
 .ct-ia__estado--ok    { background: #e9f6ee; color: #13603a; }
+.ct-ia__estado--aviso { background: #fff4e0; color: #7a4300; }   /* 562 · leyó, pero algo no cuadra */
 .ct-ia__estado--error { background: #fdecea; color: #8e1c12; }
 /* 559 · Páginas de la factura (solo en memoria) + «Analizar con IA» */
 .ct-ia__paginas {
@@ -151,6 +152,10 @@ label.ct-ncf-lbl { color: #ea580c; }
 .ct-in--cod  { min-width: 110px; }
 .ct-in--desc { min-width: 200px; }
 .ct-in--num  { width: 92px; text-align: right; }
+/* 562 · cantidad corregida con los importes de la factura / por revisar */
+.ct-cant-nota { display: block; margin-top: 3px; font-size: .68rem; color: #13603a; white-space: nowrap; }
+.ct-cant-nota--aviso { color: #a15c00; font-weight: 700; }
+.ct-in--revisar { border-color: #e0a030 !important; background: #fff8ec; }
 .ct-l__prod { min-width: 210px; max-width: 300px; }
 .ct-prod { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; line-height: 1.3; }
 .ct-prod__ok { color: var(--green, #194f40); font-weight: 700; }
@@ -223,6 +228,25 @@ label.ct-ncf-lbl { color: #ea580c; }
 /* Modales */
 .ct-ayuda { font-size: .74rem; color: #8a918d; line-height: 1.3; }
 .ct-ayuda--aviso { color: #a15c00; font-weight: 600; }
+
+/* 561 · Dirección del proveedor con sugerencias de Google Maps */
+.ct-dir { position: relative; }
+.ct-dir__sug {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+  background: #fff; border: 1px solid var(--border, #e5e3db); border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.14); overflow: hidden; max-height: 300px; overflow-y: auto;
+}
+.ct-dir__sug[hidden] { display: none; }
+.ct-dir__op {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 9px 12px;
+  border: none; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.ct-dir__op + .ct-dir__op { border-top: 1px solid #f0eee8; }
+.ct-dir__op > i { color: #c5221f; margin-top: 3px; }
+.ct-dir__op b { display: block; font-size: .88rem; font-weight: 600; }
+.ct-dir__op small { display: block; font-size: .76rem; color: #6b726f; }
+.ct-dir__op:hover, .ct-dir__op--activa { background: #f3f7f4; }
+.ct-dir__pie { padding: 6px 12px; font-size: .68rem; color: #8a918d; background: #faf9f6; border-top: 1px solid #f0eee8; }
 /* 553c · columnas de la lista de proveedores */
 .ct-ubic { min-width: 180px; line-height: 1.35; }
 .ct-correo { word-break: break-all; }
