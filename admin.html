@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '530';
+      const VER = '533';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=11" />
+  <link rel="stylesheet" href="css/conta.css?v=13" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -1052,7 +1052,7 @@
           <div class="table-wrap">
             <table class="data-table ct-lineas">
               <thead>
-                <tr><th>#</th><th class="ct-rc">Recibido</th><th class="ct-rc">No recibido</th><th>Código</th><th>Descripción</th><th>Producto del catálogo</th><th class="n">Cantidad</th><th class="n">Costo unit.</th><th class="n">Importe</th><th></th></tr>
+                <tr><th>#</th><th class="ct-rc">Recibido</th><th class="ct-rc">No recibido</th><th>Código</th><th>Descripción</th><th>Producto del catálogo</th><th class="n">Cantidad</th><th class="n">Costo unit.</th><th class="n">Importe</th><th class="n" title="ITBIS impreso de la línea">ITBIS</th><th class="n" title="Unidades vendibles por caja/fardo">Und/caja</th><th class="n" title="(Importe + ITBIS de la línea) ÷ unidades: lo que se paga por unidad, impuesto incluido">Costo/unidad</th><th></th></tr>
               </thead>
               <tbody id="ctRecLineas"></tbody>
             </table>
@@ -2825,7 +2825,12 @@
             <label for="ctProvTermino">Término de crédito (días) <span class="req">*</span></label>
             <input type="number" class="form-input" id="ctProvTermino" min="0" max="365" step="1" value="30" />
           </div>
-          <div class="form-group"></div>
+          <!-- 563/119 · Descuento que el proveedor da y NO imprime en la factura -->
+          <div class="form-group">
+            <label for="ctProvDescInv">Descuento invisible (%)</label>
+            <input type="text" class="form-input" id="ctProvDescInv" inputmode="decimal" maxlength="5" placeholder="0" autocomplete="off" />
+            <small class="ct-ayuda">Solo si este proveedor da un descuento que no sale en la factura (ej. 2 o 2.5). Se resta de la base antes del ITBIS al calcular el costo por unidad.</small>
+          </div>
         </div>
         <div class="form-group">
           <label for="ctProvNotas">Notas</label>
@@ -4014,7 +4019,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=13"></script>
+  <script src="js/conta.js?v=16"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

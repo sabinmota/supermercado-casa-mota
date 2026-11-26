@@ -156,6 +156,15 @@ label.ct-ncf-lbl { color: #ea580c; }
 .ct-cant-nota { display: block; margin-top: 3px; font-size: .68rem; color: #13603a; white-space: nowrap; }
 .ct-cant-nota--aviso { color: #a15c00; font-weight: 700; }
 .ct-in--revisar { border-color: #e0a030 !important; background: #fff8ec; }
+/* 563 · Método de costeo: ITBIS de la línea, und/caja y costo por unidad */
+.ct-in--itb { width: 84px; text-align: right; }
+.ct-in--emp { width: 58px; text-align: right; }
+.ct-l__cu { padding-top: 14px !important; white-space: nowrap; min-width: 96px; }
+.ct-cu-nota { display: block; margin-top: 3px; font-size: .68rem; color: #8a918d; white-space: nowrap; font-weight: 400; }
+/* 564 · Prueba de un renglón (costo sin / con ITBIS) en los totales */
+.ct-prueba { display: block !important; margin-top: 4px; padding: 8px 10px; border-radius: 8px; background: #eef4fa; color: #23415c; font-size: .8rem; line-height: 1.35; }
+.ct-prueba small { display: block; margin-top: 2px; font-size: .74rem; color: #3d5a73; }
+.ct-pend { display: inline-block; background: #fff0d6; color: #8a4b00; border-radius: 999px; padding: 2px 8px; font-size: .72rem; font-weight: 700; }
 .ct-l__prod { min-width: 210px; max-width: 300px; }
 .ct-prod { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; line-height: 1.3; }
 .ct-prod__ok { color: var(--green, #194f40); font-weight: 700; }

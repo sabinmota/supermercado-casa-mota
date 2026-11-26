@@ -151,7 +151,9 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
       "costo_unitario": precio de UNA unidad facturada (una caja si se factura por caja) SIN ITBIS y ya con el descuento,
       "precio_con_itbis": precio de UNA unidad facturada CON ITBIS si hay esa columna, o null,
       "importe": total de la línea SIN ITBIS si hay esa columna, o null,
-      "importe_con_itbis": total de la línea CON ITBIS si hay esa columna (p. ej. VALOR C/ITBIS), o null }
+      "importe_con_itbis": total de la línea CON ITBIS si hay esa columna (p. ej. VALOR C/ITBIS), o null,
+      "itbis": ITBIS de la LÍNEA entera si hay columna de ITBIS (p. ej. VALOR ITBIS), o null,
+      "exenta": true si la línea está marcada como exenta (una \\"E\\" junto al código o la cantidad), o false }
   ],
   "pagina": { "numero": número de esta página si lo dice (\\"Página 2 de 3\\" → 2), o null,
               "de": total de páginas de la factura si lo dice (\\"Página 2 de 3\\" → 3), o null,
@@ -166,6 +168,9 @@ Reglas:
 - "costo_unitario" es el precio de UNA unidad facturada SIN ITBIS: la columna PRECIO o PRECIO/UND S/ITBIS (si hay % de descuento, el precio ya descontado). NO le sumes el ITBIS. NO lo dividas entre el empaque.
 - Comprueba CADA línea: cantidad × precio_con_itbis ≈ importe_con_itbis (o cantidad × costo_unitario ≈ importe). Si no cuadra, la cantidad está mal leída: vuelve a leer la columna CANT.
 - Si el pie de la página trae "Sub total Cantidad Página", la suma de tus cantidades de esa página debe dar ese número.
+- "empaque": léelo de la columna de unidad ("CJ * 12") o, si no está ahí, NO lo inventes: pon null. El tamaño de cada unidad (350 ML, 14 OZ, 360 GRS) NO es el empaque.
+- "itbis" de la línea: cópialo de la columna de ITBIS tal cual. Una casilla vacía NO es exenta: pon null.
+- Copia las columnas TAL CUAL están impresas; no calcules tú el ITBIS. Si la columna PRECIO ya trae el ITBIS incluido (precio × cantidad = importe + ITBIS), pon ese precio en "costo_unitario" igualmente, el importe impreso en "importe" y el ITBIS impreso en "itbis": el sistema lo separa.
 - TOTALES: casi siempre están al pie de la última página, en un bloque con filas como SUBTOTAL, DESCUENTO, ITBIS (o "ITBIS 18%", "ITBIS 16%", "I.T.B.I.S.", "IMPUESTO", "IMP.") y TOTAL / TOTAL A PAGAR / NETO A PAGAR. Léelo con mucho cuidado, cifra por cifra.
 - "itbis" es SOLO el importe del impuesto (no el subtotal ni el total). Si hay varias filas de ITBIS (varias tasas), súmalas. Si la factura dice ITBIS 0 o exento, pon 0.
 - Comprueba: normalmente subtotal − descuento + itbis = total. Si no te cuadra, vuelve a leer esas cifras.
@@ -221,8 +226,22 @@ function limpiar(obj) {
     const pc = aNumero(x.precio_con_itbis);
     const ic = aNumero(x.importe_con_itbis ?? x.total);
     let emp = aNumero(x.empaque);
-    if (!(emp > 1 && emp <= 1000 && Number.isInteger(emp))) emp = null;
+    if (!(emp >= 1 && emp <= 1000 && Number.isInteger(emp))) emp = null;   // 1 = se factura por unidad
     if (cantidad !== null && (cantidad <= 0 || cantidad > 999999)) cantidad = null;
+    /* 564 · Caso B (p. ej. Carbec): el PRECIO impreso ya trae el ITBIS y el
+     * IMPORTE es la base: cantidad × precio = importe + ITBIS (de la línea, o
+     * por unidad × cantidad). Se separa AQUÍ: costo = base por unidad e ITBIS
+     * de la línea aparte. Así el costo por unidad sale = precio impreso (como
+     * pide el método) y la cantidad no se «corrige» por error abajo
+     * (importe ÷ precio con ITBIS daría 0.85 × la cantidad). */
+    const itRaw = aNumero(x.itbis);
+    let itbisB = null;
+    if (imp > 0 && costo > 0 && cantidad > 0 && itRaw > 0) {
+      const bruto = cantidad * costo, tol = Math.max(0.05, bruto * 0.003);
+      if (Math.abs(bruto - (imp + itRaw)) <= tol) itbisB = itRaw;
+      else if (Math.abs(bruto - (imp + cantidad * itRaw)) <= tol) itbisB = cantidad * itRaw;   // ITBIS impreso por unidad
+    }
+    if (itbisB !== null) costo = imp / cantidad;
     /* 562 · La cantidad se COMPRUEBA con los importes impresos de la línea:
      * importe / precio (sin ITBIS) o, si no, importe C/ITBIS / precio C/ITBIS.
      * Si la IA tomó el empaque como cantidad («1.00 CJ * 12» leído como 12),
@@ -239,9 +258,24 @@ function limpiar(obj) {
       }
     }
     // Sin corrección y la cantidad es justo el empaque de la caja: que lo mire una persona.
-    if (!corregida && cantidad !== null && emp && cantidad === emp) revisar = true;
+    if (!corregida && cantidad !== null && emp > 1 && cantidad === emp) revisar = true;
     if ((costo === null || costo < 0) && imp !== null && imp >= 0 && cantidad) costo = imp / cantidad;
     if (costo !== null && (costo < 0 || costo > 99999999)) costo = null;
+    /* 563 · ITBIS de la LÍNEA (método de costeo): primero la resta de dos
+     * columnas impresas (VALOR C/ITBIS − cantidad × precio sin ITBIS); si no
+     * hay, la columna de ITBIS. Se guarda el importe, nunca una tasa
+     * reconstruida (hay facturas con 16 % y 18 % mezclados). */
+    let itbis = itbisB !== null ? r2(itbisB) : null;
+    if (itbis === null && ic > 0 && costo !== null && cantidad) {
+      const d = ic - r2(cantidad * costo);
+      if (d >= -0.02) itbis = r2(Math.max(0, d));
+    }
+    if (itbis === null) {
+      const it = aNumero(x.itbis);
+      if (it !== null && it >= 0 && it < 1e9) itbis = r2(it);
+    }
+    const exenta = x.exenta === true && (itbis === null || itbis === 0);
+    if (exenta) itbis = 0;
     lineas.push({
       codigo: aTexto(x.codigo ?? x.code, 40),
       descripcion,
@@ -249,6 +283,9 @@ function limpiar(obj) {
       costo_unitario: costo === null ? null : r2(costo),
       unidad: aTexto(x.unidad, 10),
       empaque: emp,
+      itbis,
+      exenta,
+      precio_con_itbis_incluido: itbisB !== null,
       corregida,
       revisar,
     });

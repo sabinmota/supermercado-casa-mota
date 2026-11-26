@@ -98,6 +98,9 @@
     PROVINCIA_INVALIDA:       'Elige la provincia de la lista.',
     CODIGO_POSTAL_INVALIDO:   'El código postal debe tener 5 cifras.',
     TERMINO_INVALIDO:         'El término de crédito debe ser un número entero de 0 a 365 días.',
+    DESCUENTO_INVALIDO:       'El descuento invisible va de 0 a 20 % (ej. 2 o 2.5).',
+    UND_CAJA_INVALIDA:        'Und/caja debe ser un número entero de 1 en adelante.',
+    ITBIS_INVALIDO:           'El ITBIS de la línea debe ser 0 o más.',
     PROVEEDOR_REPETIDO:       'Ya existe un proveedor con ese nombre.',
     PROVEEDOR_NO_EXISTE:      'Ese proveedor ya no existe. Recarga la página.',
     PROVEEDOR_CON_DEUDA:      'No se puede dar de baja: tiene facturas sin pagar.',
@@ -644,6 +647,7 @@
     $('ctProvProvincia').value     = v('provincia');
     $('ctProvCp').value            = v('codigo_postal');
     $('ctProvTermino').value       = p ? p.termino_dias : 30;
+    $('ctProvDescInv').value       = p && Number(p.descuento_invisible) > 0 ? String(Number(p.descuento_invisible)) : '';
     $('ctProvNotas').value         = v('notas');
     // 561 · lo guardado antes también se ve con sus guiones
     $('ctProvRnc').value = formatoRnc($('ctProvRnc').value) || $('ctProvRnc').value;
@@ -877,6 +881,11 @@
     if (term === null || isNaN(term) || term < 0 || term > 365 || term !== Math.trunc(term)) {
       errorModal('ctProvError', ERRORES.TERMINO_INVALIDO); return;
     }
+    // 563/119 · descuento invisible: vacío = 0
+    const dInv = num($('ctProvDescInv').value);
+    if (dInv !== null && (isNaN(dInv) || dInv < 0 || dInv > 20)) {
+      errorModal('ctProvError', ERRORES.DESCUENTO_INVALIDO); $('ctProvDescInv').focus(); return;
+    }
     await ocupado('ctProvGuardar', 'Guardando…', async () => {
       try {
         await rpc('conta_guardar_proveedor', {
@@ -892,6 +901,7 @@
             ciudad: $('ctProvCiudad').value.trim(),
             provincia, codigo_postal: cp,
             notas: $('ctProvNotas').value.trim(),
+            descuento_invisible: dInv === null ? 0 : r2(dInv),
           },
         });
         cerrarModal('ctProvModal');
@@ -1180,10 +1190,42 @@
   /* 562 · Debajo de la cantidad leída por la IA: si se corrigió con los
    * importes de la factura, o si hay que revisarla (= empaque de la caja). */
   function notaCantidad(l) {
-    const caja = l.empaque ? ` (caja de ${l.empaque})` : '';
+    const caja = Number(l.empaque) > 1 ? ` (caja de ${l.empaque})` : '';
     if (l.iaNota === 'corregida') return `<small class="ct-cant-nota" title="La IA leyó otra cantidad; se corrigió con el importe impreso de la línea"><i class="fas fa-wrench"></i> corregida${caja}</small>`;
     if (l.iaNota === 'revisar') return `<small class="ct-cant-nota ct-cant-nota--aviso" title="La cantidad coincide con el empaque de la caja: puede que la IA lo haya tomado como cantidad"><i class="fas fa-triangle-exclamation"></i> revisa${caja}</small>`;
     return '';
+  }
+
+  /* 563 · Método de costeo: el entregable es el COSTO POR UNIDAD.
+   * 564 · «El costo del artículo es lo que se paga por él, impuesto incluido.
+   * Si la factura imprime el ITBIS aparte, se suma. Una sola vez.»
+   *   unidades = cantidad × und/caja
+   *   costo por unidad = (importe sin ITBIS + ITBIS impreso de la línea) ÷ unidades
+   * Caso B (precio impreso CON ITBIS, p. ej. Carbec): el lector ya separa la
+   * base y el ITBIS, así que la misma fórmula devuelve el precio impreso.
+   * 119 · Descuento invisible del proveedor (ficha): se resta de la BASE una
+   * sola vez y el ITBIS impreso queda intacto:
+   *   (importe × (1 − d/100) + ITBIS) ÷ unidades  — misma fórmula que la base.
+   * Se calcula con todos los decimales y se redondea solo al mostrar. Si falta
+   * und/caja o el ITBIS de la línea, queda «Pendiente»: no se inventa. */
+  function descInvisible() {
+    const p = provPorId($('ctRecProv')?.value);
+    const d = Number(p && p.descuento_invisible);
+    return d > 0 && d <= 20 ? d : 0;
+  }
+  function costoUnidad(l) {
+    const c = num(l.cantidad), e = num(l.empaque), it = num(l.itbis);
+    if (!(c > 0) || l.costo === '' || isNaN(num(l.costo))) return { motivo: 'falta cantidad o costo' };
+    if (e === null || isNaN(e) || e < 1) return { motivo: 'falta und/caja' };
+    if (it === null || isNaN(it) || it < 0) return { motivo: 'falta el ITBIS de la línea' };
+    const unid = r3(c) * e;
+    const d = descInvisible();
+    return { valor: (importe(l) * (1 - d / 100) + it) / unid, unid, d };
+  }
+  function celdaCostoUnidad(l) {
+    const cu = costoUnidad(l);
+    if (cu.valor === undefined) return `<span class="ct-pend" title="${esc(cu.motivo)}">Pendiente</span><small class="ct-cu-nota">${esc(cu.motivo)}</small>`;
+    return `<b>${money(r2(cu.valor))}</b><small class="ct-cu-nota">${String(r3(cu.unid))} unid.${cu.d ? ` · −${cu.d} % inv.` : ''}</small>`;
   }
 
   /* 553f · Factura pagada o borrada: solo se cambia el emparejamiento. */
@@ -1201,7 +1243,7 @@
     pintarCreditos();
     const vis = S.lineas.map((l, i) => ({ l, i })).filter(x => recibida(x.l));
     if (!vis.length) {
-      tb.innerHTML = `<tr><td colspan="10" class="myr-vacio">${S.lineas.length
+      tb.innerHTML = `<tr><td colspan="13" class="myr-vacio">${S.lineas.length
         ? 'Todas las líneas están en <b>Créditos disponibles</b> (no recibidas).'
         : 'Añade productos del catálogo, una línea manual o lee la factura con IA.'}</td></tr>`;
       return;
@@ -1218,6 +1260,9 @@
         <td class="n"><input class="ct-in ct-in--num${l.iaNota === 'revisar' ? ' ct-in--revisar' : ''}" data-campo="cantidad" data-i="${i}" value="${esc(l.cantidad)}" inputmode="decimal" placeholder="0"${dis} />${notaCantidad(l)}</td>
         <td class="n"><input class="ct-in ct-in--num" data-campo="costo" data-i="${i}" value="${esc(l.costo)}" inputmode="decimal" placeholder="0.00"${dis} /></td>
         <td class="n ct-l__imp">${money(importe(l))}</td>
+        <td class="n"><input class="ct-in ct-in--itb" data-campo="itbis" data-i="${i}" value="${esc(l.itbis)}" inputmode="decimal" placeholder="—" title="ITBIS impreso de la línea (0 solo si es exenta)"${dis} />${l.exenta ? '<small class="ct-cu-nota">exenta</small>' : (l.precioIncl ? '<small class="ct-cu-nota" title="El precio impreso ya traía el ITBIS: se separó en base + ITBIS">precio con ITBIS</small>' : '')}</td>
+        <td class="n"><input class="ct-in ct-in--emp" data-campo="empaque" data-i="${i}" value="${esc(l.empaque)}" inputmode="numeric" placeholder="—" title="Unidades vendibles que trae cada caja/fardo (1 si se factura por unidad)"${dis} /></td>
+        <td class="n ct-l__cu">${celdaCostoUnidad(l)}</td>
         <td>${dis ? '' : `<button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button>`}</td>
       </tr>`).join('');
   }
@@ -1287,6 +1332,7 @@
       <div><span>Líneas</span><b>${S.lineas.length}${sin ? ` <small class="ct-noemp-txt">(${sin} no emparejada${sin === 1 ? '' : 's'})</small>` : ''}${nNo ? ` <small class="ct-cred-txt">(${nNo} no recibida${nNo === 1 ? '' : 's'})</small>` : ''}</b></div>
       <div><span>Suma de las líneas</span><b>${money(suma)}</b></div>
       ${filasImpuesto(suma, total, dif)}
+      ${filasCosteo()}
       ${pieFactura(monto, p, fecha)}`;
     const btn = $('ctRecConfirmar');
     if (btn && !S.guardando) btn.disabled = !S.lineas.length;
@@ -1318,6 +1364,49 @@
       h += aviso(`Subtotal − descuento + ITBIS da ${money(esperado)}, no el total: revisa el ITBIS con la foto.`);
     }
     return h;
+  }
+
+  /* 563 · ITBIS de las líneas contra el ITBIS del pie (comprobación por
+   * columna del método) y cuántas líneas tienen el costo por unidad pendiente.
+   * Se compara con TODAS las líneas facturadas (también las no recibidas):
+   * el pie del proveedor las incluye. */
+  function filasCosteo() {
+    if (!S.lineas.length) return '';
+    const conIt = S.lineas.filter(l => l.itbis !== '' && l.itbis !== undefined && !isNaN(num(l.itbis)));
+    let h = '';
+    if (conIt.length) {
+      const sumIt = r2(conIt.reduce((a, l) => a + (num(l.itbis) || 0), 0));
+      h += `<div><span>ITBIS de las líneas${conIt.length < S.lineas.length ? ` <small class="ct-gris">(${conIt.length} de ${S.lineas.length})</small>` : ''}</span><b>${money(sumIt)}</b></div>`;
+      const pie = S.iaTot && S.iaTot.itbis;
+      if (conIt.length === S.lineas.length && pie !== null && pie !== undefined && Math.abs(sumIt - pie) >= 1) {
+        h += `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> El ITBIS de las líneas no cuadra con el del pie (${money(pie)}): puede faltar una línea o una página.</span><b>${money(r2(sumIt - pie))}</b></div>`;
+      }
+    }
+    const pend = S.lineas.filter(l => recibida(l) && costoUnidad(l).valor === undefined).length;
+    if (pend) h += `<div class="ct-cred-txt"><span><i class="fas fa-circle-question"></i> Costo por unidad pendiente</span><b>${plural(pend, 'línea', 'líneas')}</b></div>`;
+    h += pruebaRenglon();
+    return h;
+  }
+
+  /* 564 · «Conciliar no es lo mismo que costear.» Que el pie cuadre prueba que
+   * la factura se leyó bien, NO que el costo esté bien. Por eso se muestra la
+   * prueba de un renglón: la línea gravada de mayor importe, con su costo por
+   * unidad SIN y CON ITBIS. El que se usa es el CON ITBIS (lo que se paga). */
+  function pruebaRenglon() {
+    let mejor = null;
+    S.lineas.forEach(l => {
+      if (!recibida(l) || !(num(l.itbis) > 0)) return;
+      const cu = costoUnidad(l);
+      if (cu.valor === undefined) return;
+      if (!mejor || importe(l) > importe(mejor.l)) mejor = { l, cu };
+    });
+    if (!mejor) return '';
+    const d = mejor.cu.d || 0;
+    const sin = importe(mejor.l) * (1 - d / 100) / mejor.cu.unid;
+    const desc = String(mejor.l.descripcion || mejor.l.codigo || 'línea').slice(0, 34);
+    return `<div class="ct-prueba" title="Comprobación del método: el costo por unidad incluye el ITBIS impreso de la línea">
+      <span><i class="fas fa-scale-balanced"></i> Prueba de un renglón · ${esc(desc)}<small>sin ITBIS ${money(r2(sin))} → <b>con ITBIS ${money(r2(mejor.cu.valor))}</b> por unidad (se usa el que lleva el ITBIS: es lo que se paga)${d ? ` · incluye el descuento invisible del ${d} % de este proveedor, antes del ITBIS` : ''}</small></span>
+    </div>`;
   }
 
   /* Pie de totales: lo que quedará en Cuentas por pagar. */
@@ -1358,7 +1447,7 @@
       S.lineas.push({
         codigo: String(p.barcode || '').trim(), descripcion: String(p.name || '').slice(0, 200),
         cantidad: '1', costo: (p.costo !== null && p.costo !== undefined && p.costo !== '') ? String(p.costo) : '',
-        producto_id: p.id, via: 'catalogo', manual: true, recibido: true,
+        producto_id: p.id, via: 'catalogo', manual: true, recibido: true, empaque: '', itbis: '',
       });
     }
     $('ctRecBuscar').value = '';
@@ -1394,7 +1483,7 @@
 
   function lineaLibre() {
     if (soloEmparejar()) return;
-    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false, recibido: true });
+    S.lineas.push({ codigo: '', descripcion: '', cantidad: '1', costo: '', producto_id: null, via: '', manual: false, recibido: true, empaque: '', itbis: '' });
     pintarLineas();
     pintarTotalesRec();
     document.querySelector(`#ctRecLineas input[data-campo="codigo"][data-i="${S.lineas.length - 1}"]`)?.focus();
@@ -1452,6 +1541,9 @@
       cantidad: String(Number(l.cantidad)), costo: String(Number(l.costo_unitario)),
       producto_id: l.producto_id || null, via: l.producto_id ? 'guardado' : '',
       recibido: l.recibido !== false,   // 555 · las de antes del 117 cuentan como recibidas
+      // 563/119 · und/caja e ITBIS guardados (las de antes del 119 llegan vacíos)
+      empaque: l.und_caja != null ? String(Number(l.und_caja)) : '',
+      itbis: l.itbis != null ? String(Number(l.itbis)) : '',
       manual: !!l.producto_id,   // lo ya emparejado no se toca al volver a emparejar
     }));
     irTab('recepcion');
@@ -1573,6 +1665,9 @@
             costo_unitario: r2(num(l.costo)),
             guardar_referencia: guardaReferencia(l),
             recibido: recibida(l),
+            // 563/119 · la base calcula y guarda el costo por unidad con el descuento invisible
+            und_caja: num(l.empaque) >= 1 ? Math.trunc(num(l.empaque)) : null,
+            itbis: l.itbis !== '' && l.itbis != null && !isNaN(num(l.itbis)) && num(l.itbis) >= 0 ? r2(num(l.itbis)) : null,
           })),
         };
         const txtCred = r => (Number(r && r.credito) > 0)
@@ -1890,7 +1985,11 @@
       recibido: true,   // 555 · lo leído por la IA se da por recibido; se desmarca a mano
       // 562 · aviso bajo la cantidad (no se guarda; se quita al tocar la cantidad)
       iaNota: x.corregida ? 'corregida' : (x.revisar ? 'revisar' : ''),
-      empaque: Number(x.empaque) > 1 ? Number(x.empaque) : null,
+      // 563 · und/caja y ITBIS de la línea tal como los leyó la IA (se pueden corregir)
+      empaque: Number(x.empaque) >= 1 ? String(Number(x.empaque)) : '',
+      itbis: x.itbis !== null && x.itbis !== undefined && x.itbis !== '' && !isNaN(Number(x.itbis)) ? String(r2(Number(x.itbis))) : '',
+      exenta: !!x.exenta,
+      precioIncl: !!x.precio_con_itbis_incluido,   // 564 · caso B
     }));
     nuevas.forEach(autoEmparejar);
     if (S.lineas.length && !confirm(`La IA leyó ${plural(nuevas.length, 'línea', 'líneas')}.\n\nAceptar = SUSTITUIR las ${S.lineas.length} líneas actuales.\nCancelar = AÑADIRLAS al final.`)) {
@@ -2029,9 +2128,12 @@
         el.classList.remove('ct-in--revisar');
         el.parentElement.querySelector('.ct-cant-nota')?.remove();
       }
-      if (campo === 'cantidad' || campo === 'costo') {
-        const td = el.closest('tr').querySelector('.ct-l__imp');
+      if (campo === 'cantidad' || campo === 'costo' || campo === 'itbis' || campo === 'empaque') {
+        const tr = el.closest('tr');
+        const td = tr.querySelector('.ct-l__imp');
         if (td) td.textContent = money(importe(l));
+        const cu = tr.querySelector('.ct-l__cu');   // 563 · costo por unidad al momento
+        if (cu) cu.innerHTML = celdaCostoUnidad(l);
         pintarTotalesRec();
       }
     });
