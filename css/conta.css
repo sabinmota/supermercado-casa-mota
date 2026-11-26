@@ -164,6 +164,12 @@ label.ct-ncf-lbl { color: #ea580c; }
 /* 564 · Prueba de un renglón (costo sin / con ITBIS) en los totales */
 .ct-prueba { display: block !important; margin-top: 4px; padding: 8px 10px; border-radius: 8px; background: #eef4fa; color: #23415c; font-size: .8rem; line-height: 1.35; }
 .ct-prueba small { display: block; margin-top: 2px; font-size: .74rem; color: #3d5a73; }
+/* 565 · Regalos licuados y ventana «Actualizar costo del catálogo» */
+.ct-regalo { display: inline-block; background: #e8f3ff; color: #1d4f86; border-radius: 999px; padding: 1px 7px; font-size: .66rem; font-weight: 700; margin-right: 3px; }
+.ct-costos td, .ct-costos th { padding: 8px 10px; }
+.ct-costo-chk { width: 18px; height: 18px; cursor: pointer; accent-color: var(--green, #194f40); }
+.ct-sube { color: #b42318; font-weight: 700; }
+.ct-baja { color: #13603a; font-weight: 700; }
 .ct-pend { display: inline-block; background: #fff0d6; color: #8a4b00; border-radius: 999px; padding: 2px 8px; font-size: .72rem; font-weight: 700; }
 .ct-l__prod { min-width: 210px; max-width: 300px; }
 .ct-prod { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; line-height: 1.3; }

@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '533';
+      const VER = '534';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=13" />
+  <link rel="stylesheet" href="css/conta.css?v=14" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -1059,7 +1059,7 @@
           </div>
 
           <div class="ct-rec__pie">
-            <p class="myr-nota"><i class="fas fa-circle-info"></i> La recepción <b>no cambia el inventario</b> (ni existencias ni costos). Al confirmar se crea sola la factura en <b>Cuentas por pagar</b>.</p>
+            <p class="myr-nota"><i class="fas fa-circle-info"></i> La recepción <b>no cambia las existencias</b>. Al confirmar se crea sola la factura en <b>Cuentas por pagar</b> y se te pregunta, <b>producto por producto</b>, si quieres actualizar el costo del catálogo.</p>
             <div class="mp-totales ct-rec__totales" id="ctRecTotales"></div>
           </div>
           <!-- 555 · Créditos disponibles: líneas NO recibidas (js/conta.js · seguridad/117) -->
@@ -2973,6 +2973,31 @@
     </div>
   </div>
 
+  <!-- 565 · Parte 4: actualizar el costo del catálogo, producto por producto -->
+  <div class="modal-backdrop hidden" id="ctCostoModal">
+    <div class="modal" style="max-width:760px">
+      <div class="modal-header">
+        <h3><i class="fas fa-tags"></i> Actualizar costo del catálogo</h3>
+        <button class="modal-close-btn" type="button" data-ct-cerrar="ctCostoModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="ct-emp__linea" id="ctCostoTxt"></p>
+        <div class="table-wrap">
+          <table class="data-table ct-costos">
+            <thead><tr><th class="ct-rc">Actualizar</th><th>Producto</th><th class="n">Costo actual</th><th class="n">Costo de esta factura</th><th class="n">Cambio</th></tr></thead>
+            <tbody id="ctCostoLista"></tbody>
+          </table>
+        </div>
+        <p class="myr-nota"><i class="fas fa-circle-info"></i> Solo cambia el costo de los productos que marques. Es el costo <b>por unidad</b> e incluye el ITBIS, el descuento invisible del proveedor y los regalos licuados.</p>
+        <div class="myr-error" id="ctCostoError" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" type="button" data-ct-cerrar="ctCostoModal">Ahora no</button>
+        <button class="btn-primary" type="button" id="ctCostoGuardar"><i class="fas fa-save"></i> Actualizar los marcados</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════ SECCIÓN REPORTES ══════════════ -->
   <section class="section-content" id="sec-reportes">
 
@@ -4019,7 +4044,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=16"></script>
+  <script src="js/conta.js?v=17"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

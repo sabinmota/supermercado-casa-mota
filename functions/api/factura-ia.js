@@ -142,6 +142,7 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
   "descuento": número con el DESCUENTO total del bloque de totales, o null,
   "itbis": número con el ITBIS (impuesto) TOTAL cobrado en la factura, o null,
   "total": número con el TOTAL A PAGAR final de la factura (ya con ITBIS), o null,
+  "exento": número con el SUB-TOTAL EXENTO / TOTAL EXENTO de la factura completa si aparece, o null,
   "lineas": [
     { "codigo": "código del artículo o de barras si aparece, o \\"\\"",
       "descripcion": "descripción del artículo tal como está escrita",
@@ -153,13 +154,15 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
       "importe": total de la línea SIN ITBIS si hay esa columna, o null,
       "importe_con_itbis": total de la línea CON ITBIS si hay esa columna (p. ej. VALOR C/ITBIS), o null,
       "itbis": ITBIS de la LÍNEA entera si hay columna de ITBIS (p. ej. VALOR ITBIS), o null,
-      "exenta": true si la línea está marcada como exenta (una \\"E\\" junto al código o la cantidad), o false }
+      "exenta": true si la línea está marcada como exenta (una \\"E\\" junto al código o la cantidad), o false,
+      "promocion": true si es una línea de REGALO o bonificación (total 0.00 que repite un producto cobrado, o marcada BONIF, PRM, PROMO, REGALO u oferta tipo 5+1), o false }
   ],
   "pagina": { "numero": número de esta página si lo dice (\\"Página 2 de 3\\" → 2), o null,
               "de": total de páginas de la factura si lo dice (\\"Página 2 de 3\\" → 3), o null,
               "cantidad": suma de cantidades del pie de ESTA página (p. ej. \\"Sub total Cantidad Página 2\\"),
               "subtotal": subtotal SIN ITBIS de ESTA página (gravado + exento),
               "itbis": ITBIS de ESTA página,
+              "exento": subtotal EXENTO de ESTA página (p. ej. \\"SUB-TOTAL EXENTO Página 2\\"), o null,
               "total": total general de ESTA página } o null si la página no trae totales de página
 }
 Reglas:
@@ -170,6 +173,7 @@ Reglas:
 - Si el pie de la página trae "Sub total Cantidad Página", la suma de tus cantidades de esa página debe dar ese número.
 - "empaque": léelo de la columna de unidad ("CJ * 12") o, si no está ahí, NO lo inventes: pon null. El tamaño de cada unidad (350 ML, 14 OZ, 360 GRS) NO es el empaque.
 - "itbis" de la línea: cópialo de la columna de ITBIS tal cual. Una casilla vacía NO es exenta: pon null.
+- Línea de REGALO ("promocion": true): copia la cantidad regalada tal cual y pon "costo_unitario": 0 e "importe": 0. NO la juntes con la línea cobrada: va en su propia entrada. Los envases en préstamo (canastas, gavetas) NO son promoción.
 - Copia las columnas TAL CUAL están impresas; no calcules tú el ITBIS. Si la columna PRECIO ya trae el ITBIS incluido (precio × cantidad = importe + ITBIS), pon ese precio en "costo_unitario" igualmente, el importe impreso en "importe" y el ITBIS impreso en "itbis": el sistema lo separa.
 - TOTALES: casi siempre están al pie de la última página, en un bloque con filas como SUBTOTAL, DESCUENTO, ITBIS (o "ITBIS 18%", "ITBIS 16%", "I.T.B.I.S.", "IMPUESTO", "IMP.") y TOTAL / TOTAL A PAGAR / NETO A PAGAR. Léelo con mucho cuidado, cifra por cifra.
 - "itbis" es SOLO el importe del impuesto (no el subtotal ni el total). Si hay varias filas de ITBIS (varias tasas), súmalas. Si la factura dice ITBIS 0 o exento, pon 0.
@@ -242,6 +246,12 @@ function limpiar(obj) {
       else if (Math.abs(bruto - (imp + cantidad * itRaw)) <= tol) itbisB = cantidad * itRaw;   // ITBIS impreso por unidad
     }
     if (itbisB !== null) costo = imp / cantidad;
+    /* 565 · Regalo / bonificación: solo si la línea NO cobra nada (importe 0 o
+     * vacío y precio 0 o vacío). Si la IA la marca pero trae importe, no es un
+     * regalo: se trata como una línea normal. */
+    const promocion = (imp === null || imp === 0) && (costo === null || costo === 0) &&
+      (x.promocion === true || (imp === 0 && costo === 0));
+    if (promocion) costo = 0;
     /* 562 · La cantidad se COMPRUEBA con los importes impresos de la línea:
      * importe / precio (sin ITBIS) o, si no, importe C/ITBIS / precio C/ITBIS.
      * Si la IA tomó el empaque como cantidad («1.00 CJ * 12» leído como 12),
@@ -302,6 +312,7 @@ function limpiar(obj) {
     cantidad: monto(pg.cantidad, false),
     subtotal: monto(pg.subtotal, true),
     itbis: monto(pg.itbis, true),
+    exento: monto(pg.exento, true),
     total: monto(pg.total, false),
   } : null;
   return {
@@ -312,6 +323,7 @@ function limpiar(obj) {
     subtotal: monto(o.subtotal, false),
     descuento: monto(o.descuento, true),
     itbis: monto(o.itbis ?? o.impuesto, true),
+    exento: monto(o.exento, true),
     total: monto(o.total, false),
     lineas,
   };

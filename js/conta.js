@@ -101,6 +101,9 @@
     DESCUENTO_INVALIDO:       'El descuento invisible va de 0 a 20 % (ej. 2 o 2.5).',
     UND_CAJA_INVALIDA:        'Und/caja debe ser un número entero de 1 en adelante.',
     ITBIS_INVALIDO:           'El ITBIS de la línea debe ser 0 o más.',
+    REGALO_INVALIDO:          'Una línea de regalo debe ir en 0.00 y repetir un producto cobrado de la misma factura.',
+    SIN_CAMBIOS:              'Marca al menos un producto para actualizar su costo.',
+    DEMASIADOS_CAMBIOS:       'Como máximo 500 productos de una vez.',
     PROVEEDOR_REPETIDO:       'Ya existe un proveedor con ese nombre.',
     PROVEEDOR_NO_EXISTE:      'Ese proveedor ya no existe. Recarga la página.',
     PROVEEDOR_CON_DEUDA:      'No se puede dar de baja: tiene facturas sin pagar.',
@@ -551,6 +554,7 @@
             })()}${r.ncf ? ` · <span class="ct-ncf-txt">e-NCF ${esc(r.ncf)}</span>` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
             <div class="ct-det__acc">
               <button type="button" class="btn-secondary ct-btn-sm" data-act="editrec" data-id="${esc(r.id)}"><i class="fas fa-pen-to-square"></i> Editar recepción</button>
+              ${ls.some(l => l.producto_id && l.costo_unidad != null && l.recibido !== false) ? `<button type="button" class="btn-secondary ct-btn-sm" data-act="costosrec" data-id="${esc(r.id)}"><i class="fas fa-tags"></i> Actualizar costos del catálogo</button>` : ''}
               ${r.factura_id == null ? '<small class="ct-gris">Factura borrada: solo se puede emparejar.</small>' : (r.factura_pagada ? '<small class="ct-gris">Factura pagada: solo se puede emparejar.</small>' : '')}
               ${r.editado_en ? `<small class="ct-editada"><i class="fas fa-clock-rotate-left"></i> Editada por ${esc(nombreEmpleado(r.editado_por))} el ${fFechaHora(r.editado_en)}</small>` : ''}
             </div>`
@@ -602,6 +606,76 @@
       }
       pintarHist();
     }
+  }
+
+  // ─── 565 · Parte 4: actualizar el costo del catálogo, producto por producto ──
+  /* Sale al guardar una recepción (solo si hay algo que cambiar) y con el
+   * botón del historial. Usa el costo por unidad GUARDADO en la base (con el
+   * ITBIS, el descuento invisible y los regalos licuados). Si un producto sale
+   * en varias líneas, se promedia por unidades. Nada se marca solo: el
+   * empleado elige uno por uno qué costos cambian (pedido del dueño). */
+  async function abrirCostos(id, auto) {
+    let ls = S.recLineas[id];
+    try {
+      if (!ls) ls = S.recLineas[id] = await rpc('conta_leer_recepcion_lineas', { p_id: id }, true);
+    } catch (e) { if (!auto) toast(e.message, 'error'); return; }
+    const grupos = {};
+    (ls || []).forEach(l => {
+      if (!l.producto_id || l.recibido === false) return;
+      const g = grupos[l.producto_id] || (grupos[l.producto_id] = { id: l.producto_id, u: 0, s: 0, pend: false, desc: l.descripcion });
+      if (l.costo_unidad == null || l.und_caja == null) { if (l.regalo_de == null) g.pend = true; return; }
+      const u = Number(l.cantidad) * Number(l.und_caja);
+      g.u += u; g.s += u * Number(l.costo_unidad);
+    });
+    const filas = Object.values(grupos).map(g => {
+      const p = prodPorId(g.id);
+      const actual = p && p.costo !== null && p.costo !== undefined && p.costo !== '' && !isNaN(Number(p.costo)) ? Number(p.costo) : null;
+      const nuevo = (!g.pend && g.u > 0) ? r2(g.s / g.u) : null;
+      return { id: g.id, nombre: p ? p.name : g.desc, actual, nuevo,
+               igual: nuevo !== null && actual !== null && Math.abs(nuevo - actual) < 0.005 };
+    });
+    if (auto && !filas.some(f => f.nuevo !== null && !f.igual)) return;
+    if (!filas.length) { toast('Esta recepción no tiene líneas emparejadas con el catálogo: emparéjalas primero con «Emparejar».', 'info'); return; }
+    S.costos = filas;
+    const r = S.rec.find(x => String(x.id) === String(id));
+    $('ctCostoTxt').innerHTML = `Factura <b>${esc(r ? r.numero_factura : '')}</b>${r ? ` de <b>${esc(r.proveedor_nombre || '')}</b>` : ''}: marca <b>uno por uno</b> los productos cuyo costo quieres cambiar en el catálogo.`;
+    pintarCostos();
+    errorModal('ctCostoError', '');
+    abrirModal('ctCostoModal');
+  }
+  function pintarCostos() {
+    $('ctCostoLista').innerHTML = S.costos.map((f, i) => {
+      let cambio = '<span class="ct-gris">—</span>';
+      if (f.nuevo !== null && f.actual === null) cambio = '<span class="ct-gris">nuevo</span>';
+      else if (f.nuevo !== null && f.actual > 0 && !f.igual) {
+        const pct = (f.nuevo - f.actual) / f.actual * 100;
+        cambio = `<span class="${pct > 0 ? 'ct-sube' : 'ct-baja'}">${pct > 0 ? '+' : ''}${pct.toFixed(1)} %</span>`;
+      }
+      const chk = f.nuevo === null
+        ? '<span class="ct-pend" title="Falta und/caja o ITBIS en la recepción">Pendiente</span>'
+        : (f.igual ? '<small class="ct-gris">igual</small>'
+          : `<input type="checkbox" class="ct-costo-chk" data-ci="${i}" aria-label="Actualizar el costo de ${esc(f.nombre)}" />`);
+      return `<tr><td class="ct-rc">${chk}</td><td>${esc(f.nombre)}</td>
+        <td class="n">${f.actual === null ? '<span class="ct-gris">sin costo</span>' : money(f.actual)}</td>
+        <td class="n"><b>${f.nuevo === null ? '—' : money(f.nuevo)}</b></td>
+        <td class="n">${cambio}</td></tr>`;
+    }).join('');
+  }
+  async function guardarCostos() {
+    errorModal('ctCostoError', '');
+    const cambios = Array.from(document.querySelectorAll('#ctCostoLista .ct-costo-chk:checked'))
+      .map(c => S.costos[Number(c.getAttribute('data-ci'))])
+      .filter(f => f && f.nuevo !== null)
+      .map(f => ({ producto_id: String(f.id), costo: f.nuevo }));
+    if (!cambios.length) { errorModal('ctCostoError', 'Marca al menos un producto (o pulsa «Ahora no»).'); return; }
+    await ocupado('ctCostoGuardar', 'Actualizando…', async () => {
+      try {
+        const n = await rpc('conta_actualizar_costos', { p_cambios: cambios });
+        cambios.forEach(c => { const p = prodPorId(c.producto_id); if (p) p.costo = c.costo; });
+        cerrarModal('ctCostoModal');
+        toast(`✅ ${plural(Number(n) || cambios.length, 'costo actualizado', 'costos actualizados')} en el catálogo.`, 'success');
+      } catch (e) { errorModal('ctCostoError', e.message); }
+    });
   }
 
   // ─── Pestañas ──────────────────────────────────────────────────────────────
@@ -1213,19 +1287,80 @@
     const d = Number(p && p.descuento_invisible);
     return d > 0 && d <= 20 ? d : 0;
   }
+  /* 565 · PROMOCIONES (se licúan siempre). Una línea en 0.00 que repite un
+   * producto COBRADO es un regalo: sus unidades se suman a las de la línea
+   * cobrada y lo pagado se reparte entre todas (salami 30 + 3 → 2,310 ÷ 33).
+   * Mismo producto = mismo producto emparejado o, si no, mismo código o
+   * misma descripción exacta. Nunca entre productos distintos. Una línea en
+   * 0.00 que no repite nada cobrado (envases en préstamo…) NO se licúa. */
+  const txtIgual = s => norm(String(s || '')).replace(/\s+/g, ' ');
+  function mismoProducto(a, b) {
+    if (a.producto_id && b.producto_id) return String(a.producto_id) === String(b.producto_id);
+    const ca = String(a.codigo || '').trim().toUpperCase(), cb = String(b.codigo || '').trim().toUpperCase();
+    if (ca && cb) return ca === cb;
+    const da = txtIgual(a.descripcion), db = txtIgual(b.descripcion);
+    return !!da && da === db;
+  }
+  const esCero = l => num(l.cantidad) > 0 && l.costo !== '' && !isNaN(num(l.costo)) && importe(l) === 0;
+  function pagadaDe(l) {
+    if (!esCero(l)) return -1;
+    return S.lineas.findIndex(p => p !== l && importe(p) > 0 && mismoProducto(p, l));
+  }
+  function regalosDe(p) {
+    return S.lineas.filter(g => g !== p && recibida(g) && esCero(g) && S.lineas[pagadaDe(g)] === p);
+  }
+
+  /* 565 · EXENTAS: la marca «E» (o ITBIS 0 marcado) se ACREDITA con el pie:
+   * la base de esas líneas debe dar el «Total exento» de la factura. Si no
+   * concilia, esas líneas quedan «Pendiente». Una casilla vacía no es exenta. */
+  function estadoExentas() {
+    const ex = S.lineas.filter(l => l.exenta);
+    if (!ex.length) return { estado: 'ninguna' };
+    const suma = r2(ex.reduce((a, l) => a + importe(l), 0));
+    const pie = S.iaTot ? S.iaTot.exento : null;
+    if (pie === null || pie === undefined) return { estado: 'sin_pie', suma, n: ex.length };
+    return { estado: Math.abs(suma - pie) < 1 ? 'si' : 'no', suma, pie, n: ex.length };
+  }
+
   function costoUnidad(l) {
     const c = num(l.cantidad), e = num(l.empaque), it = num(l.itbis);
     if (!(c > 0) || l.costo === '' || isNaN(num(l.costo))) return { motivo: 'falta cantidad o costo' };
+    if (esCero(l)) {   // 565 · regalo: toma el costo licuado de la línea cobrada
+      const j = pagadaDe(l);
+      if (j < 0) return { motivo: 'sin costo: no se licúa', cero: true };
+      const cp = costoUnidad(S.lineas[j]);
+      if (cp.valor === undefined) return { motivo: 'regalo: falta el costo de la línea cobrada', regalo: j };
+      return { valor: cp.valor, regalo: j };
+    }
     if (e === null || isNaN(e) || e < 1) return { motivo: 'falta und/caja' };
     if (it === null || isNaN(it) || it < 0) return { motivo: 'falta el ITBIS de la línea' };
-    const unid = r3(c) * e;
+    if (l.exenta && estadoExentas().estado === 'no') return { motivo: 'exenta sin acreditar por el pie' };
+    const unidP = r3(c) * e;
+    const extra = regalosDe(l).reduce((a, g) => a + r3(num(g.cantidad)) * (num(g.empaque) >= 1 ? num(g.empaque) : e), 0);
     const d = descInvisible();
-    return { valor: (importe(l) * (1 - d / 100) + it) / unid, unid, d };
+    const base = importe(l) * (1 - d / 100) + it;
+    return { valor: base / (unidP + extra), unid: unidP + extra, unidP, extra, sinLicuar: extra ? base / unidP : null, d };
   }
   function celdaCostoUnidad(l) {
     const cu = costoUnidad(l);
-    if (cu.valor === undefined) return `<span class="ct-pend" title="${esc(cu.motivo)}">Pendiente</span><small class="ct-cu-nota">${esc(cu.motivo)}</small>`;
-    return `<b>${money(r2(cu.valor))}</b><small class="ct-cu-nota">${String(r3(cu.unid))} unid.${cu.d ? ` · −${cu.d} % inv.` : ''}</small>`;
+    if (cu.cero) return `<span class="ct-gris">—</span><small class="ct-cu-nota" title="Línea en 0.00 que no repite ningún producto cobrado (envase, etc.)">${esc(cu.motivo)}</small>`;
+    const reg = cu.regalo !== undefined
+      ? `<small class="ct-cu-nota"><span class="ct-regalo">Regalo</span> se licúa con «${esc(String(S.lineas[cu.regalo].descripcion || S.lineas[cu.regalo].codigo || '').slice(0, 22))}»</small>` : '';
+    if (cu.valor === undefined) return `<span class="ct-pend" title="${esc(cu.motivo)}">Pendiente</span><small class="ct-cu-nota">${esc(cu.motivo)}</small>${reg}`;
+    if (cu.regalo !== undefined) return `<b>${money(r2(cu.valor))}</b>${reg}`;
+    const unid = cu.extra
+      ? `${String(r3(cu.unid))} unid. (${String(r3(cu.unidP))} + ${String(r3(cu.extra))} regalo) · sin licuar ${money(r2(cu.sinLicuar))}`
+      : `${String(r3(cu.unid))} unid.`;
+    return `<b>${money(r2(cu.valor))}</b><small class="ct-cu-nota">${unid}${cu.d ? ` · −${cu.d} % inv.` : ''}</small>`;
+  }
+  /* Un cambio en una línea puede mover el costo de otra (regalos, exentas):
+   * se repintan TODAS las celdas de costo por unidad sin tocar los campos. */
+  function repintarCostos() {
+    document.querySelectorAll('#ctRecLineas tr[data-i]').forEach(tr => {
+      const l = S.lineas[Number(tr.getAttribute('data-i'))];
+      const td = tr.querySelector('.ct-l__cu');
+      if (l && td) td.innerHTML = celdaCostoUnidad(l);
+    });
   }
 
   /* 553f · Factura pagada o borrada: solo se cambia el emparejamiento. */
@@ -1382,7 +1517,15 @@
         h += `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> El ITBIS de las líneas no cuadra con el del pie (${money(pie)}): puede faltar una línea o una página.</span><b>${money(r2(sumIt - pie))}</b></div>`;
       }
     }
-    const pend = S.lineas.filter(l => recibida(l) && costoUnidad(l).valor === undefined).length;
+    // 565 · exentas acreditadas (o no) con el «Total exento» del pie
+    const ex = estadoExentas();
+    if (ex.estado === 'si') h += `<div><span><i class="fas fa-circle-check"></i> Exentas acreditadas con el pie</span><b>${money(ex.suma)}</b></div>`;
+    else if (ex.estado === 'no') h += `<div class="ct-dif"><span><i class="fas fa-triangle-exclamation"></i> Las líneas exentas suman ${money(ex.suma)} y el «Total exento» del pie dice ${money(ex.pie)}: quedan Pendiente hasta revisarlas.</span><b>${money(r2(ex.suma - ex.pie))}</b></div>`;
+    else if (ex.estado === 'sin_pie') h += `<div class="ct-cred-txt"><span><i class="fas fa-circle-question"></i> Exentas sin «Total exento» en el pie para comprobarlas: revísalas con la foto</span><b>${plural(ex.n, 'línea', 'líneas')}</b></div>`;
+    // 565 · promociones licuadas
+    const nReg = S.lineas.filter(l => recibida(l) && pagadaDe(l) >= 0).length;
+    if (nReg) h += `<div><span><i class="fas fa-gift"></i> Regalos licuados en su producto</span><b>${plural(nReg, 'línea', 'líneas')}</b></div>`;
+    const pend = S.lineas.filter(l => { if (!recibida(l)) return false; const cu = costoUnidad(l); return cu.valor === undefined && !cu.cero; }).length;
     if (pend) h += `<div class="ct-cred-txt"><span><i class="fas fa-circle-question"></i> Costo por unidad pendiente</span><b>${plural(pend, 'línea', 'líneas')}</b></div>`;
     h += pruebaRenglon();
     return h;
@@ -1395,7 +1538,7 @@
   function pruebaRenglon() {
     let mejor = null;
     S.lineas.forEach(l => {
-      if (!recibida(l) || !(num(l.itbis) > 0)) return;
+      if (!recibida(l) || !(num(l.itbis) > 0) || esCero(l)) return;
       const cu = costoUnidad(l);
       if (cu.valor === undefined) return;
       if (!mejor || importe(l) > importe(mejor.l)) mejor = { l, cu };
@@ -1667,7 +1810,11 @@
             recibido: recibida(l),
             // 563/119 · la base calcula y guarda el costo por unidad con el descuento invisible
             und_caja: num(l.empaque) >= 1 ? Math.trunc(num(l.empaque)) : null,
-            itbis: l.itbis !== '' && l.itbis != null && !isNaN(num(l.itbis)) && num(l.itbis) >= 0 ? r2(num(l.itbis)) : null,
+            // 565 · exenta sin acreditar por el pie → sin ITBIS (la base la deja Pendiente)
+            itbis: (l.exenta && estadoExentas().estado === 'no') ? null
+              : (l.itbis !== '' && l.itbis != null && !isNaN(num(l.itbis)) && num(l.itbis) >= 0 ? r2(num(l.itbis)) : null),
+            // 565 · regalo → número (orden) de la línea cobrada en la que se licúa
+            regalo_de: (() => { const j = pagadaDe(l); return j >= 0 ? j + 1 : null; })(),
           })),
         };
         const txtCred = r => (Number(r && r.credito) > 0)
@@ -1681,7 +1828,8 @@
             (r && r.modo === 'completa' ? ` Factura por ${money(r.monto)} · vence el ${fFecha(r.vencimiento)}.` + txtCred(r) : '') +
             (nRef ? ` ${plural(nRef, 'referencia guardada', 'referencias guardadas')} en el catálogo.` : ''), 'success');
           await cargar();
-          verRecepcion(id, true);
+          await verRecepcion(id, true);
+          abrirCostos(id, true);   // 565 · Parte 4: preguntar producto por producto
           return;
         }
         const r = await rpc('conta_crear_recepcion', { p_datos: datos });
@@ -1690,7 +1838,10 @@
         toast(`✅ Recepción guardada. Factura ${esc(numero)} por ${money(r && r.monto)} · vence el ${fFecha(r && r.vencimiento)}.` + txtCred(r) +
           (nRef ? ` ${plural(nRef, 'referencia guardada', 'referencias guardadas')} en el catálogo.` : ''), 'success');
         await cargar();
-        if (r && r.recepcion_id) verRecepcion(r.recepcion_id, true);
+        if (r && r.recepcion_id) {
+          await verRecepcion(r.recepcion_id, true);
+          abrirCostos(r.recepcion_id, true);   // 565 · Parte 4: preguntar producto por producto
+        }
       });
     } catch (e) {
       errorRec(e.message);
@@ -1892,7 +2043,7 @@
    * Si ninguna página trae el total de la factura pero TODAS traen el de su
    * página, el total de la factura es la suma de las páginas. */
   function unirPaginas(lista) {
-    const f = { numero: '', fecha: '', ncf: '', subtotal: null, descuento: null, itbis: null, total: null, lineas: [], avisos: [] };
+    const f = { numero: '', fecha: '', ncf: '', subtotal: null, descuento: null, itbis: null, total: null, exento: null, lineas: [], avisos: [] };
     const N = lista.length;
     lista.forEach((r, i) => {
       if (!r) return;
@@ -1918,14 +2069,17 @@
     if (deMax > N) f.avisos.unshift(`La factura dice que tiene ${deMax} páginas y se ${N === 1 ? 'subió 1' : `subieron ${N}`}: falta subir alguna.`);
     const alReves = ok.slice().reverse();
     const pie = alReves.find(r => r.total > 0) || alReves.find(r => r.itbis !== null && r.itbis !== undefined);
+    const sumaPag = k => r2(ok.reduce((a, r) => a + (Number(r.pagina[k]) || 0), 0));
+    const todasPag = k => ok.length === N && ok.every(r => r.pagina && r.pagina[k] !== null && r.pagina[k] !== undefined);
     if (pie) {
-      ['subtotal', 'descuento', 'itbis', 'total'].forEach(k => { f[k] = pie[k] ?? null; });
+      ['subtotal', 'descuento', 'itbis', 'total', 'exento'].forEach(k => { f[k] = pie[k] ?? null; });
     } else if (ok.length === N && ok.every(r => r.pagina && r.pagina.total > 0)) {
-      const suma = k => r2(ok.reduce((a, r) => a + (Number(r.pagina[k]) || 0), 0));
-      f.total = suma('total');
-      f.itbis = ok.every(r => r.pagina.itbis !== null) ? suma('itbis') : null;
-      f.subtotal = ok.every(r => r.pagina.subtotal !== null) ? suma('subtotal') : null;
+      f.total = sumaPag('total');
+      f.itbis = todasPag('itbis') ? sumaPag('itbis') : null;
+      f.subtotal = todasPag('subtotal') ? sumaPag('subtotal') : null;
     }
+    // 565 · «Total exento»: el de la factura o, si no, la suma del de cada página
+    if ((f.exento === null || f.exento === undefined) && todasPag('exento')) f.exento = sumaPag('exento');
     return f;
   }
 
@@ -1971,7 +2125,7 @@
     if (f.fecha && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) $('ctRecFecha').value = f.fecha;
     if (f.total > 0 && !$('ctRecTotal').value.trim()) $('ctRecTotal').value = r2(f.total);
     // 559 · desglose del pie de la factura (solo para mostrar y comprobar; no se guarda)
-    const tot = { subtotal: montoONull(f.subtotal), descuento: montoONull(f.descuento), itbis: montoONull(f.itbis), total: montoONull(f.total) };
+    const tot = { subtotal: montoONull(f.subtotal), descuento: montoONull(f.descuento), itbis: montoONull(f.itbis), total: montoONull(f.total), exento: montoONull(f.exento) };
     S.iaTot = Object.values(tot).some(v => v !== null) ? tot : null;
     // 557 · el e-NCF va a SU campo (antes se escribía en Notas)
     if (f.ncf && !$('ctRecNcf').value.trim()) $('ctRecNcf').value = limpiarNcf(f.ncf).slice(0, 20);
@@ -2076,6 +2230,7 @@
       }
       else if (act === 'quitar') { if (!soloEmparejar()) { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); } }
       else if (act === 'editrec') editarRecepcion(id);
+      else if (act === 'costosrec') abrirCostos(id, false);
       else if (act === 'recibido') marcarRecibido(i, true);
       else if (act === 'norecibido') marcarRecibido(i, false);
       else if (act === 'emparejar') abrirEmparejar(i);
@@ -2128,12 +2283,12 @@
         el.classList.remove('ct-in--revisar');
         el.parentElement.querySelector('.ct-cant-nota')?.remove();
       }
-      if (campo === 'cantidad' || campo === 'costo' || campo === 'itbis' || campo === 'empaque') {
+      if (campo === 'itbis') l.exenta = false;   // 565 · el ITBIS escrito a mano manda
+      if (campo === 'cantidad' || campo === 'costo' || campo === 'itbis' || campo === 'empaque' || campo === 'codigo' || campo === 'descripcion') {
         const tr = el.closest('tr');
         const td = tr.querySelector('.ct-l__imp');
         if (td) td.textContent = money(importe(l));
-        const cu = tr.querySelector('.ct-l__cu');   // 563 · costo por unidad al momento
-        if (cu) cu.innerHTML = celdaCostoUnidad(l);
+        repintarCostos();   // 563/565 · costo por unidad al momento (también regalos y exentas)
         pintarTotalesRec();
       }
     });
@@ -2165,6 +2320,7 @@
     document.querySelectorAll('[data-ct-cerrar]').forEach(b =>
       b.addEventListener('click', () => cerrarModal(b.getAttribute('data-ct-cerrar'))));
     $('ctProvGuardar').addEventListener('click', guardarProveedor);
+    $('ctCostoGuardar').addEventListener('click', guardarCostos);   // 565
     $('ctProvProvincia').innerHTML = '<option value="">— Elige la provincia —</option>' +
       PROVINCIAS.map(p => `<option value="${esc(p[0])}">${esc(p[0])}</option>`).join('');
     $('ctProvProvincia').addEventListener('change', elegirProvincia);
@@ -2198,7 +2354,7 @@
     });
     document.addEventListener('keydown', ev => {
       if (ev.key !== 'Escape') return;
-      ['ctEmpModal', 'ctPagoModal', 'ctFacModal', 'ctProvModal'].some(id => {
+      ['ctCostoModal', 'ctEmpModal', 'ctPagoModal', 'ctFacModal', 'ctProvModal'].some(id => {
         const m = $(id);
         if (m && !m.classList.contains('hidden')) { cerrarModal(id); return true; }
         return false;
@@ -2231,5 +2387,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _lineas: () => S.lineas, _formatoRnc: formatoRnc, _formatoTel: formatoTel, _provinciaDe: provinciaDe, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _lineas: () => S.lineas, _abrirCostos: abrirCostos, _formatoRnc: formatoRnc, _formatoTel: formatoTel, _provinciaDe: provinciaDe, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
 })();
