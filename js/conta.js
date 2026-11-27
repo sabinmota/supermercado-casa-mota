@@ -248,6 +248,7 @@
     guardando: false,
     provEdit: null, facEdit: null, venEditado: false, pagoId: null, empIdx: null,
     edit: null,           // 553f · recepción guardada que se está editando (null = nueva)
+    facOrden: null,       // 569 · { col, dir } orden de la tabla de facturas (se lee al pintar la 1.ª vez)
   };
 
   function permitido() {
@@ -409,9 +410,66 @@
     pagada:    ['Pagada', 'ct-est--pagada'],
   };
 
+  /* 569 · ORDENAR LA TABLA DE FACTURAS pulsando el título de la columna.
+   * 1.er clic = ascendente (A→Z, la fecha más vieja primero, el monto menor
+   * primero); 2.º clic = al revés. Solo cambia el orden en pantalla: no toca
+   * datos ni filtros. Se recuerda en este navegador (preferencia de vista). */
+  function leerOrdenFac() {
+    try {
+      const o = JSON.parse(localStorage.getItem('cm_ct_fac_orden') || 'null');
+      if (o && ORDEN_FAC[o.col] && (o.dir === 1 || o.dir === -1)) return { col: o.col, dir: o.dir };
+    } catch (e) { /* preferencia ilegible: orden de siempre */ }
+    return { col: '', dir: 1 };
+  }
+  const txtOrden = (a, b) => String(a || '').localeCompare(String(b || ''), 'es', { sensitivity: 'base', numeric: true });
+  const RANGO_EST = { vencida: 0, proxima: 1, pendiente: 2, pagada: 3 };
+  const ORDEN_FAC = {
+    numero:      (a, b) => txtOrden(a.numero, b.numero),
+    proveedor:   (a, b) => txtOrden(a.proveedor_nombre, b.proveedor_nombre),
+    emision:     (a, b) => txtOrden(String(a.fecha_emision || '').slice(0, 10), String(b.fecha_emision || '').slice(0, 10)),
+    vencimiento: (a, b) => txtOrden(String(a.fecha_vencimiento || '').slice(0, 10), String(b.fecha_vencimiento || '').slice(0, 10)),
+    monto:       (a, b) => (Number(a.monto) || 0) - (Number(b.monto) || 0),
+    estado:      (a, b) => (RANGO_EST[a.estado] ?? 9) - (RANGO_EST[b.estado] ?? 9),
+  };
+  function ordenarFacturas(lista) {
+    if (!S.facOrden) S.facOrden = leerOrdenFac();
+    const { col, dir } = S.facOrden;
+    const fn = ORDEN_FAC[col];
+    if (!fn) return lista;
+    // empate: por vencimiento y luego por número, siempre en el mismo sentido
+    return lista.slice().sort((a, b) =>
+      dir * (fn(a, b) || ORDEN_FAC.vencimiento(a, b) || ORDEN_FAC.numero(a, b)));
+  }
+  function cambiarOrdenFac(col) {
+    if (!ORDEN_FAC[col]) return;
+    if (!S.facOrden) S.facOrden = leerOrdenFac();
+    S.facOrden = S.facOrden.col === col ? { col, dir: -S.facOrden.dir } : { col, dir: 1 };
+    try { localStorage.setItem('cm_ct_fac_orden', JSON.stringify(S.facOrden)); } catch (e) { /* sin almacenamiento: vale igual */ }
+    pintarFacturas();
+  }
+  function pintarCabeceraFac() {
+    if (!S.facOrden) S.facOrden = leerOrdenFac();
+    document.querySelectorAll('#ctFacCabecera th[data-ct-orden]').forEach(th => {
+      const col = th.getAttribute('data-ct-orden');
+      const activa = S.facOrden.col === col;
+      const asc = S.facOrden.dir === 1;
+      th.classList.toggle('ct-th--orden', activa);
+      th.setAttribute('aria-sort', activa ? (asc ? 'ascending' : 'descending') : 'none');
+      const i = th.querySelector('i');
+      if (i) i.className = 'fas ' + (activa ? (asc ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort');
+      const b = th.querySelector('button');
+      if (b) {
+        const nombre = b.textContent.trim();
+        const sig = activa && asc ? 'al revés' : (col === 'proveedor' || col === 'numero' ? 'de la A a la Z' : (col === 'monto' ? 'de menor a mayor' : (col === 'estado' ? 'vencidas primero' : 'de la más vieja a la más nueva')));
+        b.title = `Ordenar por ${nombre.toLowerCase()}: ${sig}`;
+      }
+    });
+  }
+
   function pintarFacturas() {
     const tb = $('ctFacTbody');
     if (!tb) return;
+    pintarCabeceraFac();
     const c = cuentas();
     const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
     set('ctKpiPend', money(c.mSin)); set('ctKpiPendN', plural(c.sin.length, 'factura', 'facturas'));
@@ -425,10 +483,10 @@
     const buscar = typeof _admBuscar === 'function'
       ? (f => _admBuscar(q, f.numero, f.proveedor_nombre, f.ncf))
       : (f => !q || (f.numero + ' ' + f.proveedor_nombre).toLowerCase().includes(q.toLowerCase()));
-    const lista = S.fac.filter(f =>
+    const lista = ordenarFacturas(S.fac.filter(f =>
       (!prov || String(f.proveedor_id) === prov) &&
       (est === '' || (est === 'sinpagar' ? !f.pagada : f.estado === est)) &&
-      buscar(f));
+      buscar(f)));
 
     set('ctFacCount', lista.length ? plural(lista.length, 'factura', 'facturas') : 'Sin resultados');
     if (!lista.length) {
@@ -2331,6 +2389,11 @@
 
     ['ctFacBuscar'].forEach(id => $(id).addEventListener('input', pintarFacturas));
     ['ctFacProv', 'ctFacEstado'].forEach(id => $(id).addEventListener('change', pintarFacturas));
+    // 569 · clic en el título de una columna = ordenar por ella
+    $('ctFacCabecera')?.addEventListener('click', ev => {
+      const th = ev.target.closest('th[data-ct-orden]');
+      if (th) cambiarOrdenFac(th.getAttribute('data-ct-orden'));
+    });
     $('ctProvBuscar').addEventListener('input', pintarProveedores);
     $('ctBtnNuevaFac').addEventListener('click', () => abrirFactura());
     $('ctBtnNuevoProv').addEventListener('click', () => abrirProveedor());

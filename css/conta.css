@@ -58,6 +58,18 @@
 /* Tablas */
 .ct-tabla .n, .ct-lineas .n { text-align: right; font-variant-numeric: tabular-nums; }
 .ct-tabla small { font-size: .76rem; }
+/* 569 · títulos de columna que ordenan la tabla al pulsarlos */
+.ct-orden {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px; margin: -2px -4px;
+  background: none; border: 0; border-radius: 6px; cursor: pointer;
+  font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; white-space: nowrap;
+}
+.ct-orden:hover { background: rgba(25, 79, 64, .08); }
+.ct-orden:focus-visible { outline: 2px solid var(--green, #194f40); outline-offset: 2px; }
+.ct-orden i { font-size: .72rem; opacity: .35; }
+.ct-th--orden .ct-orden { color: var(--green, #194f40); }
+.ct-th--orden .ct-orden i { opacity: 1; }
+th.n .ct-orden { flex-direction: row; }
 .ct-gris { color: #8a918d; }
 .ct-fila--vencida td:first-child { box-shadow: inset 4px 0 0 #c62828; }
 .ct-fila--proxima td:first-child { box-shadow: inset 4px 0 0 #e08a00; }

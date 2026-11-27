@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=14" />
+  <link rel="stylesheet" href="css/conta.css?v=15" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -966,7 +966,16 @@
           <div class="table-wrap">
             <table class="data-table ct-tabla">
               <thead>
-                <tr><th>Nº factura</th><th>Proveedor</th><th>Emisión</th><th>Vencimiento</th><th class="n">Monto</th><th>Pronto pago</th><th>Estado</th><th>Acciones</th></tr>
+                <tr id="ctFacCabecera">
+                  <th data-ct-orden="numero"><button type="button" class="ct-orden">Nº factura <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="proveedor"><button type="button" class="ct-orden">Proveedor <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="emision"><button type="button" class="ct-orden">Emisión <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="vencimiento"><button type="button" class="ct-orden">Vencimiento <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th class="n" data-ct-orden="monto"><button type="button" class="ct-orden">Monto <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th>Pronto pago</th>
+                  <th data-ct-orden="estado"><button type="button" class="ct-orden">Estado <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th>Acciones</th>
+                </tr>
               </thead>
               <tbody id="ctFacTbody"></tbody>
             </table>
@@ -4044,7 +4053,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=20"></script>
+  <script src="js/conta.js?v=21"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
