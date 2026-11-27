@@ -10,7 +10,7 @@
   <script>
     /* ── Forzar versión correcta ── */
     (function(){
-      const VER = '534';
+      const VER = '535';
       const KEY = 'cm_admin_ver';
       const stored = sessionStorage.getItem(KEY);
       if (stored !== VER) {
@@ -1052,7 +1052,7 @@
           <div class="table-wrap">
             <table class="data-table ct-lineas">
               <thead>
-                <tr><th>#</th><th class="ct-rc">Recibido</th><th class="ct-rc">No recibido</th><th>Código</th><th>Descripción</th><th>Producto del catálogo</th><th class="n">Cantidad</th><th class="n">Costo unit.</th><th class="n">Importe</th><th class="n" title="ITBIS impreso de la línea">ITBIS</th><th class="n" title="Unidades vendibles por caja/fardo">Und/caja</th><th class="n" title="(Importe + ITBIS de la línea) ÷ unidades: lo que se paga por unidad, impuesto incluido">Costo/unidad</th><th></th></tr>
+                <tr><th>#</th><th class="ct-rc">Recibido</th><th class="ct-rc">No recibido</th><th>Código</th><th>Descripción</th><th>Producto del catálogo</th><th class="n">Cantidad</th><th class="n" title="Precio de UNA caja, fardo o unidad tal como lo factura el proveedor, sin ITBIS. NO es el costo por unidad: ese está en «Costo/unidad»">Precio fact.</th><th class="n">Importe</th><th class="n" title="ITBIS impreso de la línea">ITBIS</th><th class="n" title="Unidades vendibles por caja/fardo">Und/caja</th><th class="n" title="(Importe + ITBIS de la línea) ÷ unidades: lo que se paga por unidad, impuesto incluido">Costo/unidad</th><th></th></tr>
               </thead>
               <tbody id="ctRecLineas"></tbody>
             </table>
@@ -4044,7 +4044,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=17"></script>
+  <script src="js/conta.js?v=18"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

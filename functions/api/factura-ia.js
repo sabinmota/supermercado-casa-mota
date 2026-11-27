@@ -148,7 +148,7 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
       "descripcion": "descripción del artículo tal como está escrita",
       "cantidad": número de la columna CANT./CANTIDAD tal cual (cajas, fardos o unidades facturadas),
       "unidad": "unidad facturada si aparece (CJ, UND, FD, PQ, SC…) o \\"\\"",
-      "empaque": unidades que trae cada caja si aparecen junto a la unidad (\\"CJ * 12\\" → 12, \\"CJ*24\\" → 24), o null,
+      "empaque": unidades vendibles que trae cada caja/fardo: de la columna de unidad (\\"CJ * 12\\" → 12) o, si no está ahí, de la descripción \\"A/B medida\\" (\\"4/128 OZ\\" → 4, \\"24/350 ML\\" → 24), o null,
       "costo_unitario": precio de UNA unidad facturada (una caja si se factura por caja) SIN ITBIS y ya con el descuento,
       "precio_con_itbis": precio de UNA unidad facturada CON ITBIS si hay esa columna, o null,
       "importe": total de la línea SIN ITBIS si hay esa columna, o null,
@@ -171,7 +171,7 @@ Reglas:
 - "costo_unitario" es el precio de UNA unidad facturada SIN ITBIS: la columna PRECIO o PRECIO/UND S/ITBIS (si hay % de descuento, el precio ya descontado). NO le sumes el ITBIS. NO lo dividas entre el empaque.
 - Comprueba CADA línea: cantidad × precio_con_itbis ≈ importe_con_itbis (o cantidad × costo_unitario ≈ importe). Si no cuadra, la cantidad está mal leída: vuelve a leer la columna CANT.
 - Si el pie de la página trae "Sub total Cantidad Página", la suma de tus cantidades de esa página debe dar ese número.
-- "empaque": léelo de la columna de unidad ("CJ * 12") o, si no está ahí, NO lo inventes: pon null. El tamaño de cada unidad (350 ML, 14 OZ, 360 GRS) NO es el empaque.
+- "empaque": léelo de la columna de unidad ("CJ * 12"). Si no está ahí y la descripción trae «A/B medida», el empaque es A: "ACEITE 4/128 OZ" → 4 (4 galones de 128 oz), "24/350 ML" → 24, "1/24/350 ML" → 24. El tamaño de cada unidad (128 OZ, 350 ML, 360 GRS) NUNCA es el empaque. Si B no lleva medida (144/1, 20/5) o no hay nada, pon null: NO lo inventes.
 - "itbis" de la línea: cópialo de la columna de ITBIS tal cual. Una casilla vacía NO es exenta: pon null.
 - Línea de REGALO ("promocion": true): copia la cantidad regalada tal cual y pon "costo_unitario": 0 e "importe": 0. NO la juntes con la línea cobrada: va en su propia entrada. Los envases en préstamo (canastas, gavetas) NO son promoción.
 - Copia las columnas TAL CUAL están impresas; no calcules tú el ITBIS. Si la columna PRECIO ya trae el ITBIS incluido (precio × cantidad = importe + ITBIS), pon ese precio en "costo_unitario" igualmente, el importe impreso en "importe" y el ITBIS impreso en "itbis": el sistema lo separa.

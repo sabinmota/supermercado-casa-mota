@@ -541,7 +541,7 @@
       if (abierta) {
         const ls = S.recLineas[r.id];
         det = `<tr class="ct-det"><td colspan="8">${ls
-          ? `<table class="ct-det__tabla"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>Producto</th><th class="n">Cant.</th><th class="n">Costo</th><th class="n">Importe</th></tr></thead><tbody>${
+          ? `<table class="ct-det__tabla"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>Producto</th><th class="n">Cant.</th><th class="n" title="Precio de una caja/fardo/unidad tal como lo factura el proveedor, sin ITBIS">Precio fact.</th><th class="n">Importe</th></tr></thead><tbody>${
             ls.map(l => {
               const p = l.producto_id ? prodPorId(l.producto_id) : null;
               return `<tr${l.recibido === false ? ' class="ct-det--norec"' : ''}><td>${l.orden}</td><td>${esc(l.codigo) || '—'}</td><td>${esc(l.descripcion)}${l.recibido === false ? ' <span class="ct-norec">No recibido</span>' : ''}</td>
@@ -1282,6 +1282,34 @@
    *   (importe × (1 − d/100) + ITBIS) ÷ unidades  — misma fórmula que la base.
    * Se calcula con todos los decimales y se redondea solo al mostrar. Si falta
    * und/caja o el ITBIS de la línea, queda «Pendiente»: no se inventa. */
+  /* 566 · Und/caja sacado de la DESCRIPCIÓN cuando la factura no trae «CJ * N».
+   * Solo la notación «A/B medida», donde B lleva unidad de medida (OZ, ML,
+   * LT, GL, GRS, LB…): A son las unidades vendibles (4/128 OZ = 4 galones de
+   * 128 oz; 24/350 ML = 24). «1/24/350 ML» = 1 caja de 24. Si B es un conteo
+   * sin medida (144/1, 20/5, 24/24) NO se deduce: queda «Pendiente», porque
+   * según el proveedor significa cosas distintas (método, punto 4). */
+  const RX_EMPAQUE = /(?:^|[^\d.,])(?:(\d{1,4})\s*\/\s*)?(\d{1,4})\s*\/\s*(\d+(?:[.,]\d+)?)\s*(?:FL\.?\s*)?(?:OZ|ONZ|ML|CC|LTS?|LITROS?|L|GL|GAL|GALON(?:ES)?|GRS?|GMS?|G|KGS?|LBS?|LIBRAS?)\b/i;
+  function empaqueDesc(desc) {
+    const m = RX_EMPAQUE.exec(String(desc || ''));
+    if (!m) return null;
+    const a = m[1] ? Number(m[1]) : null, b = Number(m[2]);
+    const und = a === null ? b : (a === 1 ? b : null);
+    const tam = Number(String(m[3]).replace(',', '.'));
+    return und >= 1 && und <= 1000 && Number.isInteger(und) ? { und, tam } : null;
+  }
+  /* La IA puede dejar el empaque vacío o poner el TAMAÑO (128, 350) en vez del
+   * número de unidades: si la descripción lo dice claro, manda la descripción. */
+  function empaqueInicial(empIa, desc) {
+    const d = empaqueDesc(desc);
+    const e = Number(empIa) >= 1 ? Number(empIa) : null;
+    if (e !== null && !(d && e === d.tam && e !== d.und)) return { empaque: String(e), empDesc: false };
+    return d ? { empaque: String(d.und), empDesc: true } : { empaque: '', empDesc: false };
+  }
+  function celdaEmpaque(l, i, dis) {
+    return `<input class="ct-in ct-in--emp" data-campo="empaque" data-i="${i}" value="${esc(l.empaque)}" inputmode="numeric" placeholder="—" title="Unidades vendibles que trae cada caja/fardo (1 si se factura por unidad)"${dis} />` +
+      (l.empDesc ? '<small class="ct-cu-nota" title="Sacado de la descripción (A/B medida): revísalo">de la descripción</small>' : '');
+  }
+
   function descInvisible() {
     const p = provPorId($('ctRecProv')?.value);
     const d = Number(p && p.descuento_invisible);
@@ -1396,7 +1424,7 @@
         <td class="n"><input class="ct-in ct-in--num" data-campo="costo" data-i="${i}" value="${esc(l.costo)}" inputmode="decimal" placeholder="0.00"${dis} /></td>
         <td class="n ct-l__imp">${money(importe(l))}</td>
         <td class="n"><input class="ct-in ct-in--itb" data-campo="itbis" data-i="${i}" value="${esc(l.itbis)}" inputmode="decimal" placeholder="—" title="ITBIS impreso de la línea (0 solo si es exenta)"${dis} />${l.exenta ? '<small class="ct-cu-nota">exenta</small>' : (l.precioIncl ? '<small class="ct-cu-nota" title="El precio impreso ya traía el ITBIS: se separó en base + ITBIS">precio con ITBIS</small>' : '')}</td>
-        <td class="n"><input class="ct-in ct-in--emp" data-campo="empaque" data-i="${i}" value="${esc(l.empaque)}" inputmode="numeric" placeholder="—" title="Unidades vendibles que trae cada caja/fardo (1 si se factura por unidad)"${dis} /></td>
+        <td class="n ct-l__emp">${celdaEmpaque(l, i, dis)}</td>
         <td class="n ct-l__cu">${celdaCostoUnidad(l)}</td>
         <td>${dis ? '' : `<button type="button" class="action-btn action-btn-del" data-act="quitar" data-i="${i}" title="Quitar línea"><i class="fas fa-trash"></i></button>`}</td>
       </tr>`).join('');
@@ -1590,7 +1618,7 @@
       S.lineas.push({
         codigo: String(p.barcode || '').trim(), descripcion: String(p.name || '').slice(0, 200),
         cantidad: '1', costo: (p.costo !== null && p.costo !== undefined && p.costo !== '') ? String(p.costo) : '',
-        producto_id: p.id, via: 'catalogo', manual: true, recibido: true, empaque: '', itbis: '',
+        producto_id: p.id, via: 'catalogo', manual: true, recibido: true, ...empaqueInicial(null, p.name), itbis: '',
       });
     }
     $('ctRecBuscar').value = '';
@@ -1685,7 +1713,7 @@
       producto_id: l.producto_id || null, via: l.producto_id ? 'guardado' : '',
       recibido: l.recibido !== false,   // 555 · las de antes del 117 cuentan como recibidas
       // 563/119 · und/caja e ITBIS guardados (las de antes del 119 llegan vacíos)
-      empaque: l.und_caja != null ? String(Number(l.und_caja)) : '',
+      ...(l.und_caja != null ? { empaque: String(Number(l.und_caja)), empDesc: false } : empaqueInicial(null, l.descripcion)),
       itbis: l.itbis != null ? String(Number(l.itbis)) : '',
       manual: !!l.producto_id,   // lo ya emparejado no se toca al volver a emparejar
     }));
@@ -2140,7 +2168,7 @@
       // 562 · aviso bajo la cantidad (no se guarda; se quita al tocar la cantidad)
       iaNota: x.corregida ? 'corregida' : (x.revisar ? 'revisar' : ''),
       // 563 · und/caja y ITBIS de la línea tal como los leyó la IA (se pueden corregir)
-      empaque: Number(x.empaque) >= 1 ? String(Number(x.empaque)) : '',
+      ...empaqueInicial(x.empaque, x.descripcion),   // 566 · «CJ * N» o, si no, «A/B medida» de la descripción
       itbis: x.itbis !== null && x.itbis !== undefined && x.itbis !== '' && !isNaN(Number(x.itbis)) ? String(r2(Number(x.itbis))) : '',
       exenta: !!x.exenta,
       precioIncl: !!x.precio_con_itbis_incluido,   // 564 · caso B
@@ -2284,6 +2312,14 @@
         el.parentElement.querySelector('.ct-cant-nota')?.remove();
       }
       if (campo === 'itbis') l.exenta = false;   // 565 · el ITBIS escrito a mano manda
+      // 566 · und/caja: lo que escribe el empleado manda; si cambia la descripción
+      // y el und/caja venía de ella (o estaba vacío), se vuelve a sacar de ahí
+      if (campo === 'empaque' && l.empDesc) { l.empDesc = false; el.parentElement.querySelector('.ct-cu-nota')?.remove(); }
+      if (campo === 'descripcion' && (l.empaque === '' || l.empDesc)) {
+        Object.assign(l, empaqueInicial(null, l.descripcion));
+        const tdE = el.closest('tr').querySelector('.ct-l__emp');
+        if (tdE) tdE.innerHTML = celdaEmpaque(l, Number(el.getAttribute('data-i')), soloEmparejar() ? ' disabled' : '');
+      }
       if (campo === 'cantidad' || campo === 'costo' || campo === 'itbis' || campo === 'empaque' || campo === 'codigo' || campo === 'descripcion') {
         const tr = el.closest('tr');
         const td = tr.querySelector('.ct-l__imp');
@@ -2387,5 +2423,5 @@
   else montar();
 
   // Para las pruebas
-  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _lineas: () => S.lineas, _abrirCostos: abrirCostos, _formatoRnc: formatoRnc, _formatoTel: formatoTel, _provinciaDe: provinciaDe, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
+  window.CasaMotaConta = { _PROVINCIAS: PROVINCIAS, _S: S, _cargar: cargar, _montoAPagar: montoAPagar, _aplicarLectura: aplicarLectura, _unirPaginas: unirPaginas, _lineas: () => S.lineas, _abrirCostos: abrirCostos, _empaqueDesc: empaqueDesc, _formatoRnc: formatoRnc, _formatoTel: formatoTel, _provinciaDe: provinciaDe, _autoEmparejar: autoEmparejar, _editarRecepcion: editarRecepcion, _hoy: hoy, _sumarDias: sumarDias };
 })();
