@@ -131,7 +131,8 @@
     TOTAL_INVALIDO:           'El total de la factura debe ser mayor que 0.',
     TOTAL_CERO:               'El total de la factura no puede ser 0.',
     RECEPCION_NO_EXISTE:      'Esa recepción ya no existe. Recarga la página.',
-    PROVEEDOR_NO_SE_CAMBIA:   'El proveedor de una recepción guardada no se puede cambiar.',
+    PROVEEDOR_NO_SE_CAMBIA:   'El proveedor no se cambia al guardar: usa el botón «Cambiar proveedor».',
+    PROVEEDOR_IGUAL:          'Esa recepción ya es de ese proveedor: elige otro.',
     SOLO_EMPAREJAR:           'La factura está pagada o borrada: solo se pueden emparejar las líneas.',
     METODO_PAGO_INVALIDO:     'Elige el método de pago: efectivo, cheque o transferencia bancaria.',
     FALTA_NUMERO_PAGO:        'Escribe el número del cheque o de la transferencia.',
@@ -248,6 +249,7 @@
     guardando: false,
     provEdit: null, facEdit: null, venEditado: false, pagoId: null, empIdx: null,
     edit: null,           // 553f · recepción guardada que se está editando (null = nueva)
+    cambProv: null,       // 570 · { id } recepción cuyo proveedor se está cambiando
     facOrden: null,       // 569 · { col, dir } orden de la tabla de facturas (se lee al pintar la 1.ª vez)
   };
 
@@ -612,6 +614,7 @@
             })()}${r.ncf ? ` · <span class="ct-ncf-txt">e-NCF ${esc(r.ncf)}</span>` : ''}${r.notas ? ' · ' + esc(r.notas) : ''}</p>
             <div class="ct-det__acc">
               <button type="button" class="btn-secondary ct-btn-sm" data-act="editrec" data-id="${esc(r.id)}"><i class="fas fa-pen-to-square"></i> Editar recepción</button>
+              ${r.factura_pagada ? '' : `<button type="button" class="btn-secondary ct-btn-sm" data-act="cambprov" data-id="${esc(r.id)}"><i class="fas fa-right-left"></i> Cambiar proveedor</button>`}
               ${ls.some(l => l.producto_id && l.costo_unidad != null && l.recibido !== false) ? `<button type="button" class="btn-secondary ct-btn-sm" data-act="costosrec" data-id="${esc(r.id)}"><i class="fas fa-tags"></i> Actualizar costos del catálogo</button>` : ''}
               ${r.factura_id == null ? '<small class="ct-gris">Factura borrada: solo se puede emparejar.</small>' : (r.factura_pagada ? '<small class="ct-gris">Factura pagada: solo se puede emparejar.</small>' : '')}
               ${r.editado_en ? `<small class="ct-editada"><i class="fas fa-clock-rotate-left"></i> Editada por ${esc(nombreEmpleado(r.editado_por))} el ${fFechaHora(r.editado_en)}</small>` : ''}
@@ -1802,6 +1805,9 @@
     pintarPaginas();
     const prov = $('ctRecProv');
     if (prov) prov.disabled = !!E;
+    // 570 · el proveedor se cambia con su propio botón (no con la lista); con factura pagada, no
+    const cp = $('ctRecCambProv');
+    if (cp) cp.hidden = !E || !!E.pagada;
     const limpiar = $('ctRecLimpiar');
     if (limpiar) limpiar.hidden = !!E;
     const btn = $('ctRecConfirmar');
@@ -1830,6 +1836,77 @@
         n ? 'success' : 'info');
     } finally {
       if (btn) btn.disabled = false;
+    }
+  }
+
+  /* 570 · CAMBIAR EL PROVEEDOR de una recepción guardada (seguridad/121).
+   * Ventana propia: elegir el proveedor correcto y si las referencias de los
+   * productos de esta factura pasan también a él. La base comprueba todo:
+   * factura pagada → no; por pagar → la factura se mueve (nº y e-NCF no
+   * repetidos en el nuevo, vencimiento con su término); borrada → solo la
+   * recepción. El costo por unidad se recalcula con su descuento invisible. */
+  function abrirCambioProveedor(id) {
+    const r = S.rec.find(x => String(x.id) === String(id));
+    if (!r) { toast(ERRORES.RECEPCION_NO_EXISTE, 'error'); return; }
+    if (r.factura_pagada) { toast(ERRORES.FACTURA_PAGADA, 'warn'); return; }
+    S.cambProv = { id: r.id };
+    const otros = S.prov.filter(p => String(p.id) !== String(r.proveedor_id));
+    $('ctCambProvSel').innerHTML = '<option value="">— Elige el proveedor correcto —</option>' +
+      otros.map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}${p.rnc ? ' · RNC ' + esc(p.rnc) : ''}</option>`).join('');
+    $('ctCambProvRefs').checked = true;
+    $('ctCambProvTxt').innerHTML = `Factura <b>${esc(r.numero_factura)}</b> del ${fFecha(r.fecha)}, guardada con <b>${esc(r.proveedor_nombre)}</b>.`;
+    errorModal('ctCambProvError', '');
+    pintarNotaCambioProveedor();
+    abrirModal('ctCambProvModal');
+    $('ctCambProvSel').focus();
+  }
+  function pintarNotaCambioProveedor() {
+    const r = S.cambProv && S.rec.find(x => String(x.id) === String(S.cambProv.id));
+    const nota = $('ctCambProvNota');
+    if (!r || !nota) return;
+    const p = provPorId($('ctCambProvSel').value);
+    const term = p ? Number(p.termino_dias) || 0 : null;
+    const partes = [];
+    partes.push(r.factura_id == null
+      ? '<i class="fas fa-circle-info"></i> La factura de esta recepción está <b>borrada</b>: solo cambia la recepción (la factura no se vuelve a crear).'
+      : `<i class="fas fa-circle-info"></i> La factura por pagar <b>pasa también</b> al proveedor nuevo${p ? ` y vencerá el <b>${fFecha(sumarDias(String(r.fecha).slice(0, 10), term))}</b> (${plural(term, 'día', 'días')} de crédito)` : ''}.`);
+    if (p && Number(p.descuento_invisible) > 0) partes.push(`El costo por unidad se recalcula con su descuento invisible del <b>${Number(p.descuento_invisible)} %</b>.`);
+    else partes.push('El costo por unidad se recalcula con el descuento invisible del proveedor nuevo.');
+    if (S.edit && String(S.edit.id) === String(r.id)) partes.push('<b>Lo que no hayas guardado en el formulario se pierde</b>: la recepción se vuelve a abrir ya con el proveedor nuevo.');
+    nota.innerHTML = partes.join(' ');
+  }
+  async function guardarCambioProveedor() {
+    if (!S.cambProv) return;
+    const id = S.cambProv.id;
+    const prov = $('ctCambProvSel').value;
+    if (!prov) { errorModal('ctCambProvError', 'Elige el proveedor correcto.'); $('ctCambProvSel').focus(); return; }
+    errorModal('ctCambProvError', '');
+    const editando = !!(S.edit && String(S.edit.id) === String(id));
+    try {
+      await ocupado('ctCambProvGuardar', 'Cambiando…', async () => {
+        const r = await rpc('conta_cambiar_proveedor_recepcion', {
+          p_id: id, p_proveedor: prov, p_mover_refs: $('ctCambProvRefs').checked,
+        });
+        cerrarModal('ctCambProvModal');
+        S.cambProv = null;
+        const n = k => Number(r && r[k]) || 0;
+        const refs = [
+          n('refs_movidas') ? plural(n('refs_movidas'), 'referencia pasada', 'referencias pasadas') : '',
+          n('refs_repetidas_borradas') ? plural(n('refs_repetidas_borradas'), 'repetida quitada', 'repetidas quitadas') : '',
+          n('refs_en_conflicto') ? `⚠ ${plural(n('refs_en_conflicto'), 'referencia no se pasó', 'referencias no se pasaron')}: el proveedor nuevo ya la usa en otro producto` : '',
+        ].filter(Boolean).join(' · ');
+        toast(`✅ La recepción pasó de «${esc(r && r.proveedor_anterior)}» a «${esc(r && r.proveedor_nuevo)}».` +
+          (r && r.factura_movida ? ` La factura por pagar también · vence el ${fFecha(r.vencimiento)}.` : '') +
+          (refs ? ` ${refs}.` : ''), n('refs_en_conflicto') ? 'warn' : 'success');
+        if (editando) vaciarRecepcion(true);
+        delete S.recLineas[id];
+        if (window.CasaMotaRefs) await window.CasaMotaRefs.cargar(true);
+        await cargar();
+        if (editando) await editarRecepcion(id);
+        else await verRecepcion(id, true);
+      });
+    } catch (e) {
+      errorModal('ctCambProvError', e.message);
     }
   }
 
@@ -2419,6 +2496,7 @@
       }
       else if (act === 'quitar') { if (!soloEmparejar()) { S.lineas.splice(i, 1); pintarLineas(); pintarTotalesRec(); } }
       else if (act === 'editrec') editarRecepcion(id);
+      else if (act === 'cambprov') abrirCambioProveedor(id);   // 570
       else if (act === 'costosrec') abrirCostos(id, false);
       else if (act === 'recibido') marcarRecibido(i, true);
       else if (act === 'norecibido') marcarRecibido(i, false);
@@ -2456,6 +2534,9 @@
     $('ctRecAddLibre').addEventListener('click', lineaLibre);
     $('ctRecLimpiar').addEventListener('click', () => vaciarRecepcion(false));
     $('ctRecReemparejar').addEventListener('click', volverAEmparejar);
+    $('ctRecCambProv').addEventListener('click', () => { if (S.edit) abrirCambioProveedor(S.edit.id); });   // 570
+    $('ctCambProvSel').addEventListener('change', pintarNotaCambioProveedor);
+    $('ctCambProvGuardar').addEventListener('click', guardarCambioProveedor);
     $('ctRecCancelarEdit').addEventListener('click', cancelarEdicion);
     $('ctRecConfirmar').addEventListener('click', confirmarRecepcion);
 

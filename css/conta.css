@@ -249,6 +249,10 @@ label.ct-ncf-lbl { color: #ea580c; }
 .ct-editando p { margin: 0; font-size: .86rem; line-height: 1.45; }
 .ct-editando p span { display: block; font-size: .8rem; opacity: .9; }
 .ct-editando__btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ct-editando__btns [hidden] { display: none; }
+/* 570 · ventana «Cambiar el proveedor» */
+.ct-cambprov__chk { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 2px; font-size: .86rem; line-height: 1.4; cursor: pointer; }
+.ct-cambprov__chk input { margin-top: 3px; flex-shrink: 0; }
 .ct-ia__btn--bloq { opacity: .5; pointer-events: none; }
 .ct-rec .form-input:disabled, .ct-in:disabled { background: #f3f4f3; color: #6b7280; cursor: not-allowed; }
 
