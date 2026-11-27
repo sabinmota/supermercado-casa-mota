@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=16" />
+  <link rel="stylesheet" href="css/conta.css?v=17" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -990,7 +990,7 @@
           <div class="ct-editando" id="ctRecEditando" hidden>
             <p id="ctRecEditTxt"></p>
             <div class="ct-editando__btns">
-              <button type="button" class="btn-secondary ct-btn-sm" id="ctRecCambProv"><i class="fas fa-right-left"></i> Cambiar proveedor</button>
+              <button type="button" class="btn-secondary ct-btn-sm" id="ctRecCambiarProv" hidden><i class="fas fa-right-left"></i> Cambiar proveedor</button>
               <button type="button" class="btn-secondary ct-btn-sm" id="ctRecReemparejar"><i class="fas fa-link"></i> Volver a emparejar</button>
               <button type="button" class="btn-secondary ct-btn-sm" id="ctRecCancelarEdit"><i class="fas fa-xmark"></i> Cancelar edición</button>
             </div>
@@ -2983,9 +2983,9 @@
     </div>
   </div>
 
-  <!-- 570 · Cambiar el proveedor de una recepción guardada (seguridad/121) -->
+  <!-- 570 · Cambiar el proveedor de una recepción guardada (js/conta.js · seguridad/121) -->
   <div class="modal-backdrop hidden" id="ctCambProvModal">
-    <div class="modal" style="max-width:560px">
+    <div class="modal" style="max-width:540px">
       <div class="modal-header">
         <h3><i class="fas fa-right-left"></i> Cambiar el proveedor</h3>
         <button class="modal-close-btn" type="button" data-ct-cerrar="ctCambProvModal"><i class="fas fa-times"></i></button>
@@ -2996,14 +2996,16 @@
           <label for="ctCambProvSel">Proveedor correcto <span class="req">*</span></label>
           <select class="form-input" id="ctCambProvSel"></select>
         </div>
-        <label class="ct-cambprov__chk"><input type="checkbox" id="ctCambProvRefs" checked />
-          <span>Pasar también al proveedor correcto las <b>referencias</b> de los productos de esta factura</span></label>
-        <p class="myr-nota" id="ctCambProvNota"></p>
+        <label class="ct-camb__chk" id="ctCambProvRestaurarBox" hidden>
+          <input type="checkbox" id="ctCambProvRestaurar" />
+          <span>Volver a crear la factura por pagar a nombre del proveedor correcto <small>(la factura de esta recepción se había borrado)</small></span>
+        </label>
+        <ul class="ct-camb__lista" id="ctCambProvQue"></ul>
         <div class="myr-error" id="ctCambProvError" hidden></div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" type="button" data-ct-cerrar="ctCambProvModal">Cancelar</button>
-        <button class="btn-primary" type="button" id="ctCambProvGuardar"><i class="fas fa-save"></i> Cambiar proveedor</button>
+        <button class="btn-primary" type="button" id="ctCambProvGuardar"><i class="fas fa-right-left"></i> Cambiar proveedor</button>
       </div>
     </div>
   </div>
@@ -4079,7 +4081,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=22"></script>
+  <script src="js/conta.js?v=23"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->
