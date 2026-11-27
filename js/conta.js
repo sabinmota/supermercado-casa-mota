@@ -1379,7 +1379,7 @@
     const unid = cu.extra
       ? `${String(r3(cu.unid))} unid. (${String(r3(cu.unidP))} + ${String(r3(cu.extra))} regalo) · sin licuar ${money(r2(cu.sinLicuar))}`
       : `${String(r3(cu.unid))} unid.`;
-    return `<b>${money(r2(cu.valor))}</b><small class="ct-cu-nota">${unid}${cu.d ? ` · −${cu.d} % inv.` : ''}</small>`;
+    return `<b title="${cu.valor.toFixed(4)} exacto">${money(r2(cu.valor))}</b><small class="ct-cu-nota">${unid}${cu.d ? ` · −${cu.d} % inv.` : ''}</small>`;
   }
   /* Un cambio en una línea puede mover el costo de otra (regalos, exentas):
    * se repintan TODAS las celdas de costo por unidad sin tocar los campos. */
@@ -2071,13 +2071,16 @@
    * Si ninguna página trae el total de la factura pero TODAS traen el de su
    * página, el total de la factura es la suma de las páginas. */
   function unirPaginas(lista) {
-    const f = { numero: '', fecha: '', ncf: '', subtotal: null, descuento: null, itbis: null, total: null, exento: null, lineas: [], avisos: [] };
+    const f = { numero: '', fecha: '', ncf: '', proveedor: null, cliente_rnc: '', subtotal: null, descuento: null, itbis: null, total: null, exento: null, lineas: [], avisos: [] };
     const N = lista.length;
     lista.forEach((r, i) => {
       if (!r) return;
       if (!f.numero && r.numero) f.numero = r.numero;
       if (!f.fecha && r.fecha) f.fecha = r.fecha;
       if (!f.ncf && r.ncf) f.ncf = r.ncf;
+      // 568 · proveedor: el de la primera página que lo traiga (mejor si trae RNC)
+      if (r.proveedor && (!f.proveedor || (!f.proveedor.rnc && r.proveedor.rnc))) f.proveedor = r.proveedor;
+      if (!f.cliente_rnc && r.cliente_rnc) f.cliente_rnc = r.cliente_rnc;
       const ls = Array.isArray(r.lineas) ? r.lineas : [];
       f.lineas = f.lineas.concat(ls);
       const P = r.pagina, txt = N > 1 ? `Página ${i + 1}` : 'La factura';
@@ -2113,11 +2116,8 @@
 
   async function analizarPaginas() {
     if (S.iaLeyendo || !S.paginas.length || soloEmparejar()) return;
-    if (!$('ctRecProv').value) {
-      toast('Elige primero el proveedor: así se emparejan solos los productos que ya conoce.', 'warn');
-      $('ctRecProv').focus();
-      return;
-    }
+    /* 568 · Ya no hace falta elegir antes el proveedor: lo detecta la IA
+     * (RNC y nombre del emisor) y se puede corregir a mano después. */
     S.iaLeyendo = true; S.iaCancelar = false;
     pintarPaginas();
     const N = S.paginas.length;
@@ -2143,6 +2143,99 @@
 
   const montoONull = v => (v === null || v === undefined || v === '' || isNaN(Number(v)) || Number(v) < 0) ? null : r2(Number(v));
 
+  /* 568 · PROVEEDOR detectado por la IA. Se busca en la lista de proveedores:
+   * 1) por RNC (solo dígitos: «1-01-01938-7» = «101019387»); 2) si no, por
+   * nombre (sin tildes, puntuación ni S.R.L./S.A./C. por A.), y solo si hay UN
+   * único candidato. Nunca se elige al cliente (nuestro RNC). Si el empleado
+   * ya había elegido otro, manda la factura cuando casa por RNC; por nombre
+   * solo rellena si estaba vacío. En edición el proveedor está fijo.
+   * Devuelve el texto del aviso (o '' si no hay nada que decir). */
+  const soloDigitos = v => String(v || '').replace(/\D/g, '');
+  const LEGALES = /\b(s\s*r\s*l|s\s*a\s*s|s\s*a|e\s*i\s*r\s*l|c\s*(x|por)\s*a|srl|sas|sa|eirl|cxa|inc|ltd|ltda|corp|cia|y|de|del|la|las|los|el)\b/g;
+  function nombreClave(s) {
+    return norm(String(s || '')).replace(/[^a-z0-9ñ ]+/g, ' ').replace(LEGALES, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function buscarProveedor(det, rncCliente) {
+    if (!det) return null;
+    const rnc = soloDigitos(det.rnc);
+    if (rnc && rnc !== soloDigitos(rncCliente)) {
+      const p = S.prov.find(x => soloDigitos(x.rnc) === rnc);
+      if (p) return { p, por: 'rnc' };
+    }
+    const k = nombreClave(det.nombre);
+    if (k.length < 3) return null;
+    const exactos = S.prov.filter(x => nombreClave(x.nombre) === k);
+    if (exactos.length === 1) return { p: exactos[0], por: 'nombre' };
+    const tk = k.split(' ').filter(t => t.length >= 3);
+    if (!tk.length) return null;
+    const cand = S.prov.filter(x => {
+      const kx = nombreClave(x.nombre).split(' ').filter(t => t.length >= 3);
+      if (!kx.length) return false;
+      const [corto, largo] = kx.length <= tk.length ? [kx, tk] : [tk, kx];
+      return corto.some(t => t.length >= 4) && corto.every(t => largo.includes(t));
+    });
+    return cand.length === 1 ? { p: cand[0], por: 'nombre' } : null;
+  }
+  function elegirProveedorIa(det, rncCliente) {
+    if (!det || S.edit) return '';
+    const sel = $('ctRecProv');
+    if (!sel) return '';
+    const quien = `${esc(det.nombre || 'sin nombre')}${det.rnc ? ' · RNC ' + esc(det.rnc) : ''}`;
+    const r = buscarProveedor(det, rncCliente);
+    if (!r) {
+      return `<i class="fas fa-triangle-exclamation"></i> La factura es de <b>${quien}</b>, que <b>no está en tus proveedores</b>` +
+        (sel.value ? ': revisa el proveedor elegido.' : ': créalo en «Proveedores» o elige el proveedor a mano.');
+    }
+    const antes = sel.value;
+    if (String(antes) === String(r.p.id)) {
+      return `<i class="fas fa-truck"></i> Proveedor de la factura: <b>${esc(r.p.nombre)}</b> (coincide con el elegido).`;
+    }
+    if (antes && r.por !== 'rnc') {
+      return `<i class="fas fa-triangle-exclamation"></i> La IA cree que la factura es de <b>${esc(r.p.nombre)}</b> (por el nombre), pero está elegido otro proveedor: revísalo.`;
+    }
+    sel.value = String(r.p.id);
+    const prev = antes ? provPorId(antes) : null;
+    return `<i class="fas fa-truck"></i> Proveedor elegido por la IA: <b>${esc(r.p.nombre)}</b> ` +
+      `(${r.por === 'rnc' ? 'por el RNC' : 'por el nombre: revísalo'})` +
+      (prev ? `, en lugar de «${esc(prev.nombre)}»` : '') + '. Si no es, cámbialo arriba.';
+  }
+
+  /* 567 · BONIFICACIÓN delatada por el PIE de la factura. Regla del dueño: una
+   * línea cuyo TOTAL final está vacío / 0.00 es bonificación. Si la IA aun así
+   * le puso importe (p. ej. copió la columna DESCUENTO), el pie lo delata:
+   * la suma de las líneas se pasa del total justo en el importe de líneas que
+   * repiten un producto cobrado → esas líneas son regalo (costo 0).
+   * Merlodist: 24,430 + 3,908.80 + 1,221.50 ≠ 28,338.80 → sobran 1,221.50,
+   * la 2.ª línea de 5656 es regalo y el costo sale 28,338.80 ÷ 210 = 134.95.
+   * Si el precio del regalo × und/caja de la cobrada = precio de la caja,
+   * el regalo viene en UNIDADES sueltas (und/caja 1), no en cajas. */
+  function bonifPorPie(nuevas, tot) {
+    if (!tot || !(tot.total > 0)) return 0;
+    const imp = l => r2(r3(num(l.cantidad) || 0) * r2(num(l.costo) || 0));
+    const itb = l => num(l.itbis) > 0 ? num(l.itbis) : 0;
+    const suma = r2(nuevas.reduce((a, l) => a + imp(l) + itb(l), 0));
+    const sobra = r2(suma - tot.total);
+    if (!(sobra > 1)) return 0;
+    const cand = nuevas.filter(g => imp(g) > 0 && !(itb(g) > 0) &&
+      nuevas.some(p => p !== g && imp(p) > 0 && mismoProducto(p, g) && (itb(p) > 0 || imp(p) > imp(g))));
+    if (!cand.length) return 0;
+    const sumaCand = r2(cand.reduce((a, g) => a + imp(g), 0));
+    if (Math.abs(sumaCand - sobra) > Math.max(1, sobra * 0.002)) return 0;
+    cand.forEach(g => {
+      const precio = num(g.costo);
+      const p = nuevas.find(q => q !== g && imp(q) > 0 && mismoProducto(q, g) && !cand.includes(q));
+      const emp = p ? num(p.empaque) : null;
+      if (p && emp > 1 && Math.abs(precio * emp - num(p.costo)) <= Math.max(0.05, num(p.costo) * 0.005)) {
+        g.empaque = '1'; g.empDesc = false;
+      }
+      g.costo = '0'; g.itbis = '0'; g.iaNota = '';
+    });
+    // El pie ya cuadra: la cantidad de las líneas cobradas queda confirmada.
+    const resto = r2(nuevas.reduce((a, l) => a + imp(l) + itb(l), 0));
+    if (Math.abs(resto - tot.total) <= 1) nuevas.forEach(l => { if (l.iaNota === 'revisar') l.iaNota = ''; });
+    return cand.length;
+  }
+
   function aplicarLectura(f, nPag) {
     const lineas = Array.isArray(f.lineas) ? f.lineas : [];
     if (!lineas.length) {
@@ -2157,6 +2250,8 @@
     S.iaTot = Object.values(tot).some(v => v !== null) ? tot : null;
     // 557 · el e-NCF va a SU campo (antes se escribía en Notas)
     if (f.ncf && !$('ctRecNcf').value.trim()) $('ctRecNcf').value = limpiarNcf(f.ncf).slice(0, 20);
+    // 568 · proveedor detectado ANTES de emparejar (las referencias son por proveedor)
+    const provIa = elegirProveedorIa(f.proveedor, f.cliente_rnc);
 
     const nuevas = lineas.map(x => ({
       codigo: String(x.codigo || '').slice(0, 40),
@@ -2173,6 +2268,7 @@
       exenta: !!x.exenta,
       precioIncl: !!x.precio_con_itbis_incluido,   // 564 · caso B
     }));
+    const nBonifPie = bonifPorPie(nuevas, tot);
     nuevas.forEach(autoEmparejar);
     if (S.lineas.length && !confirm(`La IA leyó ${plural(nuevas.length, 'línea', 'líneas')}.\n\nAceptar = SUSTITUIR las ${S.lineas.length} líneas actuales.\nCancelar = AÑADIRLAS al final.`)) {
       S.lineas = S.lineas.concat(nuevas);
@@ -2190,6 +2286,8 @@
       ? ` ITBIS leído: <b>${money(tot.itbis)}</b>.`
       : (tot.total === null ? ' <b>No encontró el total de la factura: escríbelo a mano.</b>' : ' No encontró el ITBIS en el pie.');
     const extra =
+      (provIa ? `<br>${provIa}` : '') +
+      (nBonifPie ? `<br><i class="fas fa-gift"></i> <b>${plural(nBonifPie, 'línea pasada a bonificación', 'líneas pasadas a bonificación')}</b>: su total en la factura es 0.00 (el pie no cuadraba con ella cobrada). Sus unidades se suman a la línea cobrada.` : '') +
       (nCorr ? `<br><i class="fas fa-wrench"></i> <b>${plural(nCorr, 'cantidad corregida', 'cantidades corregidas')}</b> con los importes impresos en la factura (la IA había leído otra cosa, p. ej. el empaque «* 12»).` : '') +
       (nRev ? `<br><i class="fas fa-triangle-exclamation"></i> <b>${plural(nRev, 'cantidad', 'cantidades')} por revisar</b>: coincide${nRev === 1 ? '' : 'n'} con el empaque de la caja.` : '') +
       avisos.map(a => `<br><i class="fas fa-triangle-exclamation"></i> <b>${esc(a)}</b>`).join('');

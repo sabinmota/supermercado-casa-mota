@@ -138,6 +138,9 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
   "numero": "número de la factura tal como aparece (o \\"\\" si no se ve)",
   "fecha": "fecha de emisión en formato AAAA-MM-DD (o \\"\\")",
   "ncf": "NCF o e-CF si aparece (ej. B0100000123 o E310000000123), o \\"\\"",
+  "proveedor": { "nombre": "nombre de la empresa que EMITE/VENDE la factura (la del logo o la cabecera), o \\"\\"",
+                 "rnc": "RNC de esa empresa emisora tal cual está impreso, o \\"\\"" },
+  "cliente_rnc": "RNC del CLIENTE (a quien se le vende, el comprador), o \\"\\"",
   "subtotal": número con el SUBTOTAL del bloque de totales (antes del ITBIS), o null,
   "descuento": número con el DESCUENTO total del bloque de totales, o null,
   "itbis": número con el ITBIS (impuesto) TOTAL cobrado en la factura, o null,
@@ -147,15 +150,19 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
     { "codigo": "código del artículo o de barras si aparece, o \\"\\"",
       "descripcion": "descripción del artículo tal como está escrita",
       "cantidad": número de la columna CANT./CANTIDAD tal cual (cajas, fardos o unidades facturadas),
+      "cajas": número de la columna CAJA si la factura tiene DOS columnas de cantidad (CAJA y UNIDAD), o null,
+      "unidades": número de la columna UNIDAD si la factura tiene DOS columnas de cantidad (CAJA y UNIDAD), o null,
       "unidad": "unidad facturada si aparece (CJ, UND, FD, PQ, SC…) o \\"\\"",
       "empaque": unidades vendibles que trae cada caja/fardo: de la columna de unidad (\\"CJ * 12\\" → 12) o, si no está ahí, de la descripción \\"A/B medida\\" (\\"4/128 OZ\\" → 4, \\"24/350 ML\\" → 24), o null,
       "costo_unitario": precio de UNA unidad facturada (una caja si se factura por caja) SIN ITBIS y ya con el descuento,
       "precio_con_itbis": precio de UNA unidad facturada CON ITBIS si hay esa columna, o null,
-      "importe": total de la línea SIN ITBIS si hay esa columna, o null,
+      "importe": total de la línea SIN ITBIS si hay esa columna, o null (NUNCA el número de la columna DESCUENTO),
+      "descuento_linea": número de la columna DESCUENTO de la línea si la hay, o null,
+      "precio_impreso": el número de la columna PRECIO tal cual está impreso en esa línea (también en las de regalo), o null,
       "importe_con_itbis": total de la línea CON ITBIS si hay esa columna (p. ej. VALOR C/ITBIS), o null,
       "itbis": ITBIS de la LÍNEA entera si hay columna de ITBIS (p. ej. VALOR ITBIS), o null,
       "exenta": true si la línea está marcada como exenta (una \\"E\\" junto al código o la cantidad), o false,
-      "promocion": true si es una línea de REGALO o bonificación (total 0.00 que repite un producto cobrado, o marcada BONIF, PRM, PROMO, REGALO u oferta tipo 5+1), o false }
+      "promocion": true si es una línea de REGALO o bonificación (la columna TOTAL final está en 0.00 o vacía, o el DESCUENTO de la línea es igual a cantidad × precio, o marcada BONIF, PRM, PROMO, REGALO u oferta tipo 5+1), o false }
   ],
   "pagina": { "numero": número de esta página si lo dice (\\"Página 2 de 3\\" → 2), o null,
               "de": total de páginas de la factura si lo dice (\\"Página 2 de 3\\" → 3), o null,
@@ -166,10 +173,13 @@ Mira la foto y devuelve SOLO un objeto JSON (sin texto antes ni después) con es
               "total": total general de ESTA página } o null si la página no trae totales de página
 }
 Reglas:
+- 🔴 "proveedor" es la empresa que VENDE y emite la factura: su nombre y su RNC suelen estar ARRIBA, junto al logo (p. ej. "MERLODIST, S.R.L. RNC: 130276137"). NO es el bloque "Cliente", "Facturar a", "Vendido a" ni "RNC cliente": ese es el comprador (el supermercado) y va en "cliente_rnc". Si no lo ves claro, pon "".
 - Una entrada en "lineas" por cada fila de artículo. NO incluyas filas de subtotal, ITBIS, descuento, total, flete ni notas.
+- 🔴 Si hay DOS columnas de cantidad, CAJA y UNIDAD (p. ej. "CAJA 10.00 · UNIDAD 0.00"): copia las dos en "cajas" y "unidades". "cantidad" = CAJA si es mayor que 0; si CAJA es 0, "cantidad" = UNIDAD, "unidad": "UND" y "empaque": 1. El "costo_unitario" es entonces PRECIO CAJA si se factura por caja, o PRECIO (por unidad) si se factura por unidades.
+- 🔴 BONIFICACIÓN: si la columna TOTAL final de una línea está en 0.00 o vacía, esa línea es un REGALO aunque tenga precio y aunque la columna DESCUENTO traiga un número (ese descuento es el 100 % del valor): "promocion": true, "costo_unitario": 0, "importe": 0. El número del DESCUENTO va SOLO en "descuento_linea".
 - 🔴 "cantidad" es el número de la columna CANT. TAL CUAL. Ejemplo: "1.00 CJ * 12" → cantidad 1, unidad "CJ", empaque 12. "2.00 CJ * 24" → cantidad 2, empaque 24. NUNCA uses el empaque (12, 24…) ni el tamaño del producto (12/32 OZ, 24/350 ML…) como cantidad, y NUNCA multipliques la cantidad por el empaque.
 - "costo_unitario" es el precio de UNA unidad facturada SIN ITBIS: la columna PRECIO o PRECIO/UND S/ITBIS (si hay % de descuento, el precio ya descontado). NO le sumes el ITBIS. NO lo dividas entre el empaque.
-- Comprueba CADA línea: cantidad × precio_con_itbis ≈ importe_con_itbis (o cantidad × costo_unitario ≈ importe). Si no cuadra, la cantidad está mal leída: vuelve a leer la columna CANT.
+- Comprueba CADA línea: cantidad × precio_con_itbis ≈ importe_con_itbis (o cantidad × costo_unitario ≈ importe). OJO: muchas facturas ponen en la columna TOTAL el importe YA CON ITBIS (cantidad × precio + ITBIS de la línea = TOTAL, p. ej. 10 × 2,443.00 + 3,908.80 = 28,338.80): en ese caso ese TOTAL va en "importe_con_itbis", no en "importe", y la cantidad está bien. Si no cuadra de ninguna de las dos formas, vuelve a leer la columna CANT.
 - Si el pie de la página trae "Sub total Cantidad Página", la suma de tus cantidades de esa página debe dar ese número.
 - "empaque": léelo de la columna de unidad ("CJ * 12"). Si no está ahí y la descripción trae «A/B medida», el empaque es A: "ACEITE 4/128 OZ" → 4 (4 galones de 128 oz), "24/350 ML" → 24, "1/24/350 ML" → 24. El tamaño de cada unidad (128 OZ, 350 ML, 360 GRS) NUNCA es el empaque. Si B no lleva medida (144/1, 20/5) o no hay nada, pon null: NO lo inventes.
 - "itbis" de la línea: cópialo de la columna de ITBIS tal cual. Una casilla vacía NO es exenta: pon null.
@@ -220,18 +230,57 @@ function limpiar(obj) {
   const o = (obj && typeof obj === 'object') ? obj : {};
   const lineasIn = Array.isArray(o.lineas) ? o.lineas : (Array.isArray(o.items) ? o.items : []);
   const lineas = [];
+  const precios = [];   // 567 · precio impreso de cada regalo (paralelo a lineas)
   for (const x of lineasIn.slice(0, MAX_LINEAS)) {
     if (!x || typeof x !== 'object') continue;
     const descripcion = aTexto(x.descripcion ?? x.description, 200);
     if (!descripcion) continue;
     let cantidad = aNumero(x.cantidad ?? x.qty);
     let costo = aNumero(x.costo_unitario ?? x.precio ?? x.price);
-    const imp = aNumero(x.importe);
+    const precioLeido = aNumero(x.precio_impreso) ?? costo;   // 567 · precio impreso aunque sea regalo
+    let imp = aNumero(x.importe);
     const pc = aNumero(x.precio_con_itbis);
-    const ic = aNumero(x.importe_con_itbis ?? x.total);
+    let ic = aNumero(x.importe_con_itbis ?? x.total);
     let emp = aNumero(x.empaque);
+    let unidadTxt = aTexto(x.unidad, 10);
     if (!(emp >= 1 && emp <= 1000 && Number.isInteger(emp))) emp = null;   // 1 = se factura por unidad
+    /* 567 · Facturas con DOS columnas de cantidad, CAJA y UNIDAD (Merlodist):
+     * «CAJA 0 · UNIDAD 10» son 10 UNIDADES sueltas (empaque 1), no 10 cajas.
+     * Si no, la bonificación de 10 unidades se contaba como 10 cajas de 20. */
+    const cjs = aNumero(x.cajas), uds = aNumero(x.unidades);
+    if (cjs !== null || uds !== null) {
+      if (cjs > 0 && !(uds > 0)) cantidad = cjs;
+      else if (!(cjs > 0) && uds > 0) { cantidad = uds; emp = 1; unidadTxt = 'UND'; }
+    }
     if (cantidad !== null && (cantidad <= 0 || cantidad > 999999)) cantidad = null;
+    /* 567 · BONIFICACIÓN con el valor en la columna DESCUENTO (Merlodist:
+     * «10 UND × 122.15 · DESCUENTO 1,221.50 · TOTAL 0.00»). La IA ponía ese
+     * descuento como importe y la línea se cobraba. Si el descuento de la
+     * línea es todo su valor (o es lo mismo que el «importe» leído), es regalo. */
+    const descL = aNumero(x.descuento_linea);
+    if (descL > 0 && cantidad > 0 && costo > 0) {
+      const bruto = cantidad * costo, tol = Math.max(0.05, bruto * 0.003);
+      const todo = Math.abs(descL - bruto) <= tol;
+      const impEsDesc = imp !== null && Math.abs(imp - descL) <= 0.05;
+      if (todo && (impEsDesc || imp === null || imp === 0 || x.promocion === true)) {
+        imp = 0; costo = 0; ic = ic > 0 ? 0 : ic;
+      }
+    }
+    /* 567 · Regla del dueño: TOTAL final de la línea en 0.00 = bonificación,
+     * aunque la línea traiga precio. Si la IA la marca como regalo y el total
+     * impreso es 0, lo que leyó como «importe» era el descuento. */
+    if (x.promocion === true && ic === 0) { imp = 0; costo = 0; }
+    /* 567 · El TOTAL impreso de la línea YA trae el ITBIS (Merlodist:
+     * 10 × 2,443.00 + 3,908.80 = 28,338.80) y la IA lo puso como «importe».
+     * La cantidad está bien: el importe pasa a «con ITBIS» y no se corrige. */
+    const itPre = aNumero(x.itbis);
+    if (imp > 0 && costo > 0 && cantidad > 0 && itPre > 0) {
+      const bruto = cantidad * costo, tol = Math.max(0.05, (bruto + itPre) * 0.003);
+      if (Math.abs(imp - (bruto + itPre)) <= tol && Math.abs(imp - bruto) > tol) {
+        if (!(ic > 0)) ic = imp;
+        imp = r2(bruto);
+      }
+    }
     /* 564 · Caso B (p. ej. Carbec): el PRECIO impreso ya trae el ITBIS y el
      * IMPORTE es la base: cantidad × precio = importe + ITBIS (de la línea, o
      * por unidad × cantidad). Se separa AQUÍ: costo = base por unidad e ITBIS
@@ -261,10 +310,22 @@ function limpiar(obj) {
      * cantidad equivocada y se «confirmaría» solo. */
     const ref = (ic > 0 && pc > 0) ? ic / pc : ((imp > 0 && costo > 0) ? imp / costo : null);
     let corregida = false, revisar = false;
-    if (ref !== null && ref > 0 && ref <= 999999) {
+    /* 567 · Antes de «corregir»: si cantidad × precio (+ ITBIS impreso de la
+     * línea) ya da alguno de los totales impresos, la cantidad está bien.
+     * Merlodist: 10 × 2,443 + 3,908.80 = 28,338.80 → se dejaba en 11.805. */
+    let confirmada = false;
+    if (cantidad > 0 && costo > 0) {
+      const bruto = cantidad * costo, tol = Math.max(0.05, bruto * 0.003);
+      const it = itPre > 0 ? itPre : 0;
+      confirmada = [imp, ic].some(t => t > 0 && (Math.abs(t - bruto) <= tol || (it && Math.abs(t - (bruto + it)) <= tol)));
+    }
+    if (!confirmada && ref !== null && ref > 0 && ref <= 999999) {
       if (cantidad === null || Math.abs(cantidad - ref) > Math.max(0.011, ref * 0.01)) {
-        cantidad = r3(ref);
-        corregida = true;
+        /* 567 · Las cajas/unidades se compran ENTERAS: una cantidad entera no
+         * se cambia por una con decimales (11.805). Se deja y se pide revisar. */
+        const refEntera = Math.abs(ref - Math.round(ref)) <= 0.02;
+        if (cantidad !== null && Number.isInteger(cantidad) && !refEntera) revisar = true;
+        else { cantidad = r3(ref); corregida = true; }
       }
     }
     // Sin corrección y la cantidad es justo el empaque de la caja: que lo mire una persona.
@@ -291,7 +352,7 @@ function limpiar(obj) {
       descripcion,
       cantidad: cantidad === null ? null : r3(cantidad),
       costo_unitario: costo === null ? null : r2(costo),
-      unidad: aTexto(x.unidad, 10),
+      unidad: unidadTxt,
       empaque: emp,
       itbis,
       exenta,
@@ -299,7 +360,25 @@ function limpiar(obj) {
       corregida,
       revisar,
     });
+    precios.push(promocion ? precioLeido : null);
   }
+  /* 567 · Bonificación en UNIDADES sueltas aunque la IA no separe CAJA/UNIDAD:
+   * si el precio impreso del regalo × el empaque de la línea cobrada del mismo
+   * código da el precio de la caja (122.15 × 20 = 2,443), el regalo son
+   * unidades (empaque 1), no cajas. Merlodist: 200 + 10 = 210 unidades. */
+  lineas.forEach((g, i) => {
+    const p = precios[i];
+    if (!(p > 0) || g.costo_unitario !== 0) return;
+    const cod = g.codigo.toUpperCase(), des = g.descripcion.toUpperCase();
+    const pag = lineas.find(l => l !== g && l.costo_unitario > 0 && l.empaque > 1 &&
+      (cod && l.codigo ? l.codigo.toUpperCase() === cod : l.descripcion.toUpperCase() === des));
+    if (!pag) return;
+    const caja = pag.precio_con_itbis_incluido ? null : pag.costo_unitario;
+    if (caja && Math.abs(p * pag.empaque - caja) <= Math.max(0.05, caja * 0.005)) {
+      g.empaque = 1;
+      if (!g.unidad) g.unidad = 'UND';
+    }
+  });
   const monto = (v, cero) => {
     const n = aNumero(v);
     return n !== null && (cero ? n >= 0 : n > 0) && n < 1e9 ? r2(n) : null;
@@ -315,10 +394,24 @@ function limpiar(obj) {
     exento: monto(pg.exento, true),
     total: monto(pg.total, false),
   } : null;
+  /* 568 · Proveedor (empresa EMISORA): nombre y RNC. El RNC se deja solo en
+   * dígitos (9 = RNC, 11 = cédula). Si coincide con el del cliente, la IA
+   * tomó al comprador: se descarta ese RNC. */
+  const pv = (o.proveedor && typeof o.proveedor === 'object') ? o.proveedor : {};
+  const soloDig = v => aTexto(v, 30).replace(/\D/g, '');
+  let rncProv = soloDig(pv.rnc ?? o.proveedor_rnc ?? o.rnc_proveedor);
+  const rncCli = soloDig(o.cliente_rnc);
+  if (!(rncProv.length === 9 || rncProv.length === 11) || (rncCli && rncProv === rncCli)) rncProv = '';
+  const proveedor = {
+    nombre: aTexto(pv.nombre ?? (typeof o.proveedor === 'string' ? o.proveedor : ''), 120),
+    rnc: rncProv,
+  };
   return {
     numero: aTexto(o.numero, 40),
     fecha: aFecha(o.fecha),
     ncf: aTexto(o.ncf, 20),
+    proveedor: proveedor.nombre || proveedor.rnc ? proveedor : null,
+    cliente_rnc: (rncCli.length === 9 || rncCli.length === 11) ? rncCli : '',
     pagina: pagina && Object.values(pagina).some(v => v !== null) ? pagina : null,
     subtotal: monto(o.subtotal, false),
     descuento: monto(o.descuento, true),
