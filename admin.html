@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/panel-2026.css?v=20" />
   <link rel="stylesheet" href="css/logo-animado.css?v=6" />
   <!-- 553 · Contabilidad -->
-  <link rel="stylesheet" href="css/conta.css?v=17" />
+  <link rel="stylesheet" href="css/conta.css?v=18" />
   <!-- JSZip para generar ZIP de imágenes -->
   <script src="vendor/jszip-3.10.1.min.js"></script>
 </head>
@@ -1020,6 +1020,7 @@
                 <input type="text" class="form-input" id="ctRecDias" inputmode="numeric" placeholder="días" aria-label="Días de pronto pago" />
                 <span>días</span>
               </div>
+              <small class="ct-pp-nota" id="ctRecPpNota" hidden></small>
             </div>
             <!-- 557 · e-NCF en su propio campo (seguridad/118) -->
             <div class="form-group">
@@ -1086,7 +1087,16 @@
           <div class="table-wrap">
             <table class="data-table ct-tabla">
               <thead>
-                <tr><th>Fecha</th><th>Proveedor</th><th>Nº factura</th><th>Origen</th><th class="n">Líneas</th><th class="n">Factura</th><th>Estado</th><th></th></tr>
+                <tr id="ctRecCabecera">
+                  <th data-ct-orden="fecha"><button type="button" class="ct-orden">Fecha <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="proveedor"><button type="button" class="ct-orden">Proveedor <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="numero"><button type="button" class="ct-orden">Nº factura <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="origen"><button type="button" class="ct-orden">Origen <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th class="n" data-ct-orden="lineas"><button type="button" class="ct-orden">Líneas <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th class="n" data-ct-orden="monto"><button type="button" class="ct-orden">Factura <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="estado"><button type="button" class="ct-orden">Estado <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th></th>
+                </tr>
               </thead>
               <tbody id="ctRecHist"></tbody>
             </table>
@@ -1105,7 +1115,16 @@
           <div class="table-wrap">
             <table class="data-table ct-tabla">
               <thead>
-                <tr><th>Nombre</th><th>Representante</th><th>RNC</th><th>Contacto</th><th>Ubicación</th><th class="n">Término</th><th class="n">Por pagar</th><th>Acciones</th></tr>
+                <tr id="ctProvCabecera">
+                  <th data-ct-orden="nombre"><button type="button" class="ct-orden">Nombre <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="representante"><button type="button" class="ct-orden">Representante <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th data-ct-orden="rnc"><button type="button" class="ct-orden">RNC <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th>Contacto</th>
+                  <th data-ct-orden="ubicacion"><button type="button" class="ct-orden">Ubicación <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th class="n" data-ct-orden="termino"><button type="button" class="ct-orden">Término <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th class="n" data-ct-orden="deuda"><button type="button" class="ct-orden">Por pagar <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+                  <th>Acciones</th>
+                </tr>
               </thead>
               <tbody id="ctProvTbody"></tbody>
             </table>
@@ -2897,6 +2916,7 @@
               <input type="text" class="form-input" id="ctFacDias" inputmode="numeric" placeholder="días" aria-label="Días de pronto pago" />
               <span>días</span>
             </div>
+            <small class="ct-pp-nota" id="ctFacPpNota" hidden></small>
           </div>
         </div>
         <div class="form-row">
@@ -4081,7 +4101,7 @@
   <!-- 523 · Mayoristas: lista, alta y pedido al por mayor (seguridad/99-100) -->
   <script src="js/mayoristas-panel.js?v=1"></script>
   <!-- 553 · Contabilidad: proveedores, cuentas por pagar, recepción (seguridad/111) -->
-  <script src="js/conta.js?v=23"></script>
+  <script src="js/conta.js?v=25"></script>
   <!-- Vigilancia de pedidos: auto-refresco cada 30 s + aviso sonoro -->
   <script src="js/pedidos-vigilancia.js?v=9"></script>
   <!-- Módulos extras: Reportes, Cupones, Notificaciones, PDF -->

@@ -460,6 +460,27 @@
       return { s: s, p: _porBarcode[sinCeros], cantidad: 1, esPeso: false };
     }
 
+    /* 1c · POS-59 · Mismo código CON o SIN el dígito de control (28-nov).
+     *   Caso real del dueño: «Semillas Mixtas Semillas De Luz» está guardado
+     *   como 8907654765472 (13 cifras) y la pistola mandó 890765476547 (12:
+     *   sin el último dígito, que es el de control). El buscador del panel lo
+     *   encontraba porque busca «contiene»; la caja exige el código exacto.
+     *   🔴 El dígito de control se CALCULA, no se adivina: solo casa si cuadra,
+     *      así que no puede confundir dos productos distintos. Y va ANTES de
+     *      la báscula: el catálogo manda (ver arriba). */
+    if (/^\d{12}$/.test(s)) {
+      // UPC-A de 12 que el catálogo guardó como EAN-13 (con un 0 delante)
+      if (_porBarcode['0' + s]) { return { s: s, p: _porBarcode['0' + s], cantidad: 1, esPeso: false }; }
+      // EAN-13 que llegó sin su dígito de control
+      var conControl = s + controlEan13(s);
+      if (_porBarcode[conControl]) { return { s: s, p: _porBarcode[conControl], cantidad: 1, esPeso: false }; }
+    }
+    if (/^\d{13}$/.test(s) && controlEan13(s.slice(0, 12)) === Number(s.charAt(12))) {
+      // El catálogo lo guardó SIN el dígito de control y la pistola lo manda completo
+      var sinControl = s.slice(0, 12);
+      if (_porBarcode[sinControl]) { return { s: s, p: _porBarcode[sinControl], cantidad: 1, esPeso: false }; }
+    }
+
     /* 2 · No está en el catálogo → ¿será una etiqueta de báscula? */
     var bas = descifrarBascula(s);
     if (bas) {

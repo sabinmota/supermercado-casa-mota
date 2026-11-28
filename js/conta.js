@@ -467,6 +467,82 @@
     });
   }
 
+  /* 572 · Lo mismo para PROVEEDORES y RECEPCIONES ANTERIORES: clic en el
+   * título = ordenar (1.er clic A→Z / más vieja primero / menor primero;
+   * 2.º clic al revés). Solo la vista; se recuerda en este navegador.
+   * Cada columna: [comparar, texto del 1.er clic]. Los vacíos van al final. */
+  const vacioAlFinal = (a, b, f) => {
+    const va = String(a ?? '').trim() === '', vb = String(b ?? '').trim() === '';
+    return va === vb ? f() : (va ? 1 : -1);
+  };
+  const txtCol = (a, b) => vacioAlFinal(a, b, () => txtOrden(a, b));
+  const AZ = 'de la A a la Z', MENOR = 'de menor a mayor', VIEJA = 'de la más vieja a la más nueva';
+  const estRec = r => r.factura_id == null ? 2 : (r.factura_pagada ? 1 : 0);   // por pagar, pagada, borrada
+  const ORDEN_TABLA = {
+    prov: {
+      clave: 'cm_ct_prov_orden', cab: 'ctProvCabecera', pintar: () => pintarProveedores(),
+      desempate: (a, b) => txtOrden(a.nombre, b.nombre),
+      cols: {
+        nombre:        [(a, b) => txtOrden(a.nombre, b.nombre), AZ],
+        representante: [(a, b) => txtCol(a.representante, b.representante), AZ],
+        rnc:           [(a, b) => vacioAlFinal(a.rnc, b.rnc, () => String(a.rnc).replace(/\D/g, '').localeCompare(String(b.rnc).replace(/\D/g, ''))), MENOR],
+        ubicacion:     [(a, b) => txtCol(a.provincia, b.provincia) || txtCol(a.ciudad, b.ciudad), 'por provincia, de la A a la Z'],
+        termino:       [(a, b) => (Number(a.termino_dias) || 0) - (Number(b.termino_dias) || 0), MENOR],
+        deuda:         [(a, b) => (Number(a.deuda) || 0) - (Number(b.deuda) || 0), MENOR],
+      },
+    },
+    rec: {
+      clave: 'cm_ct_rec_orden', cab: 'ctRecCabecera', pintar: () => pintarHist(),
+      desempate: (a, b) => txtOrden(String(a.fecha || '').slice(0, 10), String(b.fecha || '').slice(0, 10)) || txtOrden(a.numero_factura, b.numero_factura),
+      cols: {
+        fecha:     [(a, b) => txtOrden(String(a.fecha || '').slice(0, 10), String(b.fecha || '').slice(0, 10)), VIEJA],
+        proveedor: [(a, b) => txtOrden(a.proveedor_nombre, b.proveedor_nombre), AZ],
+        numero:    [(a, b) => txtOrden(a.numero_factura, b.numero_factura), MENOR],
+        origen:    [(a, b) => txtOrden(a.origen, b.origen), 'IA primero'],
+        lineas:    [(a, b) => (Number(a.lineas) || 0) - (Number(b.lineas) || 0), MENOR],
+        monto:     [(a, b) => vacioAlFinal(a.monto_factura, b.monto_factura, () => (Number(a.monto_factura) || 0) - (Number(b.monto_factura) || 0)), MENOR],
+        estado:    [(a, b) => estRec(a) - estRec(b), 'por pagar primero'],
+      },
+    },
+  };
+  const ordenTabla = {};   // t → { col, dir }
+  function ordenDe(t) {
+    if (ordenTabla[t]) return ordenTabla[t];
+    const T = ORDEN_TABLA[t];
+    let o = { col: '', dir: 1 };
+    try {
+      const g = JSON.parse(localStorage.getItem(T.clave) || 'null');
+      if (g && T.cols[g.col] && (g.dir === 1 || g.dir === -1)) o = { col: g.col, dir: g.dir };
+    } catch (e) { /* preferencia ilegible: orden de siempre */ }
+    return (ordenTabla[t] = o);
+  }
+  function ordenarTabla(t, lista) {
+    const T = ORDEN_TABLA[t], { col, dir } = ordenDe(t), c = T.cols[col];
+    if (!c) return lista;
+    return lista.slice().sort((a, b) => dir * (c[0](a, b) || T.desempate(a, b)));
+  }
+  function cambiarOrdenTabla(t, col) {
+    const T = ORDEN_TABLA[t];
+    if (!T || !T.cols[col]) return;
+    const o = ordenDe(t);
+    ordenTabla[t] = o.col === col ? { col, dir: -o.dir } : { col, dir: 1 };
+    try { localStorage.setItem(T.clave, JSON.stringify(ordenTabla[t])); } catch (e) { /* sin almacenamiento: vale igual */ }
+    T.pintar();
+  }
+  function pintarCabeceraTabla(t) {
+    const T = ORDEN_TABLA[t], o = ordenDe(t);
+    document.querySelectorAll(`#${T.cab} th[data-ct-orden]`).forEach(th => {
+      const col = th.getAttribute('data-ct-orden');
+      const activa = o.col === col, asc = o.dir === 1;
+      th.classList.toggle('ct-th--orden', activa);
+      th.setAttribute('aria-sort', activa ? (asc ? 'ascending' : 'descending') : 'none');
+      const i = th.querySelector('i');
+      if (i) i.className = 'fas ' + (activa ? (asc ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort');
+      const b = th.querySelector('button');
+      if (b && T.cols[col]) b.title = `Ordenar por ${b.textContent.trim().toLowerCase()}: ${activa && asc ? 'al revés' : T.cols[col][1]}`;
+    });
+  }
+
   function pintarFacturas() {
     const tb = $('ctFacTbody');
     if (!tb) return;
@@ -540,11 +616,12 @@
   function pintarProveedores() {
     const tb = $('ctProvTbody');
     if (!tb) return;
+    pintarCabeceraTabla('prov');   // 572
     if (S.error) { tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
     const q = $('ctProvBuscar')?.value || '';
-    const lista = S.prov.filter(p => typeof _admBuscar === 'function'
+    const lista = ordenarTabla('prov', S.prov.filter(p => typeof _admBuscar === 'function'
       ? _admBuscar(q, p.nombre, p.representante, p.rnc, p.telefonos, p.correo, p.sector, p.ciudad, p.provincia)
-      : (!q || (p.nombre + ' ' + p.rnc).toLowerCase().includes(q.toLowerCase())));
+      : (!q || (p.nombre + ' ' + p.rnc).toLowerCase().includes(q.toLowerCase()))));
     const cnt = $('ctProvCount');
     if (cnt) cnt.textContent = lista.length ? plural(lista.length, 'proveedor', 'proveedores') : 'Sin resultados';
     if (!lista.length) {
@@ -585,12 +662,13 @@
   function pintarHist() {
     const tb = $('ctRecHist');
     if (!tb) return;
+    pintarCabeceraTabla('rec');   // 572
     if (S.error) { tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">⚠️ ${esc(S.error)}</td></tr>`; return; }
     if (!S.rec.length) {
       tb.innerHTML = `<tr><td colspan="8" class="myr-vacio">Todavía no hay recepciones.</td></tr>`;
       return;
     }
-    tb.innerHTML = S.rec.map(r => {
+    tb.innerHTML = ordenarTabla('rec', S.rec).map(r => {
       const abierta = String(S.abierta) === String(r.id);
       const sin = Number(r.sin_producto) || 0;
       const estFac = r.factura_id == null
@@ -1075,6 +1153,9 @@
     $('ctFacNcf').value     = f ? (f.ncf || '') : '';
     errorModal('ctFacError', '');
     autoVencimiento();
+    ppAuto.fac = null;   // 573
+    if ($('ctFacPpNota')) $('ctFacPpNota').hidden = true;
+    if (!f) autoProntoPago('fac');
     abrirModal('ctFacModal');
     setTimeout(() => $(f ? 'ctFacMonto' : ($('ctFacModalProv').value ? 'ctFacNumero' : 'ctFacModalProv'))?.focus(), 50);
   }
@@ -1400,6 +1481,51 @@
   function celdaEmpaque(l, i, dis) {
     return `<input class="ct-in ct-in--emp" data-campo="empaque" data-i="${i}" value="${esc(l.empaque)}" inputmode="numeric" placeholder="—" title="Unidades vendibles que trae cada caja/fardo (1 si se factura por unidad)"${dis} />` +
       (l.empDesc ? '<small class="ct-cu-nota" title="Sacado de la descripción (A/B medida): revísalo">de la descripción</small>' : '');
+  }
+
+  /* 573 · PRONTO PAGO desde la ficha del proveedor (pedido del dueño 28-nov,
+   * sin campos nuevos): al elegir el proveedor —a mano o porque lo detecta la
+   * IA— se llenan solos los dos campos: % = su «Descuento invisible (%)» y
+   * días = su «Término de crédito (días)». Se pueden cambiar a mano.
+   *  · Solo rellena si los campos están vacíos o los había rellenado esto
+   *    (lo que escribe el empleado no se pisa).
+   *  · Proveedor sin descuento invisible → se vacían (si eran automáticos).
+   *  · Al editar una recepción / factura ya guardada no se toca nada.
+   *  · El COSTO por unidad ya resta ese % antes del ITBIS (descInvisible): la
+   *    IA solo copia lo impreso, así no se descuenta dos veces. */
+  const ppAuto = { rec: null, fac: null };
+  const PP_IDS = {
+    rec: { sel: 'ctRecProv', pct: 'ctRecPct', dias: 'ctRecDias', nota: 'ctRecPpNota' },
+    fac: { sel: 'ctFacModalProv', pct: 'ctFacPct', dias: 'ctFacDias', nota: 'ctFacPpNota' },
+  };
+  function autoProntoPago(cual) {
+    const ids = PP_IDS[cual];
+    if (!ids || (cual === 'rec' && S.edit) || (cual === 'fac' && S.facEdit)) return;
+    const pct = $(ids.pct), dias = $(ids.dias), nota = $(ids.nota);
+    if (!pct || !dias) return;
+    const a = ppAuto[cual];
+    const libre = (!pct.value.trim() && !dias.value.trim()) ||
+      !!(a && pct.value === a.pct && dias.value === a.dias);
+    const p = provPorId($(ids.sel)?.value);
+    const d = Number(p && p.descuento_invisible);
+    const t = Math.trunc(Number(p && p.termino_dias) || 0);
+    const ponerNota = html => { if (nota) { nota.innerHTML = html; nota.hidden = !html; } };
+    if (!libre) {
+      ppAuto[cual] = null;
+      ponerNota(p && d > 0 ? `<i class="fas fa-circle-info"></i> La ficha de ${esc(p.nombre)} dice ${d} % · ${plural(t, 'día', 'días')}: se dejó lo que escribiste.` : '');
+      return;
+    }
+    if (p && d > 0) {
+      pct.value = String(d);
+      dias.value = t >= 1 ? String(t) : '';
+      ppAuto[cual] = { pct: pct.value, dias: dias.value };
+      ponerNota(`<i class="fas fa-building"></i> De la ficha del proveedor: <b>${d} %</b> invisible antes del ITBIS · ` +
+        (t >= 1 ? `<b>${plural(t, 'día', 'días')}</b> (su término de crédito)` : '<b>escribe los días</b> (su término es 0)') + '. Puedes cambiarlo.');
+    } else {
+      if (a) { pct.value = ''; dias.value = ''; }
+      ppAuto[cual] = null;
+      ponerNota(p ? '<i class="fas fa-circle-info"></i> Este proveedor no tiene descuento invisible en su ficha.' : '');
+    }
   }
 
   function descInvisible() {
@@ -1755,6 +1881,8 @@
   function vaciarRecepcion(sinPreguntar) {
     if (!sinPreguntar && S.lineas.length && !confirm('¿Vaciar la recepción en curso? Se pierden las líneas que no has confirmado.')) return;
     S.lineas = []; S.origen = 'manual'; S.paginas = []; S.iaTot = null;
+    ppAuto.rec = null;   // 573
+    if ($('ctRecPpNota')) $('ctRecPpNota').hidden = true;
     ['ctRecNum', 'ctRecTotal', 'ctRecPct', 'ctRecDias', 'ctRecNcf', 'ctRecNotas', 'ctRecBuscar'].forEach(id => { const el = $(id); if (el) el.value = ''; });
     $('ctRecFecha').value = hoy();
     $('ctRecResultados').innerHTML = '';
@@ -2422,6 +2550,7 @@
     if (f.ncf && !$('ctRecNcf').value.trim()) $('ctRecNcf').value = limpiarNcf(f.ncf).slice(0, 20);
     // 568 · proveedor detectado ANTES de emparejar (las referencias son por proveedor)
     const provIa = elegirProveedorIa(f.proveedor, f.cliente_rnc);
+    autoProntoPago('rec');   // 573 · el proveedor puesto por la IA también llena el pronto pago
 
     const nuevas = lineas.map(x => ({
       codigo: String(x.codigo || '').slice(0, 40),
@@ -2507,6 +2636,12 @@
       if (th) cambiarOrdenFac(th.getAttribute('data-ct-orden'));
     });
     $('ctProvBuscar').addEventListener('input', pintarProveedores);
+    // 572 · ordenar Proveedores y Recepciones anteriores con el título de la columna
+    [['ctProvCabecera', 'prov'], ['ctRecCabecera', 'rec']].forEach(([id, t]) =>
+      $(id)?.addEventListener('click', ev => {
+        const th = ev.target.closest('th[data-ct-orden]');
+        if (th) cambiarOrdenTabla(t, th.getAttribute('data-ct-orden'));
+      }));
     $('ctBtnNuevaFac').addEventListener('click', () => abrirFactura());
     $('ctBtnNuevoProv').addEventListener('click', () => abrirProveedor());
 
@@ -2545,6 +2680,7 @@
     // Recepción
     $('ctRecFecha').value = hoy();
     $('ctRecProv').addEventListener('change', async () => {
+      autoProntoPago('rec');   // 573
       if (window.CasaMotaRefs) await window.CasaMotaRefs.cargar();
       S.lineas.forEach(autoEmparejar);
       pintarLineas();
@@ -2650,7 +2786,7 @@
       if (b) elegirDir(Number(b.getAttribute('data-dir')));
     });
     $('ctFacGuardar').addEventListener('click', guardarFactura);
-    $('ctFacModalProv').addEventListener('change', () => { S.venEditado = false; autoVencimiento(); });
+    $('ctFacModalProv').addEventListener('change', () => { S.venEditado = false; autoVencimiento(); autoProntoPago('fac'); });
     $('ctFacEmision').addEventListener('input', autoVencimiento);
     $('ctFacVence').addEventListener('input', () => { S.venEditado = true; });
     $('ctPagoFecha').addEventListener('input', calcPago);
